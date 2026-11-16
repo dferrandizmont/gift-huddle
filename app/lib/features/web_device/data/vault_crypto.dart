@@ -5,8 +5,11 @@ import 'package:cryptography/cryptography.dart';
 
 import '../../../core/sync/device_keys.dart' show canonicalHeaderBytes;
 import '../../../core/sync/envelope.dart' show encodeBase64Url, decodeBase64Url;
+import 'vault_pbkdf2_stub.dart'
+    if (dart.library.js_interop) 'vault_pbkdf2_web.dart';
 import 'vault_pin_stub.dart' if (dart.library.js_interop) 'vault_pin_web.dart';
 import 'vault_store.dart';
+import '../../../core/sync/hkdf.dart';
 
 /// Public, bounded KDF parameters. Validate before doing any expensive work.
 class VaultHeader {
@@ -86,16 +89,27 @@ class VaultCrypto {
   }
 
   /// The expensive operation is separate so tests can observe its entry.
-  Future<SecretKey> pbkdf2(List<int> pinBytes, VaultHeader header) => Pbkdf2(
-    macAlgorithm: Hmac.sha256(),
-    iterations: header.iterations,
-    bits: 256,
-  ).deriveKey(secretKey: SecretKey(pinBytes), nonce: header.salt);
+  ///
+  /// WebCrypto en el navegador y `DartPbkdf2` en la VM (vault_pbkdf2_*.dart):
+  /// nunca `Pbkdf2` de `cryptography`, que en wasm se compilaba como
+  /// `unreachable`. Mismos bytes (vector de docs/adr/0003-vector-caja.json).
+  Future<SecretKey> pbkdf2(List<int> pinBytes, VaultHeader header) async {
+    // Nunca con parámetros sin acotar, aunque se llame directamente.
+    header.validate();
+    return SecretKeyData(
+      await pbkdf2Sha256(
+        pinBytes,
+        header.salt,
+        iterations: header.iterations,
+        bits: 256,
+      ),
+    );
+  }
 
-  Future<SecretKey> hkdf(SecretKey input, String info) => Hkdf(
-    hmac: Hmac.sha256(),
-    outputLength: 32,
-  ).deriveKey(secretKey: input, nonce: const [], info: utf8.encode(info));
+  // `hkdfSha256`, no `Hkdf` de `cryptography`: con Pbkdf2 en el mismo
+  // programa, dart2wasm dejaba esta llamada sin destino (ver hkdf.dart).
+  Future<SecretKey> hkdf(SecretKey input, String info) =>
+      hkdfSha256(secretKey: input, info: utf8.encode(info));
   Future<VaultDerivation> derive(String pin, VaultHeader header) async {
     final bigA = await deriveA(pin, header);
     return VaultDerivation(

@@ -13,6 +13,10 @@ enum WebConnectFailure {
 
   /// No hubo red o el servidor no contestó.
   network,
+
+  /// La invitación desapareció antes de caducar: el móvil canceló o la
+  /// borró, o ya no está en el servidor.
+  cancelled,
 }
 
 /// Lo que la puerta web enseña en cada momento.
@@ -36,10 +40,14 @@ final class WebGateConnect extends WebGateView {
 /// Comparando el código de seis cifras; esperando a que el móvil apruebe.
 final class WebGateComparing extends WebGateView {
   /// Crea el estado; [code] son las seis cifras, sin espacio.
-  const WebGateComparing({required this.code});
+  const WebGateComparing({required this.code, this.confirmed = false});
 
   /// Las seis cifras, sin espacio.
   final String code;
+
+  /// Si la persona ya ha dicho en la web que los códigos coinciden: entonces
+  /// solo falta que el móvil apruebe.
+  final bool confirmed;
 }
 
 /// El emparejamiento falló.

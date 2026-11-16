@@ -1481,6 +1481,42 @@
   "@joinCameraError": {
     "description": "Error de la cámara al leer el QR."
   },
+  "scannerWaitingPermission": "Esperando el permiso de la cámara…",
+  "@scannerWaitingPermission": {
+    "description": "Texto mientras el sistema pregunta por el permiso de cámara del lector de QR (sobre fondo negro, junto a un indicador)."
+  },
+  "scannerDeniedTitle": "Hace falta la cámara",
+  "@scannerDeniedTitle": {
+    "description": "Título del aviso del lector de QR cuando se ha denegado el permiso de cámara y se puede volver a pedir."
+  },
+  "scannerDeniedBody": "Solo se usa para leer el código QR; no se guarda ninguna imagen.",
+  "@scannerDeniedBody": {
+    "description": "Explicación bajo el título cuando se ha denegado la cámara: para qué se usa y que no se guarda nada."
+  },
+  "scannerBlockedTitle": "La cámara está bloqueada",
+  "@scannerBlockedTitle": {
+    "description": "Título del aviso del lector de QR cuando la cámara está bloqueada para siempre y solo se activa en los ajustes."
+  },
+  "scannerBlockedBody": "El permiso de cámara está denegado. Actívalo en los ajustes del móvil para leer el código QR.",
+  "@scannerBlockedBody": {
+    "description": "Explicación cuando la cámara está bloqueada: hay que activarla en los ajustes del móvil."
+  },
+  "scannerFailedTitle": "No se ha podido abrir la cámara",
+  "@scannerFailedTitle": {
+    "description": "Título del aviso del lector de QR cuando el sistema no contestó a la petición de la cámara."
+  },
+  "scannerFailedBody": "El móvil no ha contestado a la petición del permiso. Reintenta.",
+  "@scannerFailedBody": {
+    "description": "Explicación cuando el sistema no contestó: se puede volver a intentar."
+  },
+  "scannerRetry": "Reintentar",
+  "@scannerRetry": {
+    "description": "Botón del aviso del lector de QR: vuelve a pedir el permiso de cámara."
+  },
+  "scannerOpenSettings": "Abrir ajustes",
+  "@scannerOpenSettings": {
+    "description": "Botón del aviso del lector de QR: abre los ajustes de la app para dar el permiso de cámara."
+  },
   "joinConflictTitle": "Este móvil ya tiene una lista",
   "@joinConflictTitle": {
     "description": "Título del aviso al unirse a otra familia teniendo datos."
@@ -3314,13 +3350,17 @@
   "@webGateCompareLabel": {
     "description": "Texto sobre el código de seis cifras."
   },
-  "webGateCompareBody": "Comprueba que en el móvil sale el mismo código y apruébalo allí.",
+  "webGateCompareBody": "Comprueba que en el móvil sale el mismo código, confírmalo aquí y apruébalo también en el móvil.",
   "@webGateCompareBody": {
     "description": "Instrucción al comparar el código con el móvil."
   },
   "webGateCompareWaiting": "Esperando a que el móvil lo apruebe…",
   "@webGateCompareWaiting": {
     "description": "Indicador de espera mientras el móvil aprueba la conexión."
+  },
+  "webGateCompareConfirmed": "Has confirmado el código aquí",
+  "@webGateCompareConfirmed": {
+    "description": "Texto que sustituye a los botones de comparar cuando la persona ya ha confirmado en la web que los códigos coinciden; solo falta que el móvil apruebe."
   },
   "webGateFailedTitle": "No se ha podido conectar",
   "@webGateFailedTitle": {
@@ -3341,6 +3381,10 @@
   "webGateFailedNetwork": "No hay conexión con el servidor. Comprueba tu conexión y empieza otra vez.",
   "@webGateFailedNetwork": {
     "description": "Motivo del fallo: sin red."
+  },
+  "webGateFailedCancelled": "El móvil ha cancelado la conexión o la invitación ya no está disponible. Empieza otra vez y vuelve a conectar desde el móvil.",
+  "@webGateFailedCancelled": {
+    "description": "Motivo del fallo: el móvil canceló la conexión o la invitación ya no existe."
   },
   "webGateStartAgain": "Empezar otra vez",
   "@webGateStartAgain": {
@@ -4559,8 +4603,8 @@
   },
   "recoveryValuePending": "Preparando",
   "recoveryValueUnconfirmed": "Sin comprobar",
-  "recoveryUnconfirmedTitle": "Falta comprobar las palabras",
-  "recoveryUnconfirmedBody": "El código aún no cuenta como guardado. Continúa para comprobar las palabras. Si ya se mostraron, se creará un código nuevo y el anterior dejará de valer.",
+  "recoveryUnconfirmedTitle": "Falta comprobar el código",
+  "recoveryUnconfirmedBody": "El código aún no cuenta como guardado. Continúa para comprobar las palabras o comprueba un fichero que ya hayas guardado. Si las palabras ya se mostraron, se creará un código nuevo y el anterior dejará de valer.",
   "@recoveryValuePending": {
     "description": "Valor de la fila Código de recuperación mientras se prepara o actualiza la copia."
   },
@@ -4616,7 +4660,7 @@
   "@recoveryChange": {
     "description": "Fila y título para crear un código nuevo que sustituye al anterior."
   },
-  "recoveryChangeHint": "El anterior dejará de valer.",
+  "recoveryChangeHint": "Los ficheros y las palabras anteriores dejarán de servir.",
   "@recoveryChangeHint": {
     "description": "Frase bajo la fila Cambiar el código."
   },
@@ -4664,7 +4708,7 @@
   "@recoveryIntroBody": {
     "description": "Explicación del primer paso al crear el código."
   },
-  "recoveryRotateBody": "Se creará un código nuevo. El anterior dejará de valer cuando el nuevo esté preparado.",
+  "recoveryRotateBody": "Se creará un código nuevo. El anterior dejará de valer cuando el nuevo esté preparado: los ficheros y las palabras anteriores dejarán de servir.",
   "@recoveryRotateBody": {
     "description": "Explicación del primer paso al cambiar el código."
   },
@@ -4812,7 +4856,7 @@
   "@recoveryDonePreparedTitle": {
     "description": "Título final cuando la copia ya está confirmada."
   },
-  "recoveryDonePreparedBody": "Si pierdes este móvil, podrás recuperar la lista con las 24 palabras.",
+  "recoveryDonePreparedBody": "Si pierdes este móvil, podrás recuperar la lista con tu código de recuperación.",
   "@recoveryDonePreparedBody": {
     "description": "Texto final cuando la copia ya está confirmada."
   },
@@ -5172,5 +5216,308 @@
   "recoverStepActiveValue": "en curso",
   "@recoverStepActiveValue": {
     "description": "Valor accesible del paso de la recuperación que está en curso."
+  },
+  "recoveryFileAction": "Guardar en un fichero",
+  "@recoveryFileAction": {
+    "description": "Botón de la pantalla de las palabras que abre el guardado en un fichero."
+  },
+  "recoveryFileTitle": "Guardar en un fichero",
+  "@recoveryFileTitle": {
+    "description": "Título de la pantalla para guardar el código en un fichero."
+  },
+  "recoveryFileBody": "Además de las palabras, puedes guardar el código en un fichero. Quien tenga el fichero puede recuperar la lista y entrar como este móvil.",
+  "@recoveryFileBody": {
+    "description": "Explicación de la pantalla para guardar el código en un fichero."
+  },
+  "recoveryFilePersonal": "Es un fichero personal: no lo envíes a la familia. Guárdalo donde puedas abrirlo aunque pierdas este móvil.",
+  "@recoveryFilePersonal": {
+    "description": "Aviso: el fichero es personal y no se envía a la familia."
+  },
+  "recoveryFileProtect": "Proteger con contraseña",
+  "@recoveryFileProtect": {
+    "description": "Casilla para proteger el fichero con una contraseña (desactivada por defecto)."
+  },
+  "recoveryFileProtectOffHint": "Sin contraseña, el fichero vale tanto como las palabras: quien lo consiga puede usarlo.",
+  "@recoveryFileProtectOffHint": {
+    "description": "Aviso bajo la casilla cuando no se protege con contraseña."
+  },
+  "recoveryFileProtectOnHint": "Robar el fichero no basta: hace falta la contraseña.",
+  "@recoveryFileProtectOnHint": {
+    "description": "Texto bajo la casilla cuando se protege con contraseña."
+  },
+  "recoveryFilePassword": "Contraseña",
+  "@recoveryFilePassword": {
+    "description": "Etiqueta del campo de contraseña del fichero."
+  },
+  "recoveryFilePasswordRepeat": "Repite la contraseña",
+  "@recoveryFilePasswordRepeat": {
+    "description": "Etiqueta del campo que repite la contraseña del fichero."
+  },
+  "recoveryFilePasswordShow": "Ver",
+  "@recoveryFilePasswordShow": {
+    "description": "Botón que muestra la contraseña escrita."
+  },
+  "recoveryFilePasswordHide": "Ocultar",
+  "@recoveryFilePasswordHide": {
+    "description": "Botón que oculta la contraseña escrita."
+  },
+  "recoveryFilePasswordHelp": "Mínimo {min} caracteres. Usa el gestor de contraseñas o varias palabras elegidas al azar.",
+  "@recoveryFilePasswordHelp": {
+    "description": "Ayuda bajo el campo de contraseña nueva. {min} es el mínimo de caracteres.",
+    "placeholders": {
+      "min": {
+        "type": "int"
+      }
+    }
+  },
+  "recoveryFilePasswordForgot": "Si olvidas la contraseña, el fichero no sirve para nada. Las 24 palabras seguirán valiendo.",
+  "@recoveryFilePasswordForgot": {
+    "description": "Aviso: olvidar la contraseña inutiliza el fichero pero no las palabras."
+  },
+  "recoveryFilePwTooShort": "Es muy corta: mínimo {min} caracteres.",
+  "@recoveryFilePwTooShort": {
+    "description": "Motivo: contraseña demasiado corta. {min} es el mínimo.",
+    "placeholders": {
+      "min": {
+        "type": "int"
+      }
+    }
+  },
+  "recoveryFilePwTooLong": "Es demasiado larga: máximo {max} caracteres.",
+  "@recoveryFilePwTooLong": {
+    "description": "Motivo: contraseña demasiado larga. {max} es el máximo.",
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "recoveryFilePwRepeated": "Repite un mismo carácter o bloque.",
+  "@recoveryFilePwRepeated": {
+    "description": "Motivo: la contraseña repite un carácter o un bloque corto."
+  },
+  "recoveryFilePwDigits": "No puede ser solo números.",
+  "@recoveryFilePwDigits": {
+    "description": "Motivo: la contraseña es solo números."
+  },
+  "recoveryFilePwKeyboard": "Parece una fila o secuencia de teclas.",
+  "@recoveryFilePwKeyboard": {
+    "description": "Motivo: la contraseña es una fila o secuencia de teclado."
+  },
+  "recoveryFilePwAppName": "No puede contener el nombre de la app.",
+  "@recoveryFilePwAppName": {
+    "description": "Motivo: la contraseña contiene el nombre de la app."
+  },
+  "recoveryFilePwCommon": "Es una frase demasiado común.",
+  "@recoveryFilePwCommon": {
+    "description": "Motivo: la contraseña es una frase muy frecuente."
+  },
+  "recoveryFilePwMismatch": "Las dos contraseñas no coinciden.",
+  "@recoveryFilePwMismatch": {
+    "description": "Motivo: las dos contraseñas no coinciden."
+  },
+  "recoveryFileSave": "Guardar",
+  "@recoveryFileSave": {
+    "description": "Botón que guarda el fichero con el selector del sistema."
+  },
+  "recoveryFileSaveAgain": "Guardar otra copia",
+  "@recoveryFileSaveAgain": {
+    "description": "Botón para guardar otra copia del fichero tras guardar una."
+  },
+  "recoveryFileShare": "Compartir",
+  "@recoveryFileShare": {
+    "description": "Botón que comparte el fichero con la hoja de compartir del sistema."
+  },
+  "recoveryFileShareText": "Fichero de recuperación de Gift Huddle. Es personal: no lo reenvíes a la familia.",
+  "@recoveryFileShareText": {
+    "description": "Texto que acompaña al fichero al compartirlo."
+  },
+  "recoveryFileStem": "gift-huddle-recuperacion",
+  "@recoveryFileStem": {
+    "description": "Principio del nombre del fichero guardado; se le añade la fecha y la extensión. Sin espacios, tildes ni mayúsculas."
+  },
+  "recoveryFileDerivingTitle": "Protegiendo el fichero…",
+  "@recoveryFileDerivingTitle": {
+    "description": "Título mientras se prepara la clave de la contraseña del fichero."
+  },
+  "recoveryFileDerivingBody": "Se prepara la clave de la contraseña. Tarda unos segundos; no cierres la app.",
+  "@recoveryFileDerivingBody": {
+    "description": "Texto mientras se prepara la clave de la contraseña (unos segundos)."
+  },
+  "recoveryFileSavedTitle": "Fichero guardado",
+  "@recoveryFileSavedTitle": {
+    "description": "Título cuando el fichero se ha guardado y comprobado."
+  },
+  "recoveryFileSavedBody": "Se ha vuelto a leer desde donde lo guardaste y el código está comprobado. Puedes guardar otra copia.",
+  "@recoveryFileSavedBody": {
+    "description": "Texto cuando el fichero se ha guardado y el código queda comprobado."
+  },
+  "recoveryFileProblemVerifyTitle": "No se ha podido comprobar lo guardado",
+  "@recoveryFileProblemVerifyTitle": {
+    "description": "Error: lo releído del destino no coincide."
+  },
+  "recoveryFileProblemVerifyBody": "Lo que se ha leído del destino no coincide. Guárdalo de nuevo, quizá en otro sitio.",
+  "@recoveryFileProblemVerifyBody": {
+    "description": "Explicación del error de relectura."
+  },
+  "recoveryFileProblemUnreadableTitle": "No se ha podido leer el fichero",
+  "@recoveryFileProblemUnreadableTitle": {
+    "description": "Error: no se pudo leer el fichero."
+  },
+  "recoveryFileProblemUnreadableBody": "Comprueba que el fichero está disponible en este móvil e inténtalo otra vez.",
+  "@recoveryFileProblemUnreadableBody": {
+    "description": "Explicación del error de lectura."
+  },
+  "recoveryFileProblemUnavailableTitle": "Este móvil no puede abrir el selector de ficheros",
+  "@recoveryFileProblemUnavailableTitle": {
+    "description": "Error: este móvil no puede abrir el selector de ficheros."
+  },
+  "recoveryFileProblemUnavailableBody": "Prueba con Compartir o usa las 24 palabras.",
+  "@recoveryFileProblemUnavailableBody": {
+    "description": "Explicación del error de selector no disponible."
+  },
+  "recoveryFileProblemPickerBusyTitle": "Ya hay un selector abierto",
+  "@recoveryFileProblemPickerBusyTitle": {
+    "description": "Error: ya hay un selector abierto."
+  },
+  "recoveryFileProblemPickerBusyBody": "Ciérralo y vuelve a intentarlo.",
+  "@recoveryFileProblemPickerBusyBody": {
+    "description": "Explicación del error de selector ocupado."
+  },
+  "recoveryFileProblemNotFileTitle": "No es un fichero de recuperación",
+  "@recoveryFileProblemNotFileTitle": {
+    "description": "Error: el fichero elegido no es de recuperación."
+  },
+  "recoveryFileProblemNotFileBody": "Elige el fichero que guardaste al crear el código. Termina en .gifthuddle.",
+  "@recoveryFileProblemNotFileBody": {
+    "description": "Explicación del error de fichero no válido."
+  },
+  "recoveryFileProblemNewerTitle": "Fichero de una versión más nueva",
+  "@recoveryFileProblemNewerTitle": {
+    "description": "Error: el fichero es de una versión más nueva."
+  },
+  "recoveryFileProblemNewerBody": "Actualiza la app y vuelve a intentarlo.",
+  "@recoveryFileProblemNewerBody": {
+    "description": "Explicación del error de versión más nueva."
+  },
+  "recoveryFileProblemPasswordTitle": "Contraseña incorrecta o fichero dañado",
+  "@recoveryFileProblemPasswordTitle": {
+    "description": "Error: contraseña incorrecta o fichero dañado."
+  },
+  "recoveryFileProblemPasswordBody": "Revisa la contraseña. Si no la recuerdas, usa las 24 palabras.",
+  "@recoveryFileProblemPasswordBody": {
+    "description": "Explicación del error de contraseña (no se distingue de un fichero dañado)."
+  },
+  "recoveryFileProblemNotCurrentTitle": "Este fichero es de otro código",
+  "@recoveryFileProblemNotCurrentTitle": {
+    "description": "Error: el fichero es de otro código, no del vigente."
+  },
+  "recoveryFileProblemNotCurrentBody": "Se guardó con un código anterior y ya no vale. Busca uno más reciente o cambia el código.",
+  "@recoveryFileProblemNotCurrentBody": {
+    "description": "Explicación del error de fichero de otro código."
+  },
+  "recoveryFileProblemHasFamilyTitle": "Este móvil ya tiene una lista",
+  "@recoveryFileProblemHasFamilyTitle": {
+    "description": "Aviso: este móvil ya tiene una lista y el fichero solo sirve para un móvil vacío."
+  },
+  "recoveryFileProblemHasFamilyBody": "El fichero de recuperación sirve para un móvil vacío. No se ha usado.",
+  "@recoveryFileProblemHasFamilyBody": {
+    "description": "Explicación del aviso de móvil con lista."
+  },
+  "recoveryCheckFileAction": "Comprobar un fichero",
+  "@recoveryCheckFileAction": {
+    "description": "Botón de Ajustes que comprueba un fichero de recuperación ya guardado."
+  },
+  "recoveryCheckFileTitle": "Comprobar un fichero",
+  "@recoveryCheckFileTitle": {
+    "description": "Título de la pantalla Comprobar un fichero."
+  },
+  "recoveryCheckFileBody": "Elige el fichero de recuperación que guardaste. Si abre el código de este móvil, queda comprobado. No se guarda ni se envía nada.",
+  "@recoveryCheckFileBody": {
+    "description": "Explicación de la pantalla Comprobar un fichero."
+  },
+  "recoveryFilePick": "Elegir fichero",
+  "@recoveryFilePick": {
+    "description": "Botón que abre el selector de ficheros del sistema para elegir un fichero de recuperación."
+  },
+  "recoveryFilePasswordTitle": "Contraseña del fichero",
+  "@recoveryFilePasswordTitle": {
+    "description": "Título del paso que pide la contraseña de un fichero."
+  },
+  "recoveryFilePasswordOpenBody": "Este fichero está protegido. Escribe la contraseña que pusiste al guardarlo.",
+  "@recoveryFilePasswordOpenBody": {
+    "description": "Explicación del paso que pide la contraseña de un fichero protegido."
+  },
+  "recoveryFileOpen": "Abrir el fichero",
+  "@recoveryFileOpen": {
+    "description": "Botón que abre el fichero con la contraseña escrita."
+  },
+  "recoveryFileCheckingTitle": "Comprobando el fichero…",
+  "@recoveryFileCheckingTitle": {
+    "description": "Título mientras se comprueba un fichero."
+  },
+  "recoveryFileCheckingBody": "Un momento.",
+  "@recoveryFileCheckingBody": {
+    "description": "Texto mientras se comprueba un fichero."
+  },
+  "recoveryCheckFileOkTitle": "Código comprobado",
+  "@recoveryCheckFileOkTitle": {
+    "description": "Título cuando un fichero abre el código vigente."
+  },
+  "recoveryCheckFileOkBody": "El fichero abre el código de este móvil. Si pierdes el móvil, podrás recuperar la lista con él.",
+  "@recoveryCheckFileOkBody": {
+    "description": "Texto cuando un fichero abre el código vigente."
+  },
+  "obRecoverWithFile": "Recuperar con fichero",
+  "@obRecoverWithFile": {
+    "description": "Botón de la bienvenida para recuperar la lista con un fichero de recuperación."
+  },
+  "recoverFileTitle": "Recuperar con un fichero",
+  "@recoverFileTitle": {
+    "description": "Título de la pantalla de recuperar con un fichero."
+  },
+  "recoverFileBody": "Elige el fichero de recuperación que guardaste al crear el código. Termina en .gifthuddle.",
+  "@recoverFileBody": {
+    "description": "Explicación de la pantalla de recuperar con un fichero."
+  },
+  "recoverFileReceived": "Has abierto un fichero de recuperación.",
+  "@recoverFileReceived": {
+    "description": "Aviso cuando la app se abrió con un fichero de recuperación desde Archivos u otra app."
+  },
+  "recoverFileConfirmTitle": "¿Recuperar con este fichero?",
+  "@recoverFileConfirmTitle": {
+    "description": "Título de la confirmación antes de recuperar con un fichero."
+  },
+  "recoverFileConfirmBody": "Este móvil recuperará la lista y entrará como el móvil que guardó el código. Si no es tu fichero, no continúes.",
+  "@recoverFileConfirmBody": {
+    "description": "Texto de la confirmación antes de recuperar con un fichero."
+  },
+  "recoverFileOther": "Elegir otro fichero",
+  "@recoverFileOther": {
+    "description": "Botón para elegir otro fichero de recuperación."
+  },
+  "recoverFileWaitingTitle": "Ha llegado otro fichero",
+  "@recoverFileWaitingTitle": {
+    "description": "Título del aviso cuando llega un segundo fichero de recuperación mientras se usa uno."
+  },
+  "recoverFileWaitingBody": "Estabas con otro fichero de recuperación. ¿Quieres cambiar a este?",
+  "@recoverFileWaitingBody": {
+    "description": "Pregunta cuando llega un segundo fichero de recuperación."
+  },
+  "recoverFileWaitingSwitch": "Cambiar de fichero",
+  "@recoverFileWaitingSwitch": {
+    "description": "Botón para cambiar al fichero recién llegado."
+  },
+  "recoverFileWaitingKeep": "Seguir con el actual",
+  "@recoverFileWaitingKeep": {
+    "description": "Botón para seguir con el fichero de antes."
+  },
+  "recoveryProblemPersonTitle": "Este código ya no es el de tu persona actual",
+  "@recoveryProblemPersonTitle": {
+    "description": "Título del error cuando cambió la persona de «Yo» (o hay una invalidación pendiente) y el código ya no vale."
+  },
+  "recoveryProblemPersonBody": "Cambió la persona de este móvil o hay un cambio pendiente. Crea un código nuevo y guarda ese.",
+  "@recoveryProblemPersonBody": {
+    "description": "Explicación del error de código que ya no es el de la persona actual."
   }
 }

@@ -1654,18 +1654,24 @@ void main() {
     final idB = b.container.read(familyControllerProvider).value!.identity!;
     final storeB = b.container.read(familyStoreProvider);
     final pending = await PendingV2.fresh(fromV1: true);
-    await storeB.savePendingV2(pending.toJson());
-    await famB.installV2(
-      listId: idB.listId,
-      node: idB.node,
-      key: famB.familyKey!,
-      doc: b.container.read(familyControllerProvider).value!.doc.set(
-        HlcClock(node: idB.node),
-        Collections.meta,
-        kProtocolRecordId,
-        {kProtocolVersionField: kSyncProtocolV2},
-      ),
-    );
+    // The state a migration leaves when cut right after the document: both
+    // writes under the v2 lock, as the app does (`ensureV2FamilyWithinLock`).
+    // Outside it, B's own background sync could run in between and, seeing a
+    // pending over a v1 document, rightly discard it.
+    await b.container.read(v2FamilyLockProvider).run(() async {
+      await storeB.savePendingV2(pending.toJson());
+      await famB.installV2(
+        listId: idB.listId,
+        node: idB.node,
+        key: famB.familyKey!,
+        doc: b.container.read(familyControllerProvider).value!.doc.set(
+          HlcClock(node: idB.node),
+          Collections.meta,
+          kProtocolRecordId,
+          {kProtocolVersionField: kSyncProtocolV2},
+        ),
+      );
+    });
     await b.container.read(syncControllerProvider.notifier).syncNow();
     expect((await storeB.readSyncV2())!.syncId, pending.syncId);
     expect(famB.familyKey, pending.key);

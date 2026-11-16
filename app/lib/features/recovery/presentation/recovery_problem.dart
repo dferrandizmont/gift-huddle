@@ -40,6 +40,10 @@ enum RecoveryProblem {
   /// antes de crear o unirse a una familia.
   restorePending,
 
+  /// La persona de «Yo» cambió (o hay una invalidación pendiente) y el código
+  /// ya no es el de la persona actual: hay que crear uno nuevo.
+  personChanged,
+
   /// Cualquier otra cosa.
   other,
 }
@@ -85,6 +89,11 @@ RecoveryProblem recoveryProblemOf(String? code) => switch (code) {
 
 /// El grupo de una excepción de la capa de aplicación.
 RecoveryProblem recoveryProblemOfException(RecoveryApplicationException e) {
+  // Como excepción de comprobar o guardar un código; como causa de estado de
+  // una restauración, `person_changed` sigue siendo «incompleta».
+  if (e.code == 'person_changed') {
+    return RecoveryProblem.personChanged;
+  }
   final byCode = recoveryProblemOf(e.code);
   if (byCode != RecoveryProblem.other) {
     return byCode;
@@ -125,6 +134,7 @@ String recoveryProblemTitle(AppLocalizations l10n, RecoveryProblem problem) =>
       RecoveryProblem.otherFamily => l10n.recoveryProblemFamilyTitle,
       RecoveryProblem.notReady => l10n.recoveryProblemNotReadyTitle,
       RecoveryProblem.restorePending => l10n.recoveryProblemPendingTitle,
+      RecoveryProblem.personChanged => l10n.recoveryProblemPersonTitle,
       RecoveryProblem.other => l10n.recoveryProblemOtherTitle,
     };
 
@@ -142,5 +152,6 @@ String recoveryProblemBody(AppLocalizations l10n, RecoveryProblem problem) =>
       RecoveryProblem.otherFamily => l10n.recoveryProblemFamilyBody,
       RecoveryProblem.notReady => l10n.recoveryProblemNotReadyBody,
       RecoveryProblem.restorePending => l10n.recoveryProblemPendingBody,
+      RecoveryProblem.personChanged => l10n.recoveryProblemPersonBody,
       RecoveryProblem.other => l10n.recoveryProblemOtherBody,
     };

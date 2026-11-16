@@ -83,7 +83,7 @@ There are no accounts or ads, and the developer uses no analytics or crash repor
 
 ## What's new
 
-Version 1.0.0 (16 November 2026) is the first one in the stores. It brings the list of gifts for each person, the Who gives what grid, occasions with a countdown, secret gifts, sharing between phones and the web version, the recovery code, and light and dark themes. See [CHANGELOG.md](CHANGELOG.md) for the details.
+Version 1.0.2 (16 November 2026) lets you save the recovery code as a file, optionally protected with a password, makes connecting the web version work again and faster, and keeps the QR scanner from staying black. Version 1.0.0 (16 November 2026) is the first one in the stores. It brings the list of gifts for each person, the Who gives what grid, occasions with a countdown, secret gifts, sharing between phones and the web version, the recovery code, and light and dark themes. See [CHANGELOG.md](CHANGELOG.md) for the details.
 
 ## Contributing
 

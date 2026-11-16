@@ -134,3 +134,9 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+// Pruebas JVM del código nativo (lecturas acotadas y selector, ADR 0008).
+// Solo para `testDebugUnitTest`: no entra en el APK.
+dependencies {
+    testImplementation("junit:junit:4.13.2")
+}

@@ -78,4 +78,14 @@ void main() {
       }
     },
   );
+
+  test('known-answer vector (Node WebCrypto HKDF): a label, salt or verifier '
+      'change breaks it', () async {
+    final locator = await deriveRecoveryLocator(
+      RecoveryCode(List<int>.filled(32, 7)),
+    );
+    expect(locator.recoveryId, 'SNFrgohCdDfsIFXN8ql_jl5TQ1bezx5VWz4Ac0UbJ84');
+    expect(locator.readCap, '_buHMwbJRykLK0Qf2gUDc0ADoDGcV2JEPAmB4INs8q0');
+    expect(locator.readVerifier, 'GYiny_wAH9-CXVXJIHFiYYBNmOSfhAHrdC-o_i7QvTA');
+  });
 }

@@ -51,8 +51,8 @@ class SyncTiming {
       Duration(seconds: 15),
       Duration(seconds: 30),
     ],
-    this.invitePoll = const Duration(seconds: 4),
-    this.inviteHostPoll = const Duration(seconds: 10),
+    this.invitePoll = const Duration(seconds: 1),
+    this.inviteHostPoll = const Duration(seconds: 1),
     this.inviteTimeout = const Duration(minutes: 10),
     this.maxConflicts = 3,
     this.peerPoll = const Duration(seconds: 12),
@@ -72,14 +72,15 @@ class SyncTiming {
   /// reconectar no cuesta nada. Se reinician en cuanto una conexión se abre.
   final List<Duration> watchBackoff;
 
-  /// Cada cuánto pregunta por la aprobación quien entra con una invitación.
-  /// El servidor admite 30 peticiones por minuto e IP en estas rutas: 4 s o
-  /// más.
+  /// Cada cuánto pregunta por el código y la aprobación quien entra con una
+  /// invitación v2, con la pantalla abierta: entre esto y el doble, al azar.
+  /// El Worker admite 30 peticiones públicas por minuto e invitación;
+  /// `InvitePollPacer` no deja pasar de 25 en 60 s y obedece los 429.
   final Duration invitePoll;
 
-  /// Cada cuánto comprueba peticiones quien invita (el WebSocket avisa antes;
-  /// esto es la red de seguridad, más lenta para no pasar del límite de
-  /// peticiones por IP a las rutas de invitación).
+  /// Cada cuánto mira quien invita (v2) si ya le han respondido: entre esto
+  /// y el doble, al azar, mientras su pantalla está abierta. Cuenta en las
+  /// 120 por minuto de la credencial y de la IP en las rutas de invitación.
   final Duration inviteHostPoll;
 
   /// Cuánto espera quien entra a que lo aprueben.

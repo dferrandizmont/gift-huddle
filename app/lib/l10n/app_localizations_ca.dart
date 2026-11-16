@@ -1097,6 +1097,36 @@ class AppLocalizationsCa extends AppLocalizations {
       'No es pot fer servir la càmera. Revisa el permís de càmera als ajustos del mòbil.';
 
   @override
+  String get scannerWaitingPermission => 'Esperant el permís de la càmera…';
+
+  @override
+  String get scannerDeniedTitle => 'Cal la càmera';
+
+  @override
+  String get scannerDeniedBody =>
+      'Només es fa servir per llegir el codi QR; no es desa cap imatge.';
+
+  @override
+  String get scannerBlockedTitle => 'La càmera està bloquejada';
+
+  @override
+  String get scannerBlockedBody =>
+      'El permís de càmera està denegat. Activa\'l als ajustos del mòbil per llegir el codi QR.';
+
+  @override
+  String get scannerFailedTitle => 'No s\'ha pogut obrir la càmera';
+
+  @override
+  String get scannerFailedBody =>
+      'El mòbil no ha respost a la petició del permís. Torna-ho a provar.';
+
+  @override
+  String get scannerRetry => 'Torna-ho a provar';
+
+  @override
+  String get scannerOpenSettings => 'Obre els ajustos';
+
+  @override
   String get joinConflictTitle => 'Aquest mòbil ja té una llista';
 
   @override
@@ -2502,10 +2532,13 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get webGateCompareBody =>
-      'Comprova que al mòbil surt el mateix codi i aprova\'l allà.';
+      'Comprova que al mòbil surt el mateix codi, confirma\'l aquí i aprova\'l també al mòbil.';
 
   @override
   String get webGateCompareWaiting => 'Esperant que el mòbil ho aprovi…';
+
+  @override
+  String get webGateCompareConfirmed => 'Has confirmat el codi aquí';
 
   @override
   String get webGateFailedTitle => 'No s\'ha pogut connectar';
@@ -2525,6 +2558,10 @@ class AppLocalizationsCa extends AppLocalizations {
   @override
   String get webGateFailedNetwork =>
       'No hi ha connexió amb el servidor. Comprova la connexió i comença de nou.';
+
+  @override
+  String get webGateFailedCancelled =>
+      'El mòbil ha cancel·lat la connexió o la invitació ja no està disponible. Comença de nou i torna a connectar des del mòbil.';
 
   @override
   String get webGateStartAgain => 'Començar de nou';
@@ -3471,11 +3508,11 @@ class AppLocalizationsCa extends AppLocalizations {
   String get recoveryValueUnconfirmed => 'Sense comprovar';
 
   @override
-  String get recoveryUnconfirmedTitle => 'Falta comprovar les paraules';
+  String get recoveryUnconfirmedTitle => 'Falta comprovar el codi';
 
   @override
   String get recoveryUnconfirmedBody =>
-      'El codi encara no compta com a desat. Continua per comprovar les paraules. Si ja s\'han mostrat, es crearà un codi nou i l\'anterior deixarà de valer.';
+      'El codi encara no compta com a desat. Continua per comprovar les paraules o comprova un fitxer que ja hagis desat. Si les paraules ja s\'han mostrat, es crearà un codi nou i l\'anterior deixarà de valer.';
 
   @override
   String get recoveryValueAttention => 'Revisar';
@@ -3522,7 +3559,8 @@ class AppLocalizationsCa extends AppLocalizations {
   String get recoveryChange => 'Canvia el codi';
 
   @override
-  String get recoveryChangeHint => 'L\'anterior deixarà de valer.';
+  String get recoveryChangeHint =>
+      'Els fitxers i les paraules anteriors deixaran de servir.';
 
   @override
   String get recoveryRemove => 'Treu el codi';
@@ -3563,7 +3601,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get recoveryRotateBody =>
-      'Es crearà un codi nou. L\'anterior deixarà de valer quan el nou estigui preparat.';
+      'Es crearà un codi nou. L\'anterior deixarà de valer quan el nou estigui preparat: els fitxers i les paraules anteriors deixaran de servir.';
 
   @override
   String get recoveryPoint1 =>
@@ -3670,7 +3708,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get recoveryDonePreparedBody =>
-      'Si perds aquest mòbil, podràs recuperar la llista amb les 24 paraules.';
+      'Si perds aquest mòbil, podràs recuperar la llista amb el teu codi de recuperació.';
 
   @override
   String get recoveryDonePendingBody =>
@@ -3967,4 +4005,258 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get recoverStepActiveValue => 'en curs';
+
+  @override
+  String get recoveryFileAction => 'Desa en un fitxer';
+
+  @override
+  String get recoveryFileTitle => 'Desa en un fitxer';
+
+  @override
+  String get recoveryFileBody =>
+      'A més de les paraules, pots desar el codi en un fitxer. Qui tingui el fitxer pot recuperar la llista i entrar com aquest mòbil.';
+
+  @override
+  String get recoveryFilePersonal =>
+      'És un fitxer personal: no l\'enviïs a la família. Desa\'l on puguis obrir-lo encara que perdis aquest mòbil.';
+
+  @override
+  String get recoveryFileProtect => 'Protegeix amb contrasenya';
+
+  @override
+  String get recoveryFileProtectOffHint =>
+      'Sense contrasenya, el fitxer val tant com les paraules: qui el aconsegueixi el pot fer servir.';
+
+  @override
+  String get recoveryFileProtectOnHint =>
+      'Robar el fitxer no n\'hi ha prou: cal la contrasenya.';
+
+  @override
+  String get recoveryFilePassword => 'Contrasenya';
+
+  @override
+  String get recoveryFilePasswordRepeat => 'Repeteix la contrasenya';
+
+  @override
+  String get recoveryFilePasswordShow => 'Mostra';
+
+  @override
+  String get recoveryFilePasswordHide => 'Amaga';
+
+  @override
+  String recoveryFilePasswordHelp(int min) {
+    return 'Mínim $min caràcters. Fes servir el gestor de contrasenyes o diverses paraules triades a l\'atzar.';
+  }
+
+  @override
+  String get recoveryFilePasswordForgot =>
+      'Si oblides la contrasenya, el fitxer no serveix de res. Les 24 paraules continuaran valent.';
+
+  @override
+  String recoveryFilePwTooShort(int min) {
+    return 'És massa curta: mínim $min caràcters.';
+  }
+
+  @override
+  String recoveryFilePwTooLong(int max) {
+    return 'És massa llarga: màxim $max caràcters.';
+  }
+
+  @override
+  String get recoveryFilePwRepeated => 'Repeteix un mateix caràcter o bloc.';
+
+  @override
+  String get recoveryFilePwDigits => 'No pot ser només números.';
+
+  @override
+  String get recoveryFilePwKeyboard => 'Sembla una fila o seqüència de tecles.';
+
+  @override
+  String get recoveryFilePwAppName => 'No pot contenir el nom de l\'app.';
+
+  @override
+  String get recoveryFilePwCommon => 'És una frase massa comuna.';
+
+  @override
+  String get recoveryFilePwMismatch => 'Les dues contrasenyes no coincideixen.';
+
+  @override
+  String get recoveryFileSave => 'Desa';
+
+  @override
+  String get recoveryFileSaveAgain => 'Desa\'n una altra còpia';
+
+  @override
+  String get recoveryFileShare => 'Comparteix';
+
+  @override
+  String get recoveryFileShareText =>
+      'Fitxer de recuperació de Gift Huddle. És personal: no el reenviïs a la família.';
+
+  @override
+  String get recoveryFileStem => 'gift-huddle-recuperacio';
+
+  @override
+  String get recoveryFileDerivingTitle => 'Protegint el fitxer…';
+
+  @override
+  String get recoveryFileDerivingBody =>
+      'Es prepara la clau de la contrasenya. Triga uns segons; no tanquis l\'app.';
+
+  @override
+  String get recoveryFileSavedTitle => 'Fitxer desat';
+
+  @override
+  String get recoveryFileSavedBody =>
+      'S\'ha tornat a llegir des d\'on l\'has desat i el codi està comprovat. Pots desar-ne una altra còpia.';
+
+  @override
+  String get recoveryFileProblemVerifyTitle =>
+      'No s\'ha pogut comprovar el que s\'ha desat';
+
+  @override
+  String get recoveryFileProblemVerifyBody =>
+      'El que s\'ha llegit de la destinació no coincideix. Torna-ho a desar, potser en un altre lloc.';
+
+  @override
+  String get recoveryFileProblemUnreadableTitle =>
+      'No s\'ha pogut llegir el fitxer';
+
+  @override
+  String get recoveryFileProblemUnreadableBody =>
+      'Comprova que el fitxer és disponible en aquest mòbil i torna-ho a provar.';
+
+  @override
+  String get recoveryFileProblemUnavailableTitle =>
+      'Aquest mòbil no pot obrir el selector de fitxers';
+
+  @override
+  String get recoveryFileProblemUnavailableBody =>
+      'Prova amb Comparteix o fes servir les 24 paraules.';
+
+  @override
+  String get recoveryFileProblemPickerBusyTitle => 'Ja hi ha un selector obert';
+
+  @override
+  String get recoveryFileProblemPickerBusyBody =>
+      'Tanca\'l i torna-ho a provar.';
+
+  @override
+  String get recoveryFileProblemNotFileTitle =>
+      'No és un fitxer de recuperació';
+
+  @override
+  String get recoveryFileProblemNotFileBody =>
+      'Tria el fitxer que vas desar en crear el codi. Acaba en .gifthuddle.';
+
+  @override
+  String get recoveryFileProblemNewerTitle => 'Fitxer d\'una versió més nova';
+
+  @override
+  String get recoveryFileProblemNewerBody =>
+      'Actualitza l\'app i torna-ho a provar.';
+
+  @override
+  String get recoveryFileProblemPasswordTitle =>
+      'Contrasenya incorrecta o fitxer malmès';
+
+  @override
+  String get recoveryFileProblemPasswordBody =>
+      'Revisa la contrasenya. Si no te\'n recordes, fes servir les 24 paraules.';
+
+  @override
+  String get recoveryFileProblemNotCurrentTitle =>
+      'Aquest fitxer és d\'un altre codi';
+
+  @override
+  String get recoveryFileProblemNotCurrentBody =>
+      'Es va desar amb un codi anterior i ja no val. Busca\'n un de més recent o canvia el codi.';
+
+  @override
+  String get recoveryFileProblemHasFamilyTitle =>
+      'Aquest mòbil ja té una llista';
+
+  @override
+  String get recoveryFileProblemHasFamilyBody =>
+      'El fitxer de recuperació serveix per a un mòbil buit. No s\'ha fet servir.';
+
+  @override
+  String get recoveryCheckFileAction => 'Comprova un fitxer';
+
+  @override
+  String get recoveryCheckFileTitle => 'Comprova un fitxer';
+
+  @override
+  String get recoveryCheckFileBody =>
+      'Tria el fitxer de recuperació que vas desar. Si obre el codi d\'aquest mòbil, queda comprovat. No es desa ni s\'envia res.';
+
+  @override
+  String get recoveryFilePick => 'Tria un fitxer';
+
+  @override
+  String get recoveryFilePasswordTitle => 'Contrasenya del fitxer';
+
+  @override
+  String get recoveryFilePasswordOpenBody =>
+      'Aquest fitxer està protegit. Escriu la contrasenya que vas posar en desar-lo.';
+
+  @override
+  String get recoveryFileOpen => 'Obre el fitxer';
+
+  @override
+  String get recoveryFileCheckingTitle => 'Comprovant el fitxer…';
+
+  @override
+  String get recoveryFileCheckingBody => 'Un moment.';
+
+  @override
+  String get recoveryCheckFileOkTitle => 'Codi comprovat';
+
+  @override
+  String get recoveryCheckFileOkBody =>
+      'El fitxer obre el codi d\'aquest mòbil. Si perds el mòbil, podràs recuperar la llista amb ell.';
+
+  @override
+  String get obRecoverWithFile => 'Recupera amb fitxer';
+
+  @override
+  String get recoverFileTitle => 'Recupera amb un fitxer';
+
+  @override
+  String get recoverFileBody =>
+      'Tria el fitxer de recuperació que vas desar en crear el codi. Acaba en .gifthuddle.';
+
+  @override
+  String get recoverFileReceived => 'Has obert un fitxer de recuperació.';
+
+  @override
+  String get recoverFileConfirmTitle => 'Vols recuperar amb aquest fitxer?';
+
+  @override
+  String get recoverFileConfirmBody =>
+      'Aquest mòbil recuperarà la llista i entrarà com el mòbil que va desar el codi. Si no és el teu fitxer, no continuïs.';
+
+  @override
+  String get recoverFileOther => 'Tria un altre fitxer';
+
+  @override
+  String get recoverFileWaitingTitle => 'Ha arribat un altre fitxer';
+
+  @override
+  String get recoverFileWaitingBody =>
+      'Estaves amb un altre fitxer de recuperació. Vols canviar a aquest?';
+
+  @override
+  String get recoverFileWaitingSwitch => 'Canvia de fitxer';
+
+  @override
+  String get recoverFileWaitingKeep => 'Continua amb l\'actual';
+
+  @override
+  String get recoveryProblemPersonTitle =>
+      'Aquest codi ja no és el de la teva persona actual';
+
+  @override
+  String get recoveryProblemPersonBody =>
+      'Ha canviat la persona d\'aquest mòbil o hi ha un canvi pendent. Crea un codi nou i desa aquell.';
 }

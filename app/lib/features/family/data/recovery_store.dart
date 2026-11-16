@@ -420,7 +420,14 @@ class RecoveryStore {
   });
 
   /// Confirm only the code delivered to this flow, never a replacement code.
-  Future<void> confirmCode(String sid, String entropy) => _queue.run(() async {
+  /// With [checkPerson], the installed code must also belong to [personId]
+  /// (the current «Yo»); otherwise `StateError('person changed')`.
+  Future<void> confirmCode(
+    String sid,
+    String entropy, {
+    bool checkPerson = false,
+    String? personId,
+  }) => _queue.run(() async {
     final j = await _read();
     if (await _isTransferred(sid)) throw StateError('transferred');
     final material = (j['material'] as Map)[sid] as Map?;
@@ -429,6 +436,9 @@ class RecoveryStore {
         material['entropy'] != entropy ||
         (j['displays'] as Map?)?[sid] == entropy) {
       throw StateError('recovery changed');
+    }
+    if (checkPerson && material['personId'] != personId) {
+      throw StateError('person changed');
     }
     material['wordsConfirmed'] = true;
     await _write(j);

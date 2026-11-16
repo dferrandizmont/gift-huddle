@@ -97,7 +97,8 @@ void main() {
         throwsA(isA<V2OfferNotYetException>()),
       );
       for (var i = 0; i < 20; i++) {
-        expect(guest.pollDelay.inMilliseconds, inInclusiveRange(5000, 8000));
+        // 1-2 s while the pairing screen is open (before any request counts).
+        expect(guest.pollDelay.inMilliseconds, inInclusiveRange(1000, 2000));
       }
       time = time.add(const Duration(minutes: 10));
       await expectLater(guest.poll(), throwsA(isA<InviteGoneException>()));

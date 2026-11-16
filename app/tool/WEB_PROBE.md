@@ -120,3 +120,60 @@ Notes and limits:
 - No browser was opened: runtime crypto timings, persistence policy, CSP
   execution, local font rendering, multi-tab behavior and BFCache are unverified.
 - `git diff --check` passed and all four output directories are ignored.
+
+## Guard: no `unreachable` in the app's wasm (1.0.2)
+
+> The guard is a heuristic aid, not a proof: a simple WAT parser and a count per
+> function against a reviewed baseline. The real check stays the Chromium -O4
+> probe below and a manual pairing (QR, code, approval, PIN, first sync).
+
+dart2wasm (Flutter 3.47) can compile a `cryptography` call whose dynamic
+selector it thinks has no target (`Pbkdf2`, `Hkdf` and `Argon2id` share
+`deriveKey`) as `unreachable`: the web 1.0.1 froze when opening the family key
+and when saving the PIN. The app no longer calls those (`lib/core/sync/hkdf.dart`,
+`lib/features/web_device/data/vault_pbkdf2_web.dart`). Before every web
+release, from `app/`:
+
+```sh
+sh tool/check_wasm_unreachable.sh            # builds build/web_check and checks it
+node tool/check_wasm_unreachable.mjs <main.wat> --all   # every function, for a look
+```
+
+It builds like production plus `--no-strip-wasm`, dumps the module with the
+SDK's `wasm-opt --print` and checks it without control-flow guesses:
+
+1. It parses the whole dump (balanced parentheses to the end) and requires as
+   many parsed functions as `(func` headers, and at least one app function.
+2. In every app function it counts each `(unreachable)` that is not right
+   after `throw`, `rethrow`, `br`, `br_table`, `return…` or `unreachable`, or
+   a call to a reviewed `Never` function (checked to return nothing).
+3. It compares those counts with `tool/wasm_unreachable_baseline.json`: a new
+   function or a higher count fails. Each entry has a reason. Kinds reviewed
+   once (`kind-reviewed:`): after a `try`/`loop`/`block`/`if` whose paths all
+   return, branch or throw, the last `br_if` of an exhaustive `switch`, the
+   first instruction of a block nothing falls into, a widget build the web
+   never creates. Anything else (a plain call, a `drop`, the first
+   instruction of a function) gets `REVIEW` and fails until someone writes
+   why it is safe, as for `_RevealLayer.build`, the dynamic `toJson` stub and
+   `_CapsuleOutput.writeBytes`.
+
+When a legitimate change moves the counts, regenerate and review the diff:
+`node tool/check_wasm_unreachable.mjs <main.wat> --write-baseline` keeps the
+existing reasons and marks new entries `REVIEW`. With the old `Pbkdf2` call
+in `VaultCrypto` the guard fails (`VaultCrypto.deriveA`, `_pbkdf2`); with
+HEAD it passes.
+
+The pairing probe runs the real flow in Chromium at -O4 (offer, answer, code,
+approval, `finish()`, the PIN vault with the real 600,000-round PBKDF2 and its
+fixed vector, unlock, a wrong PIN and the first sync):
+
+```sh
+flutter build web --release --wasm --no-web-resources-cdn --pwa-strategy=none \
+  --no-strip-wasm -t test/wasm/web_pairing_probe.dart -o build/wasm_probe
+node tool/serve_web.mjs --dir build/wasm_probe   # open it; read the console
+```
+
+The console prints `PROBE <scenario> OK|FAIL` and `PROBE DONE ok=N fail=M`. The
+pure-Dart part also runs in Node 24: `dart compile wasm -O4
+test/wasm/web_pairing_probe.dart -o build/p/probe.wasm && node
+test/wasm/run_probe.mjs build/p` (Node's WebCrypto runs the PIN vault too).

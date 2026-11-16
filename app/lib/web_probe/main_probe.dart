@@ -12,6 +12,7 @@ import 'package:web/web.dart' as web;
 
 import '../core/theme/app_typography.dart' show kAppFontFamily;
 import '../core/sync/envelope.dart' show encodeBase64Url;
+import '../core/sync/hkdf.dart' show hkdfSha256Bytes;
 import '../features/web_device/data/vault_crypto.dart';
 
 void main() {
@@ -454,14 +455,12 @@ class BrowserProbe extends ChangeNotifier {
           'info': _bytes(info).toJS,
         }),
       );
-      final algorithm = Hkdf(hmac: Hmac.sha256(), outputLength: 32);
+      // The app's own HKDF (core/sync/hkdf.dart): `cryptography`'s Hkdf with
+      // `info` compiles to `unreachable` under dart2wasm when Pbkdf2 is in the
+      // program, as it is here.
       final dart = await _timed(
-        'cryptography HKDF-SHA256 backend=${_backend(algorithm)}',
-        () async => (await algorithm.deriveKey(
-          secretKey: SecretKey(input),
-          nonce: nonce,
-          info: info,
-        )).extractBytes(),
+        'app HKDF-SHA256 (hkdf.dart)',
+        () async => hkdfSha256Bytes(input, salt: nonce, info: info),
       );
       _require(_same(native, dart), 'HKDF outputs differ');
       log(true, 'HKDF-SHA256 salt=${nonce.length} output=32 equal=true');

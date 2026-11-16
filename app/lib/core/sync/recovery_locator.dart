@@ -8,6 +8,7 @@ import 'package:cryptography/dart.dart';
 import 'envelope.dart' show encodeBase64Url, decodeBase64Url;
 import 'recovery.dart' show RecoveryCode, RecoveryException;
 import 'device_keys.dart' show kSyncIdPattern;
+import 'hkdf.dart';
 
 /// Solo metadatos del listado autenticado para móviles. No es un localizador
 /// público ni contiene material de lectura o verificación.
@@ -76,9 +77,8 @@ class RecoveryLocator {
 
 /// HKDF RFC 5869: etiquetas y sal exactas de ADR 0007.
 Future<RecoveryLocator> deriveRecoveryLocator(RecoveryCode code) async {
-  final hkdf = Hkdf(hmac: Hmac.sha256(), outputLength: 32);
   Future<String> expand(String label) async => encodeBase64Url(
-    await (await hkdf.deriveKey(
+    await (await hkdfSha256(
       secretKey: SecretKey(code.entropy),
       nonce: utf8.encode('gift-huddle-recovery-hkdf-v2'),
       info: utf8.encode(label),

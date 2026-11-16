@@ -481,7 +481,13 @@ class SyncController extends Notifier<SyncStatus> {
         }
       }
       _v2Auth = null;
-      await startNewGenerationV2(ref);
+      // Bajo el cerrojo v2, como la migración y la instalación del invitado:
+      // una vuelta que llegue a la vez (y que, al ver la lista borrada,
+      // estrenaría otra) espera a que esta generación quede entera. Quien
+      // llama aquí (Compartir, «Borrar todo») no tiene el cerrojo.
+      await ref
+          .read(v2FamilyLockProvider)
+          .run(() => startNewGenerationV2(ref));
       if (ref.mounted) ref.invalidate(localRegistryViewProvider);
       return;
     }

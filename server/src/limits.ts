@@ -119,11 +119,14 @@ export const V2_CREDENTIAL_REQUESTS = 120;
 export const V2_CREDENTIAL_WRITES = 30;
 export const V2_RATE_PERSIST_EVERY = 8;
 /**
- * v2 invitation routes per minute and client (IPv4 or IPv6 /56). One pairing in
- * person costs about 25 a minute (the guest polls every 4 s, the host every 10 s,
- * plus a few writes): 120 lets several phones and families behind one NAT pair at
- * once (finding 16). Each invitation keeps its own 30/min (V2_INVITE_REQUESTS_PER_INVITE),
- * so one invitation cannot spend the shared budget.
+ * v2 invitation routes per minute and client (IPv4 or IPv6 /56). Since the app's
+ * 1.0.2 a pairing screen polls every 1-2 s: the web asks for its offer at that
+ * rate for 2 minutes and then every 3-4 s (those 404s count here), the guest
+ * keeps at most 25 requests per invitation in any 60 s, and the host at most 30
+ * a minute while it waits for the answer. One pairing peaks at about 45 a minute
+ * and two behind one NAT at about 80 (`test/pairing-rates.test.ts`): 120 leaves
+ * room for both (finding 16). Each invitation keeps its own 30/min
+ * (V2_INVITE_REQUESTS_PER_INVITE), so one invitation cannot spend the shared budget.
  */
 export const V2_INVITE_REQUESTS_PER_IP = 120; // = INVITE_IP_LIMITER in wrangler.toml
 /** Public requests (offer, answer, result) per minute and invitation, in the list object. */

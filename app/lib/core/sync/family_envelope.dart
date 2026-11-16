@@ -61,6 +61,7 @@ import 'envelope.dart'
         kMaxPlainBytes;
 import 'family_candidate.dart';
 import 'family_doc.dart';
+import 'hkdf.dart';
 
 /// Versión (formato) del sobre común firmado.
 const int kFamilyEnvelopeVersion = 2;
@@ -190,9 +191,9 @@ class OpenedFamilyEnvelope {
 }
 
 final _aes = AesGcm.with256bits();
-final _hkdf = Hkdf(hmac: Hmac.sha256(), outputLength: 32);
 
-Future<SecretKey> _contentKey(FamilyCandidate candidate) => _hkdf.deriveKey(
+// `hkdfSha256`, no `Hkdf` de `cryptography` (fallo de dart2wasm, ver hkdf.dart).
+Future<SecretKey> _contentKey(FamilyCandidate candidate) => hkdfSha256(
   secretKey: SecretKey(candidate.secret),
   nonce: const <int>[],
   info: [...utf8.encode(_sigDomain), 0, ...utf8.encode(candidate.kid)],

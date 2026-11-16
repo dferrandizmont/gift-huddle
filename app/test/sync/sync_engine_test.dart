@@ -101,10 +101,10 @@ void main() {
     test('los tiempos por defecto son los del ADR', () {
       const timing = SyncTiming();
       expect(timing.debounce, const Duration(seconds: 2));
-      expect(
-        timing.invitePoll,
-        greaterThanOrEqualTo(const Duration(seconds: 4)),
-      );
+      // 1.0.2: 1-2 s con la pantalla abierta; el límite del Worker lo
+      // guarda `InvitePollPacer` (25 por invitación en 60 s).
+      expect(timing.invitePoll, const Duration(seconds: 1));
+      expect(timing.inviteHostPoll, const Duration(seconds: 1));
       expect(timing.inviteTimeout, const Duration(minutes: 10));
       expect(timing.maxConflicts, 3);
       // La espera crece y la última se repite.

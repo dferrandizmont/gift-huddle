@@ -13,9 +13,11 @@ import '../../../core/theme/regalos_tokens.dart';
 import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/widgets/settings_icons.dart';
 import '../../../core/widgets/sheet_parts.dart';
+import '../../../core/widgets/stroke_icon.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../settings/presentation/verify_owner.dart';
 import '../../sync/application/recovery_providers.dart';
+import 'recovery_file_save_screen.dart';
 import 'recovery_parts.dart';
 import 'recovery_problem.dart';
 import 'recovery_words_view.dart';
@@ -289,6 +291,12 @@ class _RecoveryCreateScreenState extends ConsumerState<RecoveryCreateScreen> {
       return;
     }
     if (!mounted) return;
+    _finishChecked();
+  }
+
+  /// El código quedó comprobado (con las tres palabras o con un fichero
+  /// guardado): se pasa al estado real de la copia y se sueltan las palabras.
+  void _finishChecked() {
     ref.read(hapticsProvider).success();
     setState(() {
       _busy = false;
@@ -298,6 +306,21 @@ class _RecoveryCreateScreenState extends ConsumerState<RecoveryCreateScreen> {
       // Las palabras ya no hacen falta: se sueltan.
       _display = null;
     });
+  }
+
+  /// «Guardar en un fichero»: guardar con el selector y releer el destino
+  /// comprueba el código, igual que las tres palabras.
+  Future<void> _saveToFile() async {
+    final display = _display;
+    if (display == null || _busy) return;
+    final checked = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => RecoveryFileSaveScreen(display: display),
+      ),
+    );
+    if (checked == true && mounted) {
+      _finishChecked();
+    }
   }
 
   Future<void> _leave() async {
@@ -394,6 +417,17 @@ class _RecoveryCreateScreenState extends ConsumerState<RecoveryCreateScreen> {
               defaultTargetPlatform == TargetPlatform.android
                   ? l10n.recoveryWordsWarn
                   : '${l10n.recoveryWordsWarn} ${l10n.recoveryWordsWarnNoBlock}',
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _busy ? null : _saveToFile,
+              icon: StrokeIcon(
+                SettingsIcons.download,
+                size: 18,
+                color: t.text,
+                strokeWidth: 1.9,
+              ),
+              label: Text(l10n.recoveryFileAction),
             ),
           ],
         );

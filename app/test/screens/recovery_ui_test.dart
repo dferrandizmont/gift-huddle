@@ -311,7 +311,7 @@ void main() {
       await seedSample(tester, phone);
       await pumpRegalos(tester, phone);
       await openRecoveryRow(tester);
-      expect(find.text('Falta comprobar las palabras'), findsOneWidget);
+      expect(find.text('Falta comprobar el código'), findsOneWidget);
       expect(find.text('Código preparado'), findsNothing);
       await tapText(tester, 'Continuar');
       await tapText(tester, 'Continuar');
@@ -472,7 +472,7 @@ void main() {
       await tapLabel(tester, 'Atrás');
       await tapText(tester, 'Salir');
       expect(find.text('Tus 24 palabras'), findsNothing);
-      expect(find.text('Falta comprobar las palabras'), findsOneWidget);
+      expect(find.text('Falta comprobar el código'), findsOneWidget);
       expect(find.text('Código preparado'), findsNothing);
     });
 

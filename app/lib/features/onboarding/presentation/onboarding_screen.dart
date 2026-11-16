@@ -633,6 +633,10 @@ class _WelcomeStep extends ConsumerWidget {
                       onPressed: () => context.push(AppRoutes.recover),
                       child: Text(l10n.obHaveRecoveryCode),
                     ),
+                    TextButton(
+                      onPressed: () => context.push(AppRoutes.recoverFile),
+                      child: Text(l10n.obRecoverWithFile),
+                    ),
                   ],
                 ),
               ],

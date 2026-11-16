@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:clock/clock.dart';
 import 'package:cryptography/cryptography.dart';
+import 'package:cryptography/dart.dart' show DartHmac, DartPbkdf2, DartSha256;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/platform/monotonic.dart';
@@ -270,11 +271,13 @@ Future<List<int>> _deriveHash(
     : _pbkdf2(pin, salt, rounds);
 
 Future<List<int>> _pbkdf2(String pin, List<int> salt, int rounds) async {
-  final key = await Pbkdf2(
-    macAlgorithm: Hmac.sha256(),
+  // La clase concreta, sin el `Pbkdf2` abstracto: en wasm, dart2wasm deja
+  // sin destino su `deriveKey` (ver lib/core/sync/hkdf.dart). Mismos bytes.
+  final key = await DartPbkdf2(
+    macAlgorithm: const DartHmac(DartSha256()),
     iterations: rounds,
     bits: 256,
-  ).deriveKeyFromPassword(password: pin, nonce: salt);
+  ).deriveKey(secretKey: SecretKey(utf8.encode(pin)), nonce: salt);
   return key.extractBytes();
 }
 

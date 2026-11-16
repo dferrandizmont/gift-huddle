@@ -93,6 +93,10 @@ abstract final class AppRoutes {
   /// «Tengo un código de recuperación», desde la bienvenida.
   static const recover = '/recover';
 
+  /// «Recuperar con fichero» (ADR 0008), desde la bienvenida o al abrir un
+  /// fichero de recuperación desde Archivos.
+  static const recoverFile = '/recover-file';
+
   /// La guía «Cómo funciona». Desde Ajustes lleva `?from=settings`.
   static const tour = '/tour';
   static const people = '/people';
@@ -154,6 +158,13 @@ GoRouter buildRouter({
         parentNavigatorKey: rootNavigatorKey,
         pageBuilder: regalosPage(
           (context, state) => const RecoveryRestoreScreen(),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.recoverFile,
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: regalosPage(
+          (context, state) => const RecoveryRestoreScreen(fileMode: true),
         ),
       ),
       GoRoute(
@@ -348,6 +359,7 @@ const _hiddenOnWeb = <String>{
   AppRoutes.join,
   AppRoutes.joinLink,
   AppRoutes.recover,
+  AppRoutes.recoverFile,
   AppRoutes.tour,
 };
 
@@ -392,7 +404,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           location == AppRoutes.welcome ||
           location == AppRoutes.join ||
           location == AppRoutes.joinLink ||
-          location == AppRoutes.recover;
+          location == AppRoutes.recover ||
+          location == AppRoutes.recoverFile;
       if (!family.hasFamily && !firstRun) {
         return AppRoutes.welcome;
       }

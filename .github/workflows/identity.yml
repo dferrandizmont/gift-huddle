@@ -1,11 +1,14 @@
 # Requires the maintainer's commits and tags to use the public identity and
 # rejects Gmail addresses in public history; other contributors are accepted.
+# Pull requests run from the base branch (pull_request_target) with a read-only
+# token and no secrets, never check out the pull request and are checked with the
+# script of the base branch, so a pull request cannot weaken its own check.
 # Same script as the local hooks (.githooks/check-identity.sh).
 name: Identity
 
 on:
   push:
-  pull_request:
+  pull_request_target:
 
 permissions:
   contents: read
@@ -15,26 +18,54 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Fetch the history
+      - name: Check a push
+        if: github.event_name == 'push'
         env:
           REPO: ${{ github.repository }}
           REF: ${{ github.ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.event.after }}
         run: |
+          set -eu
           git init -q repo
           cd repo
           git fetch -q --tags "https://github.com/$REPO" "+$REF:refs/ci/head"
           git checkout -q refs/ci/head
-      - name: Check every commit and file
-        working-directory: repo
+          # Files only from the pushed commits; a before that cannot be fetched
+          # (new branch, forced push) makes the script check every file.
+          git fetch -q --no-tags "https://github.com/$REPO" "$BEFORE_SHA" || true
+          sh .githooks/check-identity.sh push "$BEFORE_SHA" "$AFTER_SHA"
+      - name: Check a pull request
+        if: github.event_name == 'pull_request_target'
         env:
           REPO: ${{ github.repository }}
-          EVENT: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          if [ "$EVENT" = pull_request ]; then
-            git fetch -q --no-tags "https://github.com/$REPO" "$BASE_SHA"
-            sh .githooks/check-identity.sh ci "$HEAD_SHA" --not "$BASE_SHA"
-          else
-            sh .githooks/check-identity.sh ci HEAD
+          set -eu
+          case "$PR_NUMBER" in
+            ''|*[!0-9]*) echo "Invalid pull request number" >&2; exit 1 ;;
+          esac
+          # Only objects are fetched: nothing of the pull request is checked out.
+          git init -q repo
+          cd repo
+          git fetch -q --tags "https://github.com/$REPO" "$BASE_SHA"
+          git -c fetch.fsckObjects=true fetch -q --no-tags "https://github.com/$REPO" "refs/pull/$PR_NUMBER/head"
+          if [ "$(git rev-parse FETCH_HEAD)" != "$HEAD_SHA" ]; then
+            echo "The pull request changed while it was being checked" >&2
+            exit 1
           fi
+          if changed=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" -- .github .githooks); then
+            if [ -n "$changed" ]; then
+              echo "::warning::This pull request changes the CI or hook files; review them by hand."
+            fi
+          else
+            echo "::warning::Could not compare the CI and hook files with the base branch."
+          fi
+          # The script of the base branch: the pull request cannot weaken it.
+          if ! git show "$BASE_SHA:.githooks/check-identity.sh" > "$RUNNER_TEMP/ck.sh"; then
+            echo "The base branch has no .githooks/check-identity.sh" >&2
+            exit 1
+          fi
+          sh "$RUNNER_TEMP/ck.sh" ci "$HEAD_SHA" --not "$BASE_SHA"

@@ -64,9 +64,16 @@ class FakeRecovery extends RecoveryApplication {
   @override
   Future<void> refresh() async {}
 
+  /// Si confirmar el código recién creado falla con esto.
+  Object? confirmError;
+
   @override
   Future<void> confirmCreatedCode(RecoveryCodeDisplay display) async {
     calls.add('confirm');
+    final error = confirmError;
+    if (error != null) {
+      throw error;
+    }
     state = afterCreate;
   }
 
@@ -140,9 +147,13 @@ class FakeRecovery extends RecoveryApplication {
   /// Si cancelar falla con esto.
   Object? abandonError;
 
+  /// Mientras no se complete, cancelar la recuperación no termina.
+  Completer<void>? holdAbandon;
+
   @override
   Future<void> abandon() async {
     calls.add('abandon');
+    await holdAbandon?.future;
     final error = abandonError;
     if (error != null) {
       throw error;
@@ -171,9 +182,36 @@ class FakeRecovery extends RecoveryApplication {
     await _restore();
   }
 
+  @override
+  Future<void> restoreCode(
+    RecoveryCode code, {
+    bool replaceExisting = false,
+  }) async {
+    calls.add(replaceExisting ? 'file+replace' : 'file');
+    lastCode = code;
+    await _restore();
+  }
+
+  /// Si comprobar un fichero falla con esto.
+  Object? possessionError;
+
+  @override
+  Future<void> confirmPossession(RecoveryCode code) async {
+    calls.add('possession');
+    lastCode = code;
+    final error = possessionError;
+    if (error != null) {
+      throw error;
+    }
+    state = afterCreate;
+  }
+
   /// Las palabras o el QR con que se pidió restaurar por última vez.
   String? lastWords;
   String? lastQr;
+
+  /// El código de un fichero con que se pidió restaurar o comprobar.
+  RecoveryCode? lastCode;
 
   Future<void> _restore() async {
     reportPhase(RecoveryPhase.locating);

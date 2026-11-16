@@ -2,7 +2,9 @@
 // Cápsula remota v2: ADR 0007, implementada en recovery_capsule.dart; el
 // formato v1 descrito aquí sigue siendo exclusivo de las copias anteriores.
 // Decisión: docs/adr/0004-yo-sorpresas-revocar.md (recuperación R-a + R-b +
-// R-c).
+// R-c). El código E también se puede guardar en un fichero GHK v1 (abierto o
+// con contraseña): ADR 0008, implementado en recovery_file.dart; abrirlo da
+// `RecoveryCode(E)` y desde ahí todo es igual que con las palabras.
 //
 // Código: 32 bytes aleatorios generados en el móvil, que se enseñan como 24
 // palabras BIP-39 de la lista **inglesa** (con su suma de control de 8 bits)

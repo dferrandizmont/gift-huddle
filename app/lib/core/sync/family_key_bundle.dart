@@ -46,6 +46,7 @@ import 'device_registry.dart';
 import 'envelope.dart' show encodeBase64Url;
 import 'family_candidate.dart';
 import 'key_bundle.dart' show KeyBundleException;
+import 'hkdf.dart';
 
 /// Versión del formato de los paquetes de la clave común.
 const int kFamilyKeyBundleVersion = 4;
@@ -153,7 +154,6 @@ class FamilyKeyBundle {
   final Uint8List signature;
 
   static final AesGcm _aes = AesGcm.with256bits();
-  static final Hkdf _hkdf = Hkdf(hmac: Hmac.sha256(), outputLength: 32);
 
   /// Sella [candidate] para [toDevice], desde este móvil según [view].
   ///
@@ -629,7 +629,8 @@ class FamilyKeyBundle {
     SecretKey shared,
     List<int> epk,
     List<int> recipientPublic,
-  ) => _hkdf.deriveKey(
+  ) => hkdfSha256(
+    // No `Hkdf` de `cryptography`: en wasm se quedaba sin destino (hkdf.dart).
     secretKey: shared,
     nonce: [...epk, ...recipientPublic],
     info: utf8.encode(_domain),

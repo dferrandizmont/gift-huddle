@@ -30,6 +30,7 @@ import 'common_v2_cutover.dart' show kCommonFormatLatest;
 import 'family_devices.dart' show leaveFamily, othersHaveAccess;
 import 'family_snapshot.dart';
 import 'generation_v2.dart';
+import 'invite_poll_pacer.dart';
 import 'migration_v2.dart';
 import 'pairing_v2_flow.dart';
 import 'recovery_providers.dart'
@@ -268,6 +269,7 @@ class PairingV2HostController extends Notifier<PairingV2HostState> {
   String? _webPerson;
   PairingV2Host? _host;
   Timer? _timer;
+  InvitePollPacer? _pacer;
   int _run = 0;
 
   /// Sube solo al empezar un emparejamiento ([_start]): una cancelación en
@@ -284,6 +286,10 @@ class PairingV2HostController extends Notifier<PairingV2HostState> {
     _timer?.cancel();
     _timer = null;
   }
+
+  /// Si hay un sondeo programado (las pruebas comprueban que se para).
+  @visibleForTesting
+  bool get polling => _timer?.isActive ?? false;
 
   /// Si empezar pasaría a v2 una familia v1 que tiene otros móviles
   /// conectados (lo que no se puede deshacer).
@@ -455,6 +461,14 @@ class PairingV2HostController extends Notifier<PairingV2HostState> {
         return;
       }
       _host = host;
+      // 1-2 s mientras se espera la respuesta. La ruta autenticada no cuenta
+      // en el límite por invitación, pero sí en el de la credencial y en el
+      // de la IP (que comparte con la web en casa): como mucho
+      // [kInviteHostPollBudget] por minuto (la lectura y la revelación).
+      _pacer = InvitePollPacer(
+        base: ref.read(syncTimingProvider).inviteHostPoll,
+        budget: kInviteHostPollBudget,
+      );
       state = PairingV2HostState(
         PairingV2HostPhase.waiting,
         link: inviteLink(endpoint.invitationHost, host.inviteId),
@@ -486,10 +500,19 @@ class PairingV2HostController extends Notifier<PairingV2HostState> {
     }
   }
 
-  void _schedule(int run) {
+  void _schedule(int run, {bool limited = false, Duration? retryAfter}) {
+    // Un sondeo viejo no toca el temporizador ni la cadencia del nuevo.
+    if (run != _run || !ref.mounted) return;
     _timer?.cancel();
-    _timer = Timer(ref.read(syncTimingProvider).inviteHostPoll, () {
-      unawaited(_check(run));
+    final pacer = _pacer;
+    final wait = pacer == null
+        ? ref.read(syncTimingProvider).inviteHostPoll
+        : limited
+        ? pacer.limited(retryAfter)
+        : pacer.next();
+    _timer = Timer(wait, () {
+      if (run != _run || !ref.mounted) return;
+      unawaited(_check(run).catchError((Object _) {}));
     });
   }
 
@@ -501,8 +524,10 @@ class PairingV2HostController extends Notifier<PairingV2HostState> {
     final host = _host;
     if (host == null || state.phase != PairingV2HostPhase.waiting) return;
     try {
+      _pacer?.sent();
       final answered = await host.poll();
       if (run != _run || !ref.mounted) return;
+      _pacer?.succeeded();
       if (answered == null) {
         _schedule(run);
         return;
@@ -553,7 +578,15 @@ class PairingV2HostController extends Notifier<PairingV2HostState> {
           failureCode: _failureCode('poll', e),
         );
       }
-      if (run == _run && ref.mounted) _schedule(run);
+      final limited =
+          e is SyncTransportException && e.failure == SyncFailure.rateLimited;
+      if (run == _run && ref.mounted) {
+        _schedule(
+          run,
+          limited: limited,
+          retryAfter: limited ? e.retryAfter : null,
+        );
+      }
     }
   }
 
@@ -759,6 +792,7 @@ class PairingV2GuestState {
 class PairingV2GuestController extends Notifier<PairingV2GuestState> {
   PairingV2Guest? _guest;
   Timer? _timer;
+  InvitePollPacer? _pacer;
   int _run = 0;
   String _deviceId = '';
   String? _inviteId;
@@ -850,11 +884,17 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
       phase = 'offer';
       var sameList = false;
       var deviceId = '';
+      // 1-2 s, con el presupuesto de la invitación: la oferta, la respuesta
+      // y cada sondeo cuentan en el límite público del Worker.
+      final pacer = InvitePollPacer(
+        base: ref.read(syncTimingProvider).invitePoll,
+      );
       final guest = await PairingV2Guest.open(
         transport: transport,
         inviteId: inviteId,
         keys: keys,
         v1Key: v1Key,
+        onRequest: pacer.sent,
         deviceIdFor: (listId, v1Proven) {
           // El `listId` es público: solo cuenta si el anfitrión ha probado
           // tener la clave v1 de este móvil (hallazgo 6).
@@ -873,6 +913,7 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
       _sameList = sameList;
       _deviceId = deviceId;
       _guest = guest;
+      _pacer = pacer;
       _keys = keys;
       if (!replacing &&
           !_sameList &&
@@ -1002,12 +1043,29 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
     }
   }
 
-  void _schedule(int run) {
+  void _schedule(int run, {bool limited = false, Duration? retryAfter}) {
+    // Un sondeo viejo no toca el temporizador ni la cadencia del nuevo.
+    if (run != _run || !ref.mounted) return;
     _timer?.cancel();
-    _timer = Timer(ref.read(syncTimingProvider).invitePoll, () {
-      unawaited(_tick(run));
+    final pacer = _pacer;
+    final wait = pacer == null
+        ? ref.read(syncTimingProvider).invitePoll
+        : limited
+        ? pacer.limited(retryAfter)
+        : pacer.next();
+    _timer = Timer(wait, () {
+      if (run != _run || !ref.mounted) return;
+      unawaited(_tick(run).catchError((Object _) {}));
     });
   }
+
+  /// Si hay un sondeo programado (las pruebas comprueban que se para).
+  @visibleForTesting
+  bool get polling => _timer?.isActive ?? false;
+
+  /// Sondea ya, sin esperar al temporizador (las pruebas de carreras).
+  @visibleForTesting
+  Future<void> pollNow() => _tick(_run);
 
   Future<void> _tick(int run) async {
     final guest = _guest;
@@ -1019,6 +1077,8 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
       switch (state.phase) {
         case PairingV2GuestPhase.waitingCode:
           final code = await guest.code();
+          if (run != _run || !ref.mounted) return;
+          _pacer?.succeeded();
           if (code == null) {
             _schedule(run);
           } else {
@@ -1029,6 +1089,8 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
           }
         case PairingV2GuestPhase.waitingApproval:
           final joined = await guest.finish();
+          if (run != _run || !ref.mounted) return;
+          _pacer?.succeeded();
           if (joined == null) {
             _schedule(run);
           } else {
@@ -1049,14 +1111,18 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
           return;
       }
     } on InviteGoneException catch (e) {
+      // Lo de un intento viejo no toca el actual (ni sus claves).
+      if (run != _run || !ref.mounted) return;
       final leftover = await _abandonCredential(guest, phase);
       _guestFailure(run, phase, e, gone: true, leftover: leftover);
     } on PairingException catch (e) {
+      if (run != _run || !ref.mounted) return;
       // La revelación no casa con la oferta (alguien en medio), o la
       // aprobación o el checkpoint no valen.
       final leftover = await _abandonCredential(guest, phase);
       _guestFailure(run, phase, e, leftover: leftover);
     } on SyncTransportException catch (e) {
+      if (run != _run || !ref.mounted) return;
       _set(
         run,
         PairingV2GuestState(
@@ -1065,8 +1131,12 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
           failureCode: _failureCode(phase, e),
         ),
       );
-      if (run == _run && ref.mounted) _schedule(run);
+      final limited = e.failure == SyncFailure.rateLimited;
+      if (run == _run && ref.mounted) {
+        _schedule(run, limited: limited, retryAfter: e.retryAfter);
+      }
     } on Object catch (e) {
+      if (run != _run || !ref.mounted) return;
       final leftover = await _abandonCredential(guest, phase);
       _guestFailure(run, phase, e, leftover: leftover);
     }

@@ -1074,6 +1074,11 @@ class FamilyStore {
     return all;
   }
 
+  /// Si hay una familia guardada en la generación activa. Solo lee: no
+  /// termina cambios pendientes ni reanuda nada (a diferencia de [load]).
+  Future<bool> hasFamily() =>
+      _inGeneration(() async => await _secrets.read(_identityKey) != null);
+
   /// La persona de «Yo» guardada, o null (también sin familia).
   Future<String?> readSelfRecipient() => _inGeneration(() async {
     final raw = await _secrets.read(_identityKey);

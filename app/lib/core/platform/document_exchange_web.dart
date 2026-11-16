@@ -49,6 +49,40 @@ class WebDocumentExchange implements DocumentExchange {
   /// The browser keeps downloads; the app has no copy of its own to remove.
   @override
   Future<void> clearExports() async {}
+
+  /// The recovery file is a phone feature (ADR 0008): no picker on the web.
+  @override
+  Future<Uint8List?> saveWithPicker(
+    Uint8List bytes,
+    String name, {
+    required int maxReadBytes,
+  }) => Future.error(
+    const DocumentPickerException(DocumentPickerFailure.unavailable),
+  );
+
+  @override
+  Future<Uint8List?> openWithPicker({required int maxBytes}) => Future.error(
+    const DocumentPickerException(DocumentPickerFailure.unavailable),
+  );
+
+  @override
+  Future<String> normalizeNfc(String text) => Future.error(
+    const DocumentPickerException(DocumentPickerFailure.unavailable),
+  );
+
+  @override
+  Future<ShareResult> shareRecoveryFile(
+    Uint8List bytes,
+    String name, {
+    required String text,
+    Rect? origin,
+  }) => Future.error(
+    const DocumentPickerException(DocumentPickerFailure.unavailable),
+  );
+
+  @override
+  Future<void> clearRecoveryShares() async {}
+
   @override
   Future<Uint8List?> pickBytes() async {
     final input = web.HTMLInputElement()

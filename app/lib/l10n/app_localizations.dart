@@ -1918,6 +1918,60 @@ abstract class AppLocalizations {
   /// **'No se puede usar la cámara. Revisa el permiso de cámara en los ajustes del móvil.'**
   String get joinCameraError;
 
+  /// Texto mientras el sistema pregunta por el permiso de cámara del lector de QR (sobre fondo negro, junto a un indicador).
+  ///
+  /// In es, this message translates to:
+  /// **'Esperando el permiso de la cámara…'**
+  String get scannerWaitingPermission;
+
+  /// Título del aviso del lector de QR cuando se ha denegado el permiso de cámara y se puede volver a pedir.
+  ///
+  /// In es, this message translates to:
+  /// **'Hace falta la cámara'**
+  String get scannerDeniedTitle;
+
+  /// Explicación bajo el título cuando se ha denegado la cámara: para qué se usa y que no se guarda nada.
+  ///
+  /// In es, this message translates to:
+  /// **'Solo se usa para leer el código QR; no se guarda ninguna imagen.'**
+  String get scannerDeniedBody;
+
+  /// Título del aviso del lector de QR cuando la cámara está bloqueada para siempre y solo se activa en los ajustes.
+  ///
+  /// In es, this message translates to:
+  /// **'La cámara está bloqueada'**
+  String get scannerBlockedTitle;
+
+  /// Explicación cuando la cámara está bloqueada: hay que activarla en los ajustes del móvil.
+  ///
+  /// In es, this message translates to:
+  /// **'El permiso de cámara está denegado. Actívalo en los ajustes del móvil para leer el código QR.'**
+  String get scannerBlockedBody;
+
+  /// Título del aviso del lector de QR cuando el sistema no contestó a la petición de la cámara.
+  ///
+  /// In es, this message translates to:
+  /// **'No se ha podido abrir la cámara'**
+  String get scannerFailedTitle;
+
+  /// Explicación cuando el sistema no contestó: se puede volver a intentar.
+  ///
+  /// In es, this message translates to:
+  /// **'El móvil no ha contestado a la petición del permiso. Reintenta.'**
+  String get scannerFailedBody;
+
+  /// Botón del aviso del lector de QR: vuelve a pedir el permiso de cámara.
+  ///
+  /// In es, this message translates to:
+  /// **'Reintentar'**
+  String get scannerRetry;
+
+  /// Botón del aviso del lector de QR: abre los ajustes de la app para dar el permiso de cámara.
+  ///
+  /// In es, this message translates to:
+  /// **'Abrir ajustes'**
+  String get scannerOpenSettings;
+
   /// Título del aviso al unirse a otra familia teniendo datos.
   ///
   /// In es, this message translates to:
@@ -4171,7 +4225,7 @@ abstract class AppLocalizations {
   /// Instrucción al comparar el código con el móvil.
   ///
   /// In es, this message translates to:
-  /// **'Comprueba que en el móvil sale el mismo código y apruébalo allí.'**
+  /// **'Comprueba que en el móvil sale el mismo código, confírmalo aquí y apruébalo también en el móvil.'**
   String get webGateCompareBody;
 
   /// Indicador de espera mientras el móvil aprueba la conexión.
@@ -4179,6 +4233,12 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Esperando a que el móvil lo apruebe…'**
   String get webGateCompareWaiting;
+
+  /// Texto que sustituye a los botones de comparar cuando la persona ya ha confirmado en la web que los códigos coinciden; solo falta que el móvil apruebe.
+  ///
+  /// In es, this message translates to:
+  /// **'Has confirmado el código aquí'**
+  String get webGateCompareConfirmed;
 
   /// Título cuando falla el emparejamiento de la web.
   ///
@@ -4209,6 +4269,12 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'No hay conexión con el servidor. Comprueba tu conexión y empieza otra vez.'**
   String get webGateFailedNetwork;
+
+  /// Motivo del fallo: el móvil canceló la conexión o la invitación ya no existe.
+  ///
+  /// In es, this message translates to:
+  /// **'El móvil ha cancelado la conexión o la invitación ya no está disponible. Empieza otra vez y vuelve a conectar desde el móvil.'**
+  String get webGateFailedCancelled;
 
   /// Botón que reinicia el emparejamiento de la web con un QR nuevo.
   ///
@@ -5707,13 +5773,13 @@ abstract class AppLocalizations {
   /// No description provided for @recoveryUnconfirmedTitle.
   ///
   /// In es, this message translates to:
-  /// **'Falta comprobar las palabras'**
+  /// **'Falta comprobar el código'**
   String get recoveryUnconfirmedTitle;
 
   /// No description provided for @recoveryUnconfirmedBody.
   ///
   /// In es, this message translates to:
-  /// **'El código aún no cuenta como guardado. Continúa para comprobar las palabras. Si ya se mostraron, se creará un código nuevo y el anterior dejará de valer.'**
+  /// **'El código aún no cuenta como guardado. Continúa para comprobar las palabras o comprueba un fichero que ya hayas guardado. Si las palabras ya se mostraron, se creará un código nuevo y el anterior dejará de valer.'**
   String get recoveryUnconfirmedBody;
 
   /// Valor de la fila Código de recuperación cuando necesita atención.
@@ -5797,7 +5863,7 @@ abstract class AppLocalizations {
   /// Frase bajo la fila Cambiar el código.
   ///
   /// In es, this message translates to:
-  /// **'El anterior dejará de valer.'**
+  /// **'Los ficheros y las palabras anteriores dejarán de servir.'**
   String get recoveryChangeHint;
 
   /// Fila (en rojo) que borra la copia de recuperación.
@@ -5869,7 +5935,7 @@ abstract class AppLocalizations {
   /// Explicación del primer paso al cambiar el código.
   ///
   /// In es, this message translates to:
-  /// **'Se creará un código nuevo. El anterior dejará de valer cuando el nuevo esté preparado.'**
+  /// **'Se creará un código nuevo. El anterior dejará de valer cuando el nuevo esté preparado: los ficheros y las palabras anteriores dejarán de servir.'**
   String get recoveryRotateBody;
 
   /// Primera idea del aviso previo al código.
@@ -6055,7 +6121,7 @@ abstract class AppLocalizations {
   /// Texto final cuando la copia ya está confirmada.
   ///
   /// In es, this message translates to:
-  /// **'Si pierdes este móvil, podrás recuperar la lista con las 24 palabras.'**
+  /// **'Si pierdes este móvil, podrás recuperar la lista con tu código de recuperación.'**
   String get recoveryDonePreparedBody;
 
   /// Texto final mientras la copia aún no está confirmada.
@@ -6555,6 +6621,438 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'en curso'**
   String get recoverStepActiveValue;
+
+  /// Botón de la pantalla de las palabras que abre el guardado en un fichero.
+  ///
+  /// In es, this message translates to:
+  /// **'Guardar en un fichero'**
+  String get recoveryFileAction;
+
+  /// Título de la pantalla para guardar el código en un fichero.
+  ///
+  /// In es, this message translates to:
+  /// **'Guardar en un fichero'**
+  String get recoveryFileTitle;
+
+  /// Explicación de la pantalla para guardar el código en un fichero.
+  ///
+  /// In es, this message translates to:
+  /// **'Además de las palabras, puedes guardar el código en un fichero. Quien tenga el fichero puede recuperar la lista y entrar como este móvil.'**
+  String get recoveryFileBody;
+
+  /// Aviso: el fichero es personal y no se envía a la familia.
+  ///
+  /// In es, this message translates to:
+  /// **'Es un fichero personal: no lo envíes a la familia. Guárdalo donde puedas abrirlo aunque pierdas este móvil.'**
+  String get recoveryFilePersonal;
+
+  /// Casilla para proteger el fichero con una contraseña (desactivada por defecto).
+  ///
+  /// In es, this message translates to:
+  /// **'Proteger con contraseña'**
+  String get recoveryFileProtect;
+
+  /// Aviso bajo la casilla cuando no se protege con contraseña.
+  ///
+  /// In es, this message translates to:
+  /// **'Sin contraseña, el fichero vale tanto como las palabras: quien lo consiga puede usarlo.'**
+  String get recoveryFileProtectOffHint;
+
+  /// Texto bajo la casilla cuando se protege con contraseña.
+  ///
+  /// In es, this message translates to:
+  /// **'Robar el fichero no basta: hace falta la contraseña.'**
+  String get recoveryFileProtectOnHint;
+
+  /// Etiqueta del campo de contraseña del fichero.
+  ///
+  /// In es, this message translates to:
+  /// **'Contraseña'**
+  String get recoveryFilePassword;
+
+  /// Etiqueta del campo que repite la contraseña del fichero.
+  ///
+  /// In es, this message translates to:
+  /// **'Repite la contraseña'**
+  String get recoveryFilePasswordRepeat;
+
+  /// Botón que muestra la contraseña escrita.
+  ///
+  /// In es, this message translates to:
+  /// **'Ver'**
+  String get recoveryFilePasswordShow;
+
+  /// Botón que oculta la contraseña escrita.
+  ///
+  /// In es, this message translates to:
+  /// **'Ocultar'**
+  String get recoveryFilePasswordHide;
+
+  /// Ayuda bajo el campo de contraseña nueva. {min} es el mínimo de caracteres.
+  ///
+  /// In es, this message translates to:
+  /// **'Mínimo {min} caracteres. Usa el gestor de contraseñas o varias palabras elegidas al azar.'**
+  String recoveryFilePasswordHelp(int min);
+
+  /// Aviso: olvidar la contraseña inutiliza el fichero pero no las palabras.
+  ///
+  /// In es, this message translates to:
+  /// **'Si olvidas la contraseña, el fichero no sirve para nada. Las 24 palabras seguirán valiendo.'**
+  String get recoveryFilePasswordForgot;
+
+  /// Motivo: contraseña demasiado corta. {min} es el mínimo.
+  ///
+  /// In es, this message translates to:
+  /// **'Es muy corta: mínimo {min} caracteres.'**
+  String recoveryFilePwTooShort(int min);
+
+  /// Motivo: contraseña demasiado larga. {max} es el máximo.
+  ///
+  /// In es, this message translates to:
+  /// **'Es demasiado larga: máximo {max} caracteres.'**
+  String recoveryFilePwTooLong(int max);
+
+  /// Motivo: la contraseña repite un carácter o un bloque corto.
+  ///
+  /// In es, this message translates to:
+  /// **'Repite un mismo carácter o bloque.'**
+  String get recoveryFilePwRepeated;
+
+  /// Motivo: la contraseña es solo números.
+  ///
+  /// In es, this message translates to:
+  /// **'No puede ser solo números.'**
+  String get recoveryFilePwDigits;
+
+  /// Motivo: la contraseña es una fila o secuencia de teclado.
+  ///
+  /// In es, this message translates to:
+  /// **'Parece una fila o secuencia de teclas.'**
+  String get recoveryFilePwKeyboard;
+
+  /// Motivo: la contraseña contiene el nombre de la app.
+  ///
+  /// In es, this message translates to:
+  /// **'No puede contener el nombre de la app.'**
+  String get recoveryFilePwAppName;
+
+  /// Motivo: la contraseña es una frase muy frecuente.
+  ///
+  /// In es, this message translates to:
+  /// **'Es una frase demasiado común.'**
+  String get recoveryFilePwCommon;
+
+  /// Motivo: las dos contraseñas no coinciden.
+  ///
+  /// In es, this message translates to:
+  /// **'Las dos contraseñas no coinciden.'**
+  String get recoveryFilePwMismatch;
+
+  /// Botón que guarda el fichero con el selector del sistema.
+  ///
+  /// In es, this message translates to:
+  /// **'Guardar'**
+  String get recoveryFileSave;
+
+  /// Botón para guardar otra copia del fichero tras guardar una.
+  ///
+  /// In es, this message translates to:
+  /// **'Guardar otra copia'**
+  String get recoveryFileSaveAgain;
+
+  /// Botón que comparte el fichero con la hoja de compartir del sistema.
+  ///
+  /// In es, this message translates to:
+  /// **'Compartir'**
+  String get recoveryFileShare;
+
+  /// Texto que acompaña al fichero al compartirlo.
+  ///
+  /// In es, this message translates to:
+  /// **'Fichero de recuperación de Gift Huddle. Es personal: no lo reenvíes a la familia.'**
+  String get recoveryFileShareText;
+
+  /// Principio del nombre del fichero guardado; se le añade la fecha y la extensión. Sin espacios, tildes ni mayúsculas.
+  ///
+  /// In es, this message translates to:
+  /// **'gift-huddle-recuperacion'**
+  String get recoveryFileStem;
+
+  /// Título mientras se prepara la clave de la contraseña del fichero.
+  ///
+  /// In es, this message translates to:
+  /// **'Protegiendo el fichero…'**
+  String get recoveryFileDerivingTitle;
+
+  /// Texto mientras se prepara la clave de la contraseña (unos segundos).
+  ///
+  /// In es, this message translates to:
+  /// **'Se prepara la clave de la contraseña. Tarda unos segundos; no cierres la app.'**
+  String get recoveryFileDerivingBody;
+
+  /// Título cuando el fichero se ha guardado y comprobado.
+  ///
+  /// In es, this message translates to:
+  /// **'Fichero guardado'**
+  String get recoveryFileSavedTitle;
+
+  /// Texto cuando el fichero se ha guardado y el código queda comprobado.
+  ///
+  /// In es, this message translates to:
+  /// **'Se ha vuelto a leer desde donde lo guardaste y el código está comprobado. Puedes guardar otra copia.'**
+  String get recoveryFileSavedBody;
+
+  /// Error: lo releído del destino no coincide.
+  ///
+  /// In es, this message translates to:
+  /// **'No se ha podido comprobar lo guardado'**
+  String get recoveryFileProblemVerifyTitle;
+
+  /// Explicación del error de relectura.
+  ///
+  /// In es, this message translates to:
+  /// **'Lo que se ha leído del destino no coincide. Guárdalo de nuevo, quizá en otro sitio.'**
+  String get recoveryFileProblemVerifyBody;
+
+  /// Error: no se pudo leer el fichero.
+  ///
+  /// In es, this message translates to:
+  /// **'No se ha podido leer el fichero'**
+  String get recoveryFileProblemUnreadableTitle;
+
+  /// Explicación del error de lectura.
+  ///
+  /// In es, this message translates to:
+  /// **'Comprueba que el fichero está disponible en este móvil e inténtalo otra vez.'**
+  String get recoveryFileProblemUnreadableBody;
+
+  /// Error: este móvil no puede abrir el selector de ficheros.
+  ///
+  /// In es, this message translates to:
+  /// **'Este móvil no puede abrir el selector de ficheros'**
+  String get recoveryFileProblemUnavailableTitle;
+
+  /// Explicación del error de selector no disponible.
+  ///
+  /// In es, this message translates to:
+  /// **'Prueba con Compartir o usa las 24 palabras.'**
+  String get recoveryFileProblemUnavailableBody;
+
+  /// Error: ya hay un selector abierto.
+  ///
+  /// In es, this message translates to:
+  /// **'Ya hay un selector abierto'**
+  String get recoveryFileProblemPickerBusyTitle;
+
+  /// Explicación del error de selector ocupado.
+  ///
+  /// In es, this message translates to:
+  /// **'Ciérralo y vuelve a intentarlo.'**
+  String get recoveryFileProblemPickerBusyBody;
+
+  /// Error: el fichero elegido no es de recuperación.
+  ///
+  /// In es, this message translates to:
+  /// **'No es un fichero de recuperación'**
+  String get recoveryFileProblemNotFileTitle;
+
+  /// Explicación del error de fichero no válido.
+  ///
+  /// In es, this message translates to:
+  /// **'Elige el fichero que guardaste al crear el código. Termina en .gifthuddle.'**
+  String get recoveryFileProblemNotFileBody;
+
+  /// Error: el fichero es de una versión más nueva.
+  ///
+  /// In es, this message translates to:
+  /// **'Fichero de una versión más nueva'**
+  String get recoveryFileProblemNewerTitle;
+
+  /// Explicación del error de versión más nueva.
+  ///
+  /// In es, this message translates to:
+  /// **'Actualiza la app y vuelve a intentarlo.'**
+  String get recoveryFileProblemNewerBody;
+
+  /// Error: contraseña incorrecta o fichero dañado.
+  ///
+  /// In es, this message translates to:
+  /// **'Contraseña incorrecta o fichero dañado'**
+  String get recoveryFileProblemPasswordTitle;
+
+  /// Explicación del error de contraseña (no se distingue de un fichero dañado).
+  ///
+  /// In es, this message translates to:
+  /// **'Revisa la contraseña. Si no la recuerdas, usa las 24 palabras.'**
+  String get recoveryFileProblemPasswordBody;
+
+  /// Error: el fichero es de otro código, no del vigente.
+  ///
+  /// In es, this message translates to:
+  /// **'Este fichero es de otro código'**
+  String get recoveryFileProblemNotCurrentTitle;
+
+  /// Explicación del error de fichero de otro código.
+  ///
+  /// In es, this message translates to:
+  /// **'Se guardó con un código anterior y ya no vale. Busca uno más reciente o cambia el código.'**
+  String get recoveryFileProblemNotCurrentBody;
+
+  /// Aviso: este móvil ya tiene una lista y el fichero solo sirve para un móvil vacío.
+  ///
+  /// In es, this message translates to:
+  /// **'Este móvil ya tiene una lista'**
+  String get recoveryFileProblemHasFamilyTitle;
+
+  /// Explicación del aviso de móvil con lista.
+  ///
+  /// In es, this message translates to:
+  /// **'El fichero de recuperación sirve para un móvil vacío. No se ha usado.'**
+  String get recoveryFileProblemHasFamilyBody;
+
+  /// Botón de Ajustes que comprueba un fichero de recuperación ya guardado.
+  ///
+  /// In es, this message translates to:
+  /// **'Comprobar un fichero'**
+  String get recoveryCheckFileAction;
+
+  /// Título de la pantalla Comprobar un fichero.
+  ///
+  /// In es, this message translates to:
+  /// **'Comprobar un fichero'**
+  String get recoveryCheckFileTitle;
+
+  /// Explicación de la pantalla Comprobar un fichero.
+  ///
+  /// In es, this message translates to:
+  /// **'Elige el fichero de recuperación que guardaste. Si abre el código de este móvil, queda comprobado. No se guarda ni se envía nada.'**
+  String get recoveryCheckFileBody;
+
+  /// Botón que abre el selector de ficheros del sistema para elegir un fichero de recuperación.
+  ///
+  /// In es, this message translates to:
+  /// **'Elegir fichero'**
+  String get recoveryFilePick;
+
+  /// Título del paso que pide la contraseña de un fichero.
+  ///
+  /// In es, this message translates to:
+  /// **'Contraseña del fichero'**
+  String get recoveryFilePasswordTitle;
+
+  /// Explicación del paso que pide la contraseña de un fichero protegido.
+  ///
+  /// In es, this message translates to:
+  /// **'Este fichero está protegido. Escribe la contraseña que pusiste al guardarlo.'**
+  String get recoveryFilePasswordOpenBody;
+
+  /// Botón que abre el fichero con la contraseña escrita.
+  ///
+  /// In es, this message translates to:
+  /// **'Abrir el fichero'**
+  String get recoveryFileOpen;
+
+  /// Título mientras se comprueba un fichero.
+  ///
+  /// In es, this message translates to:
+  /// **'Comprobando el fichero…'**
+  String get recoveryFileCheckingTitle;
+
+  /// Texto mientras se comprueba un fichero.
+  ///
+  /// In es, this message translates to:
+  /// **'Un momento.'**
+  String get recoveryFileCheckingBody;
+
+  /// Título cuando un fichero abre el código vigente.
+  ///
+  /// In es, this message translates to:
+  /// **'Código comprobado'**
+  String get recoveryCheckFileOkTitle;
+
+  /// Texto cuando un fichero abre el código vigente.
+  ///
+  /// In es, this message translates to:
+  /// **'El fichero abre el código de este móvil. Si pierdes el móvil, podrás recuperar la lista con él.'**
+  String get recoveryCheckFileOkBody;
+
+  /// Botón de la bienvenida para recuperar la lista con un fichero de recuperación.
+  ///
+  /// In es, this message translates to:
+  /// **'Recuperar con fichero'**
+  String get obRecoverWithFile;
+
+  /// Título de la pantalla de recuperar con un fichero.
+  ///
+  /// In es, this message translates to:
+  /// **'Recuperar con un fichero'**
+  String get recoverFileTitle;
+
+  /// Explicación de la pantalla de recuperar con un fichero.
+  ///
+  /// In es, this message translates to:
+  /// **'Elige el fichero de recuperación que guardaste al crear el código. Termina en .gifthuddle.'**
+  String get recoverFileBody;
+
+  /// Aviso cuando la app se abrió con un fichero de recuperación desde Archivos u otra app.
+  ///
+  /// In es, this message translates to:
+  /// **'Has abierto un fichero de recuperación.'**
+  String get recoverFileReceived;
+
+  /// Título de la confirmación antes de recuperar con un fichero.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Recuperar con este fichero?'**
+  String get recoverFileConfirmTitle;
+
+  /// Texto de la confirmación antes de recuperar con un fichero.
+  ///
+  /// In es, this message translates to:
+  /// **'Este móvil recuperará la lista y entrará como el móvil que guardó el código. Si no es tu fichero, no continúes.'**
+  String get recoverFileConfirmBody;
+
+  /// Botón para elegir otro fichero de recuperación.
+  ///
+  /// In es, this message translates to:
+  /// **'Elegir otro fichero'**
+  String get recoverFileOther;
+
+  /// Título del aviso cuando llega un segundo fichero de recuperación mientras se usa uno.
+  ///
+  /// In es, this message translates to:
+  /// **'Ha llegado otro fichero'**
+  String get recoverFileWaitingTitle;
+
+  /// Pregunta cuando llega un segundo fichero de recuperación.
+  ///
+  /// In es, this message translates to:
+  /// **'Estabas con otro fichero de recuperación. ¿Quieres cambiar a este?'**
+  String get recoverFileWaitingBody;
+
+  /// Botón para cambiar al fichero recién llegado.
+  ///
+  /// In es, this message translates to:
+  /// **'Cambiar de fichero'**
+  String get recoverFileWaitingSwitch;
+
+  /// Botón para seguir con el fichero de antes.
+  ///
+  /// In es, this message translates to:
+  /// **'Seguir con el actual'**
+  String get recoverFileWaitingKeep;
+
+  /// Título del error cuando cambió la persona de «Yo» (o hay una invalidación pendiente) y el código ya no vale.
+  ///
+  /// In es, this message translates to:
+  /// **'Este código ya no es el de tu persona actual'**
+  String get recoveryProblemPersonTitle;
+
+  /// Explicación del error de código que ya no es el de la persona actual.
+  ///
+  /// In es, this message translates to:
+  /// **'Cambió la persona de este móvil o hay un cambio pendiente. Crea un código nuevo y guarda ese.'**
+  String get recoveryProblemPersonBody;
 }
 
 class _AppLocalizationsDelegate

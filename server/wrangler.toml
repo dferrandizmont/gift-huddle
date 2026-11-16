@@ -44,9 +44,10 @@ namespace_id = "1001"
   limit = 200
   period = 60
 
-# v2 invitation routes per client (finding 16): 120 a minute lets several phones and
-# families behind one NAT pair at once; each invitation keeps its own 30 a minute in
-# its list object. A rate limit binding writes no rows, so a request costs nothing in
+# v2 invitation routes per client (finding 16): 120 a minute. With the app's 1-2 s
+# polling (1.0.2) one pairing peaks at about 45 a minute and two behind one NAT at
+# about 80 (`V2_INVITE_REQUESTS_PER_IP` in src/limits.ts); each invitation keeps its
+# own 30 a minute in its list object. A rate limit binding writes no rows, so a request costs nothing in
 # storage before the router knows whether the invitation exists.
 [[ratelimits]]
 name = "INVITE_IP_LIMITER"

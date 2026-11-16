@@ -18,6 +18,7 @@ import '../../settings/presentation/settings_column.dart';
 import '../../settings/presentation/verify_owner.dart';
 import '../../sync/application/recovery_providers.dart';
 import 'recovery_create_screen.dart';
+import 'recovery_file_check_screen.dart';
 import 'recovery_parts.dart';
 import 'recovery_problem.dart';
 
@@ -61,6 +62,16 @@ class _RecoveryScreenState extends ConsumerState<RecoveryScreen> {
       MaterialPageRoute<void>(
         builder: (_) => RecoveryCreateScreen(rotate: rotate),
       ),
+    );
+    if (mounted) {
+      unawaited(ref.read(recoveryApplicationProvider.notifier).refresh());
+    }
+  }
+
+  /// «Comprobar un fichero»: si abre el código vigente, queda comprobado.
+  Future<void> _checkFile() async {
+    await Navigator.of(context, rootNavigator: true).push<bool>(
+      MaterialPageRoute<bool>(builder: (_) => const RecoveryFileCheckScreen()),
     );
     if (mounted) {
       unawaited(ref.read(recoveryApplicationProvider.notifier).refresh());
@@ -287,6 +298,11 @@ class _RecoveryScreenState extends ConsumerState<RecoveryScreen> {
             FilledButton(
               onPressed: _busy ? null : () => _open(rotate: true),
               child: Text(l10n.recoveryContinue),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: _busy ? null : _checkFile,
+              child: Text(l10n.recoveryCheckFileAction),
             ),
           ],
         );

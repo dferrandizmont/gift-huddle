@@ -1098,6 +1098,36 @@ class AppLocalizationsEs extends AppLocalizations {
       'No se puede usar la cámara. Revisa el permiso de cámara en los ajustes del móvil.';
 
   @override
+  String get scannerWaitingPermission => 'Esperando el permiso de la cámara…';
+
+  @override
+  String get scannerDeniedTitle => 'Hace falta la cámara';
+
+  @override
+  String get scannerDeniedBody =>
+      'Solo se usa para leer el código QR; no se guarda ninguna imagen.';
+
+  @override
+  String get scannerBlockedTitle => 'La cámara está bloqueada';
+
+  @override
+  String get scannerBlockedBody =>
+      'El permiso de cámara está denegado. Actívalo en los ajustes del móvil para leer el código QR.';
+
+  @override
+  String get scannerFailedTitle => 'No se ha podido abrir la cámara';
+
+  @override
+  String get scannerFailedBody =>
+      'El móvil no ha contestado a la petición del permiso. Reintenta.';
+
+  @override
+  String get scannerRetry => 'Reintentar';
+
+  @override
+  String get scannerOpenSettings => 'Abrir ajustes';
+
+  @override
   String get joinConflictTitle => 'Este móvil ya tiene una lista';
 
   @override
@@ -2501,10 +2531,13 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get webGateCompareBody =>
-      'Comprueba que en el móvil sale el mismo código y apruébalo allí.';
+      'Comprueba que en el móvil sale el mismo código, confírmalo aquí y apruébalo también en el móvil.';
 
   @override
   String get webGateCompareWaiting => 'Esperando a que el móvil lo apruebe…';
+
+  @override
+  String get webGateCompareConfirmed => 'Has confirmado el código aquí';
 
   @override
   String get webGateFailedTitle => 'No se ha podido conectar';
@@ -2524,6 +2557,10 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get webGateFailedNetwork =>
       'No hay conexión con el servidor. Comprueba tu conexión y empieza otra vez.';
+
+  @override
+  String get webGateFailedCancelled =>
+      'El móvil ha cancelado la conexión o la invitación ya no está disponible. Empieza otra vez y vuelve a conectar desde el móvil.';
 
   @override
   String get webGateStartAgain => 'Empezar otra vez';
@@ -3466,11 +3503,11 @@ class AppLocalizationsEs extends AppLocalizations {
   String get recoveryValueUnconfirmed => 'Sin comprobar';
 
   @override
-  String get recoveryUnconfirmedTitle => 'Falta comprobar las palabras';
+  String get recoveryUnconfirmedTitle => 'Falta comprobar el código';
 
   @override
   String get recoveryUnconfirmedBody =>
-      'El código aún no cuenta como guardado. Continúa para comprobar las palabras. Si ya se mostraron, se creará un código nuevo y el anterior dejará de valer.';
+      'El código aún no cuenta como guardado. Continúa para comprobar las palabras o comprueba un fichero que ya hayas guardado. Si las palabras ya se mostraron, se creará un código nuevo y el anterior dejará de valer.';
 
   @override
   String get recoveryValueAttention => 'Revisar';
@@ -3517,7 +3554,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get recoveryChange => 'Cambiar el código';
 
   @override
-  String get recoveryChangeHint => 'El anterior dejará de valer.';
+  String get recoveryChangeHint =>
+      'Los ficheros y las palabras anteriores dejarán de servir.';
 
   @override
   String get recoveryRemove => 'Quitar el código';
@@ -3558,7 +3596,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryRotateBody =>
-      'Se creará un código nuevo. El anterior dejará de valer cuando el nuevo esté preparado.';
+      'Se creará un código nuevo. El anterior dejará de valer cuando el nuevo esté preparado: los ficheros y las palabras anteriores dejarán de servir.';
 
   @override
   String get recoveryPoint1 =>
@@ -3665,7 +3703,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryDonePreparedBody =>
-      'Si pierdes este móvil, podrás recuperar la lista con las 24 palabras.';
+      'Si pierdes este móvil, podrás recuperar la lista con tu código de recuperación.';
 
   @override
   String get recoveryDonePendingBody =>
@@ -3961,4 +3999,259 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoverStepActiveValue => 'en curso';
+
+  @override
+  String get recoveryFileAction => 'Guardar en un fichero';
+
+  @override
+  String get recoveryFileTitle => 'Guardar en un fichero';
+
+  @override
+  String get recoveryFileBody =>
+      'Además de las palabras, puedes guardar el código en un fichero. Quien tenga el fichero puede recuperar la lista y entrar como este móvil.';
+
+  @override
+  String get recoveryFilePersonal =>
+      'Es un fichero personal: no lo envíes a la familia. Guárdalo donde puedas abrirlo aunque pierdas este móvil.';
+
+  @override
+  String get recoveryFileProtect => 'Proteger con contraseña';
+
+  @override
+  String get recoveryFileProtectOffHint =>
+      'Sin contraseña, el fichero vale tanto como las palabras: quien lo consiga puede usarlo.';
+
+  @override
+  String get recoveryFileProtectOnHint =>
+      'Robar el fichero no basta: hace falta la contraseña.';
+
+  @override
+  String get recoveryFilePassword => 'Contraseña';
+
+  @override
+  String get recoveryFilePasswordRepeat => 'Repite la contraseña';
+
+  @override
+  String get recoveryFilePasswordShow => 'Ver';
+
+  @override
+  String get recoveryFilePasswordHide => 'Ocultar';
+
+  @override
+  String recoveryFilePasswordHelp(int min) {
+    return 'Mínimo $min caracteres. Usa el gestor de contraseñas o varias palabras elegidas al azar.';
+  }
+
+  @override
+  String get recoveryFilePasswordForgot =>
+      'Si olvidas la contraseña, el fichero no sirve para nada. Las 24 palabras seguirán valiendo.';
+
+  @override
+  String recoveryFilePwTooShort(int min) {
+    return 'Es muy corta: mínimo $min caracteres.';
+  }
+
+  @override
+  String recoveryFilePwTooLong(int max) {
+    return 'Es demasiado larga: máximo $max caracteres.';
+  }
+
+  @override
+  String get recoveryFilePwRepeated => 'Repite un mismo carácter o bloque.';
+
+  @override
+  String get recoveryFilePwDigits => 'No puede ser solo números.';
+
+  @override
+  String get recoveryFilePwKeyboard => 'Parece una fila o secuencia de teclas.';
+
+  @override
+  String get recoveryFilePwAppName => 'No puede contener el nombre de la app.';
+
+  @override
+  String get recoveryFilePwCommon => 'Es una frase demasiado común.';
+
+  @override
+  String get recoveryFilePwMismatch => 'Las dos contraseñas no coinciden.';
+
+  @override
+  String get recoveryFileSave => 'Guardar';
+
+  @override
+  String get recoveryFileSaveAgain => 'Guardar otra copia';
+
+  @override
+  String get recoveryFileShare => 'Compartir';
+
+  @override
+  String get recoveryFileShareText =>
+      'Fichero de recuperación de Gift Huddle. Es personal: no lo reenvíes a la familia.';
+
+  @override
+  String get recoveryFileStem => 'gift-huddle-recuperacion';
+
+  @override
+  String get recoveryFileDerivingTitle => 'Protegiendo el fichero…';
+
+  @override
+  String get recoveryFileDerivingBody =>
+      'Se prepara la clave de la contraseña. Tarda unos segundos; no cierres la app.';
+
+  @override
+  String get recoveryFileSavedTitle => 'Fichero guardado';
+
+  @override
+  String get recoveryFileSavedBody =>
+      'Se ha vuelto a leer desde donde lo guardaste y el código está comprobado. Puedes guardar otra copia.';
+
+  @override
+  String get recoveryFileProblemVerifyTitle =>
+      'No se ha podido comprobar lo guardado';
+
+  @override
+  String get recoveryFileProblemVerifyBody =>
+      'Lo que se ha leído del destino no coincide. Guárdalo de nuevo, quizá en otro sitio.';
+
+  @override
+  String get recoveryFileProblemUnreadableTitle =>
+      'No se ha podido leer el fichero';
+
+  @override
+  String get recoveryFileProblemUnreadableBody =>
+      'Comprueba que el fichero está disponible en este móvil e inténtalo otra vez.';
+
+  @override
+  String get recoveryFileProblemUnavailableTitle =>
+      'Este móvil no puede abrir el selector de ficheros';
+
+  @override
+  String get recoveryFileProblemUnavailableBody =>
+      'Prueba con Compartir o usa las 24 palabras.';
+
+  @override
+  String get recoveryFileProblemPickerBusyTitle => 'Ya hay un selector abierto';
+
+  @override
+  String get recoveryFileProblemPickerBusyBody =>
+      'Ciérralo y vuelve a intentarlo.';
+
+  @override
+  String get recoveryFileProblemNotFileTitle =>
+      'No es un fichero de recuperación';
+
+  @override
+  String get recoveryFileProblemNotFileBody =>
+      'Elige el fichero que guardaste al crear el código. Termina en .gifthuddle.';
+
+  @override
+  String get recoveryFileProblemNewerTitle =>
+      'Fichero de una versión más nueva';
+
+  @override
+  String get recoveryFileProblemNewerBody =>
+      'Actualiza la app y vuelve a intentarlo.';
+
+  @override
+  String get recoveryFileProblemPasswordTitle =>
+      'Contraseña incorrecta o fichero dañado';
+
+  @override
+  String get recoveryFileProblemPasswordBody =>
+      'Revisa la contraseña. Si no la recuerdas, usa las 24 palabras.';
+
+  @override
+  String get recoveryFileProblemNotCurrentTitle =>
+      'Este fichero es de otro código';
+
+  @override
+  String get recoveryFileProblemNotCurrentBody =>
+      'Se guardó con un código anterior y ya no vale. Busca uno más reciente o cambia el código.';
+
+  @override
+  String get recoveryFileProblemHasFamilyTitle =>
+      'Este móvil ya tiene una lista';
+
+  @override
+  String get recoveryFileProblemHasFamilyBody =>
+      'El fichero de recuperación sirve para un móvil vacío. No se ha usado.';
+
+  @override
+  String get recoveryCheckFileAction => 'Comprobar un fichero';
+
+  @override
+  String get recoveryCheckFileTitle => 'Comprobar un fichero';
+
+  @override
+  String get recoveryCheckFileBody =>
+      'Elige el fichero de recuperación que guardaste. Si abre el código de este móvil, queda comprobado. No se guarda ni se envía nada.';
+
+  @override
+  String get recoveryFilePick => 'Elegir fichero';
+
+  @override
+  String get recoveryFilePasswordTitle => 'Contraseña del fichero';
+
+  @override
+  String get recoveryFilePasswordOpenBody =>
+      'Este fichero está protegido. Escribe la contraseña que pusiste al guardarlo.';
+
+  @override
+  String get recoveryFileOpen => 'Abrir el fichero';
+
+  @override
+  String get recoveryFileCheckingTitle => 'Comprobando el fichero…';
+
+  @override
+  String get recoveryFileCheckingBody => 'Un momento.';
+
+  @override
+  String get recoveryCheckFileOkTitle => 'Código comprobado';
+
+  @override
+  String get recoveryCheckFileOkBody =>
+      'El fichero abre el código de este móvil. Si pierdes el móvil, podrás recuperar la lista con él.';
+
+  @override
+  String get obRecoverWithFile => 'Recuperar con fichero';
+
+  @override
+  String get recoverFileTitle => 'Recuperar con un fichero';
+
+  @override
+  String get recoverFileBody =>
+      'Elige el fichero de recuperación que guardaste al crear el código. Termina en .gifthuddle.';
+
+  @override
+  String get recoverFileReceived => 'Has abierto un fichero de recuperación.';
+
+  @override
+  String get recoverFileConfirmTitle => '¿Recuperar con este fichero?';
+
+  @override
+  String get recoverFileConfirmBody =>
+      'Este móvil recuperará la lista y entrará como el móvil que guardó el código. Si no es tu fichero, no continúes.';
+
+  @override
+  String get recoverFileOther => 'Elegir otro fichero';
+
+  @override
+  String get recoverFileWaitingTitle => 'Ha llegado otro fichero';
+
+  @override
+  String get recoverFileWaitingBody =>
+      'Estabas con otro fichero de recuperación. ¿Quieres cambiar a este?';
+
+  @override
+  String get recoverFileWaitingSwitch => 'Cambiar de fichero';
+
+  @override
+  String get recoverFileWaitingKeep => 'Seguir con el actual';
+
+  @override
+  String get recoveryProblemPersonTitle =>
+      'Este código ya no es el de tu persona actual';
+
+  @override
+  String get recoveryProblemPersonBody =>
+      'Cambió la persona de este móvil o hay un cambio pendiente. Crea un código nuevo y guarda ese.';
 }

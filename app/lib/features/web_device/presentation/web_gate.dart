@@ -69,6 +69,7 @@ class WebGate extends StatelessWidget {
     final WebGateConnect v => _ConnectPane(url: v.url),
     final WebGateComparing v => _ComparingPane(
       code: v.code,
+      confirmed: v.confirmed,
       actions: actions,
       onConfirmCode: onConfirmCode,
       onRejectCode: onRejectCode,
@@ -333,21 +334,62 @@ class _ConnectPane extends StatelessWidget {
 
 // --- Comparar el código -----------------------------------------------------
 
-class _ComparingPane extends StatelessWidget {
+class _ComparingPane extends StatefulWidget {
   const _ComparingPane({
     required this.code,
+    required this.confirmed,
     required this.actions,
     this.onConfirmCode,
     this.onRejectCode,
   });
 
   final String code;
+
+  /// Si la persona ya ha dicho aquí que los códigos coinciden.
+  final bool confirmed;
   final WebGateActions actions;
   final Future<void> Function()? onConfirmCode, onRejectCode;
 
   @override
+  State<_ComparingPane> createState() => _ComparingPaneState();
+}
+
+class _ComparingPaneState extends State<_ComparingPane> {
+  /// «Coinciden» está pulsado y su acción aún no ha vuelto: ya se enseña el
+  /// estado confirmado en vez de un botón gris bloqueado.
+  bool _pending = false;
+
+  @override
+  void didUpdateWidget(_ComparingPane old) {
+    super.didUpdateWidget(old);
+    // Sigue «pendiente» hasta que el motor publica `confirmed` (o la acción
+    // falla): así los botones no vuelven ni un fotograma.
+    if (old.code != widget.code || (widget.confirmed && !old.confirmed)) {
+      _pending = false;
+    }
+  }
+
+  Future<void> _confirm() async {
+    setState(() => _pending = true);
+    try {
+      await widget.onConfirmCode!();
+    } on Object {
+      if (mounted) {
+        setState(() => _pending = false);
+      }
+      rethrow;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final motion = RegalosMotion.of(context);
+    final confirmed = widget.confirmed || _pending;
+    final hasChoice =
+        widget.onConfirmCode != null || widget.onRejectCode != null;
+    // Sin botones (maquetas de solo lectura) solo queda esperar al móvil.
+    final waiting = confirmed || !hasChoice;
     return WebGatePane(
       children: [
         WebGateHeading(
@@ -355,26 +397,85 @@ class _ComparingPane extends StatelessWidget {
           body: l10n.webGateCompareBody,
         ),
         const SizedBox(height: 20),
-        VerificationCodeCard(label: l10n.webGateCompareLabel, code: code),
-        if (onConfirmCode != null) ...[
-          const SizedBox(height: 16),
-          _AsyncButton(label: l10n.pairingV2Match, onPressed: onConfirmCode!),
-        ],
-        if (onRejectCode != null)
-          _AsyncButton(
-            kind: _ButtonKind.outlined,
-            label: l10n.pairingV2NoMatch,
-            onPressed: onRejectCode!,
+        VerificationCodeCard(
+          label: l10n.webGateCompareLabel,
+          code: widget.code,
+        ),
+        const SizedBox(height: 16),
+        AnimatedSize(
+          alignment: Alignment.topCenter,
+          duration: motion.duration(RegalosCurves.foldDuration),
+          curve: motion.curve(RegalosCurves.fold),
+          child: AnimatedSwitcher(
+            duration: RegalosMotion.fade,
+            layoutBuilder: (current, previous) => Stack(
+              alignment: Alignment.topCenter,
+              children: [...previous, ?current],
+            ),
+            child: confirmed
+                ? _CodeConfirmed(
+                    key: const ValueKey<String>('confirmed'),
+                    text: l10n.webGateCompareConfirmed,
+                  )
+                : Column(
+                    key: const ValueKey<String>('choose'),
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (widget.onConfirmCode != null)
+                        _AsyncButton(
+                          label: l10n.pairingV2Match,
+                          onPressed: _confirm,
+                        ),
+                      if (widget.onConfirmCode != null &&
+                          widget.onRejectCode != null)
+                        const SizedBox(height: 12),
+                      if (widget.onRejectCode != null)
+                        _AsyncButton(
+                          // Rojo: es la salida que corta la conexión.
+                          kind: _ButtonKind.danger,
+                          label: l10n.pairingV2NoMatch,
+                          onPressed: widget.onRejectCode!,
+                        ),
+                    ],
+                  ),
           ),
-        const SizedBox(height: 16),
-        WebGateWaiting(text: l10n.webGateCompareWaiting),
-        const SizedBox(height: 16),
+        ),
+        if (waiting) ...[
+          const SizedBox(height: 16),
+          WebGateWaiting(text: l10n.webGateCompareWaiting),
+        ],
+        const SizedBox(height: 24),
         _AsyncButton(
           kind: _ButtonKind.outlined,
           label: l10n.webGateStartAgain,
-          onPressed: actions.restartPairing,
+          onPressed: widget.actions.restartPairing,
         ),
       ],
+    );
+  }
+}
+
+/// «Has confirmado el código aquí»: sustituye a los dos botones.
+class _CodeConfirmed extends StatelessWidget {
+  const _CodeConfirmed({super.key, required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RegalosTokens.of(context);
+    return Semantics(
+      liveRegion: true,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          StrokeIcon(AppIcons.check, size: 20, color: t.ink),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(text, style: t.styles.body.copyWith(color: t.ink)),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -399,6 +500,7 @@ class _FailedPane extends StatelessWidget {
             WebConnectFailure.codeMismatch => l10n.webGateFailedMismatch,
             WebConnectFailure.rejected => l10n.webGateFailedRejected,
             WebConnectFailure.network => l10n.webGateFailedNetwork,
+            WebConnectFailure.cancelled => l10n.webGateFailedCancelled,
           },
         ),
         const SizedBox(height: 24),

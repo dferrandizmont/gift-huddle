@@ -30,6 +30,7 @@ import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
 
 import '../../../core/sync/envelope.dart';
+import '../../../core/sync/hkdf.dart';
 
 const _verifyInfo = 'gift-huddle-verify-v1';
 const _packageSalt = 'gift-huddle';
@@ -100,8 +101,6 @@ String cleanDeviceName(String name) {
 abstract final class InviteCrypto {
   static final X25519 _x25519 = X25519();
   static final AesGcm _aes = AesGcm.with256bits();
-  static final Hkdf _hkdf32 = Hkdf(hmac: Hmac.sha256(), outputLength: 32);
-  static final Hkdf _hkdf3 = Hkdf(hmac: Hmac.sha256(), outputLength: 3);
 
   /// Crea un par efímero. Con [seed] (32 bytes) es determinista: solo para
   /// pruebas y vectores fijos.
@@ -120,9 +119,10 @@ abstract final class InviteCrypto {
   ) async {
     _checkPublic(publicKeyA);
     _checkPublic(publicKeyB);
-    final derived = await _hkdf3.deriveKey(
+    final derived = await hkdfSha256(
       secretKey: SecretKey([...publicKeyA, ...publicKeyB]),
       info: utf8.encode(_verifyInfo),
+      length: 3,
     );
     final b = await derived.extractBytes();
     final bits = (b[0] << 12) | (b[1] << 4) | (b[2] >> 4);
@@ -277,7 +277,7 @@ abstract final class InviteCrypto {
   static Future<SecretKey> _packageKey(
     InviteKeyPair mine,
     List<int> theirPublicKey,
-  ) async => _hkdf32.deriveKey(
+  ) async => hkdfSha256(
     secretKey: await _shared(mine, theirPublicKey),
     nonce: utf8.encode(_packageSalt),
     info: utf8.encode(_packageInfo),

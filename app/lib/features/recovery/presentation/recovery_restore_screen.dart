@@ -7,7 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/router.dart' show routerProvider;
 
 import '../../../core/motion/haptics.dart';
+import '../../../core/motion/shake.dart';
 import '../../../core/motion/stagger.dart';
+import '../../../core/motion/unfold_section.dart';
 import '../../../core/platform/secure_screen.dart';
 import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/sync/recovery.dart';
@@ -22,12 +24,25 @@ import '../../family/application/family_providers.dart';
 import '../../family/application/self_recipient_provider.dart';
 import '../../family/data/recovery_wordlist_loader.dart';
 import '../application/recovery_hold.dart';
+import '../../sync/application/recovery_file_flow.dart';
 import '../../sync/application/recovery_providers.dart';
+import 'recovery_file_parts.dart';
+import 'recovery_file_problem.dart';
 import 'recovery_parts.dart';
 import 'recovery_problem.dart';
 import 'recovery_scan_screen.dart';
 
-enum _Stage { entry, progress, error, done }
+enum _Stage {
+  entry,
+  progress,
+  error,
+  done,
+
+  /// Con fichero (ADR 0008): elegir, contraseña y confirmación.
+  filePick,
+  filePassword,
+  fileConfirm,
+}
 
 /// «Tengo un código de recuperación»: se escriben o se pegan las 24 palabras
 /// (con autocompletado de la lista inglesa), o se escanea el QR; luego se ve
@@ -35,9 +50,21 @@ enum _Stage { entry, progress, error, done }
 ///
 /// Cada palabra y la suma de control se comprueban aquí antes de enviar nada.
 /// Nada de lo escrito se guarda: al enviar, los campos se vacían.
+///
+/// Con [fileMode] («Recuperar con fichero», ADR 0008) el principio es otro:
+/// elegir el fichero de recuperación (o el que llegó desde Archivos), su
+/// contraseña con el progreso de la derivación y una confirmación. Desde ahí
+/// el seguimiento, los errores y el final son los mismos que con las palabras.
 class RecoveryRestoreScreen extends ConsumerStatefulWidget {
   /// Crea la pantalla.
-  const RecoveryRestoreScreen({super.key, this.embedded = false});
+  const RecoveryRestoreScreen({
+    super.key,
+    this.embedded = false,
+    this.fileMode = false,
+  });
+
+  /// Si se recupera con un fichero en vez de con las palabras.
+  final bool fileMode;
 
   /// Si va dentro de la pantalla de «lista traspasada», fuera del router de la
   /// app: volver cierra su propio navegador y no usa rutas.
@@ -58,6 +85,26 @@ class _RecoveryRestoreScreenState extends ConsumerState<RecoveryRestoreScreen> {
   RecoveryWordlist? _wordlist;
   _Stage _stage = _Stage.entry;
   RecoveryProblem? _problem;
+
+  // ---- Fichero (ADR 0008)
+  late final RecoveryFileController _file;
+  final TextEditingController _filePassword = TextEditingController();
+  final GlobalKey<ShakeXState> _fileShake = GlobalKey<ShakeXState>();
+  RecoveryFileProblem? _fileProblem;
+  bool _filePicking = false;
+  bool _fileOpening = false;
+
+  /// Cambia con cada fichero adoptado o soltado: una apertura vieja que acaba
+  /// tarde no toca nada (y la del fichero nuevo espera a que acabe).
+  int _fileSerial = 0;
+
+  /// El `_fileSerial` del fichero abierto que espera a que acabe la apertura
+  /// anterior; si el fichero cambia otra vez, ya no vale.
+  int? _reopenSerial;
+  late final RecoveryFileRestoring _restoring;
+  RecoveryFileScreenOpen? _screens;
+  bool _fileReceived = false;
+
   bool _running = false;
   bool _checksumFailed = false;
 
@@ -78,6 +125,19 @@ class _RecoveryRestoreScreenState extends ConsumerState<RecoveryRestoreScreen> {
   @override
   void initState() {
     super.initState();
+    _file = ref.read(recoveryFileProvider.notifier);
+    _restoring = ref.read(recoveryFileRestoringProvider.notifier);
+    if (widget.fileMode) {
+      _stage = _Stage.filePick;
+      // Un fichero que llegó desde Archivos antes de abrir esta pantalla.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _screens = ref.read(recoveryFileScreenOpenProvider.notifier);
+          _screens!.add(1);
+          unawaited(_adoptSelection(ref.read(recoveryFileProvider).selection));
+        }
+      });
+    }
     // La familia aparece en pleno proceso: hasta «Entrar en la lista», que se
     // vea la pantalla final y ni el router ni el aviso de crear el PIN se
     // adelanten.
@@ -114,6 +174,28 @@ class _RecoveryRestoreScreenState extends ConsumerState<RecoveryRestoreScreen> {
     // bloqueo se repintan.
     final defer = _hold;
     scheduleMicrotask(() => defer.value = false);
+    if (widget.fileMode) {
+      final screens = _screens;
+      if (screens != null) {
+        scheduleMicrotask(() {
+          try {
+            screens.add(-1);
+          } on Object {
+            // El contenedor ya se cerró con la app.
+          }
+        });
+      }
+      // Fuera del fotograma en que se desmonta: el estado del flujo se repinta.
+      final file = _file;
+      scheduleMicrotask(() {
+        try {
+          file.clear();
+        } on Object {
+          // El contenedor ya se cerró con la app.
+        }
+      });
+    }
+    _filePassword.dispose();
     for (final c in _controllers) {
       c.dispose();
     }
@@ -168,10 +250,18 @@ class _RecoveryRestoreScreenState extends ConsumerState<RecoveryRestoreScreen> {
       if (_stage == _Stage.progress) {
         setState(() => _stage = _Stage.done);
       }
-    } else if (_stage == _Stage.entry) {
+    } else if (_isEntryStage) {
       setState(() => _stage = _Stage.progress);
     }
   }
+
+  /// Si todavía se está pidiendo el código (palabras o fichero), antes de que
+  /// nada se envíe.
+  bool get _isEntryStage =>
+      _stage == _Stage.entry ||
+      _stage == _Stage.filePick ||
+      _stage == _Stage.filePassword ||
+      _stage == _Stage.fileConfirm;
 
   // ---- Palabras
 
@@ -360,6 +450,24 @@ class _RecoveryRestoreScreenState extends ConsumerState<RecoveryRestoreScreen> {
       _run(() => ref.read(recoveryApplicationProvider.notifier).retry());
 
   Future<void> _run(Future<void> Function() action) async {
+    // Mientras restaura, un segundo fichero espera: no se puede parar a medias.
+    if (widget.fileMode) {
+      _restoring.set(true);
+    }
+    try {
+      await _runAction(action);
+    } finally {
+      if (widget.fileMode) {
+        try {
+          _restoring.set(false);
+        } on Object {
+          // El contenedor ya se cerró con la app.
+        }
+      }
+    }
+  }
+
+  Future<void> _runAction(Future<void> Function() action) async {
     setState(() {
       _stage = _Stage.progress;
       _problem = null;
@@ -374,6 +482,18 @@ class _RecoveryRestoreScreenState extends ConsumerState<RecoveryRestoreScreen> {
       }
     } on RecoveryApplicationException catch (e) {
       problem = recoveryProblemOfException(e);
+    } on RecoveryFileFlowException catch (e) {
+      if (e.error == RecoveryFileFlowError.cancelled) {
+        // El fichero se soltó o se cambió mientras tanto: sin mensaje.
+        if (mounted) {
+          setState(() {
+            _running = false;
+            _stage = _Stage.filePick;
+          });
+        }
+        return;
+      }
+      problem = RecoveryProblem.other;
     } on Object {
       problem = RecoveryProblem.other;
     }
@@ -466,9 +586,16 @@ class _RecoveryRestoreScreenState extends ConsumerState<RecoveryRestoreScreen> {
     // Otro código es otra decisión: la sustitución confirmada no se arrastra.
     _replaceNext = false;
     _lastInput = null;
+    if (widget.fileMode) {
+      _fileSerial++;
+      _reopenSerial = null;
+      _file.clear();
+      _filePassword.clear();
+    }
     setState(() {
-      _stage = _Stage.entry;
+      _stage = widget.fileMode ? _Stage.filePick : _Stage.entry;
       _problem = null;
+      _fileProblem = null;
       _checksumFailed = false;
       _hint = null;
     });
@@ -526,6 +653,327 @@ class _RecoveryRestoreScreenState extends ConsumerState<RecoveryRestoreScreen> {
     router.canPop() ? router.pop() : router.go('/welcome');
   }
 
+  // ---- Fichero (ADR 0008)
+
+  /// Adopta el fichero que llegó de fuera (o ya estaba al abrir): lo inservible
+  /// se dice y se descarta; el protegido pide la contraseña y el abierto pasa
+  /// directo a la confirmación. Nunca deriva sin la contraseña.
+  Future<void> _adoptSelection(RecoveryFileSelection? selection) async {
+    if (!widget.fileMode || selection == null || _running) {
+      return;
+    }
+    if (_stage == _Stage.progress || _stage == _Stage.done) {
+      return;
+    }
+    // Antes del primer await: invalida las adopciones anteriores que sigan
+    // esperando y es el fichero al que se refiere todo lo que sigue.
+    final serial = ++_fileSerial;
+    if (_stage == _Stage.error) {
+      // Un fichero nuevo aceptado tras fallar la restauración del anterior:
+      // se sale del error y se adopta el nuevo (lo elegido con el selector
+      // sale de «elegir fichero», no de aquí).
+      if (selection.source != RecoveryFileSource.received) {
+        return;
+      }
+      if (ref.read(recoveryStatusProvider).hasPendingRestore) {
+        try {
+          await ref.read(recoveryApplicationProvider.notifier).abandon();
+        } on Object {
+          return;
+        }
+        if (!mounted || serial != _fileSerial) {
+          // Mientras se abandonaba, se aceptó otro fichero: es el que manda.
+          return;
+        }
+      }
+      _replaceNext = false;
+      _lastInput = null;
+      setState(() => _problem = null);
+    }
+    _fileReceived = selection.source == RecoveryFileSource.received;
+    _filePassword.clear();
+    final failure = selection.failure;
+    if (failure != null) {
+      _file.clear();
+      setState(() {
+        _fileProblem = RecoveryFileProblem(
+          failure == RecoveryFileFailure.newerVersion
+              ? RecoveryFileProblemKind.newerVersion
+              : RecoveryFileProblemKind.notRecoveryFile,
+        );
+        _stage = _Stage.filePick;
+      });
+      return;
+    }
+    if (selection.hasFamily) {
+      _file.clear();
+      setState(() {
+        _fileProblem = const RecoveryFileProblem(
+          RecoveryFileProblemKind.hasFamily,
+        );
+        _stage = _Stage.filePick;
+      });
+      return;
+    }
+    setState(() {
+      _fileProblem = null;
+      _stage = selection.opened
+          ? _Stage.fileConfirm
+          : selection.needsPassword
+          ? _Stage.filePassword
+          : _Stage.filePick;
+    });
+    if (!selection.opened && !selection.needsPassword) {
+      if (_fileOpening) {
+        // La apertura del anterior sigue deshaciéndose: esta empieza en cuanto
+        // acabe.
+        _reopenSerial = serial;
+      } else {
+        await _openFile();
+      }
+    }
+  }
+
+  /// «Elegir fichero»: el selector del sistema.
+  Future<void> _pickFile() async {
+    if (_filePicking) {
+      return;
+    }
+    setState(() {
+      _filePicking = true;
+      _fileProblem = null;
+    });
+    try {
+      final selection = await _file.pickForRestore();
+      if (!mounted || selection == null) {
+        return;
+      }
+      await _adoptSelection(selection);
+    } on Object catch (e) {
+      _fileFail(e);
+    } finally {
+      if (mounted) {
+        setState(() => _filePicking = false);
+      }
+    }
+  }
+
+  /// Abre el fichero elegido: la variante abierta al momento; la protegida,
+  /// con la contraseña y el progreso de la derivación (con «Cancelar»).
+  Future<void> _openFile() async {
+    if (_fileOpening) {
+      return;
+    }
+    final needsPassword =
+        ref.read(recoveryFileProvider).selection?.needsPassword ?? false;
+    final serial = _fileSerial;
+    setState(() {
+      _fileOpening = true;
+      _fileProblem = null;
+    });
+    try {
+      await _file.open(password: needsPassword ? _filePassword.text : null);
+      if (!mounted || serial != _fileSerial) {
+        return;
+      }
+      _filePassword.clear();
+      setState(() => _stage = _Stage.fileConfirm);
+    } on Object catch (e) {
+      if (serial == _fileSerial) {
+        _fileFail(e);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _fileOpening = false);
+        final pending = _reopenSerial;
+        _reopenSerial = null;
+        final current = ref.read(recoveryFileProvider).selection;
+        if (pending != null &&
+            pending == _fileSerial &&
+            current != null &&
+            current.failure == null &&
+            current.variant == RecoveryFileVariant.open &&
+            !current.opened) {
+          unawaited(_openFile());
+        }
+      }
+    }
+  }
+
+  /// Dice por qué no se pudo elegir o abrir el fichero. Una cancelación no
+  /// dice nada.
+  void _fileFail(Object error) {
+    final problem = recoveryFileProblemOf(error);
+    if (!mounted || problem == null) {
+      return;
+    }
+    ref.read(hapticsProvider).error();
+    setState(() {
+      _fileProblem = problem;
+      _stage = problem.isWrongPassword ? _Stage.filePassword : _Stage.filePick;
+    });
+    if (problem.isWrongPassword) {
+      _fileShake.currentState?.shake();
+    }
+  }
+
+  /// «Elegir otro fichero»: suelta el actual.
+  void _otherFile() {
+    _fileSerial++;
+    _reopenSerial = null;
+    _file.clear();
+    _filePassword.clear();
+    setState(() {
+      _fileProblem = null;
+      _stage = _Stage.filePick;
+    });
+  }
+
+  /// «Recuperar la lista»: el mismo flujo que con las palabras, con la
+  /// entropía del fichero abierto (que se conserva para reintentar).
+  Future<void> _restoreFile() async {
+    _lastInput = ({required bool replace}) =>
+        _file.restore(replaceExisting: replace);
+    await _run(() => _lastInput!(replace: _replaceNext));
+  }
+
+  Widget _fileBody(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final note = _fileReceived ? l10n.recoverFileReceived : null;
+    switch (_stage) {
+      case _Stage.filePassword:
+        final deriving =
+            ref.watch(recoveryFileProvider).activity ==
+            RecoveryFileActivity.deriving;
+        return AutofillGroup(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              RecoveryFileStepBody(
+                note: note,
+                title: l10n.recoveryFilePasswordTitle,
+                body: l10n.recoveryFilePasswordOpenBody,
+                problem: _fileProblem,
+                field: ShakeX(
+                  key: _fileShake,
+                  child: RecoveryPasswordField(
+                    controller: _filePassword,
+                    label: l10n.recoveryFilePassword,
+                    newPassword: false,
+                    autofocus: true,
+                    enabled: !_fileOpening,
+                    error: _fileProblem?.isWrongPassword ?? false,
+                    onChanged: () => setState(() => _fileProblem = null),
+                    onSubmitted: _filePassword.text.isEmpty || _fileOpening
+                        ? null
+                        : _openFile,
+                  ),
+                ),
+              ),
+              UnfoldSection(
+                show: deriving,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: RecoveryDerivingCard(
+                    title: l10n.recoveryFileDerivingTitle,
+                    body: l10n.recoveryFileDerivingBody,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      case _Stage.fileConfirm:
+        return StaggerScope(
+          maxItems: 3,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              StaggerItem(
+                index: 0,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: RecoveryBadge(icon: SettingsIcons.key, size: 56),
+                ),
+              ),
+              const SizedBox(height: 16),
+              StaggerItem(
+                index: 1,
+                child: RecoveryFileStepBody(
+                  note: note,
+                  title: l10n.recoverFileConfirmTitle,
+                  body: l10n.recoverFileConfirmBody,
+                ),
+              ),
+            ],
+          ),
+        );
+      default:
+        return StaggerScope(
+          maxItems: 2,
+          child: StaggerItem(
+            index: 0,
+            child: RecoveryFileStepBody(
+              title: l10n.recoverFileTitle,
+              body: l10n.recoverFileBody,
+              problem: _fileProblem,
+            ),
+          ),
+        );
+    }
+  }
+
+  Widget _fileFooter(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    switch (_stage) {
+      case _Stage.filePassword:
+        // Mientras deriva, «Cancelar» va en el pie, siempre a la vista.
+        if (ref.watch(recoveryFileProvider).activity ==
+            RecoveryFileActivity.deriving) {
+          return OutlinedButton(
+            onPressed: _file.cancel,
+            child: Text(l10n.actionCancel),
+          );
+        }
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            FilledButton(
+              onPressed: _filePassword.text.isEmpty || _fileOpening
+                  ? null
+                  : _openFile,
+              child: Text(l10n.recoveryFileOpen),
+            ),
+            TextButton(
+              onPressed: _otherFile,
+              child: Text(l10n.recoverFileOther),
+            ),
+          ],
+        );
+      case _Stage.fileConfirm:
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            FilledButton(
+              onPressed: _restoreFile,
+              child: Text(l10n.recoverSubmit),
+            ),
+            TextButton(
+              onPressed: _otherFile,
+              child: Text(l10n.recoverFileOther),
+            ),
+          ],
+        );
+      default:
+        return FilledButton(
+          onPressed: _filePicking || _fileOpening ? null : _pickFile,
+          child: Text(l10n.recoveryFilePick),
+        );
+    }
+  }
+
   // ---- Pantalla
 
   @override
@@ -535,6 +983,19 @@ class _RecoveryRestoreScreenState extends ConsumerState<RecoveryRestoreScreen> {
       recoveryStatusProvider,
       (previous, next) => _adopt(next),
     );
+    // Un fichero que llega de fuera con esta pantalla abierta (o uno que
+    // sustituye al actual tras preguntar).
+    ref.listen<RecoveryFileSelection?>(
+      recoveryFileProvider.select((state) => state.selection),
+      (previous, next) {
+        if (widget.fileMode &&
+            next != null &&
+            next.source == RecoveryFileSource.received &&
+            !identical(previous, next)) {
+          unawaited(_adoptSelection(next));
+        }
+      },
+    );
     final status = ref.watch(recoveryStatusProvider);
 
     final Widget body;
@@ -543,6 +1004,9 @@ class _RecoveryRestoreScreenState extends ConsumerState<RecoveryRestoreScreen> {
       case _Stage.entry:
         body = _entryBody(context);
         footer = _entryFooter(context);
+      case _Stage.filePick || _Stage.filePassword || _Stage.fileConfirm:
+        body = _fileBody(context);
+        footer = _fileFooter(context);
       case _Stage.progress:
         body = _ProgressBody(phase: status.phase);
         // Una recuperación que sigue sin que esta pantalla la mueva (se
@@ -589,7 +1053,11 @@ class _RecoveryRestoreScreenState extends ConsumerState<RecoveryRestoreScreen> {
             if (other)
               FilledButton(
                 onPressed: _otherCode,
-                child: Text(l10n.recoverOtherCode),
+                child: Text(
+                  widget.fileMode
+                      ? l10n.recoverFileOther
+                      : l10n.recoverOtherCode,
+                ),
               ),
             if (replace)
               FilledButton(

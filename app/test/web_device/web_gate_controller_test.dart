@@ -518,7 +518,8 @@ void main() {
       h.worker.rateLimitNext = 120;
       await gate.checkPairing();
       expect(gate.view, isA<WebGateConnect>());
-      expect(gate.nextPairingPoll, const Duration(seconds: 120));
+      // Honoured, but never more than 60 s (1.0.2).
+      expect(gate.nextPairingPoll, const Duration(seconds: 60));
       await gate.rejectCode();
       expect(gate.nextPairingPoll, isNull);
     },

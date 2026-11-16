@@ -229,16 +229,6 @@ class _JoinQrScreenState extends ConsumerState<JoinQrScreen> {
               setState(() => _denied = denied);
             }
           },
-          errorBuilder: (context) => Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text(
-                l10n.joinCameraError,
-                textAlign: TextAlign.center,
-                style: t.styles.body.copyWith(color: Colors.white),
-              ),
-            ),
-          ),
         );
     final window = WindowClass.of(context);
     final compact = window == WindowClass.compact;

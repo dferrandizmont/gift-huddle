@@ -43,6 +43,7 @@ import 'access_policy.dart';
 import 'device_keys.dart';
 import 'device_registry.dart';
 import 'envelope.dart' show FamilyKey, decodeBase64Url, encodeBase64Url;
+import 'hkdf.dart';
 
 const _domain = 'gift-huddle-key-bundle-v3';
 const _version = 3;
@@ -120,7 +121,6 @@ class KeyBundle {
   final Uint8List signature;
 
   static final AesGcm _aes = AesGcm.with256bits();
-  static final Hkdf _hkdf = Hkdf(hmac: Hmac.sha256(), outputLength: 32);
 
   /// Sella un paquete con todo dado a mano, sin mirar el registro: SOLO para
   /// pruebas (vectores fijos y paquetes falsificados). Repetir un nonce o una
@@ -597,7 +597,8 @@ class KeyBundle {
     SecretKey shared,
     List<int> epk,
     List<int> recipientPublic,
-  ) => _hkdf.deriveKey(
+  ) => hkdfSha256(
+    // No `Hkdf` de `cryptography`: en wasm se quedaba sin destino (hkdf.dart).
     secretKey: shared,
     nonce: [...epk, ...recipientPublic],
     info: utf8.encode(_domain),

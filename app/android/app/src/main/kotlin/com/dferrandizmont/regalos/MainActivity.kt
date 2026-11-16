@@ -1,6 +1,7 @@
 package com.dferrandizmont.regalos
 
 import android.Manifest
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -8,14 +9,26 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.DocumentsContract
+import android.provider.OpenableColumns
+import android.provider.Settings
 import android.view.WindowManager
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
-import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.text.Normalizer
+import java.io.InputStream
+import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.Executors
+import java.util.concurrent.Future
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Actividad principal.
@@ -29,6 +42,9 @@ import java.util.concurrent.Executors
  * - Recibe los ficheros .regalos que se abren o comparten con la app y se los
  *   pasa a Flutter por un MethodChannel (sin plugins de terceros).
  * - Por el mismo canal, abre en el navegador el enlace a la politica de privacidad.
+ * - Fichero de recuperación (ADR 0008): guarda con ACTION_CREATE_DOCUMENT y
+ *   relee el destino, abre con ACTION_OPEN_DOCUMENT con lectura acotada y
+ *   normaliza contraseñas a NFC. Cancelar devuelve null, no un error.
  */
 class MainActivity : FlutterFragmentActivity() {
     private var channel: MethodChannel? = null
@@ -48,12 +64,153 @@ class MainActivity : FlutterFragmentActivity() {
     /** Peticion de Flutter que espera al fichero de arranque. */
     private var initialRequest: MethodChannel.Result? = null
 
-    /** Peticion de Flutter que espera la respuesta del permiso de camara. */
-    private var cameraRequest: MethodChannel.Result? = null
+    /**
+     * Peticiones de Flutter que esperan la respuesta del permiso de camara.
+     * Todas reciben la respuesta real del dialogo en curso (antes, la segunda
+     * recibia `false` al momento). `true`: esperan el texto del resultado
+     * (`requestCameraPermissionStatus`); `false`, el si o no de siempre.
+     */
+    private val cameraRequests = mutableListOf<Pair<MethodChannel.Result, Boolean>>()
+
+    /**
+     * Si hay una peticion nativa del permiso sin contestar. Solo hay una a la
+     * vez: las demas esperan su respuesta (nunca se lanza otra encima, que
+     * Android contestaria vacia y se llevaria las respuestas de todas).
+     */
+    private var cameraPending = false
+
+    /** Si la actividad se pauso desde la peticion: el dialogo llego a salir. */
+    private var cameraDialogShown = false
+
+    /**
+     * Si la ultima peticion termino en un «no» con el dialogo a la vista (para
+     * saber si el siguiente ya es para siempre). Cualquier otro final (dado,
+     * interrumpido, error) lo borra: solo cuentan dos «no» seguidos.
+     */
+    private var cameraDeniedBefore = false
+
+    /** Sube con cada peticion nativa: la recuperacion solo vale para la suya. */
+    private var cameraGeneration = 0
+
+    /** La recuperacion programada en onResume para la peticion en curso. */
+    private var cameraRecovery: Runnable? = null
 
     /** La lectura de ficheros va en un hilo de fondo, nunca en el principal. */
-    private val reader = Executors.newSingleThreadExecutor()
+    /**
+     * Lecturas de ficheros que llegan por intents: como mucho dos hilos y dos
+     * en cola (una app no puede acumular hilos con content:// colgados); lo
+     * que no cabe se rechaza y entrega null.
+     */
+    private val reader = ThreadPoolExecutor(
+        1, 2, 30L, TimeUnit.SECONDS, ArrayBlockingQueue(2), ThreadPoolExecutor.AbortPolicy()
+    )
+
+    /** Una lectura entrante a la vez; la que llega mientras, null. */
+    private val incomingGate = IncomingReadGate()
+
+    /**
+     * El selector del fichero de recuperación tiene su propio hilo: un
+     * content:// colgado de un intent externo nunca bloquea un guardado.
+     */
+    private val pickerIo = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    /** Selector del sistema abierto para el fichero de recuperación. */
+    private var pickerRequest: PickerRequest? = null
+
+    /**
+     * Selector que estaba abierto cuando se recreó la Activity (o murió el
+     * proceso): su Flutter ya no espera respuesta. Solo se guarda el tipo,
+     * nunca los bytes.
+     */
+    private var orphanPickerKind: String? = null
+
+    /**
+     * [save] = bytes que se escriben en el destino; null = solo abrir. Se
+     * resuelve una sola vez, pase lo que pase.
+     */
+    private class PickerRequest(
+        private val result: MethodChannel.Result,
+        val save: ByteArray?,
+        val maxBytes: Int,
+    ) {
+        private val done = AtomicBoolean(false)
+
+        val kind: String get() = if (save != null) PickerOutcome.CREATE else PickerOutcome.OPEN
+
+        fun reply(block: (MethodChannel.Result) -> Unit) {
+            if (!done.compareAndSet(false, true)) return
+            try {
+                block(result)
+            } catch (e: Exception) {
+                // El motor ya no escucha (Activity destruida).
+            }
+        }
+    }
+
+    private val documentPicker = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { outcome ->
+        val request = pickerRequest
+        pickerRequest = null
+        val orphan = orphanPickerKind
+        orphanPickerKind = null
+        val uri = outcome.data?.data
+        val action = PickerOutcome.decide(
+            hasRequest = request != null,
+            orphanKind = orphan,
+            ok = outcome.resultCode == Activity.RESULT_OK,
+            hasUri = uri != null,
+        )
+        when (action) {
+            PickerOutcome.Action.CANCELLED -> request?.reply { it.success(null) }
+            PickerOutcome.Action.IGNORE_ORPHAN -> Unit
+            PickerOutcome.Action.DELETE_ORPHAN -> {
+                // Documento creado vacío para un Flutter que ya no existe: no
+                // hay E que escribir; se borra para no dejar un fichero roto.
+                val created = uri ?: return@registerForActivityResult
+                try {
+                    pickerIo.execute { deleteIfEmpty(created) }
+                } catch (e: Exception) {
+                    // Se queda vacío: no contiene nada.
+                }
+            }
+            PickerOutcome.Action.PROCESS -> process(request!!, uri!!)
+        }
+    }
+
+    private fun process(request: PickerRequest, uri: Uri) {
+        try {
+            pickerIo.execute {
+                var bytes: ByteArray? = null
+                var error: String? = null
+                try {
+                    val save = request.save
+                    if (save != null) writeDocument(uri, save)
+                    bytes = readBounded(uri, request.maxBytes)
+                } catch (e: BoundedRead.TooLargeException) {
+                    error = "too_large"
+                } catch (e: Exception) {
+                    error = "read_failed"
+                }
+                val read = bytes
+                val failure = error
+                mainHandler.post {
+                    request.reply {
+                        if (failure != null) it.error(failure, null, null) else it.success(read)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            request.reply { it.error("read_failed", null, null) }
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        val kind = pickerRequest?.kind ?: orphanPickerKind
+        if (kind != null) outState.putString(PICKER_KIND, kind)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Se permiten las capturas de pantalla (se usan para pruebas y revisiones).
@@ -62,6 +219,7 @@ class MainActivity : FlutterFragmentActivity() {
             setRecentsScreenshotEnabled(false)
         }
         super.onCreate(savedInstanceState)
+        orphanPickerKind = savedInstanceState?.getString(PICKER_KIND)
         // Al recrear la actividad el intent es el mismo: no se vuelve a importar.
         if (savedInstanceState == null) {
             val uri = sharedUri(intent)
@@ -85,10 +243,25 @@ class MainActivity : FlutterFragmentActivity() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU && !debuggable) {
             window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         }
+        if (cameraPending) cameraDialogShown = true
         super.onPause()
     }
 
     override fun onResume() {
+        // El dialogo se cierra con la respuesta antes de volver aqui. Si se
+        // volvio sin respuesta (se perdio), se da la peticion por terminada
+        // para que la siguiente pueda lanzar otra: Flutter mira el permiso.
+        if (cameraPending && cameraDialogShown) {
+            val generation = cameraGeneration
+            cameraRecovery?.let { mainHandler.removeCallbacks(it) }
+            val recovery = Runnable {
+                if (cameraPending && cameraGeneration == generation) {
+                    answerCamera(if (hasCamera()) CAMERA_GRANTED else CAMERA_CANCELLED)
+                }
+            }
+            cameraRecovery = recovery
+            mainHandler.postDelayed(recovery, CAMERA_LOST_MS)
+        }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU && !secureAlways && !secureTemporary) {
             window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
         }
@@ -96,7 +269,14 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     override fun onDestroy() {
+        // Su Flutter se va con la Activity: la petición se cierra como
+        // cancelada (una sola vez) y el resultado tardío no escribe nada.
+        pickerRequest?.reply { it.success(null) }
+        pickerRequest = null
         reader.shutdown()
+        pickerIo.shutdown()
+        // Nadie va a contestar ya: que Flutter no espere para siempre.
+        answerCamera(CAMERA_CANCELLED)
         super.onDestroy()
     }
 
@@ -119,7 +299,10 @@ class MainActivity : FlutterFragmentActivity() {
                 // crear el lector: el lector de QR lo volvia a pedir al volver
                 // del dialogo (no marca que ya lo esta pidiendo).
                 "cameraPermission" -> result.success(hasCamera())
-                "requestCameraPermission" -> requestCamera(result)
+                "requestCameraPermission" -> requestCamera(result, asStatus = false)
+                // Igual, pero dice granted, denied, permanentlyDenied o cancelled.
+                "requestCameraPermissionStatus" -> requestCamera(result, asStatus = true)
+                "openAppSettings" -> result.success(openAppSettings())
                 "secureScreen" -> {
                     // Versión de tienda: sin capturas ni grabaciones, siempre.
                     secureAlways = true
@@ -138,32 +321,152 @@ class MainActivity : FlutterFragmentActivity() {
                     }
                     result.success(null)
                 }
+                "saveDocument" -> startPicker(call, result, save = true)
+                "openDocument" -> startPicker(call, result, save = false)
+                "normalizeNfc" -> {
+                    val text = call.arguments as? String
+                    if (text == null) {
+                        result.error("bad_args", null, null)
+                    } else {
+                        result.success(Normalizer.normalize(text, Normalizer.Form.NFC))
+                    }
+                }
                 else -> result.notImplemented()
             }
         }
         channel = ch
     }
 
+    /**
+     * Abre el selector del sistema: guardar (ACTION_CREATE_DOCUMENT, escribe
+     * y relee el destino) o abrir (ACTION_OPEN_DOCUMENT). Uno a la vez.
+     */
+    private fun startPicker(call: MethodCall, result: MethodChannel.Result, save: Boolean) {
+        if (pickerRequest != null) {
+            result.error("busy", null, null)
+            return
+        }
+        val maxBytes = call.argument<Int>(if (save) "maxReadBytes" else "maxBytes") ?: 0
+        if (maxBytes <= 0 || maxBytes > MAX_BYTES) {
+            result.error("bad_args", null, null)
+            return
+        }
+        val bytes: ByteArray?
+        val intent: Intent
+        if (save) {
+            bytes = call.argument<ByteArray>("bytes")
+            val name = call.argument<String>("name")
+            if (bytes == null || name.isNullOrEmpty() || name.contains('/')) {
+                result.error("bad_args", null, null)
+                return
+            }
+            intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType(call.argument<String>("mime") ?: "application/octet-stream")
+                .putExtra(Intent.EXTRA_TITLE, name)
+        } else {
+            bytes = null
+            intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("*/*")
+        }
+        pickerRequest = PickerRequest(result, bytes, maxBytes)
+        try {
+            documentPicker.launch(intent)
+        } catch (e: Exception) {
+            pickerRequest = null
+            result.error("unavailable", null, null)
+        }
+    }
+
+    /**
+     * Borra el documento solo si mide 0 bytes: uno que la persona eligió
+     * sobrescribir y que ya tenía contenido nunca se borra.
+     */
+    private fun deleteIfEmpty(uri: Uri) {
+        try {
+            val empty = try {
+                contentResolver.openInputStream(uri)?.use { it.read() < 0 } ?: false
+            } catch (e: Exception) {
+                false
+            }
+            if (empty) DocumentsContract.deleteDocument(contentResolver, uri)
+        } catch (e: Exception) {
+            // Se queda como está.
+        }
+    }
+
+    /** Escribe [bytes] en el documento recién creado; si falla, lo borra. */
+    private fun writeDocument(uri: Uri, bytes: ByteArray) {
+        try {
+            val stream = try {
+                contentResolver.openOutputStream(uri, "wt")
+            } catch (e: Exception) {
+                null
+            } ?: contentResolver.openOutputStream(uri, "w") ?: throw IOException("no output")
+            stream.use {
+                it.write(bytes)
+                it.flush()
+            }
+        } catch (e: Exception) {
+            // Se queda vacío o a medias si no se puede borrar: la relectura lo
+            // rechaza igual.
+            deleteIfEmpty(uri)
+            throw e
+        }
+    }
+
+    /**
+     * Lee [uri] entero solo si mide como mucho [max] bytes. Mira antes el
+     * tamaño declarado y, al leer, corta en cuanto pasa del tope: un fichero
+     * mayor nunca se materializa.
+     */
+    private fun readBounded(uri: Uri, max: Int): ByteArray {
+        try {
+            contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { c ->
+                if (c.moveToFirst()) {
+                    val i = c.getColumnIndex(OpenableColumns.SIZE)
+                    if (i >= 0 && !c.isNull(i) && c.getLong(i) > max) {
+                        throw BoundedRead.TooLargeException()
+                    }
+                }
+            }
+        } catch (e: BoundedRead.TooLargeException) {
+            throw e
+        } catch (e: Exception) {
+            // Sin tamaño declarado: se acota al leer.
+        }
+        val input = contentResolver.openInputStream(uri) ?: throw IOException("no input")
+        return input.use { BoundedRead.exact(it, max) }
+    }
+
+
     private fun hasCamera(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
 
-    private fun requestCamera(result: MethodChannel.Result) {
+    private fun requestCamera(result: MethodChannel.Result, asStatus: Boolean) {
         if (hasCamera()) {
-            result.success(true)
+            cameraDeniedBefore = false
+            result.success(if (asStatus) CAMERA_GRANTED else true)
             return
         }
-        if (cameraRequest != null) {
-            // Ya hay un dialogo abierto: la respuesta llega con el suyo.
-            result.success(false)
-            return
+        cameraRequests.add(result to asStatus)
+        // Ya hay una peticion nativa en curso: esta espera su respuesta. Que
+        // Flutter deje de esperar (su plazo) no la termina.
+        if (cameraPending) return
+        cameraPending = true
+        cameraDialogShown = false
+        cameraGeneration++
+        try {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.CAMERA),
+                CAMERA_REQUEST
+            )
+        } catch (e: Exception) {
+            answerCamera(CAMERA_CANCELLED)
         }
-        cameraRequest = result
-        ActivityCompat.requestPermissions(
-            this,
-            arrayOf(Manifest.permission.CAMERA),
-            CAMERA_REQUEST
-        )
     }
 
     override fun onRequestPermissionsResult(
@@ -173,9 +476,57 @@ class MainActivity : FlutterFragmentActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode != CAMERA_REQUEST) return
-        val granted = grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
-        cameraRequest?.success(granted)
-        cameraRequest = null
+        val outcome = when {
+            // Sin resultados: la peticion se interrumpio (otro dialogo, la
+            // actividad se recreo...). No es un «no».
+            grantResults.isEmpty() -> if (hasCamera()) CAMERA_GRANTED else CAMERA_CANCELLED
+            grantResults[0] == PackageManager.PERMISSION_GRANTED -> CAMERA_GRANTED
+            // «Para siempre» solo si el sistema ya no ensena el dialogo: sin
+            // rationale y, ademas, el «no» llego sin que saliera (la actividad
+            // no se pauso) o es el segundo seguido. Cerrar el dialogo tocando
+            // fuera (Android 11+) tambien da rationale falso y es un «no» normal.
+            !ActivityCompat.shouldShowRequestPermissionRationale(
+                this,
+                Manifest.permission.CAMERA
+            ) && (!cameraDialogShown || cameraDeniedBefore) -> CAMERA_PERMANENTLY_DENIED
+            else -> CAMERA_DENIED
+        }
+        val shownDenial = cameraDialogShown &&
+            (outcome == CAMERA_DENIED || outcome == CAMERA_PERMANENTLY_DENIED)
+        answerCamera(outcome, shownDenial)
+    }
+
+    /**
+     * Termina la peticion en curso: contesta a todas las que esperan con
+     * [outcome], anula su recuperacion y apunta si fue un «no» con dialogo.
+     */
+    private fun answerCamera(outcome: String, shownDenial: Boolean = false) {
+        cameraPending = false
+        cameraDialogShown = false
+        cameraDeniedBefore = shownDenial
+        cameraRecovery?.let { mainHandler.removeCallbacks(it) }
+        cameraRecovery = null
+        val waiting = cameraRequests.toList()
+        cameraRequests.clear()
+        for ((result, asStatus) in waiting) {
+            try {
+                result.success(if (asStatus) outcome else outcome == CAMERA_GRANTED)
+            } catch (e: Exception) {
+                // Ya contestada o el motor se fue: nada que hacer.
+            }
+        }
+    }
+
+    /** Abre la pagina de la app en los ajustes del sistema (dar el permiso a mano). */
+    private fun openAppSettings(): Boolean = try {
+        startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(Uri.fromParts("package", packageName, null))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+        true
+    } catch (e: Exception) {
+        false
     }
 
     /** Modelo del movil para proponerlo como nombre ("OnePlus NE2213"); no lleva datos de la persona. */
@@ -251,34 +602,63 @@ class MainActivity : FlutterFragmentActivity() {
 
     /** Lee [uri] en el hilo de fondo y entrega el resultado en el principal. */
     private fun readAsync(uri: Uri, deliver: (ByteArray?) -> Unit) {
-        try {
-            reader.execute {
-                val bytes = readBytes(uri)
-                mainHandler.post { deliver(bytes) }
-            }
-        } catch (e: Exception) {
+        // Una sola lectura entrante a la vez y una sola entrega: el resultado
+        // o, si el content:// se cuelga, null al pasar el tope de tiempo, con
+        // el Future cancelado y el stream cerrado.
+        val token = incomingGate.begin()
+        if (token == null) {
             deliver(null)
+            return
+        }
+        val stream = CancellableStream<InputStream>()
+        var future: Future<*>? = null
+        val timeout = Runnable {
+            if (incomingGate.end(token)) {
+                future?.cancel(true)
+                // Lo que se publique después se cierra sin leer.
+                stream.cancel()?.let { open ->
+                    // Cerrar puede bloquear: fuera del hilo principal.
+                    Thread {
+                        try {
+                            open.close()
+                        } catch (e: Exception) {
+                            // Ya estaba cerrado.
+                        }
+                    }.start()
+                }
+                deliver(null)
+            }
+        }
+        try {
+            future = reader.submit {
+                val bytes = readBytes(uri, stream)
+                mainHandler.post {
+                    if (incomingGate.end(token)) {
+                        mainHandler.removeCallbacks(timeout)
+                        deliver(bytes)
+                    }
+                }
+            }
+            mainHandler.postDelayed(timeout, INCOMING_READ_TIMEOUT_MS)
+        } catch (e: Exception) {
+            if (incomingGate.end(token)) deliver(null)
         }
     }
 
     /**
-     * Lee los bytes de [uri]. Si pasa del tope (un sobre mide 2 MiB como
-     * maximo) corta en el acto y devuelve null; tambien ante cualquier error.
+     * Lee los bytes de [uri] con [BoundedRead.incoming]: un fichero de
+     * recuperación se corta en 513 bytes (Flutter lo rechaza por grande) y un
+     * sobre en 2 MiB (null si pasa); null también ante cualquier error.
      */
-    private fun readBytes(uri: Uri): ByteArray? {
+    private fun readBytes(uri: Uri, slot: CancellableStream<InputStream>): ByteArray? {
         return try {
-            contentResolver.openInputStream(uri)?.use { input ->
-                val out = ByteArrayOutputStream()
-                val buffer = ByteArray(16 * 1024)
-                var total = 0
-                while (true) {
-                    val n = input.read(buffer)
-                    if (n < 0) break
-                    total += n
-                    if (total > MAX_BYTES) return@use null
-                    out.write(buffer, 0, n)
-                }
-                out.toByteArray()
+            val input = contentResolver.openInputStream(uri) ?: return null
+            // Si el tope ya venció mientras se abría, se cierra sin leer.
+            if (!slot.publish(input)) return null
+            try {
+                input.use { BoundedRead.incoming(it) }
+            } finally {
+                slot.release(input)
             }
         } catch (e: Exception) {
             null
@@ -288,6 +668,15 @@ class MainActivity : FlutterFragmentActivity() {
     companion object {
         private const val CHANNEL = "com.dferrandizmont.regalos/incoming"
         private const val CAMERA_REQUEST = 7301
-        private const val MAX_BYTES = 2 * 1024 * 1024 + 1024
+        private const val CAMERA_GRANTED = "granted"
+        private const val CAMERA_DENIED = "denied"
+        private const val CAMERA_PERMANENTLY_DENIED = "permanentlyDenied"
+        private const val CAMERA_CANCELLED = "cancelled"
+
+        /** Tras volver a la actividad sin respuesta, cuanto se espera aun. */
+        private const val CAMERA_LOST_MS = 1_000L
+        private const val MAX_BYTES = BoundedRead.MAX_ENVELOPE_BYTES
+        private const val PICKER_KIND = "recoveryPickerKind"
+        private const val INCOMING_READ_TIMEOUT_MS = 30_000L
     }
 }

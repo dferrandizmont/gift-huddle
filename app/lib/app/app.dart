@@ -7,6 +7,7 @@ import '../core/theme/app_theme.dart';
 import '../core/theme/regalos_motion.dart';
 import '../core/widgets/focus_ring.dart';
 import '../features/lock/presentation/lock_gate.dart';
+import '../features/recovery/presentation/recovery_file_listener.dart';
 import '../features/recovery/presentation/transferred_gate.dart';
 import '../features/settings/application/appearance_provider.dart';
 import '../features/settings/application/locale_provider.dart';
@@ -73,9 +74,12 @@ class RegalosApp extends ConsumerWidget {
                     child: TransferredGate(
                       child: IncomingShareListener(
                         navigatorKey: rootNavigatorKey,
-                        child: PeerConnectedListener(
+                        child: RecoveryFileListener(
                           navigatorKey: rootNavigatorKey,
-                          child: child ?? const SizedBox(),
+                          child: PeerConnectedListener(
+                            navigatorKey: rootNavigatorKey,
+                            child: child ?? const SizedBox(),
+                          ),
                         ),
                       ),
                     ),

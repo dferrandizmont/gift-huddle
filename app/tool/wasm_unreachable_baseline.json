@@ -1,0 +1,3734 @@
+{
+  "AboutScreen._openPolicy inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "AboutScreen._openSupport inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "AddGiftButton._open inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "AppSyncV2Local.assertSyncWritable inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "AppSyncV2Local.common inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "AppSyncV2Local.load inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "AppSyncV2Local.readCommonKeys inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "AppSyncV2Local.readRecoveryBootstrap inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "AppSyncV2Local.readRetainedCommons inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "AppSyncV2Local.readState inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "AppSyncV2Local.reconcileProtectionBeforePublish inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "AppSyncV2Local.registry inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "AppSyncV2Local.saveRecoveryBootstrap inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "AppSyncV2Local.slotRevisionFloor inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "BackupScreen._paste inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×4"
+  },
+  "BackupScreen._restore inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "BackupScreen._save inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "BaseSyncTransport._bytes": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "BaseSyncTransport.approveInvite inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "BaseSyncTransport.createInvite inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "BaseSyncTransport.deleteList inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "BaseSyncTransport.getInviteRequest inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "BaseSyncTransport.getList inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "BaseSyncTransport.offerInvite inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "BaseSyncTransport.pollInviteResult inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "BaseSyncTransport.putList inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "BaseSyncTransport.rejectInvite inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "BaseSyncTransport.requestJoin inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "BoardOccasionsScreen.build closure addOccasion at package:regalos/features/web_board/presentation/board_screens.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "CameraPermissionGate._noAnswer inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "CameraPermissionGate._recheck inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "CameraPermissionGate.openSettings inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "CameraPermissionGate.resumed inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "CameraPermissionGate.start inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; last case of an exhaustive switch ×1"
+  },
+  "CommonV2Bootstrap.finish inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "CommonV2Cycle._open inner": {
+    "count": 8,
+    "why": "kind-reviewed: try whose paths all return/throw ×7; block whose exits all branch away (async state or switch) ×1"
+  },
+  "CommonV2Cycle._read inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "CommonV2Cycle._receivePackages inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "CommonV2Cycle._revokedOrForged inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "CommonV2Cycle._save inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "CommonV2Cycle._sealOff closure at package:regalos/features/sync/application/common_v2.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "CommonV2Cycle.accepted inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "CommonV2Cycle.importLegacyKey inner": {
+    "count": 5,
+    "why": "kind-reviewed: try whose paths all return/throw ×5"
+  },
+  "CommonV2Cycle.prepare inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "CommonV2Cycle.receive inner": {
+    "count": 9,
+    "why": "kind-reviewed: try whose paths all return/throw ×8; loop that only exits by branching ×1"
+  },
+  "CommonV2Cycle.receiveFile inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "CommonV2Cycle.sealForFile inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "DeviceKeys._build inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "DeviceKeys.fromJson inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "DeviceKeys.serviceCredentialVerifier inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "DeviceKeys.sign inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "DeviceKeysStore._readStoredKeyring inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "DeviceKeysStore._serial closure at package:regalos/features/family/data/device_keys_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "DeviceKeysStore.clear closure at package:regalos/features/family/data/device_keys_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "DeviceKeysStore.create closure at package:regalos/features/family/data/device_keys_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "DeviceKeysStore.purgePerson closure at package:regalos/features/family/data/device_keys_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "DeviceKeysStore.read closure at package:regalos/features/family/data/device_keys_store.dart inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "DeviceKeysStore.readKeyring closure at package:regalos/features/family/data/device_keys_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "DeviceKeysStore.restore closure at package:regalos/features/family/data/device_keys_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "DeviceKeysStore.restoreReadWorkspace closure at package:regalos/features/family/data/device_keys_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "DeviceKeysStore.updateKeyring closure at package:regalos/features/family/data/device_keys_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "DeviceRecord.create inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "DeviceRegistry._checkRevocation inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "DeviceRegistry._checkVouch inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "DeviceRegistry._readVerified closure parsed at package:regalos/core/sync/device_registry.dart": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "DeviceRegistry._readVerified inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "DeviceRegistry._signerOf inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "DeviceRegistry.fromLocalStoreJson inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "DeviceRegistry.merge inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "DeviceRegistry.viewFor inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "DeviceRegistry.withDeclarations inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "EngineRecoveryReader._read inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "EngineRecoveryReader._readWorkspace inner": {
+    "count": 17,
+    "why": "kind-reviewed: try whose paths all return/throw ×16; loop that only exits by branching ×1"
+  },
+  "EngineRecoveryReader.download inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "EngineRecoveryReader.verify inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "EraseAll._erasePreferences inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "EraseAll.eraseLocal closure at package:regalos/features/settings/application/erase_all.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "EraseAll.eraseLocal closure step at package:regalos/features/settings/application/erase_all.dart inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "EraseAll.eraseLocal inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "EraseAll.eraseServerCopy inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "ExchangeV2._requireCut inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "ExchangeV2._viewOf inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "ExchangeV2.export inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "ExchangeV2.receive inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FailedAttemptsNotice.build closure at package:regalos/features/web_device/presentation/failed_attempts_notice.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyCandidate.create inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyCandidate.generate inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController._changeFamily closure at package:regalos/features/family/application/family_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController._commit closure at package:regalos/features/family/application/family_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController._commitPending closure at package:regalos/features/family/application/family_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController._current inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController._deleteGiftWithUndo inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController._finishSelfPersonChange inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "FamilyController._observeLifecycle": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController._requireFamily inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController._undoPendingDelete inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController.build inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController.changeSelfPerson closure at package:regalos/features/family/application/family_controller.dart inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "FamilyController.createFamilyWith closure at package:regalos/features/family/application/family_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController.flushPendingDeletes inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "FamilyController.installV2 closure at package:regalos/features/family/application/family_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController.joinFamily closure at package:regalos/features/family/application/family_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController.markPaired closure at package:regalos/features/family/application/family_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController.markUnpaired closure at package:regalos/features/family/application/family_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController.mergeRemote closure at package:regalos/features/family/application/family_controller.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "FamilyController.publishDeviceNameWithinLock closure at package:regalos/features/family/application/family_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController.reloadStoredCandidate closure at package:regalos/features/family/application/family_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController.resetLocalData closure at package:regalos/features/family/application/family_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController.setDeviceName closure at package:regalos/features/family/application/family_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController.setGiftStatus closure at package:regalos/features/family/application/family_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController.setGiftStatus inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController.setSelfRecipient closure at package:regalos/features/family/application/family_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController.undoDeleteGift closure at package:regalos/features/family/application/family_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController.undoDeleteGift inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "FamilyController.upsertGift closure at package:regalos/features/family/application/family_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController.upsertGift inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController.withRecoveredSelfPersonChange closure at package:regalos/features/family/application/family_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyIdentity.toJson \\28MethodCallShape\\28toJson\\29\\29": {
+    "count": 1,
+    "why": "reviewed: dynamic-call stub; every caller calls FamilyIdentity.toJson statically (family_store.dart), none through dynamic"
+  },
+  "FamilyKey.generate inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyKeyBundle._seal inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "FamilyKeyBundle.open inner": {
+    "count": 8,
+    "why": "kind-reviewed: if whose branches all return/throw ×1; try whose paths all return/throw ×7"
+  },
+  "FamilyKeyBundle.seal inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyKeyBundle.sealForAudience inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "FamilyKeyBundle.verifySender inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "FamilyStore._activation inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore._decrypt inner": {
+    "count": 4,
+    "why": "kind-reviewed: if whose branches all return/throw ×1; try whose paths all return/throw ×3"
+  },
+  "FamilyStore._dropOrphanBytes inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "FamilyStore._listId inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "FamilyStore._localKey closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "FamilyStore._localKey inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore._pendingRetained inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "FamilyStore._readEncrypted inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore._readScopeFile inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "FamilyStore._recoverProtectionOperation inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "FamilyStore._rememberScopePerson inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore._retainedHashes inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "FamilyStore._scopePeople inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "FamilyStore._writeEncrypted inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.assertWritable inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.cascadeDoc inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.clear closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "FamilyStore.clearCommonKeys closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.clearRecoveryDirty closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.clearRecoveryWorkspace closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "FamilyStore.commonKeysMarked closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.confirmedEraseInventory closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.deleteRetainedBytes closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.deleteScope closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.disableRemoteSync closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.discardPairingInstall closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.enableRemoteSync closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.finishSelfPersonChange closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.hasFamily closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.isTransferred closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.load closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 5,
+    "why": "kind-reviewed: try whose paths all return/throw ×5"
+  },
+  "FamilyStore.markCommonKeys closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.markTransferred closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.orphanScope closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.pendingInviteAcknowledgement closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.prepareSelfPersonChange closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.raiseCommonFormatFloor closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.raiseRecoveryRevisionFloors closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.readCommonFormatFloor closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.readCommonKeys closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.readLegacyV1 closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "FamilyStore.readOrphans closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×4"
+  },
+  "FamilyStore.readOverflow closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.readPendingV2 closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "FamilyStore.readRecoveryRevisionFloors closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.readRecoveryScopes closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "FamilyStore.readRecoverySetup closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.readRegistry closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "FamilyStore.readRetainedBytes closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.readRetainedCommons closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.readScope closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.readSelfRecipient closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "FamilyStore.readSlots closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "FamilyStore.readSyncV2 closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "FamilyStore.readSyncV2State closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "FamilyStore.readV1ProofKey closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "FamilyStore.recoverProtectionOperation inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.recoveryActivationPending closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.recoveryBlockers closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "FamilyStore.recoveryPersonInvalidationPending closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.recoveryRemovalPending closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.remoteSyncEnabled closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.replaceOverflow closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.saveCommonKeys closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.saveDoc closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.saveFamily closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.saveIdentity closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.saveLegacyV1 closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.saveOrphans closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.savePendingInviteAcknowledgement closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.savePendingV2 closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.saveProtectionOperation closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.saveRegistry closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.saveRetainedBytes closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.saveRetainedCommons closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.saveScope closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.saveSelfRecipient closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "FamilyStore.saveSlots closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.saveSyncV2 closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.saveSyncV2State closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.saveV1ProofKey closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.setRecoveryRemovalPending closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FoldTracker.settle": {
+    "count": 1,
+    "why": "kind-reviewed: if whose branches all return/throw ×1"
+  },
+  "GenerationDirectory.read inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "GenerationFileStore.delete inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationFileStore.read inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationFileStore.writeAtomic inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationSecretStore.assertWritable inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationSecretStore.delete inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationSecretStore.inGeneration inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationSecretStore.managed inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationSecretStore.markRecoveryDirty inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationSecretStore.prefix inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationSecretStore.read inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationSecretStore.write inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationStore._adoptCurrent inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationStore._eraseAllConfirmed inner": {
+    "count": 6,
+    "why": "kind-reviewed: try whose paths all return/throw ×6"
+  },
+  "GenerationStore._eraseByListing inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "GenerationStore._eraseInventoried inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "GenerationStore._finishLocalGeneration inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "GenerationStore._installPreparation inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationStore._prepare inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationStore._prepared inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationStore._switch inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationStore._validateDestination inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationStore.activateRecovery closure at package:regalos/features/family/data/generation_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationStore.activeSyncId inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationStore.generationIds inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationStore.isRecoveryActive inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationStore.open inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationStore.recover closure at package:regalos/features/family/data/generation_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationStore.recoveryLocal inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationStore.recoverySource closure at package:regalos/features/family/data/generation_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GenerationStore.startLocalGeneration closure at package:regalos/features/family/data/generation_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GuardClient._request inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GuardClient.cancel inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GuardClient.commit inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GuardClient.open inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "GuardClient.prepare inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "GuardClient.resume inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "Haptics._fire": {
+    "count": 1,
+    "why": "kind-reviewed: block whose exits all branch away (async state or switch) ×1"
+  },
+  "IncomingInviteController.build tear-off trampoline": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "IncomingShareController._start inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "InviteCrypto._packageKey inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "InviteCrypto._shared inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "InviteCrypto.checkPeer inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "InviteCrypto.generateKeyPair inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "InviteCrypto.openPackage inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×4"
+  },
+  "InviteCrypto.sealPackage inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "InviteCrypto.verificationCode inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "InviteGuestController._join inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "InviteGuestController._onOffer inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×4"
+  },
+  "InviteGuestController._open inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "InviteGuestController._poll inner": {
+    "count": 7,
+    "why": "kind-reviewed: try whose paths all return/throw ×6; loop that only exits by branching ×1"
+  },
+  "InviteGuestController.begin inner": {
+    "count": 5,
+    "why": "kind-reviewed: try whose paths all return/throw ×5"
+  },
+  "InviteGuestController.confirmReplace inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "InviteHostController._check inner": {
+    "count": 17,
+    "why": "kind-reviewed: try whose paths all return/throw ×16; loop that only exits by branching ×1"
+  },
+  "InviteHostController._persist inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "InviteHostController._restore inner": {
+    "count": 9,
+    "why": "kind-reviewed: try whose paths all return/throw ×9"
+  },
+  "InviteHostController.approve inner": {
+    "count": 6,
+    "why": "kind-reviewed: try whose paths all return/throw ×6"
+  },
+  "InviteHostController.create inner": {
+    "count": 10,
+    "why": "kind-reviewed: try whose paths all return/throw ×9; loop that only exits by branching ×1"
+  },
+  "InviteHostController.reject inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "KeyBundle._isDigest": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "KeyBundle._open inner": {
+    "count": 6,
+    "why": "kind-reviewed: try whose paths all return/throw ×6"
+  },
+  "KeyBundle._seal inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "KeyBundle.openFamilyKey inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "KeyBundle.openSurpriseKey inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "KeyBundle.sealSurpriseKeyForAll inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "LanguageRow.build closure at package:regalos/features/settings/presentation/language_row.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "LocalAuthBiometrics.authenticate inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "LocalAuthBiometrics.isAvailable inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "LockController._readConfig inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "LockController._refreshWait inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "LockController.build inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "LockController.confirmWithBiometrics inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "LockController.disable inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "LockController.reset inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "LockController.setBiometrics inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "LockController.setPin inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "LockController.skipSetup inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "LockController.unlock inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "LockController.unlockWithBiometrics inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "MemoryFileStore.listNames inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "MemoryFileStore.read inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "MemoryFileStore.writeAtomic inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "MemorySecretStore.delete inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "MemorySecretStore.eraseAllSecrets inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "MemorySecretStore.read inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "MemorySecretStore.write inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PairingHost._check inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PairingHost.receive inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "PairingOffer.fromJson inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "PairingService.joinFromQr inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "PairingService.qrTextForPairing inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PairingV2Guest._checkApproval inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "PairingV2Guest._openFormat1 inner": {
+    "count": 5,
+    "why": "kind-reviewed: try whose paths all return/throw ×5"
+  },
+  "PairingV2Guest._openFormat2 inner": {
+    "count": 7,
+    "why": "kind-reviewed: try whose paths all return/throw ×6; loop that only exits by branching ×1"
+  },
+  "PairingV2Guest.answer inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PairingV2Guest.code inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PairingV2Guest.ensureAlive inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PairingV2Guest.finish inner": {
+    "count": 5,
+    "why": "kind-reviewed: try whose paths all return/throw ×5"
+  },
+  "PairingV2Guest.open inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "PairingV2Guest.releaseCheckpoint inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "PairingV2GuestController._abandonCredential inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "PairingV2GuestController._install inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PairingV2GuestController._leaveOldFamily closure leave at package:regalos/features/sync/application/pairing_v2_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PairingV2GuestController._leaveOldFamily inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×4"
+  },
+  "PairingV2GuestController._open closure at package:regalos/features/sync/application/pairing_v2_controller.dart inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PairingV2GuestController._open inner": {
+    "count": 12,
+    "why": "kind-reviewed: try whose paths all return/throw ×12"
+  },
+  "PairingV2GuestController._tick inner": {
+    "count": 8,
+    "why": "kind-reviewed: try whose paths all return/throw ×8"
+  },
+  "PairingV2GuestController.choosePerson inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "PairingV2GuestController.confirmReplace inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PairingV2Host._package inner": {
+    "count": 5,
+    "why": "kind-reviewed: try whose paths all return/throw ×5"
+  },
+  "PairingV2Host.cancel inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "PairingV2Host.confirm closure at package:regalos/features/sync/application/pairing_v2_flow.dart inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "PairingV2Host.poll inner": {
+    "count": 5,
+    "why": "kind-reviewed: try whose paths all return/throw ×5"
+  },
+  "PairingV2Host.start closure at package:regalos/features/sync/application/pairing_v2_flow.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "PairingV2HostController._approve inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×4"
+  },
+  "PairingV2HostController._cancel inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PairingV2HostController._check inner": {
+    "count": 6,
+    "why": "kind-reviewed: try whose paths all return/throw ×6"
+  },
+  "PairingV2HostController._legacyV1Key inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "PairingV2HostController._migrationNeedsConsent inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PairingV2HostController._start inner": {
+    "count": 11,
+    "why": "kind-reviewed: try whose paths all return/throw ×11"
+  },
+  "PairingV2HostController.confirm inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PairingV2HostController.confirmMigration inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PairingV2HostController.confirmPerson inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PairingV2HostController.resumeWebUnlock inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PairingV2HostController.startWeb inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PendingQueue._marks inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PendingQueue.ack closure at package:regalos/features/web_device/application/pending_queue.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PendingQueue.add closure at package:regalos/features/web_device/application/pending_queue.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PendingQueue.blockedPeople closure at package:regalos/features/web_device/application/pending_queue.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PendingQueue.entries closure at package:regalos/features/web_device/application/pending_queue.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "PendingQueue.setAside closure at package:regalos/features/web_device/application/pending_queue.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PendingQueue.undoGiftDelete closure at package:regalos/features/web_device/application/pending_queue.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "PendingV2.fresh inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PersonProtectionActions|_deleteGiftWithProtection closure at package:regalos/features/family/application/person_protection.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PersonProtectionActions|_protectionSerial closure at package:regalos/features/family/application/person_protection.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PersonProtectionActions|reconcileProtectedPeopleWithinLock closure at package:regalos/features/family/application/person_protection.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "PersonProtectionActions|requestProtection closure at package:regalos/features/family/application/person_protection.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PersonProtectionActions|retryPendingProtectedGifts closure at package:regalos/features/family/application/person_protection.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PickerField._open inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PinVault._readThrottle inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "PinVault.clear inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PinVault.isSet inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PinVault.pinLength inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "PinVault.setPin inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PinVault.verify inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×4"
+  },
+  "PinVault.waitUntil inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PreparedGeneration.fromJson inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "RecoveryApplication._action inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "RecoveryApplication._afterRestore inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryApplication._clearCancelledRemoval inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryApplication._confirmCurrent closure at package:regalos/features/sync/application/recovery_providers.dart inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "RecoveryApplication._newCode closure at package:regalos/features/sync/application/recovery_providers.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryApplication._refresh inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryApplication._restore inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "RecoveryApplication.abandon closure at package:regalos/features/sync/application/recovery_providers.dart inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "RecoveryApplication.cancelMaintenance closure at package:regalos/features/sync/application/recovery_providers.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryApplication.dismissFailure closure at package:regalos/features/sync/application/recovery_providers.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryApplication.hasCodeDisplay inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryApplication.refresh inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "RecoveryApplication.removalStopsRemoteSync inner": {
+    "count": 8,
+    "why": "kind-reviewed: try whose paths all return/throw ×8"
+  },
+  "RecoveryApplication.reportMaintenanceFailure inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "RecoveryApplication.restoreWords closure at package:regalos/features/sync/application/recovery_providers.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryApplication.retireCode closure at package:regalos/features/sync/application/recovery_providers.dart inner": {
+    "count": 5,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1 | kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryApplication.retry closure at package:regalos/features/sync/application/recovery_providers.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryApplication.takeCreatedCode inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryCapsulePayload.fromJson inner": {
+    "count": 8,
+    "why": "kind-reviewed: try whose paths all return/throw ×7; loop that only exits by branching ×1"
+  },
+  "RecoveryClient.send inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "RecoveryController._checkSource inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryController._get inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryController._install inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "RecoveryController._step inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryController.abandonLocal inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "RecoveryController.resume inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "RecoveryController.retryIncomplete inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryController.start inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryExporter._hasOtherGeneration inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "RecoveryExporter.capture inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryFileController._derive inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryFileController._pick inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "RecoveryFileController._requireNoFamily inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryFileController.checkNewPassword inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryFileController.confirmCheck inner": {
+    "count": 9,
+    "why": "kind-reviewed: try whose paths all return/throw ×8; loop that only exits by branching ×1"
+  },
+  "RecoveryFileController.open inner": {
+    "count": 9,
+    "why": "kind-reviewed: try whose paths all return/throw ×8; loop that only exits by branching ×1"
+  },
+  "RecoveryFileController.pickForCheck inner": {
+    "count": 6,
+    "why": "kind-reviewed: try whose paths all return/throw ×5; loop that only exits by branching ×1"
+  },
+  "RecoveryFileController.pickForRestore inner": {
+    "count": 7,
+    "why": "kind-reviewed: try whose paths all return/throw ×6; loop that only exits by branching ×1"
+  },
+  "RecoveryFileController.prepare inner": {
+    "count": 8,
+    "why": "kind-reviewed: try whose paths all return/throw ×7; loop that only exits by branching ×1"
+  },
+  "RecoveryFileController.restore inner": {
+    "count": 7,
+    "why": "kind-reviewed: try whose paths all return/throw ×6; loop that only exits by branching ×1"
+  },
+  "RecoveryFileController.save inner": {
+    "count": 14,
+    "why": "kind-reviewed: try whose paths all return/throw ×13; loop that only exits by branching ×1"
+  },
+  "RecoveryInstallation.fromJson inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryMaintenance._listRecoveries inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryMaintenance._prepare inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryMaintenance._removeUnseenCreate inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "RecoveryMaintenance._send inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryMaintenance.cancel inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "RecoveryMaintenance.maintain inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryMaintenance.queueNewCode inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryMaintenance.resume closure advance at package:regalos/features/sync/application/recovery_maintenance.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryMaintenance.resume inner": {
+    "count": 42,
+    "why": "kind-reviewed: try whose paths all return/throw ×41; loop that only exits by branching ×1"
+  },
+  "RecoveryMaintenance.retire inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryMaintenance.status inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryMetadata.fromJson tear-off trampoline": {
+    "count": 1,
+    "why": "kind-reviewed: if whose branches all return/throw ×1"
+  },
+  "RecoveryStore._installedPrefix inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryStore._isTransferred inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryStore._read inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×4"
+  },
+  "RecoveryStore._write inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryStore.abandonRestore closure at package:regalos/features/family/data/recovery_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryStore.advanceMaintenance closure at package:regalos/features/family/data/recovery_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryStore.assertWritable inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryStore.clearCompletedRestoreGate closure at package:regalos/features/family/data/recovery_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryStore.closeMaintenance closure at package:regalos/features/family/data/recovery_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryStore.completeRestore closure at package:regalos/features/family/data/recovery_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryStore.confirmCode closure at package:regalos/features/family/data/recovery_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryStore.dismissFailure closure at package:regalos/features/family/data/recovery_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryStore.finishMaintenance closure at package:regalos/features/family/data/recovery_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryStore.hasCodeDisplay closure at package:regalos/features/family/data/recovery_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryStore.markTransferred closure at package:regalos/features/family/data/recovery_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryStore.prepareMaintenance closure at package:regalos/features/family/data/recovery_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryStore.readFailure closure at package:regalos/features/family/data/recovery_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryStore.readMaintenance closure at package:regalos/features/family/data/recovery_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryStore.readMaterial closure at package:regalos/features/family/data/recovery_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryStore.readRestore closure at package:regalos/features/family/data/recovery_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryStore.restartRestore closure at package:regalos/features/family/data/recovery_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryStore.saveRestore closure at package:regalos/features/family/data/recovery_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryStore.supersedeWithRetirement closure at package:regalos/features/family/data/recovery_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RecoveryStore.takeCodeDisplay closure at package:regalos/features/family/data/recovery_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RememberedOrphans._current inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RememberedOrphans._set inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RememberedOrphans.build inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RememberedOrphans.commit inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RememberedOrphans.discard inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RememberedOrphans.forget inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RememberedOrphans.remember inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RenewalJournalStore._read inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "RenewalJournalStore._write inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RenewalJournalStore.archive closure at package:regalos/features/family/data/renewal_journal_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RenewalJournalStore.read closure at package:regalos/features/family/data/renewal_journal_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RenewalJournalStore.replaceDestination closure at package:regalos/features/family/data/renewal_journal_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RenewalJournalStore.save closure at package:regalos/features/family/data/renewal_journal_store.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RepartoPersonSheet.build closure at package:regalos/features/family/presentation/reparto_person_sheet.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "RepartoPersonSheet.build closure toggleGroup at package:regalos/features/family/presentation/reparto_person_sheet.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "Revocation.create inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SealedRecoveryFile.reopen inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SealedSlot._seal inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SealedSlot.open inner": {
+    "count": 8,
+    "why": "kind-reviewed: try whose paths all return/throw ×8"
+  },
+  "SealedSlot.parse": {
+    "count": 3,
+    "why": "kind-reviewed: if whose branches all return/throw ×2; try whose paths all return/throw ×1"
+  },
+  "SecurityScreen._changePin inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SecurityScreen._createPin closure at package:regalos/features/settings/presentation/security_screen.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SecurityScreen._createPin inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SecurityScreen._toggleBiometrics inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SecurityScreen._togglePin inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SelfRecipient.build closure at package:regalos/features/family/application/self_recipient_provider.dart inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "ShareService._cut inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "ShareService._v2 closure at package:regalos/features/sharing/application/share_service.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "ShareService.buildEnvelope closure at package:regalos/features/sharing/application/share_service.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "ShareService.buildEnvelope inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "ShareService.importEnvelopeBytes closure at package:regalos/features/sharing/application/share_service.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "ShareService.importEnvelopeBytes inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "ShareService.shareEnvelope inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SlotSet._accept": {
+    "count": 1,
+    "why": "kind-reviewed: if whose branches all return/throw ×1"
+  },
+  "SlotSet.acceptVerified inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SlotSet.merge inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "StoredSyncV2Local.assertSyncWritable inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "StoredSyncV2Local.common inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "StoredSyncV2Local.mergeCommon inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "StoredSyncV2Local.readCommonKeys inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "StoredSyncV2Local.readRecoveryBootstrap inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "StoredSyncV2Local.readRecoverySlot inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "StoredSyncV2Local.readRetainedCommons inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "StoredSyncV2Local.readState inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "StoredSyncV2Local.registry inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "StoredSyncV2Local.saveRecoveryBootstrap inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "StoredSyncV2Local.saveRecoverySlot inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "StoredSyncV2Local.slotRevisionFloor inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncController._credentials inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncController._doc inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncController._dropInviteCopy inner": {
+    "count": 17,
+    "why": "kind-reviewed: try whose paths all return/throw ×17"
+  },
+  "SyncController._dropV2InviteCopy closure at package:regalos/features/sync/application/sync_controller.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "SyncController._dropV2InviteCopy inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "SyncController._ensureWatch closure at package:regalos/features/sync/application/sync_controller.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncController._exchange inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "SyncController._loop inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "SyncController._maintainRecoveryWithinLock inner": {
+    "count": 5,
+    "why": "kind-reviewed: try whose paths all return/throw ×5"
+  },
+  "SyncController._markRemoved inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncController._mergeEnvelope inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "SyncController._once closure at package:regalos/features/sync/application/sync_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncController._once inner": {
+    "count": 12,
+    "why": "kind-reviewed: try whose paths all return/throw ×12"
+  },
+  "SyncController._onceV2 inner": {
+    "count": 68,
+    "why": "kind-reviewed: try whose paths all return/throw ×67; loop that only exits by branching ×1"
+  },
+  "SyncController._retireLegacyV1 closure at package:regalos/features/sync/application/sync_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncController._retireLegacyV1 inner": {
+    "count": 7,
+    "why": "kind-reviewed: try whose paths all return/throw ×7"
+  },
+  "SyncController._retireUnsharedListWithinLock inner": {
+    "count": 18,
+    "why": "kind-reviewed: try whose paths all return/throw ×18"
+  },
+  "SyncController._stopV2 inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "SyncController._sweepInviteCopy": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncController._writeEnabled inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncController._writeInviteCopy inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncController._writePeerWait inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncController.approveDevice closure at package:regalos/features/sync/application/sync_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncController.approveDevice inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "SyncController.expectPeer inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×4"
+  },
+  "SyncController.finishRecoveryRemovalWithinLock inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "SyncController.previewRemoveDevice closure at package:regalos/features/sync/application/sync_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncController.previewRemoveDevice inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncController.readyCredentials inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "SyncController.removeDevice closure at package:regalos/features/sync/application/sync_controller.dart inner": {
+    "count": 5,
+    "why": "kind-reviewed: try whose paths all return/throw ×4; loop that only exits by branching ×1"
+  },
+  "SyncController.removeDevice inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncController.resumeAfterPairing inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncController.setEnabled inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncController.stopSyncing inner": {
+    "count": 9,
+    "why": "kind-reviewed: try whose paths all return/throw ×9"
+  },
+  "SyncController.suspendForRecovery inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncKeys.authKey inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncKeys.syncId inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncResponse.json": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client._b64": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client._code": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client._getRenewal inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client._renewalBytes": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client._renewalId": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client.announceCommonFormat inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client.answerInvite inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client.approveInvite inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client.createInvite inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client.createList inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client.deleteInvite inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client.deleteList inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client.getInvite inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client.getInviteCheckpoint inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client.getList inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client.getOffer inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client.getSlot inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client.pollInviteResult inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client.putCommon inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client.putList inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client.releaseInviteCheckpoint inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client.revealInvite inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Client.revoke inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Engine._ensureCreated inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Engine._once closure enqueue at package:regalos/features/sync/application/sync_v2_engine.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Engine._once inner": {
+    "count": 15,
+    "why": "kind-reviewed: try whose paths all return/throw ×13; if whose branches all return/throw ×1; loop that only exits by branching ×1"
+  },
+  "SyncV2Engine._openPackages inner": {
+    "count": 5,
+    "why": "kind-reviewed: try whose paths all return/throw ×4; loop that only exits by branching ×1"
+  },
+  "SyncV2Engine._packageAllowed": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Engine._rememberServiceFailure inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "SyncV2Engine._retryPendingUnbackedRevocations inner": {
+    "count": 20,
+    "why": "kind-reviewed: try whose paths all return/throw ×19; loop that only exits by branching ×1"
+  },
+  "SyncV2Engine.ensureCreated inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "SyncV2Engine.sync inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "V2ResolutionActions.completeDeparture closure at package:regalos/features/sync/application/v2_resolution_actions.dart inner": {
+    "count": 7,
+    "why": "kind-reviewed: try whose paths all return/throw ×5; loop that only exits by branching ×1 | kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "V2ResolutionActions.previewDeparture closure at package:regalos/features/sync/application/v2_resolution_actions.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "V2ResolutionActions.revokeUnbackedCredential closure at package:regalos/features/sync/application/v2_resolution_actions.dart inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "VaultCrypto.derive inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "VaultCrypto.deriveA inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "VaultCrypto.hash inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "VaultCrypto.key inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "VaultCrypto.open inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "VaultCrypto.openSet inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "VaultCrypto.pbkdf2 inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "VaultCrypto.seal inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "VaultCrypto.sealSet inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "VaultService._changePin inner": {
+    "count": 9,
+    "why": "kind-reviewed: try whose paths all return/throw ×8; loop that only exits by branching ×1"
+  },
+  "VaultService._new inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "VaultService._prepare inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "VaultService._verify inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "VaultService.changePin closure at package:regalos/features/web_device/application/vault_service.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "VaultService.enroll closure at package:regalos/features/web_device/application/vault_service.dart inner": {
+    "count": 8,
+    "why": "kind-reviewed: try whose paths all return/throw ×8"
+  },
+  "VaultService.forget closure at package:regalos/features/web_device/application/vault_service.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "VaultService.readCurrent inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "VaultService.replaceCurrent inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "VaultService.saveData closure at package:regalos/features/web_device/application/vault_service.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "VaultService.serial closure at package:regalos/features/web_device/application/vault_service.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "VaultService.unlock closure at package:regalos/features/web_device/application/vault_service.dart inner": {
+    "count": 15,
+    "why": "kind-reviewed: try whose paths all return/throw ×14; loop that only exits by branching ×1"
+  },
+  "Vouch.create inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebDeviceKeysStore.purgePerson inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebDeviceKeysStore.read inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebDocumentExchange.exportBytes inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebDocumentExchange.shareBytes inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebExternalLinkOpener.open inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebFamilyStore.assertWritable inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebFamilyStore.cascadeDoc inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebFamilyStore.clear inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebFamilyStore.load inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebFamilyStore.readOrphans inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebFamilyStore.readRegistry inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebFamilyStore.readSelfRecipient inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebFamilyStore.readSlots inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebFamilyStore.readSyncV2 inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebFamilyStore.readSyncV2State inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebFamilyStore.saveCascadeDoc inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebFamilyStore.saveDoc inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebFamilyStore.saveFamily inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebFamilyStore.saveGiftDeleteIntent inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebFamilyStore.saveIdentity inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebFamilyStore.saveSelfRecipient inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebFamilyStore.undoGiftDeleteIntent inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebGateController._check inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "WebGateController._prepareEngine inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebGateController._recoverIdentity inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebGateController._retained inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebGateController._unlockVault inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "WebGateController.changePin inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×4"
+  },
+  "WebGateController.checkPairing inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "WebGateController.choosePin closure at package:regalos/features/web_device/application/web_gate_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebGateController.choosePin inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "WebGateController.close inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebGateController.confirmCode inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "WebGateController.eraseComputer inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "WebGateController.forgetComputer inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "WebGateController.initialize inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebGateController.lock inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebGateController.reconnect inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebGateController.rejectCode inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebGateController.restartPairing inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebGateController.retry inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebGateController.submitPin inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "WebGateController.useHere inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebPairingGuest.create inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebPairingGuest.enroll inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebPairingGuest.poll inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "WebPairingQr.parse": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebSessionController._open inner": {
+    "count": 8,
+    "why": "kind-reviewed: try whose paths all return/throw ×8"
+  },
+  "WebSessionController.dispose inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebSettingsSection._forget inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebSyncController.approveDevice inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebSyncController.expectPeer inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebSyncController.previewRemoveDevice inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebSyncController.setEnabled inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebSyncController.stopSyncing inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebSyncEngine._candidate inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "WebSyncEngine._read inner": {
+    "count": 11,
+    "why": "kind-reviewed: try whose paths all return/throw ×10; loop that only exits by branching ×1"
+  },
+  "WebSyncEngine._readFormat2 inner": {
+    "count": 10,
+    "why": "kind-reviewed: try whose paths all return/throw ×9; loop that only exits by branching ×1"
+  },
+  "WebSyncEngine.requestSync inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "WebSyncEngine.save closure at package:regalos/features/web_device/application/web_sync_engine.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebSyncEngine.start inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "WebSyncEngine.sync closure at package:regalos/features/web_device/application/web_sync_engine.dart inner": {
+    "count": 20,
+    "why": "kind-reviewed: try whose paths all return/throw ×19; loop that only exits by branching ×1"
+  },
+  "WebSyncEngine.undoGiftDelete closure at package:regalos/features/web_device/application/web_sync_engine.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebSyncEngine.undoGiftDelete inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebSyncTransport.send inner": {
+    "count": 10,
+    "why": "kind-reviewed: try whose paths all return/throw ×9; loop that only exits by branching ×1"
+  },
+  "_AsyncButtonState._press inner": {
+    "count": 5,
+    "why": "kind-reviewed: try whose paths all return/throw ×4; loop that only exits by branching ×1"
+  },
+  "_BackPriorityState.build": {
+    "count": 1,
+    "why": "kind-reviewed: widget build the web never creates ×1"
+  },
+  "_BackPriorityState.dispose": {
+    "count": 1,
+    "why": "kind-reviewed: widget build the web never creates ×1"
+  },
+  "_BackPriorityState.initState": {
+    "count": 1,
+    "why": "kind-reviewed: widget build the web never creates ×1"
+  },
+  "_BoardSettingsScreenState._goTo inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "_BoardSidebarState._addPerson inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_BodyState._edit inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_BodyState._openEditor inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_BrowserSessionPlatform.acquire inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_BrowserSessionPlatform.dispose inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "_CapsuleOutput.writeBytes": {
+    "count": 1,
+    "why": "reviewed: no caller; Inflate (archive 4.6.0) with an output writes via writeByte/writeStream/writeBackReference, never writeBytes"
+  },
+  "_ChoosePinPaneState._form closure at package:regalos/features/web_device/presentation/web_gate.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_ChoosePinPaneState._submit inner": {
+    "count": 5,
+    "why": "kind-reviewed: try whose paths all return/throw ×4; loop that only exits by branching ×1"
+  },
+  "_ComparingPaneState._confirm inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_ConnectWebScreenState._askMigration inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_ConnectWebScreenState._onCode tear-off trampoline": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_ConnectWebScreenState._start inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_DamagedPaneState.build closure at package:regalos/features/web_device/presentation/web_gate.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_DeniedFiles.writeAtomic inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_DeviceSheetState._approve inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_DeviceSheetState._remove inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_DeviceSheetState._reread inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_DeviceSheetState._resumeWeb inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_EraseAllDialogState._erase inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_GiftEditorScreenState._addPerson inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_GiftEditorScreenState._delete inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_GiftEditorScreenState._save inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_GiftEditorScreenState._scrollToTop inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_GiftEditorScreenState._showFirstError inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_GiversStep._edit inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_Header.check": {
+    "count": 2,
+    "why": "kind-reviewed: if whose branches all return/throw ×1; try whose paths all return/throw ×1"
+  },
+  "_IncomingShareListenerState._handle inner": {
+    "count": 5,
+    "why": "kind-reviewed: widget build the web never creates ×1; try whose paths all return/throw ×2; block whose exits all branch away (async state or switch) ×1; loop that only exits by branching ×1"
+  },
+  "_IncomingShareListenerState.build": {
+    "count": 1,
+    "why": "kind-reviewed: widget build the web never creates ×1"
+  },
+  "_IndexedVaultStore.transaction inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_InviteLinkListenerState._open": {
+    "count": 1,
+    "why": "kind-reviewed: widget build the web never creates ×1"
+  },
+  "_InviteLinkListenerState.build": {
+    "count": 1,
+    "why": "kind-reviewed: widget build the web never creates ×1"
+  },
+  "_InviteScreenState._create inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_InviteScreenState._share inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "_JoinInviteScreenState._askReplace inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_JoinInviteScreenState._finish inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_JoinInviteScreenState._inviteIdOf": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_JoinInviteScreenState._paste inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_JoinQrScreenState._onCode inner": {
+    "count": 11,
+    "why": "kind-reviewed: try whose paths all return/throw ×11"
+  },
+  "_JoinQrScreenState._openV2 inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_Lease.release inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_LockGateState.build": {
+    "count": 1,
+    "why": "kind-reviewed: widget build the web never creates ×1"
+  },
+  "_LockScreenState._biometric inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_LockScreenState._submit inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_NoSecrets.write inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_OccasionHeader._changeDate inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_OccasionHeader._edit inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_OccasionSheetState._pickDate inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_OccasionsScreenState._add inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_OccasionsStep.build closure at package:regalos/features/onboarding/presentation/onboarding_screen.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_OnboardingScreenState._finish closure at package:regalos/features/onboarding/presentation/onboarding_screen.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_OnboardingScreenState._finish inner": {
+    "count": 6,
+    "why": "kind-reviewed: try whose paths all return/throw ×6"
+  },
+  "_PairingV2GuestViewState._askReplace inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_PairingV2HostViewState._askMigration inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_PairingV2HostViewState._share inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_PeerConnectedListenerState._show": {
+    "count": 1,
+    "why": "kind-reviewed: widget build the web never creates ×1"
+  },
+  "_PeerConnectedListenerState.build": {
+    "count": 1,
+    "why": "kind-reviewed: widget build the web never creates ×1"
+  },
+  "_PendingGiftsSheetState._retry inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×4"
+  },
+  "_PendingRestoreCard.build closure at package:regalos/features/onboarding/presentation/onboarding_screen.dart inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_PeopleListPaneState._add inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_PeopleStepState._edit inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_PersonListScreenState._editPerson inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_PersonListScreenState._openEditor inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_PersonListScreenState._openFilters inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_PersonSheetState._pickDate inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_PinSetupScreenState._finish inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "_PinSetupScreenState._next inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_PinVerifyScreenState._submit inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_ProtectionContext.open inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_ProtectionSheetState._deactivate inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_ProtectionSheetState._run inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_QrCameraScannerState._requestStatus inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_RecoveryCreateScreenState._backToWords inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_RecoveryCreateScreenState._check inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_RecoveryCreateScreenState._leave inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_RecoveryCreateScreenState._reclaim inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_RecoveryCreateScreenState._resumePending inner": {
+    "count": 5,
+    "why": "kind-reviewed: try whose paths all return/throw ×5"
+  },
+  "_RecoveryCreateScreenState._saveToFile inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_RecoveryCreateScreenState._secure inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_RecoveryCreateScreenState._show inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_RecoveryCreateScreenState._start inner": {
+    "count": 8,
+    "why": "kind-reviewed: try whose paths all return/throw ×8"
+  },
+  "_RecoveryFileCheckScreenState._confirm inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_RecoveryFileCheckScreenState._pick inner": {
+    "count": 7,
+    "why": "kind-reviewed: try whose paths all return/throw ×6; loop that only exits by branching ×1"
+  },
+  "_RecoveryFileListenerState._handle inner": {
+    "count": 7,
+    "why": "kind-reviewed: widget build the web never creates ×1; first in then ×1; first in else ×1; if whose branches all return/throw ×1; try whose paths all return/throw ×2; loop that only exits by branching ×1"
+  },
+  "_RecoveryFileListenerState.build": {
+    "count": 1,
+    "why": "kind-reviewed: widget build the web never creates ×1"
+  },
+  "_RecoveryFileSaveScreenState._onPasswordChanged closure at package:regalos/features/recovery/presentation/recovery_file_save_screen.dart inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_RecoveryFileSaveScreenState._run inner": {
+    "count": 7,
+    "why": "kind-reviewed: try whose paths all return/throw ×6; loop that only exits by branching ×1"
+  },
+  "_RecoveryFileSaveScreenState._save closure at package:regalos/features/recovery/presentation/recovery_file_save_screen.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_RecoveryFileSaveScreenState._share closure at package:regalos/features/recovery/presentation/recovery_file_save_screen.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_RecoveryRestoreScreenState._abandon inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_RecoveryRestoreScreenState._adoptSelection inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "_RecoveryRestoreScreenState._askReplace inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_RecoveryRestoreScreenState._confirmAbandon inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_RecoveryRestoreScreenState._leave inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_RecoveryRestoreScreenState._loadWordlist inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_RecoveryRestoreScreenState._openFile inner": {
+    "count": 6,
+    "why": "kind-reviewed: try whose paths all return/throw ×5; loop that only exits by branching ×1"
+  },
+  "_RecoveryRestoreScreenState._otherCode inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_RecoveryRestoreScreenState._paste inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_RecoveryRestoreScreenState._pickFile inner": {
+    "count": 7,
+    "why": "kind-reviewed: try whose paths all return/throw ×6; loop that only exits by branching ×1"
+  },
+  "_RecoveryRestoreScreenState._restoreFile inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_RecoveryRestoreScreenState._run inner": {
+    "count": 5,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_RecoveryRestoreScreenState._runAction inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_RecoveryRestoreScreenState._scan inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_RecoveryRestoreScreenState._submit inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "_RecoveryRestoreScreenState._syncStatus inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_RecoveryRestoreScreenState.build": {
+    "count": 1,
+    "why": "kind-reviewed: if whose branches all return/throw ×1"
+  },
+  "_RecoveryScanScreenState._onCode inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "_RecoveryScreenState._cancelPending inner": {
+    "count": 8,
+    "why": "kind-reviewed: try whose paths all return/throw ×7; loop that only exits by branching ×1"
+  },
+  "_RecoveryScreenState._checkFile inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_RecoveryScreenState._dismiss inner": {
+    "count": 6,
+    "why": "kind-reviewed: try whose paths all return/throw ×5; loop that only exits by branching ×1"
+  },
+  "_RecoveryScreenState._open inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_RecoveryScreenState._remove inner": {
+    "count": 10,
+    "why": "kind-reviewed: try whose paths all return/throw ×9; loop that only exits by branching ×1"
+  },
+  "_RecoveryScreenState._retry inner": {
+    "count": 6,
+    "why": "kind-reviewed: try whose paths all return/throw ×5; loop that only exits by branching ×1"
+  },
+  "_RenderCardColumns._layout": {
+    "count": 1,
+    "why": "kind-reviewed: if whose branches all return/throw ×1"
+  },
+  "_RenderCardColumns.computeDistanceToActualBaseline": {
+    "count": 1,
+    "why": "kind-reviewed: if whose branches all return/throw ×1"
+  },
+  "_RenderCardColumns.hitTestChildren": {
+    "count": 1,
+    "why": "kind-reviewed: if whose branches all return/throw ×1"
+  },
+  "_RepartoOccasionViewState.build": {
+    "count": 1,
+    "why": "kind-reviewed: if whose branches all return/throw ×1"
+  },
+  "_RepartoSheetState._close inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_ResolveCardState._run inner": {
+    "count": 7,
+    "why": "kind-reviewed: try whose paths all return/throw ×7"
+  },
+  "_RevealLayer.build": {
+    "count": 1,
+    "why": "reviewed: LockGate child (lock_gate.dart), only built on the phone (app.dart, !webSession): never called on the web"
+  },
+  "_ReviewSheetState._after inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_ReviewSheetState._remove closure at package:regalos/features/sharing/presentation/device_sheets.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_ShareScreenState._connect inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_ShareScreenState._more inner": {
+    "count": 2,
+    "why": "kind-reviewed: last case of an exhaustive switch ×1; try whose paths all return/throw ×1"
+  },
+  "_ShareScreenState._openDevice inner": {
+    "count": 2,
+    "why": "kind-reviewed: last case of an exhaustive switch ×1; try whose paths all return/throw ×1"
+  },
+  "_ShareScreenState._sendNow inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_ShareScreenState._stop inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_ShareScreenState._turnOn inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_SheetContentState.build closure at package:regalos/features/family/presentation/reparto_sheet.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_StatusCard.build": {
+    "count": 1,
+    "why": "kind-reviewed: block whose exits all branch away (async state or switch) ×1"
+  },
+  "_SyncDeviceActions._orphans inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_SyncDeviceActions._tidy inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "_SyncDeviceActions.approve inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_SyncDeviceActions.previewRemoval inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_SyncDeviceActions.remove closure at package:regalos/features/sync/application/family_device_review.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_SyncDeviceActions.remove inner": {
+    "count": 6,
+    "why": "kind-reviewed: try whose paths all return/throw ×6"
+  },
+  "_TabsState._left": {
+    "count": 1,
+    "why": "kind-reviewed: if whose branches all return/throw ×1"
+  },
+  "_TransferredGateState.build": {
+    "count": 1,
+    "why": "kind-reviewed: widget build the web never creates ×1"
+  },
+  "_UnlockPaneState._submit inner": {
+    "count": 5,
+    "why": "kind-reviewed: try whose paths all return/throw ×4; loop that only exits by branching ×1"
+  },
+  "_WebBootstrapState._createContainer closure at package:regalos/app/web_bootstrap.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_WebBootstrapState._createGate closure at package:regalos/app/web_bootstrap.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_WebBootstrapState._createGate inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_WebBootstrapState._initialize inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_WebChangePinSheetState._submit inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_approveFlow inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_argon2id inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_argon2id inner_27586": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_bytes32": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_bytesOf": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_change inner": {
+    "count": 5,
+    "why": "kind-reviewed: try whose paths all return/throw ×5"
+  },
+  "_confirmDelete inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_inflateLimited": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_isRepeated": {
+    "count": 1,
+    "why": "kind-reviewed: if whose branches all return/throw ×1"
+  },
+  "_needsWarning inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "_object": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_openOffThread closure at package:regalos/features/sharing/application/share_service.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_openOffThread closure at package:regalos/features/sync/application/sync_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_parse": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_pbkdf2 inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_receiveMax": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_retryPendingRevocations inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "_sealCapsule inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_sealProtected inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_setSecure inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "_verified inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_viewOf inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "acceptPairing inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×4"
+  },
+  "advanceGiftStatus inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "approveDevice inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "approveFamilyDevice inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "audienceFromJson": {
+    "count": 1,
+    "why": "kind-reviewed: if whose branches all return/throw ×1"
+  },
+  "authorizedProjectionProvider closure at package:regalos/features/family/application/protection_providers.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "canonicalAudience": {
+    "count": 1,
+    "why": "kind-reviewed: if whose branches all return/throw ×1"
+  },
+  "changePerson inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "closure wrapper at package:regalos/core/motion/haptics.dart trampoline": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "closure wrapper at package:regalos/core/widgets/choice_grid.dart trampoline": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "closure wrapper at package:regalos/features/recovery/presentation/recovery_file_check_screen.dart trampoline": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "closure wrapper at package:regalos/features/recovery/presentation/recovery_restore_screen.dart trampoline": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "closure wrapper at package:regalos/features/sync/application/sync_v2_engine.dart trampoline": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "closure wrapper at package:regalos/features/sync/data/web_sync_transport.dart trampoline": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "closure wrapper at package:regalos/features/sync/presentation/pairing_v2_guest_view.dart trampoline": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "closure wrapper at package:regalos/features/web_device/presentation/connect_web_flow.dart trampoline": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "commitOnboarding inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "createSurpriseKey inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "decodeCanonicalBase64Url": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "deriveRecoveryLocator closure expand at package:regalos/core/sync/recovery_locator.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "deriveRecoveryLocator inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "deviceReviewProvider closure at package:regalos/features/sync/application/family_device_review.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "disableSecureScreen inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "enableSecureScreen inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "ensureV2Family inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "ensureV2FamilyWithinLock inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "familyDeviceRowsProvider closure at package:regalos/features/sync/application/family_device_rows.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "familySnapshot inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "finishPendingV2 closure own at package:regalos/features/sync/application/generation_v2.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "finishPendingV2 inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "giftRecipientAccessProvider closure at package:regalos/features/family/application/protection_providers.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "hasCameraPermission inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "hkdfSha256 inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "inspectFileCommon closure verifies at package:regalos/features/sync/application/common_v2.dart inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "inspectFileCommon inner": {
+    "count": 9,
+    "why": "kind-reviewed: try whose paths all return/throw ×8; loop that only exits by branching ×1"
+  },
+  "joinPairing inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×4"
+  },
+  "leaveFamily inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "linkedFileRecords inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×2; loop that only exits by branching ×1"
+  },
+  "loadRecoveryWordlist inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "localRegistryViewProvider closure at package:regalos/features/sync/application/sync_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "localView inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "main inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "main inner_3874": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "manageGiversEntries closure edit at package:regalos/features/settings/presentation/manage_screens.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "manageOccasionsEntries closure edit at package:regalos/features/settings/presentation/manage_screens.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "managePeopleEntries closure edit at package:regalos/features/settings/presentation/manage_screens.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "measureRect": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "mergeRecoveryLocal inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "migrateToV2 inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "new ExchangeFile.parse": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "new FamilyDoc.fromJson": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "new FamilyKey.fromBase64Url": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "new FamilyKeyBundle.fromJson": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "new KeyBundle.fromJson": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "new RecoveryCapsule.fromJson": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "new RecoveryCode.fromQrText": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "new RenewalJournal.fromJson": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "new SlotSet.fromLocalStoreJson": {
+    "count": 2,
+    "why": "kind-reviewed: if whose branches all return/throw ×1; try whose paths all return/throw ×1"
+  },
+  "new SurpriseKeyring.fromJson": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "new SyncIdentityV2.fromJson": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "open inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×4"
+  },
+  "openCameraSettings inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "openFamilyEnvelope inner": {
+    "count": 5,
+    "why": "kind-reviewed: try whose paths all return/throw ×5"
+  },
+  "openProtectedRecoveryFile inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "openRecoveryCapsule inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×4"
+  },
+  "openRecoveryFileWithKey inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "openSavedCommon inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "openScope inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "openVaultStore inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "othersHaveAccess inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "ownGiftRequestStateProvider closure at package:regalos/features/family/application/protection_providers.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "parseRecoveryFile": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "parseSyncEvent tear-off trampoline": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "parseSyncEventV2 tear-off trampoline": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "pbkdf2Sha256 inner": {
+    "count": 5,
+    "why": "kind-reviewed: try whose paths all return/throw ×4; loop that only exits by branching ×1"
+  },
+  "peekRecoveryCapsule": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "pendingProtectedGiftsProvider closure at package:regalos/features/family/application/protection_providers.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "previewRemoval inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "projectAuthorized inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "publishScope inner": {
+    "count": 2,
+    "why": "kind-reviewed: if whose branches all return/throw ×1; try whose paths all return/throw ×1"
+  },
+  "publishableCommonFor inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "readDeviceModel inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "recoveryBytes32": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "recoveryFileHasFamilyProvider closure at package:regalos/features/sync/application/recovery_file_flow.dart inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "recoveryMaintenanceWithinLock inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "registerAppLicenses closure at package:regalos/app/licenses.dart inner": {
+    "count": 21,
+    "why": "kind-reviewed: try whose paths all return/throw ×6; loop that only exits by branching ×1"
+  },
+  "removeDevice inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "requestCameraPermissionStatus inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "requestVaultPersistence inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "requireNoPendingRestore inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "resumeRecoveryBeforeFamily inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "retireDeviceNames inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "retireV1 inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "revokeDevice inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "rotateServiceCredential inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "rotateSurpriseKeys inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "runEraseAll inner": {
+    "count": 5,
+    "why": "kind-reviewed: try whose paths all return/throw ×5"
+  },
+  "runVaultTransaction closure at package:regalos/features/web_device/data/vault_transaction.dart": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "saveRecipient inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "scopeFitsInSlot": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "sealFamilyEnvelope inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "sealFamilyEnvelopeForTesting inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "sealWithNonceForTesting inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "showDeviceDetailSheet inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "showGiftStatusPicker inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "showRegalosConfirm inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "showSelfChangeConfirmSheet inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "showSelfChangePendingSheet inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "showWebChangePin inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "startNewGenerationV2 inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "syncReconnectNeededProvider closure at package:regalos/features/sync/application/pairing_v2_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "unionRecoveryRegistry inner": {
+    "count": 2,
+    "why": "kind-reviewed: if whose branches all return/throw ×1; try whose paths all return/throw ×1"
+  },
+  "usefulFamilyPackage inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "v2HealthProvider closure at package:regalos/features/sync/application/v2_health_provider.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "verifyDeviceSignature inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "verifyFamilyEnvelope inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "verifyOwner inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "webCommonInstall inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "webDeliveredPackage inner": {
+    "count": 2,
+    "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "webPairingFingerprint": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "webSealingCandidate inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "wipeBytes": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "x25519Agree inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  }
+}

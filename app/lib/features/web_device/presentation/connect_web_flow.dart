@@ -222,7 +222,7 @@ class _ConnectWebScreenState extends ConsumerState<ConnectWebScreen> {
 
 // ---------------------------------------------------------------- escanear
 
-class _ScanStep extends ConsumerWidget {
+class _ScanStep extends ConsumerStatefulWidget {
   const _ScanStep({
     required this.finder,
     required this.invalid,
@@ -234,7 +234,18 @@ class _ScanStep extends ConsumerWidget {
   final ValueChanged<String> onCode;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ScanStep> createState() => _ScanStepState();
+}
+
+class _ScanStepState extends ConsumerState<_ScanStep> {
+  /// El permiso de cámara está denegado: no hay nada que enmarcar.
+  bool _denied = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final finder = widget.finder;
+    final invalid = widget.invalid;
+    final onCode = widget.onCode;
     final l10n = AppLocalizations.of(context);
     final t = RegalosTokens.of(context);
     final custom = ref.watch(scannerBuilderProvider);
@@ -242,16 +253,11 @@ class _ScanStep extends ConsumerWidget {
         custom?.call(context, onCode) ??
         QrCameraScanner(
           onCode: onCode,
-          errorBuilder: (context) => Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text(
-                l10n.joinCameraError,
-                textAlign: TextAlign.center,
-                style: t.styles.body.copyWith(color: Colors.white),
-              ),
-            ),
-          ),
+          onDeniedChanged: (denied) {
+            if (mounted) {
+              setState(() => _denied = denied);
+            }
+          },
         );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -282,7 +288,8 @@ class _ScanStep extends ConsumerWidget {
                     fit: StackFit.expand,
                     children: [
                       scanner,
-                      IgnorePointer(child: ScanViewfinder(key: finder)),
+                      if (!_denied)
+                        IgnorePointer(child: ScanViewfinder(key: finder)),
                     ],
                   ),
                 ),

@@ -346,21 +346,57 @@ class RecoveryApplication extends Notifier<RecoveryStatus> {
     return RecoveryCodeDisplay(code.toWords(wordlist), code.toQrText());
   }
 
-  /// Called after the word check succeeds, with this flow's one-time display.
-  Future<void> confirmCreatedCode(RecoveryCodeDisplay display) =>
-      _action(() async {
-        await ref.read(v2FamilyLockProvider).run(() async {
-          final identity = await ref.read(familyStoreProvider).readSyncV2();
-          if (identity == null) {
-            throw const RecoveryApplicationException('not_configured');
-          }
-          final code = RecoveryCode.fromQrText(display.qrText);
-          await ref
-              .read(recoveryStoreProvider)
-              .confirmCode(identity.syncId, encodeBase64Url(code.entropy));
-          await _refresh();
-        });
-      });
+  /// Called after the word check succeeds (or a recovery file saved with the
+  /// picker read back the same code), with this flow's one-time display.
+  /// Throws `person_changed` when «Yo» changed since the code was installed
+  /// (also while that invalidation is pending), like [confirmPossession].
+  Future<void> confirmCreatedCode(RecoveryCodeDisplay display) => _action(
+    () => _confirmCurrent(
+      RecoveryCode.fromQrText(display.qrText),
+      staleCode: 'operation_pending',
+    ),
+  );
+
+  /// ADR 0008: «Comprobar un fichero» (and any late confirmation from a
+  /// recovery file). Confirms only when [code] is the current installed code;
+  /// otherwise throws `not_current_code`. `wordsConfirmed` means «possession
+  /// of the code verified», whatever proved it.
+  Future<void> confirmPossession(RecoveryCode code) =>
+      _action(() => _confirmCurrent(code, staleCode: 'not_current_code'));
+
+  /// Under the family lock: same identity, current «Yo» equal to the person
+  /// the code was installed for, no pending person invalidation, and the
+  /// store's own checks (current E, not retired, not transferred).
+  Future<void> _confirmCurrent(
+    RecoveryCode code, {
+    required String staleCode,
+  }) => ref.read(v2FamilyLockProvider).run(() async {
+    final family = ref.read(familyStoreProvider);
+    final identity = await family.readSyncV2();
+    if (identity == null) {
+      throw const RecoveryApplicationException('not_configured');
+    }
+    if ((await family.recoveryBlockers()).person) {
+      throw const RecoveryApplicationException('person_changed');
+    }
+    final self = await family.readSelfRecipient();
+    try {
+      await ref
+          .read(recoveryStoreProvider)
+          .confirmCode(
+            identity.syncId,
+            encodeBase64Url(code.entropy),
+            checkPerson: true,
+            personId: self,
+          );
+    } on StateError catch (e) {
+      if (e.message == 'transferred') rethrow;
+      throw RecoveryApplicationException(
+        e.message == 'person changed' ? 'person_changed' : staleCode,
+      );
+    }
+    await _refresh();
+  });
 
   /// Advisory for the removal dialog. Includes web credentials. The operation
   /// rechecks the server under CAS. Falls back to known local access offline;
@@ -560,6 +596,11 @@ class RecoveryApplication extends Notifier<RecoveryStatus> {
           replaceExisting: replaceExisting,
         ),
       );
+
+  /// ADR 0008: a recovery file gives the code E; from here it is exactly the
+  /// words flow ([restoreWords]), with the same replacement contract.
+  Future<void> restoreCode(RecoveryCode code, {bool replaceExisting = false}) =>
+      _action(() => _restore(code, replaceExisting: replaceExisting));
 
   Future<void> _restore(
     RecoveryCode code, {

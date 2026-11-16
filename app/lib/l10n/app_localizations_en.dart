@@ -1098,6 +1098,36 @@ class AppLocalizationsEn extends AppLocalizations {
       'The camera can\'t be used. Check the camera permission in the phone settings.';
 
   @override
+  String get scannerWaitingPermission => 'Waiting for camera permission…';
+
+  @override
+  String get scannerDeniedTitle => 'The camera is needed';
+
+  @override
+  String get scannerDeniedBody =>
+      'It is only used to read the QR code; no image is saved.';
+
+  @override
+  String get scannerBlockedTitle => 'The camera is blocked';
+
+  @override
+  String get scannerBlockedBody =>
+      'Camera permission is denied. Turn it on in the phone settings to read the QR code.';
+
+  @override
+  String get scannerFailedTitle => 'Could not open the camera';
+
+  @override
+  String get scannerFailedBody =>
+      'The phone did not answer the permission request. Try again.';
+
+  @override
+  String get scannerRetry => 'Try again';
+
+  @override
+  String get scannerOpenSettings => 'Open settings';
+
+  @override
   String get joinConflictTitle => 'This phone already has a list';
 
   @override
@@ -2496,10 +2526,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get webGateCompareBody =>
-      'Check that your phone shows the same code, then approve it there.';
+      'Check that your phone shows the same code, confirm it here and approve it on your phone too.';
 
   @override
   String get webGateCompareWaiting => 'Waiting for your phone to approve…';
+
+  @override
+  String get webGateCompareConfirmed => 'You confirmed the code here';
 
   @override
   String get webGateFailedTitle => 'Could not connect';
@@ -2519,6 +2552,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get webGateFailedNetwork =>
       'Could not reach the server. Check your connection and start again.';
+
+  @override
+  String get webGateFailedCancelled =>
+      'The phone cancelled the connection or the invitation is no longer available. Start again and reconnect from your phone.';
 
   @override
   String get webGateStartAgain => 'Start again';
@@ -3460,11 +3497,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get recoveryValueUnconfirmed => 'Not checked';
 
   @override
-  String get recoveryUnconfirmedTitle => 'Check your words to finish';
+  String get recoveryUnconfirmedTitle => 'Check your code to finish';
 
   @override
   String get recoveryUnconfirmedBody =>
-      'The code does not count as saved yet. Continue to check the words. If they have already been shown, a new code will be created and the old one will stop working.';
+      'The code does not count as saved yet. Continue to check the words, or check a file you already saved. If the words have already been shown, a new code will be created and the old one will stop working.';
 
   @override
   String get recoveryValueAttention => 'Check';
@@ -3511,7 +3548,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get recoveryChange => 'Change the code';
 
   @override
-  String get recoveryChangeHint => 'The old one will stop working.';
+  String get recoveryChangeHint => 'Earlier files and words will stop working.';
 
   @override
   String get recoveryRemove => 'Remove the code';
@@ -3552,7 +3589,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoveryRotateBody =>
-      'A new code will be created. The old one stops working once the new one is ready.';
+      'A new code will be created. The old one stops working once the new one is ready: earlier files and words will stop working.';
 
   @override
   String get recoveryPoint1 =>
@@ -3659,7 +3696,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoveryDonePreparedBody =>
-      'If you lose this phone, you can get the list back with the 24 words.';
+      'If you lose this phone, you can get the list back with your recovery code.';
 
   @override
   String get recoveryDonePendingBody =>
@@ -3953,4 +3990,256 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoverStepActiveValue => 'in progress';
+
+  @override
+  String get recoveryFileAction => 'Save to a file';
+
+  @override
+  String get recoveryFileTitle => 'Save to a file';
+
+  @override
+  String get recoveryFileBody =>
+      'As well as the words, you can save the code in a file. Whoever has the file can get the list back and sign in as this phone.';
+
+  @override
+  String get recoveryFilePersonal =>
+      'This file is personal: do not send it to the family. Keep it somewhere you can open even if you lose this phone.';
+
+  @override
+  String get recoveryFileProtect => 'Protect with a password';
+
+  @override
+  String get recoveryFileProtectOffHint =>
+      'Without a password the file is as good as the words: whoever gets it can use it.';
+
+  @override
+  String get recoveryFileProtectOnHint =>
+      'Stealing the file is not enough: the password is needed too.';
+
+  @override
+  String get recoveryFilePassword => 'Password';
+
+  @override
+  String get recoveryFilePasswordRepeat => 'Repeat the password';
+
+  @override
+  String get recoveryFilePasswordShow => 'Show';
+
+  @override
+  String get recoveryFilePasswordHide => 'Hide';
+
+  @override
+  String recoveryFilePasswordHelp(int min) {
+    return 'At least $min characters. Use your password manager or several words chosen at random.';
+  }
+
+  @override
+  String get recoveryFilePasswordForgot =>
+      'If you forget the password, the file is useless. The 24 words will still work.';
+
+  @override
+  String recoveryFilePwTooShort(int min) {
+    return 'Too short: at least $min characters.';
+  }
+
+  @override
+  String recoveryFilePwTooLong(int max) {
+    return 'Too long: at most $max characters.';
+  }
+
+  @override
+  String get recoveryFilePwRepeated =>
+      'It repeats the same character or block.';
+
+  @override
+  String get recoveryFilePwDigits => 'It cannot be only digits.';
+
+  @override
+  String get recoveryFilePwKeyboard =>
+      'It looks like a row or sequence of keys.';
+
+  @override
+  String get recoveryFilePwAppName => 'It cannot contain the name of the app.';
+
+  @override
+  String get recoveryFilePwCommon => 'It is too common a phrase.';
+
+  @override
+  String get recoveryFilePwMismatch => 'The two passwords do not match.';
+
+  @override
+  String get recoveryFileSave => 'Save';
+
+  @override
+  String get recoveryFileSaveAgain => 'Save another copy';
+
+  @override
+  String get recoveryFileShare => 'Share';
+
+  @override
+  String get recoveryFileShareText =>
+      'Gift Huddle recovery file. It is personal: do not forward it to the family.';
+
+  @override
+  String get recoveryFileStem => 'gift-huddle-recovery';
+
+  @override
+  String get recoveryFileDerivingTitle => 'Protecting the file…';
+
+  @override
+  String get recoveryFileDerivingBody =>
+      'The password key is being prepared. It takes a few seconds; do not close the app.';
+
+  @override
+  String get recoveryFileSavedTitle => 'File saved';
+
+  @override
+  String get recoveryFileSavedBody =>
+      'It was read back from where you saved it and the code is checked. You can save another copy.';
+
+  @override
+  String get recoveryFileProblemVerifyTitle =>
+      'The saved file could not be checked';
+
+  @override
+  String get recoveryFileProblemVerifyBody =>
+      'What was read back does not match. Save it again, maybe somewhere else.';
+
+  @override
+  String get recoveryFileProblemUnreadableTitle => 'The file could not be read';
+
+  @override
+  String get recoveryFileProblemUnreadableBody =>
+      'Check that the file is available on this phone and try again.';
+
+  @override
+  String get recoveryFileProblemUnavailableTitle =>
+      'This phone cannot open the file picker';
+
+  @override
+  String get recoveryFileProblemUnavailableBody =>
+      'Try Share or use the 24 words.';
+
+  @override
+  String get recoveryFileProblemPickerBusyTitle => 'A picker is already open';
+
+  @override
+  String get recoveryFileProblemPickerBusyBody => 'Close it and try again.';
+
+  @override
+  String get recoveryFileProblemNotFileTitle => 'This is not a recovery file';
+
+  @override
+  String get recoveryFileProblemNotFileBody =>
+      'Choose the file you saved when you created the code. It ends in .gifthuddle.';
+
+  @override
+  String get recoveryFileProblemNewerTitle => 'File from a newer version';
+
+  @override
+  String get recoveryFileProblemNewerBody => 'Update the app and try again.';
+
+  @override
+  String get recoveryFileProblemPasswordTitle =>
+      'Wrong password or damaged file';
+
+  @override
+  String get recoveryFileProblemPasswordBody =>
+      'Check the password. If you cannot remember it, use the 24 words.';
+
+  @override
+  String get recoveryFileProblemNotCurrentTitle =>
+      'This file is for a different code';
+
+  @override
+  String get recoveryFileProblemNotCurrentBody =>
+      'It was saved with an earlier code and no longer works. Look for a newer one or change the code.';
+
+  @override
+  String get recoveryFileProblemHasFamilyTitle =>
+      'This phone already has a list';
+
+  @override
+  String get recoveryFileProblemHasFamilyBody =>
+      'A recovery file is for an empty phone. It was not used.';
+
+  @override
+  String get recoveryCheckFileAction => 'Check a file';
+
+  @override
+  String get recoveryCheckFileTitle => 'Check a file';
+
+  @override
+  String get recoveryCheckFileBody =>
+      'Choose the recovery file you saved. If it opens this phone\'s code, the code is checked. Nothing is saved or sent.';
+
+  @override
+  String get recoveryFilePick => 'Choose file';
+
+  @override
+  String get recoveryFilePasswordTitle => 'File password';
+
+  @override
+  String get recoveryFilePasswordOpenBody =>
+      'This file is protected. Type the password you set when you saved it.';
+
+  @override
+  String get recoveryFileOpen => 'Open the file';
+
+  @override
+  String get recoveryFileCheckingTitle => 'Checking the file…';
+
+  @override
+  String get recoveryFileCheckingBody => 'One moment.';
+
+  @override
+  String get recoveryCheckFileOkTitle => 'Code checked';
+
+  @override
+  String get recoveryCheckFileOkBody =>
+      'The file opens this phone\'s code. If you lose the phone, you can get the list back with it.';
+
+  @override
+  String get obRecoverWithFile => 'Recover with a file';
+
+  @override
+  String get recoverFileTitle => 'Recover with a file';
+
+  @override
+  String get recoverFileBody =>
+      'Choose the recovery file you saved when you created the code. It ends in .gifthuddle.';
+
+  @override
+  String get recoverFileReceived => 'You opened a recovery file.';
+
+  @override
+  String get recoverFileConfirmTitle => 'Recover with this file?';
+
+  @override
+  String get recoverFileConfirmBody =>
+      'This phone will get the list back and sign in as the phone that saved the code. If it is not your file, do not continue.';
+
+  @override
+  String get recoverFileOther => 'Choose another file';
+
+  @override
+  String get recoverFileWaitingTitle => 'Another file arrived';
+
+  @override
+  String get recoverFileWaitingBody =>
+      'You were using another recovery file. Switch to this one?';
+
+  @override
+  String get recoverFileWaitingSwitch => 'Switch file';
+
+  @override
+  String get recoverFileWaitingKeep => 'Keep the current one';
+
+  @override
+  String get recoveryProblemPersonTitle =>
+      'This code is no longer your current person\'s';
+
+  @override
+  String get recoveryProblemPersonBody =>
+      'This phone\'s person changed or a change is pending. Create a new code and keep that one.';
 }

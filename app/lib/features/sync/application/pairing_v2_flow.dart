@@ -67,9 +67,7 @@ const kWebPairingOrigin = String.fromEnvironment(
   defaultValue: 'https://web.gifthuddle.app',
 );
 
-const _webPairingOrigins = {
-  'https://web.gifthuddle.app',
-};
+const _webPairingOrigins = {'https://web.gifthuddle.app'};
 
 /// Strict mobile-side parser. A mobile invitation or arbitrary origin is refused.
 class WebPairingQr {
@@ -554,8 +552,9 @@ class PairingV2Guest {
     this.offer,
     this._keys,
     this._deviceId,
-    this.kind,
-  );
+    this.kind, {
+    this.onRequest,
+  });
 
   /// Lee la oferta de la invitación y comprueba la ficha del anfitrión.
   ///
@@ -568,7 +567,9 @@ class PairingV2Guest {
     required DeviceKeys keys,
     required String Function(String listId, bool v1Proven) deviceIdFor,
     FamilyKey? v1Key,
+    void Function()? onRequest,
   }) async {
+    onRequest?.call();
     final got = await transport.getOffer(inviteId);
     final offer = await PairingOffer.fromJson(got.offer);
     final proven =
@@ -581,6 +582,7 @@ class PairingV2Guest {
       keys,
       deviceIdFor(offer.listId, proven),
       DeviceKind.mobile,
+      onRequest: onRequest,
     );
   }
 
@@ -595,6 +597,10 @@ class PairingV2Guest {
   final String _deviceId;
   final DeviceKind kind;
 
+  /// Se llama antes de cada petición a la invitación: quien sondea lleva la
+  /// cuenta para no pasar del límite del Worker (`InvitePollPacer`).
+  final void Function()? onRequest;
+
   /// Web uses the already fetched offer: no second offer request or identity.
   static PairingV2Guest forWeb({
     required SyncV2Transport transport,
@@ -602,6 +608,7 @@ class PairingV2Guest {
     required PairingOffer offer,
     required DeviceKeys keys,
     required String deviceId,
+    void Function()? onRequest,
   }) => PairingV2Guest._(
     transport,
     inviteId,
@@ -609,8 +616,14 @@ class PairingV2Guest {
     keys,
     deviceId,
     DeviceKind.web,
+    onRequest: onRequest,
   );
   PairingJoin? _join;
+
+  /// La respuesta preparada y todavía sin aceptar por el Worker.
+  PairingJoin? _prepared;
+  String? _preparedPerson;
+  bool _preparedWithoutPerson = false;
   bool _approved = false;
 
   /// Si el servidor ya ha dado la aprobación: la credencial de servicio de
@@ -622,6 +635,7 @@ class PairingV2Guest {
   Future<void> releaseCheckpoint() async {
     for (var attempt = 0; attempt < 3; attempt++) {
       try {
+        onRequest?.call();
         await _transport.releaseInviteCheckpoint(
           inviteId,
           credential: _keys.serviceCredential,
@@ -652,14 +666,28 @@ class PairingV2Guest {
     if (_join != null) {
       throw const PairingException('ya se ha respondido');
     }
-    final join = await joinPairing(
-      offer: offer,
-      keys: _keys,
-      deviceId: _deviceId,
-      personId: personId,
-      withoutPerson: withoutPerson,
-      kind: kind,
-    );
+    // Un reintento (tras un 429 o un corte) manda la misma respuesta: el
+    // mismo transcript, nunca otro.
+    final prepared = _prepared;
+    if (prepared != null &&
+        (_preparedPerson != personId ||
+            _preparedWithoutPerson != withoutPerson)) {
+      throw const PairingException('la respuesta ya es de otra persona');
+    }
+    final join =
+        prepared ??
+        await joinPairing(
+          offer: offer,
+          keys: _keys,
+          deviceId: _deviceId,
+          personId: personId,
+          withoutPerson: withoutPerson,
+          kind: kind,
+        );
+    _prepared = join;
+    _preparedPerson = personId;
+    _preparedWithoutPerson = withoutPerson;
+    onRequest?.call();
     await _transport.answerInvite(
       inviteId,
       answer: join.answer.toJson(),
@@ -685,16 +713,28 @@ class PairingV2Guest {
     return _code = join.codeFor(PairingReveal.fromJson(reveal));
   }
 
+  /// Mira si la invitación sigue viva mientras se comparan los códigos (sin
+  /// confirmar todavía): lanza [InviteGoneException] si el anfitrión la
+  /// canceló o ya no está. No cambia nada más.
+  Future<void> ensureAlive() async {
+    if (_join == null) throw const PairingException('todavía no hay respuesta');
+    final outcome = await _poll();
+    if (outcome is V2InviteGone) throw const InviteGoneException();
+  }
+
   /// La persona ha visto que los dos códigos coinciden.
   void confirmCode() {
     if (_code == null) throw const PairingException('todavía no hay código');
     _confirmed = true;
   }
 
-  Future<V2InviteOutcome> _poll() => _transport.pollInviteResult(
-    inviteId,
-    credential: _keys.serviceCredential,
-  );
+  Future<V2InviteOutcome> _poll() {
+    onRequest?.call();
+    return _transport.pollInviteResult(
+      inviteId,
+      credential: _keys.serviceCredential,
+    );
+  }
 
   /// Recoge la aprobación (null si todavía no la hay o si el servidor no da
   /// el checkpoint): ADR 0005, §6 y B7.
@@ -736,6 +776,7 @@ class PairingV2Guest {
     final approval = await _checkApproval(package, join, reveal, outcome);
 
     // 2. El checkpoint exacto.
+    onRequest?.call();
     final checkpoint = await _transport.getInviteCheckpoint(
       inviteId,
       credential: _keys.serviceCredential,

@@ -7,7 +7,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/sync/envelope.dart';
+import '../../../core/sync/recovery_file.dart' show isRecoveryFile;
 import '../../family/domain/family_errors.dart';
+import '../../sync/application/recovery_file_flow.dart';
 import 'share_service.dart';
 
 export '../../../core/platform/document_exchange.dart' show kIncomingChannel;
@@ -48,6 +50,10 @@ String? shareTextFromUri(Uri uri) {
 /// Recibe sobres que llegan de fuera (fichero abierto desde otra app o
 /// enlace) y los importa. El último resultado queda en el estado hasta que
 /// la interfaz lo consume con [consume].
+///
+/// Antes del importador, un distribuidor por la magia «GHK» manda los ficheros
+/// de recuperación (ADR 0008) a `recoveryFileProvider`, sin derivar ni ir a
+/// la red; no generan [IncomingShareEvent].
 class IncomingShareController extends Notifier<IncomingShareEvent?> {
   StreamSubscription<String>? _links;
 
@@ -63,7 +69,10 @@ class IncomingShareController extends Notifier<IncomingShareEvent?> {
   }
 
   Future<void> _start() async {
-    await ref.read(documentExchangeProvider).startReceiving(_importBytes);
+    final exchange = ref.read(documentExchangeProvider);
+    // Ficheros de recuperación compartidos que quedaran de un cierre abrupto.
+    unawaited(exchange.clearRecoveryShares());
+    await exchange.startReceiving(_importBytes);
     try {
       _links = ref
           .read(linkSourceProvider)
@@ -87,8 +96,14 @@ class IncomingShareController extends Notifier<IncomingShareEvent?> {
     }
   }
 
-  Future<void> _importBytes(Uint8List bytes) =>
-      _run(() => ref.read(shareServiceProvider).importEnvelopeBytes(bytes));
+  Future<void> _importBytes(Uint8List bytes) {
+    if (isRecoveryFile(bytes)) {
+      return ref.read(recoveryFileProvider.notifier).receive(bytes);
+    }
+    return _run(
+      () => ref.read(shareServiceProvider).importEnvelopeBytes(bytes),
+    );
+  }
 
   Future<void> _run(Future<ImportSummary> Function() import) async {
     try {

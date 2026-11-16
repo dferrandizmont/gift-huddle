@@ -5,6 +5,7 @@ import 'package:cryptography/cryptography.dart'
 import 'package:flutter/foundation.dart';
 
 import '../../../core/sync/pairing_v2.dart';
+import '../../sync/application/invite_poll_pacer.dart';
 import '../../sync/application/pairing_v2_flow.dart' show kWebPairingOrigin;
 import '../../sync/data/sync_transport.dart';
 import '../../sync/data/sync_transport_v2.dart';
@@ -40,6 +41,10 @@ class WebGateController extends ChangeNotifier implements WebGateActions {
     this.candidateChanged,
     SessionClock? clock,
     this.pairingOrigin = kWebPairingOrigin,
+    this.pairingWatchdog = const Duration(seconds: 30),
+    this.pairingPacer,
+    this.pairingNow,
+    this.pairingElapsed,
   }) {
     queue = PendingQueue(vault);
     session = WebSessionController(
@@ -60,6 +65,21 @@ class WebGateController extends ChangeNotifier implements WebGateActions {
   final void Function() disposeContainer;
   final void Function()? cancelTransport, candidateChanged;
   final String pairingOrigin;
+
+  /// Si un sondeo del emparejamiento no termina en este tiempo, el intento
+  /// acaba en [WebConnectFailure.network] en vez de quedarse colgado.
+  final Duration pairingWatchdog;
+
+  /// La cadencia de cada emparejamiento (las pruebas la acortan); por
+  /// defecto 1-2 s con el presupuesto por invitación.
+  final InvitePollPacer Function()? pairingPacer;
+
+  /// El reloj del emparejamiento (caducidad del QR); las pruebas lo mueven.
+  final DateTime Function()? pairingNow;
+
+  /// El reloj monótono de las esperas de cada emparejamiento (las pruebas lo
+  /// mueven; por defecto, un `Stopwatch` por QR).
+  final Duration Function()? pairingElapsed;
   late final PendingQueue queue;
   late final WebSessionController session;
   WebSyncEngine? engine;
@@ -71,7 +91,13 @@ class WebGateController extends ChangeNotifier implements WebGateActions {
   int unsentChanges = 0;
   bool _useHere = false;
   Duration? nextPairingPoll;
-  bool _checkingPairing = false;
+  Future<void>? _pairingCheck;
+
+  /// Fallos pasajeros (red o vigilante) seguidos mientras se compara el
+  /// código: hasta [_comparingTolerance] se reintenta sin dar el intento por
+  /// fallido.
+  int _comparingFailures = 0;
+  static const _comparingTolerance = 2;
   bool _damaged = false;
   int _viewRevision = 0;
   bool get persistenceDenied => vault.persistenceGranted == false;
@@ -139,6 +165,8 @@ class WebGateController extends ChangeNotifier implements WebGateActions {
 
   void _cancelWork() {
     _run++;
+    _pairingCheck = null;
+    _comparingFailures = 0;
     _poll?.cancel();
     _poll = null;
     nextPairingPoll = null;
@@ -271,7 +299,12 @@ class WebGateController extends ChangeNotifier implements WebGateActions {
     }
     _cancelWork();
     final run = _run;
-    final next = await WebPairingGuest.create(transport: transport());
+    final next = await WebPairingGuest.create(
+      transport: transport(),
+      now: pairingNow,
+      pacer: pairingPacer?.call(),
+      elapsed: pairingElapsed,
+    );
     if (_disposed || run != _run) {
       next.cancel();
       return;
@@ -282,50 +315,140 @@ class WebGateController extends ChangeNotifier implements WebGateActions {
     _schedule(run);
   }
 
-  void _schedule(int run, [Duration? retryAfter]) {
+  /// Programa el siguiente sondeo. [limited]: tras un 429 ([retryAfter] es
+  /// lo que pidió el Worker); [soon]: en cuanto lo permita el presupuesto.
+  void _schedule(
+    int run, {
+    bool limited = false,
+    Duration? retryAfter,
+    bool soon = false,
+  }) {
     final next = guest;
     if (next == null || _disposed || run != _run) return;
-    final random = next.pollDelay;
-    final wait = retryAfter != null && retryAfter > random
-        ? retryAfter
-        : random;
+    final pacer = next.pacer;
+    var wait = soon
+        ? pacer.soon()
+        : limited
+        ? pacer.limited(retryAfter)
+        : next.pollDelay;
+    // Nunca más allá de la vida del QR: al acabarse, el siguiente sondeo
+    // dice «caducado» en vez de esperar a un 429 largo.
+    final left = next.remainingLifetime + const Duration(milliseconds: 10);
+    if (wait > left) wait = left;
     _poll?.cancel();
     nextPairingPoll = wait;
-    _poll = Timer(wait, () => unawaited(checkPairing()));
+    _poll = Timer(wait, () => _tick(run));
   }
 
-  /// Exposed for deterministic integration checks; production uses 5–8s jitter.
+  /// Lo que hace el temporizador: nunca deja un error suelto, y si ya hay un
+  /// sondeo en marcha no lanza otro (ese programa el siguiente).
+  void _tick(int run) {
+    if (_disposed || run != _run || _pairingCheck != null) return;
+    unawaited(
+      checkPairing().catchError((Object _) {
+        _pairingFailed(run, WebConnectFailure.rejected);
+      }),
+    );
+  }
+
+  /// Exposed for deterministic integration checks; production polls every
+  /// 1–2 s with jitter. With a poll already running it waits for it and then
+  /// polls again, so a caller always sees a poll that started after the call.
   Future<void> checkPairing() async {
+    final running = _pairingCheck;
+    if (running != null) {
+      await running;
+      if (_disposed) return;
+    }
     final next = guest;
-    final run = _run;
-    if (next == null || _checkingPairing) return;
-    _poll?.cancel();
-    _checkingPairing = true;
+    if (next == null || _pairingCheck != null) return;
+    final check = _check(next, _run);
+    _pairingCheck = check;
     try {
-      await next.poll();
+      await check;
+    } finally {
+      if (identical(_pairingCheck, check)) _pairingCheck = null;
+    }
+  }
+
+  Future<void> _check(WebPairingGuest next, int run) async {
+    _poll?.cancel();
+    _poll = null;
+    // Mientras se compara solo se mira si el móvil sigue ahí: un corte o un
+    // vigilante sueltos no deben tirar el emparejamiento.
+    final comparing = next.comparing;
+    bool tolerated() {
+      if (!comparing || _comparingFailures >= _comparingTolerance) {
+        return false;
+      }
+      _comparingFailures++;
+      _schedule(run);
+      return true;
+    }
+
+    try {
+      await next.poll().timeout(pairingWatchdog);
       if (_disposed || run != _run) return;
+      _comparingFailures = 0;
+      next.pacer.succeeded();
       if (next.joined != null) {
-        _publish(WebGateChoosePin(personName: next.personName));
+        if (view is! WebGateChoosePin) {
+          _publish(WebGateChoosePin(personName: next.personName));
+        }
         return;
       }
-      if (next.code != null) _publish(WebGateComparing(code: next.code!));
+      _publishComparing(next);
       _schedule(run);
+    } on TimeoutException {
+      if (_disposed || run != _run || tolerated()) return;
+      _pairingFailed(run, WebConnectFailure.network);
     } on InviteGoneException {
-      _pairingFailed(run, WebConnectFailure.expired);
+      _gone(run, next);
     } on PairingException {
       _pairingFailed(run, WebConnectFailure.codeMismatch);
     } on SyncTransportException catch (e) {
       if (_disposed || run != _run) return;
       if (e.failure == SyncFailure.rateLimited) {
-        _schedule(run, e.retryAfter);
+        _schedule(run, limited: true, retryAfter: e.retryAfter);
+      } else if (e.failure == SyncFailure.unauthorized) {
+        // 401/410 on the public invitation routes: it is no longer usable.
+        _gone(run, next);
+      } else if ((e.failure == SyncFailure.network ||
+              e.failure == SyncFailure.server) &&
+          tolerated()) {
+        // Pasajero mientras se compara: el siguiente sondeo ya está programado.
       } else {
         _pairingFailed(run, WebConnectFailure.network);
       }
     } catch (_) {
       _pairingFailed(run, WebConnectFailure.rejected);
-    } finally {
-      _checkingPairing = false;
     }
+  }
+
+  /// The invitation is gone: before the QR's lifetime the phone cancelled or
+  /// deleted it; after it, it expired.
+  void _gone(int run, WebPairingGuest next) => _pairingFailed(
+    run,
+    next.expired ? WebConnectFailure.expired : WebConnectFailure.cancelled,
+  );
+
+  /// Publishes the comparison only when it changes: once confirmed, the same
+  /// code is never shown unconfirmed again.
+  void _publishComparing(WebPairingGuest next) {
+    final code = next.code;
+    if (code == null) return;
+    final current = view;
+    final confirmed =
+        next.confirmed ||
+        (current is WebGateComparing &&
+            current.code == code &&
+            current.confirmed);
+    if (current is WebGateComparing &&
+        current.code == code &&
+        current.confirmed == confirmed) {
+      return;
+    }
+    _publish(WebGateComparing(code: code, confirmed: confirmed));
   }
 
   void _pairingFailed(int run, WebConnectFailure reason) {
@@ -336,9 +459,26 @@ class WebGateController extends ChangeNotifier implements WebGateActions {
 
   /// Existing comparison pane receives these callbacks. Approval alone never
   /// substitutes for the browser user's explicit numeric comparison.
+  ///
+  /// Returns at once: the confirmed comparison is published before it
+  /// returns, and the approval is collected by the scheduled polls.
   Future<void> confirmCode() async {
-    guest?.confirmCode();
-    await checkPairing();
+    final next = guest;
+    final run = _run;
+    // Pulsar otra vez no cambia nada: ni la espera ya programada (que puede
+    // ser la de un 429) ni el estado publicado.
+    if (next == null || next.confirmed) return;
+    try {
+      next.confirmCode();
+    } on InviteGoneException {
+      _gone(run, next);
+      return;
+    } on PairingException {
+      // No code yet (or cancelled): nothing to confirm.
+      return;
+    }
+    _publishComparing(next);
+    _schedule(run, soon: true);
   }
 
   Future<void> rejectCode() async =>
