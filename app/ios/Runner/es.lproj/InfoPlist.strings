@@ -1,0 +1,3 @@
+/* Textos de permisos del sistema (es). */
+"NSCameraUsageDescription" = "Leer los códigos QR para conectar otro móvil de tu familia o la web, y para usar un código de recuperación.";
+"NSFaceIDUsageDescription" = "Desbloquear Gift Huddle con Face ID.";

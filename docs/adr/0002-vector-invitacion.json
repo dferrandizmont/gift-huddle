@@ -1,0 +1,35 @@
+{
+  "descripcion": "Vector fijo de ADR 0002 para el cliente (lib/features/sync). Calculado con Python 'cryptography' (X25519, HKDF-SHA256, AES-256-GCM), independiente del codigo Dart. Solo para pruebas: ninguna clave de aqui es real.",
+  "formato": {
+    "hkdf": "HKDF-SHA256 (RFC 5869) en todos los casos",
+    "authKey": "HKDF(ikm = familyKey, salt = 'gift-huddle', info = 'sync-auth-v1', 32 bytes); el servidor guarda SHA-256(authKey)",
+    "codigoVerificacion": "HKDF(ikm = publicKeyA || publicKeyB, salt = vacia, info = 'gift-huddle-verify-v1', 3 bytes); bits = b0<<12 | b1<<4 | b2>>4 (20 bits); codigo = bits mod 1000000, 6 cifras con ceros a la izquierda",
+    "claveDelPaquete": "HKDF(ikm = secreto compartido X25519, salt = 'gift-huddle', info = 'gift-huddle-invite-v1', 32 bytes)",
+    "paquete": "JSON compacto {\"v\":1,\"l\":listId,\"k\":familyKey en base64url,\"n\":nombre del movil que invita}",
+    "cifrado": "AES-256-GCM, nonce de 12 bytes, datos asociados = UTF-8(inviteId) || publicKeyA || publicKeyB; ciphertext = texto cifrado || etiqueta de 16 bytes",
+    "syncId": "base64url sin relleno de HKDF(ikm = familyKey, salt = gift-huddle, info = sync-id-v1, 16 bytes): 22 caracteres; es el id de la lista en las URLs del servidor",
+    "orden": "B pide entrada con publicKeyB; A genera su par, hace offer {publicKeyA} y los dos calculan el codigo; solo cuando A confirma que coinciden hace approve {ciphertext, nonce}",
+    "A": "quien invita y da acceso; B: quien entra"
+  },
+  "entrada": {
+    "seedA": "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+    "seedB": "8182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0",
+    "inviteId": "oKGio6SlpqeoqaqrrK2urw",
+    "listId": "00000000-0000-4000-8000-000000000001",
+    "familyKey": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
+    "deviceNameA": "Movil de prueba",
+    "nonce": "c0c1c2c3c4c5c6c7c8c9cacb"
+  },
+  "salida": {
+    "publicKeyA": "07a37cbc142093c8b755dc1b10e86cb426374ad16aa853ed0bdfc0b2b86d1c7c",
+    "publicKeyB": "883186b800b41d5cf0429695da9b3cc4f328ebcd184a6e482fa578c103f06c77",
+    "sharedSecret": "c639664aff13ee2696db677b30b74d56103f38953ef4b5c50b87e2ac31b37367",
+    "packageKey": "cb3d7756a928f573bfcb1035797a9b1ea53827128677803b8bcf1c9cf61f9408",
+    "verificationCode": "030367",
+    "plaintext": "{\"v\":1,\"l\":\"00000000-0000-4000-8000-000000000001\",\"k\":\"QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8\",\"n\":\"Movil de prueba\"}",
+    "ciphertext": "e4d4894bc8775a066d260ceab116246f210ac0d43e45e7ba40b2192699712b90ad7f6138ed7dd29fa7a4720c0748d41164d018b000cbe69d1e31d2b100fd3c934939cfa1ee70571dfa2b85e191e479e274d6c0f984445fd66d30833cd5aeab23c529f8f3c643739ce5aacb13ef92d94671526cd1b45498a7ff72ae0d48b3f5c8c60455adf8fdcdb33b5c",
+    "authKey": "b25db548880a307c518ba92509a0a76f5b3c343bf1f123daa18ba0e9fcfc66e1",
+    "authVerifier": "af74b3b8668d649226f926ba077311db979a5052ab64265ea67e2cd364d995d6",
+    "syncId": "CskLtVDRHt4qGOzu6s4-3A"
+  }
+}

@@ -1,0 +1,3 @@
+/* System permission texts (en). */
+"NSCameraUsageDescription" = "Scan QR codes to connect another family phone or the web, and to use a recovery code.";
+"NSFaceIDUsageDescription" = "Unlock Gift Huddle with Face ID.";

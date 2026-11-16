@@ -1,0 +1,165 @@
+import 'package:clock/clock.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/sync/model.dart';
+import '../domain/next_occasion.dart';
+import 'family_controller.dart';
+import 'protection_providers.dart';
+
+export 'protection_providers.dart';
+
+/// El estado ya cargado, o `null` mientras carga o si falló.
+final familyStateProvider = Provider<FamilyState?>((ref) {
+  final current = ref.watch(familyControllerProvider).value;
+  if (current == null) return null;
+  return FamilyState(
+    doc: ref.watch(projectedFamilyDocProvider),
+    identity: current.identity,
+    hiddenGiftIds: current.hiddenGiftIds,
+    authorized: true,
+  );
+});
+
+/// El año de la lista que se está viendo, o `null` para todos los años.
+class YearFilter extends Notifier<int?> {
+  @override
+  int? build() => null;
+
+  /// Cambia el año; `null` enseña todos.
+  void set(int? year) => state = year;
+}
+
+/// Año que filtra los regalos de los providers derivados (presupuesto,
+/// rejilla, duplicados, regalos por persona). Por defecto, todos.
+final yearFilterProvider = NotifierProvider<YearFilter, int?>(YearFilter.new);
+
+/// La vista de la familia con el año elegido: sin personas ni quien regala
+/// archivados.
+final familyViewProvider = Provider<FamilyView>((ref) {
+  final state = ref.watch(familyStateProvider) ?? FamilyState.noFamily();
+  final year = ref.watch(yearFilterProvider);
+  return year == null
+      ? state.view
+      : FamilyView.fromDoc(
+          state.doc,
+          year: year,
+          hiddenGiftIds: state.hiddenGiftIds,
+        );
+});
+
+/// La vista con todo, también lo archivado y de todos los años: para la
+/// pantalla de archivados.
+final familyFullViewProvider = Provider<FamilyView>(
+  (ref) => (ref.watch(familyStateProvider) ?? FamilyState.noFamily()).fullView,
+);
+
+/// Las personas a las que se regala (sin archivadas), por nombre.
+final recipientsProvider = Provider<List<Recipient>>(
+  (ref) => ref.watch(familyViewProvider).recipients,
+);
+
+/// Quien regala (sin archivados), por nombre.
+final giversProvider = Provider<List<Giver>>(
+  (ref) => ref.watch(familyViewProvider).givers,
+);
+
+/// Las ocasiones (sin archivadas), por nombre.
+final occasionsProvider = Provider<List<Occasion>>(
+  (ref) => [
+    for (final o in ref.watch(familyViewProvider).occasions)
+      if (!o.archived) o,
+  ],
+);
+
+/// Los regalos de una persona, por título.
+final giftsForProvider = Provider.family<List<Gift>, String>(
+  (ref, recipientId) => ref.watch(familyViewProvider).giftsFor(recipientId),
+);
+
+/// La vista con solo los regalos de las personas activas, para el presupuesto.
+FamilyView _activeGifts(FamilyView view) {
+  final active = {for (final r in view.recipients) r.id};
+  return FamilyView(
+    recipients: view.recipients,
+    givers: view.givers,
+    occasions: view.occasions,
+    gifts: [
+      for (final g in view.gifts)
+        if (active.contains(g.recipientId)) g,
+    ],
+    allGifts: view.allGifts,
+    allGivers: view.allGivers,
+  );
+}
+
+/// La rejilla de la familia (personas y quien regala activos, con la fila de
+/// «sin asignar» del modelo).
+final familyGridProvider = Provider<FamilyGrid>(
+  (ref) => ref.watch(familyViewProvider).grid(),
+);
+
+/// Personas activas fuera de Reparto; siguen estando en Personas.
+final outsideRepartoProvider = Provider<List<Recipient>>(
+  (ref) => ref.watch(familyViewProvider).outsideReparto,
+);
+
+/// Resuelve las claves del selector sin depender de la capa de presentación.
+/// Las familias de Riverpod usan String (igualdad por valor), nunca un Set.
+Set<String>? _repartoOccasionIds(String? key, List<Occasion> occasions) {
+  if (key == null || key == 'all') return null;
+  if (key == 'birthdays') {
+    return {
+      for (final occasion in occasions)
+        if (!occasion.archived && occasion.kind == OccasionKind.birthday)
+          occasion.id,
+    };
+  }
+  return {key};
+}
+
+/// Regalos y personas que cuentan en Reparto, para sus listas y totales.
+/// `null` y `all` significan Todas; `birthdays` reúne los cumpleaños activos;
+/// cualquier otra clave es el id estable de una ocasión.
+final repartoFamilyViewProvider = Provider.family<FamilyView, String?>((
+  ref,
+  occasionKey,
+) {
+  final view = ref.watch(familyViewProvider);
+  return view.forReparto(
+    occasionKeys: _repartoOccasionIds(occasionKey, view.occasions),
+  );
+});
+
+/// Rejilla filtrada, con celdas `excluded` y la lista `outsideReparto`.
+/// Acepta las mismas claves del selector que [repartoFamilyViewProvider].
+final familyGridForOccasionProvider = Provider.family<FamilyGrid, String?>((
+  ref,
+  occasionKey,
+) {
+  final view = ref.watch(familyViewProvider);
+  return view.grid(
+    occasionKeys: _repartoOccasionIds(occasionKey, view.occasions),
+  );
+});
+
+/// El presupuesto de los regalos de las personas activas.
+final budgetProvider = Provider<Budget>(
+  (ref) => _activeGifts(ref.watch(familyViewProvider)).budget(),
+);
+
+/// Pares de regalos casi iguales para la misma persona (personas activas).
+final duplicatesProvider = Provider<List<DuplicatePair>>(
+  (ref) => ref.watch(familyViewProvider).possibleDuplicates(),
+);
+
+/// La próxima ocasión y los días que faltan. Usa `clock.now()` al calcular;
+/// se recalcula cuando cambia la familia, no al pasar la medianoche.
+final nextOccasionProvider = Provider<NextOccasion?>(
+  (ref) => nextOccasionFrom(ref.watch(occasionsProvider), clock.now()),
+);
+
+/// Las próximas ocasiones para la cuenta atrás de Personas, de la más cercana
+/// a la más lejana, sin archivadas ni las que ya pasaron y no se repiten.
+final upcomingOccasionsProvider = Provider<List<NextOccasion>>(
+  (ref) => upcomingOccasionsFrom(ref.watch(occasionsProvider), clock.now()),
+);

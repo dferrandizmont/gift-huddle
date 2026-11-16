@@ -1,0 +1,59 @@
+{
+  "about": "ADR 0005, B5. X25519 con la clave privada de semilla agreementSeed (hexadecimal). secret null: rechazado (secreto de ceros). Las siete primeras son de orden bajo; las cinco últimas llevan el bit alto, que el RFC 7748 enmascara.",
+  "agreementSeed": "0202020202020202020202020202020202020202020202020202020202020202",
+  "agreementPublic": "ce8d3ad1ccb633ec7b70c17814a5c76ecd029685050d344745ba05870e587d59",
+  "control": {
+    "public": "a4e09292b651c278b9772c569f5fa9bb13d906b46ab68c9df9dc2b4409f8a209",
+    "secret": "2ed76ab549b1e73c031eb49c9448f0798aea81b698279a0c3dc3e49fbfc4b953"
+  },
+  "points": [
+    {
+      "public": "0000000000000000000000000000000000000000000000000000000000000000",
+      "secret": null
+    },
+    {
+      "public": "0100000000000000000000000000000000000000000000000000000000000000",
+      "secret": null
+    },
+    {
+      "public": "e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800",
+      "secret": null
+    },
+    {
+      "public": "5f9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f1157",
+      "secret": null
+    },
+    {
+      "public": "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "secret": null
+    },
+    {
+      "public": "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "secret": null
+    },
+    {
+      "public": "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      "secret": null
+    },
+    {
+      "public": "cdeb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b880",
+      "secret": "b575257f865030758a0fd7e49333e444caeb9f2a0110f65177fbf577db62ed13"
+    },
+    {
+      "public": "4c9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f11d7",
+      "secret": "4cecba515b67885378ca894eca461bd9e579de4a925f96824d29422538a97031"
+    },
+    {
+      "public": "d9ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "secret": "0f94e8abc88ec11029245097936ced3d61506387e8f2923c60324f2319d0f563"
+    },
+    {
+      "public": "daffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "secret": "0cc2395f22a3d710a0baebd615f7a72338db77354739665b4c6a27356753fd43"
+    },
+    {
+      "public": "dbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "secret": "d3af98d8f3a737837da1e66ee5d59367afb9b8f3916b4df907f9432edd52003f"
+    }
+  ]
+}

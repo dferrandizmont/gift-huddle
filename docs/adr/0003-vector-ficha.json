@@ -1,0 +1,38 @@
+{
+  "description": "Public test seeds only. Mobile message/signature/digest independently computed using the pre-k v2 format (Node crypto).",
+  "signingSeed": "ZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWU",
+  "agreementSeed": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+  "mobile": {
+    "record": {
+      "d": "vector-device",
+      "e": "1i8Bah79Hk_feT60LNhEceG6nwzwTRKHtcxx9hYofLg",
+      "l": "vector-list",
+      "n": 1,
+      "p": "aritz",
+      "v": 2,
+      "x": "pOCSkrZRwni5dyxWn1-puxPZBrRqtoyd-dwrRAn4ogk",
+      "sig": "Z7qknygIspqd0luTcel0CLDrqsyfeT7_RSdrwQKm_mCW9V6ZnfpciAlISh_hCNzhJx8aXSUoX9q-UpMDaVSuDQ"
+    },
+    "messageBase64Url": "Z2lmdC1odWRkbGUtZGV2aWNlLXYyAHsiZCI6InZlY3Rvci1kZXZpY2UiLCJlIjoiMWk4QmFoNzlIa19mZVQ2MExOaEVjZUc2bnd6d1RSS0h0Y3h4OWhZb2ZMZyIsImwiOiJ2ZWN0b3ItbGlzdCIsIm4iOjEsInAiOiJhcml0eiIsInYiOjIsIngiOiJwT0NTa3JaUnduaTVkeXhXbjEtcHV4UFpCclJxdG95ZC1kd3JSQW40b2drIn0",
+    "digest": "8J2ubw52i9xndsf31slkToVzNnIGPsQzT78frTNGLQI"
+  },
+  "web": {
+    "record": {
+      "d": "vector-device",
+      "e": "1i8Bah79Hk_feT60LNhEceG6nwzwTRKHtcxx9hYofLg",
+      "l": "vector-list",
+      "n": 1,
+      "p": "aritz",
+      "v": 2,
+      "x": "pOCSkrZRwni5dyxWn1-puxPZBrRqtoyd-dwrRAn4ogk",
+      "k": "web",
+      "sig": "r3ygqhM8tvWrEcPR0RR9GjLNUU7fFInzyyJoyUZ1zHi0-_U6m2bDC-PJnzhm6VUOejFwRr12XiRqV0FRz9mlDQ"
+    },
+    "messageBase64Url": "Z2lmdC1odWRkbGUtZGV2aWNlLXYyAHsiZCI6InZlY3Rvci1kZXZpY2UiLCJlIjoiMWk4QmFoNzlIa19mZVQ2MExOaEVjZUc2bnd6d1RSS0h0Y3h4OWhZb2ZMZyIsImsiOiJ3ZWIiLCJsIjoidmVjdG9yLWxpc3QiLCJuIjoxLCJwIjoiYXJpdHoiLCJ2IjoyLCJ4IjoicE9DU2tyWlJ3bmk1ZHl4V24xLXB1eFBaQnJScXRveWQtZHdyUkFuNG9nayJ9",
+    "digest": "gwP9Lf1jzdwycWnuDvHpjSoX44Z82L3MuQQ1I0dodOo"
+  },
+  "pairing": {
+    "inviteId": "AAECAwQFBgcICQoLDA0ODw",
+    "fingerprint": "DcKL-1GkG_3G4_hySywVcw"
+  }
+}

@@ -1,0 +1,130 @@
+{
+  "about": "ADR 0005, lote B1. Binarios en base64url sin relleno; kid y contexto en hexadecimal. Semillas de las claves de dispositivo: X25519 y Ed25519 (como DeviceKeys.fromSeedsForTesting).",
+  "listId": "list-1",
+  "syncId": "QUJDREVGR0hJSktMTU5PUA",
+  "devices": {
+    "aritz-phone": {
+      "agreementSeed": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+      "signingSeed": "ZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWU",
+      "agreementPublic": "pOCSkrZRwni5dyxWn1-puxPZBrRqtoyd-dwrRAn4ogk",
+      "signingPublic": "1i8Bah79Hk_feT60LNhEceG6nwzwTRKHtcxx9hYofLg",
+      "recordDigest": "tlfGbUwdTT7dHVokhuA2dNAYg8Wt2k_cDsD1WPsn3pI"
+    },
+    "leo-phone": {
+      "agreementSeed": "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI",
+      "signingSeed": "ZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmY",
+      "agreementPublic": "zo060cy2M-x7cMF4FKXHbs0CloUFDTRHRboFhw5YfVk",
+      "signingPublic": "NLTZBDFWy23PC-sKKUm3VZyUDSvLbb6MU6mzAnjjp0Y",
+      "recordDigest": "M88Qn8C5KtFt4SiBMVqAVHIQ_FHys9XsdNy0YA5KJn0"
+    },
+    "nora-phone": {
+      "agreementSeed": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM",
+      "signingSeed": "Z2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2c",
+      "agreementPublic": "Xf7dO2vUf2-ijuFdlp1bsOpTd01Ii9r53xxuASSz7yI",
+      "signingPublic": "EqQVksi3wX1AWeeym2Ho_5bHQV8vgDNI8vAX4Fueodo",
+      "recordDigest": "Nevq7b-GrwRQ3GN5YS0M5P8urc3kbI0o_b4HuCGzOxw"
+    }
+  },
+  "epoch": {
+    "domain": "gift-huddle-epoch-context-v2",
+    "descriptor": {
+      "l": "list-1",
+      "m": [
+        [
+          "aritz-phone",
+          "tlfGbUwdTT7dHVokhuA2dNAYg8Wt2k_cDsD1WPsn3pI"
+        ],
+        [
+          "leo-phone",
+          "M88Qn8C5KtFt4SiBMVqAVHIQ_FHys9XsdNy0YA5KJn0"
+        ],
+        [
+          "nora-phone",
+          "Nevq7b-GrwRQ3GN5YS0M5P8urc3kbI0o_b4HuCGzOxw"
+        ]
+      ],
+      "r": [],
+      "sid": "QUJDREVGR0hJSktMTU5PUA",
+      "v": 2
+    },
+    "canonical": "{\"l\":\"list-1\",\"m\":[[\"aritz-phone\",\"tlfGbUwdTT7dHVokhuA2dNAYg8Wt2k_cDsD1WPsn3pI\"],[\"leo-phone\",\"M88Qn8C5KtFt4SiBMVqAVHIQ_FHys9XsdNy0YA5KJn0\"],[\"nora-phone\",\"Nevq7b-GrwRQ3GN5YS0M5P8urc3kbI0o_b4HuCGzOxw\"]],\"r\":[],\"sid\":\"QUJDREVGR0hJSktMTU5PUA\",\"v\":2}",
+    "context": "9702bb2edf902199937d0403a9f39b7c906828ca8b774bd20d1f1008396232d8"
+  },
+  "candidate": {
+    "kidDomain": "gift-huddle-family-kid-v1",
+    "creatorDomain": "gift-huddle-family-candidate-v1",
+    "json": {
+      "v": 1,
+      "l": "list-1",
+      "sid": "QUJDREVGR0hJSktMTU5PUA",
+      "s": "family",
+      "e": 1,
+      "ctx": "9702bb2edf902199937d0403a9f39b7c906828ca8b774bd20d1f1008396232d8",
+      "kid": "1275552b71019f40ae5669f40f8527214cc994c61ae133445ab6a0bcee38ddf2",
+      "c": "aritz-phone",
+      "cr": "tlfGbUwdTT7dHVokhuA2dNAYg8Wt2k_cDsD1WPsn3pI",
+      "a": [
+        [
+          "aritz-phone",
+          "tlfGbUwdTT7dHVokhuA2dNAYg8Wt2k_cDsD1WPsn3pI"
+        ],
+        [
+          "leo-phone",
+          "M88Qn8C5KtFt4SiBMVqAVHIQ_FHys9XsdNy0YA5KJn0"
+        ],
+        [
+          "nora-phone",
+          "Nevq7b-GrwRQ3GN5YS0M5P8urc3kbI0o_b4HuCGzOxw"
+        ]
+      ],
+      "cs": "_N41q6Pxkta7Nm2_MQ7wVT-2f01NsUOHdbXejCHa9vxbJzdDTIc7-i1xlIRZWUZY3dZV3MJOQ_ieW8a8m-CxDA",
+      "k": "BwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSY"
+    }
+  },
+  "keyBundleV4": {
+    "domain": "gift-huddle-key-bundle-v4",
+    "ephemeralSeed": "ERERERERERERERERERERERERERERERERERERERERERE",
+    "json": {
+      "v": 4,
+      "l": "list-1",
+      "sid": "QUJDREVGR0hJSktMTU5PUA",
+      "s": "family",
+      "e": 1,
+      "ctx": "9702bb2edf902199937d0403a9f39b7c906828ca8b774bd20d1f1008396232d8",
+      "kid": "1275552b71019f40ae5669f40f8527214cc994c61ae133445ab6a0bcee38ddf2",
+      "c": "aritz-phone",
+      "cr": "tlfGbUwdTT7dHVokhuA2dNAYg8Wt2k_cDsD1WPsn3pI",
+      "cs": "_N41q6Pxkta7Nm2_MQ7wVT-2f01NsUOHdbXejCHa9vxbJzdDTIc7-i1xlIRZWUZY3dZV3MJOQ_ieW8a8m-CxDA",
+      "from": "aritz-phone",
+      "fr": "tlfGbUwdTT7dHVokhuA2dNAYg8Wt2k_cDsD1WPsn3pI",
+      "to": "leo-phone",
+      "tr": "M88Qn8C5KtFt4SiBMVqAVHIQ_FHys9XsdNy0YA5KJn0",
+      "a": [
+        [
+          "aritz-phone",
+          "tlfGbUwdTT7dHVokhuA2dNAYg8Wt2k_cDsD1WPsn3pI"
+        ],
+        [
+          "leo-phone",
+          "M88Qn8C5KtFt4SiBMVqAVHIQ_FHys9XsdNy0YA5KJn0"
+        ],
+        [
+          "nora-phone",
+          "Nevq7b-GrwRQ3GN5YS0M5P8urc3kbI0o_b4HuCGzOxw"
+        ]
+      ],
+      "epk": "e06Qm75__kTEZaIgA31gjuNYl9Me-XLwf3SJLLD3PxM",
+      "n": "IiIiIiIiIiIiIiIi",
+      "ct": "UT2qD_hEOoRnuufYsXUpN9EPo5sWrdmSSEO9wozOm_SYOyvz4NNYLMNw8MplLUrN",
+      "sig": "B0DZUbUPEeGSuVPjZJlPEoWav4KAWQphXdMWHPTOBcLgFaWfKodVbuW-ER3xKDolcxHU9pHIXXVogPYEeTW4BQ"
+    }
+  },
+  "commonEnvelope": {
+    "signatureDomain": "gift-huddle-common-v2",
+    "contentKey": "HKDF-SHA256(secreto, sal vacía, info = signatureDomain ‖ 0x00 ‖ kid)",
+    "documentJson": "{\"v\":1,\"listId\":\"list-1\",\"c\":{\"gifts\":{\"g1\":{\"deleted\":[true,\"004102444800001-0003-aritz-phone\"],\"giverId\":[null,\"004102444800001-0003-aritz-phone\"],\"note\":[null,\"004102444800001-0003-aritz-phone\"],\"plannedCents\":[null,\"004102444800001-0003-aritz-phone\"],\"recipientId\":[null,\"004102444800001-0003-aritz-phone\"],\"status\":[null,\"004102444800001-0003-aritz-phone\"],\"surprise\":[null,\"004102444800001-0003-aritz-phone\"],\"title\":[null,\"004102444800001-0003-aritz-phone\"],\"year\":[null,\"004102444800001-0003-aritz-phone\"]}},\"recipients\":{\"leo\":{\"archived\":[false,\"004102444800001-0001-aritz-phone\"],\"colorIndex\":[1,\"004102444800001-0001-aritz-phone\"],\"name\":[\"Leo\",\"004102444800001-0001-aritz-phone\"]}}}}",
+    "header": "{\"ctx\":\"9702bb2edf902199937d0403a9f39b7c906828ca8b774bd20d1f1008396232d8\",\"e\":1,\"kid\":\"1275552b71019f40ae5669f40f8527214cc994c61ae133445ab6a0bcee38ddf2\",\"l\":\"list-1\",\"r\":7,\"s\":\"family\",\"sid\":\"QUJDREVGR0hJSktMTU5PUA\",\"v\":2,\"w\":\"aritz-phone\",\"wr\":\"tlfGbUwdTT7dHVokhuA2dNAYg8Wt2k_cDsD1WPsn3pI\"}",
+    "nonce": "MzMzMzMzMzMzMzMz",
+    "envelope": "UkcCASN7ImN0eCI6Ijk3MDJiYjJlZGY5MDIxOTk5MzdkMDQwM2E5ZjM5YjdjOTA2ODI4Y2E4Yjc3NGJkMjBkMWYxMDA4Mzk2MjMyZDgiLCJlIjoxLCJraWQiOiIxMjc1NTUyYjcxMDE5ZjQwYWU1NjY5ZjQwZjg1MjcyMTRjYzk5NGM2MWFlMTMzNDQ1YWI2YTBiY2VlMzhkZGYyIiwibCI6Imxpc3QtMSIsInIiOjcsInMiOiJmYW1pbHkiLCJzaWQiOiJRVUpEUkVWR1IwaEpTa3RNVFU1UFVBIiwidiI6MiwidyI6ImFyaXR6LXBob25lIiwid3IiOiJ0bGZHYlV3ZFRUN2RIVm9raHVBMmROQVlnOFd0MmtfY0RzRDFXUHNuM3BJIn0zMzMzMzMzMzMzMzManyJumhcKb59A2hQUK57vNsDaRtqfZRodqW9KqwT2NqWc1ykk---LvH5J07D3pCYir4keWL8A5IfgP1NIvoYjCxmKWzUzqvcyhZufrgrH-rxxYTLRIOcrZ8u3EvzQu47HbJ_5xRobAxia_3otlwP1sURehONb_q0wBhou6IEFZaBaZcX5EoGtnd-lkM1sbQj_OC_7YQNQ6YYTWXANXy5BlrvwPSEQe5yuhBiRanv2bdpLfYQOucz_VklLlhb6H11d-PGeihBfH2UDxcOoND5KV8dt7IUWSI_8ffgnNe1WQDg2Arzyobw9qfKx-pafOCK5SJrtXarUz7JP9PVUw64v8g6jae7l8_R37DpeRNCiscj7XobbCA"
+  }
+}

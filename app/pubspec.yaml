@@ -1,0 +1,72 @@
+name: regalos
+description: "Regalos: quién regala qué a cada niño, sin cuentas."
+publish_to: 'none'
+version: 1.0.1+34
+
+environment:
+  sdk: ^3.13.5
+  flutter: ">=3.47.0"
+
+dependencies:
+  app_links: ^7.2.2
+  archive: ^4.6.0
+  clock: ^1.1.3
+  cryptography: ^2.9.0
+  drift: ^2.35.4
+  drift_flutter: ^0.3.1
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  flutter_riverpod: ^3.5.0
+  flutter_secure_storage: ^11.2.0
+  go_router: ^18.1.3
+  intl: ^0.20.3
+  local_auth: ^3.0.2
+  # @visibleForTesting en el código Dart puro de core/sync (ya venía como
+  # dependencia transitiva del SDK).
+  meta: ^1.18.0
+  qr_code_scanner_plus: ^2.3.2
+  path_provider: ^2.1.6
+  qr_flutter: ^4.1.0
+  share_plus: ^13.3.1
+  shared_preferences: ^2.5.6
+  uuid: ^4.6.0
+  web: ^1.1.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  drift_dev: ^2.35.3
+  build_runner: ^2.17.1
+
+flutter:
+  uses-material-design: true
+  generate: true
+  assets:
+    # Solo la licencia de Tabler Icons: los iconos van como datos de trazo en
+    # `lib/core/widgets/tabler_icons.dart` (los .svg de esa carpeta son su origen).
+    - assets/icons/tabler/LICENSE
+    # Licencia OFL de Inter (las fuentes van en `fonts:`, abajo).
+    - assets/fonts/inter/LICENSE.txt
+    # Lista inglesa de BIP-39 para el código de recuperación (ADR 0004) y su
+    # licencia MIT (trezor/python-mnemonic).
+    - assets/recovery/bip39-english.txt
+    - assets/recovery/LICENSE
+  fonts:
+    # CanvasKit/Skwasm require a family named Roboto even when the theme uses
+    # Inter. Alias our bundled regular face to avoid their implicit CDN fetch.
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/inter/Inter-Regular.ttf
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/inter/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/inter/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/inter/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/inter/Inter-Bold.ttf
+          weight: 700

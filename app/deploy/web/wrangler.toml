@@ -1,0 +1,18 @@
+# Gift Huddle web (ADR 0003 §9): only static assets, no script, no logs.
+# Build first: cd app && flutter build web --release --wasm --no-web-resources-cdn --pwa-strategy=none
+# (--wasm: skwasm, multithreaded thanks to COEP in web/_headers; dart2js stays as fallback.)
+# Deploy:      cd app/deploy/web && wrangler deploy
+name = "gifthuddle-app"
+compatibility_date = "2026-11-01"
+workers_dev = false
+preview_urls = false
+routes = [{ pattern = "web.gifthuddle.app", custom_domain = true }]
+
+[assets]
+directory = "../../build/web"
+# Unknown paths (/w, deep links) serve index.html; _headers sets CSP and the rest.
+not_found_handling = "single-page-application"
+html_handling = "auto-trailing-slash"
+
+[observability]
+enabled = false

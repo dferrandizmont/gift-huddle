@@ -1,0 +1,3 @@
+#!/bin/sh
+# Refuses a commit message containing a Gmail address.
+exec sh "$(git rev-parse --show-toplevel)/.githooks/check-identity.sh" msg "$1"

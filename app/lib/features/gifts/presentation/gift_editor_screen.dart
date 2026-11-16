@@ -1,0 +1,1493 @@
+import 'dart:async';
+
+import 'package:clock/clock.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/format/money.dart';
+import '../../../core/layout/window_class.dart';
+import '../../../core/motion/animated_rows.dart';
+import '../../../core/motion/card_sheet_route.dart';
+import '../../../core/motion/haptics.dart';
+import '../../../core/motion/sheet_motion.dart';
+import '../../../core/motion/success_mark.dart';
+import '../../../core/motion/unfold_section.dart';
+import '../../../core/motion/value_switcher.dart';
+import '../../../core/sync/model.dart';
+import '../../../core/sync/protected_doc.dart'
+    show ProtectedPersonException, ProtectedPersonReason;
+import '../../../core/theme/occasion_theme.dart';
+import '../../../core/theme/regalos_motion.dart';
+import '../../../core/theme/regalos_shape.dart';
+import '../../../core/theme/regalos_tokens.dart';
+import '../../../core/widgets/choice_grid.dart';
+import '../../../core/widgets/confirm_dialog.dart';
+import '../../../core/widgets/danger_button.dart';
+import '../../../core/widgets/giver_dot.dart';
+import '../../../core/widgets/occasion_icons.dart';
+import '../../../core/widgets/person_avatar.dart';
+import '../../../core/widgets/picker_field.dart';
+import '../../../core/widgets/regalos_snack_bar.dart';
+import '../../../core/widgets/screen_header.dart';
+import '../../../core/widgets/sheet_frame.dart';
+import '../../../core/widgets/sheet_parts.dart' show WarningBox;
+import '../../../core/widgets/stroke_icon.dart';
+import '../../../l10n/app_localizations.dart';
+import '../../family/application/family_actions.dart';
+import '../../family/application/family_controller.dart';
+import '../../family/application/family_providers.dart';
+import '../../family/application/gift_logic.dart';
+import '../../family/application/self_recipient_provider.dart';
+import '../../family/presentation/family_texts.dart';
+import '../../family/presentation/pending_gifts_sheet.dart';
+import '../../family/presentation/person_sheet.dart';
+import '../../family/presentation/protection_texts.dart';
+import '../../web_board/application/gift_editor_panel.dart';
+import '../../web_board/application/web_board.dart';
+import '../../web_device/application/web_app_provider.dart';
+import '../application/delivered_arm.dart';
+import '../application/person_completion.dart';
+import 'gift_actions.dart';
+
+/// Si el editor de una ventana de escritorio (desde 1280) es un diálogo: solo
+/// en la web. Las pruebas lo cambian sin montar toda la web.
+final giftEditorAsDialogProvider = Provider<bool>(
+  (ref) => ref.watch(webAppProvider),
+);
+
+/// Abre el editor de regalo: como una tarjeta que sube desde abajo, por encima
+/// de la barra de navegación (§2.1 de la guía de movimiento), o,
+/// en la web con una ventana de escritorio (desde 1280), como un diálogo centrado
+/// (`showCardDialog`). Con [gift] edita ese regalo; sin él, crea uno nuevo.
+///
+/// Con [chooseRecipient] (el botón «Añadir regalo» de las pestañas) el editor
+/// empieza con la elección de persona arriba, sin ninguna marcada salvo que
+/// haya una sola o venga una en [recipientId].
+///
+/// Devuelve el id del regalo guardado, o `null` si no se guardó nada (se
+/// cerró o se borró).
+Future<String?> openGiftEditor(
+  BuildContext context, {
+  Gift? gift,
+  String? recipientId,
+  String? occasionId,
+  String? giverId,
+  bool chooseRecipient = false,
+}) {
+  // En el tablero de la web de escritorio (desde 1280) el editor es el panel
+  // fijo de la derecha: no tapa nada y se puede pasar de un regalo a otro.
+  final container = ProviderScope.containerOf(context);
+  final panel = container.read(giftEditorPanelProvider);
+  if (panel.hosted &&
+      container.read(webBoardEnabledProvider) &&
+      boardWidth(MediaQuery.sizeOf(context).width)) {
+    return panel.open(
+      gift: gift,
+      recipientId: recipientId,
+      occasionId: occasionId,
+      giverId: giverId,
+      chooseRecipient: chooseRecipient,
+    );
+  }
+  // En la web, desde 1280 de ventana el editor es un diálogo de 880 con el formulario en
+  // dos columnas; por debajo, la hoja que sube desde abajo (640), como en el
+  // móvil.
+  // Solo en la web (el navegador de un ordenador): una tablet en horizontal
+  // también mide 1280, pero lleva la tarjeta de 640 centrada del diseño D.
+  final dialog =
+      RegalosLayout.isDesktop(MediaQuery.sizeOf(context).width) &&
+      ProviderScope.containerOf(context).read(giftEditorAsDialogProvider);
+  Widget editor(BuildContext _) => GiftEditorScreen(
+    gift: gift,
+    initialRecipientId: recipientId,
+    initialOccasionId: occasionId,
+    initialGiverId: giverId,
+    chooseRecipient: chooseRecipient,
+    asDialog: dialog,
+  );
+  return dialog
+      ? showCardDialog<String>(context, builder: editor)
+      : showCardSheet<String>(context, builder: editor);
+}
+
+const String _none = '__none__';
+const String _other = '__other__';
+
+/// Editor de un regalo: nuevo o existente.
+class GiftEditorScreen extends ConsumerStatefulWidget {
+  /// Crea el editor.
+  const GiftEditorScreen({
+    super.key,
+    this.gift,
+    this.initialRecipientId,
+    this.initialOccasionId,
+    this.initialGiverId,
+    this.chooseRecipient = false,
+    this.asDialog = false,
+    this.asPanel = false,
+    this.onClose,
+  });
+
+  /// El regalo que se edita, o `null` para uno nuevo.
+  final Gift? gift;
+
+  /// Persona de un regalo nuevo.
+  final String? initialRecipientId;
+
+  /// Ocasión de un regalo nuevo.
+  final String? initialOccasionId;
+
+  /// Quién regala en un regalo nuevo.
+  final String? initialGiverId;
+
+  /// Si un regalo nuevo empieza por elegir la persona (arriba del todo y sin
+  /// marcar ninguna si hay varias). Con un regalo existente no se usa.
+  final bool chooseRecipient;
+
+  /// Si se abre como diálogo de escritorio (`showCardDialog`): sin flecha en la
+  /// cabecera, con el alto de su contenido y «Cancelar» y «Guardar» abajo a la
+  /// derecha. Si no, ocupa la hoja de `showCardSheet`, de alto completo.
+  final bool asDialog;
+
+  /// Si es el panel fijo de la derecha del tablero de la web de escritorio
+  /// (la guía de diseño de escritorio, A): sin ruta que cerrar, así
+  /// que al guardar, borrar o cancelar avisa por [onClose].
+  final bool asPanel;
+
+  /// Lo que se llama al cerrar el panel: con el id del regalo guardado o
+  /// `null` si no se guardó nada. Solo con [asPanel].
+  final ValueChanged<String?>? onClose;
+
+  @override
+  ConsumerState<GiftEditorScreen> createState() => _GiftEditorScreenState();
+}
+
+class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
+  final _title = TextEditingController();
+  final _planned = TextEditingController();
+  final _actual = TextEditingController();
+  final _store = TextEditingController();
+  final _url = TextEditingController();
+  final _note = TextEditingController();
+  final _size = TextEditingController();
+  final _requestNote = TextEditingController();
+  final _requestName = TextEditingController();
+  final _titleFocus = FocusNode();
+  final _scroll = ScrollController();
+
+  // Para llevar la vista hasta el primer campo con error al guardar.
+  final _titleKey = GlobalKey();
+  final _priceKey = GlobalKey();
+  final _requestNameKey = GlobalKey();
+  final _plannedFocus = FocusNode();
+  final _actualFocus = FocusNode();
+  final _requestNameFocus = FocusNode();
+
+  late String _recipientId;
+  String _giverId = _none;
+  String _occasionId = _none;
+  GiftStatus _status = GiftStatus.idea;
+  bool _surprise = false;
+  bool _isRequest = false;
+  String _requestedBy = _other;
+  bool _tried = false;
+  bool _busy = false;
+  bool _saved = false;
+  Gift? _originalDraft;
+
+  /// Cómo estaba el formulario al abrirse, para saber si hay cambios sin
+  /// guardar (el panel del tablero no se cierra al cambiar de pantalla con
+  /// cambios a medias).
+  String? _initialSignature;
+  GiftEditorPanelController? _panelRef;
+
+  String _signature() => [
+    _recipientId,
+    _title.text.trim(),
+    _giverId,
+    _occasionId,
+    _status.name,
+    _planned.text.trim(),
+    _actual.text.trim(),
+    _store.text.trim(),
+    _url.text.trim(),
+    _note.text.trim(),
+    _size.text.trim(),
+    _surprise,
+    _isRequest,
+    _requestedBy,
+    _requestName.text.trim(),
+    _requestNote.text.trim(),
+  ].join('');
+
+  bool _isDirty() => _dirty;
+
+  bool get _dirty =>
+      !_saved && _initialSignature != null && _signature() != _initialSignature;
+
+  /// Por qué el guardado de un regalo para una persona protegida se rechazó
+  /// (el formulario se conserva); `null` si no hay rechazo.
+  String? _rejected;
+
+  bool get _isNew => widget.gift == null;
+
+  /// Cierra el editor: baja la hoja o el diálogo, o avisa al panel.
+  void _close([String? result]) {
+    if (widget.asPanel) {
+      widget.onClose?.call(result);
+    } else {
+      Navigator.of(context).pop(result);
+    }
+  }
+
+  /// Si la persona se elige arriba, antes que nada (regalo nuevo desde el
+  /// botón «Añadir regalo»).
+  bool get _choosing => _isNew && widget.chooseRecipient;
+
+  @override
+  void initState() {
+    super.initState();
+    final g = widget.gift;
+    final people = ref.read(familyFullViewProvider).recipients;
+    // Eligiendo, solo valen las personas activas y, si hay varias, ninguna
+    // viene marcada: el regalo no va a la primera por defecto.
+    final active = [
+      for (final p in people)
+        if (!p.archived) p,
+    ];
+    _recipientId =
+        g?.recipientId ??
+        widget.initialRecipientId ??
+        (_choosing
+            ? (active.length == 1 ? active.first.id : '')
+            : (people.isEmpty ? '' : people.first.id));
+    if (g != null) {
+      _title.text = g.title;
+      _giverId = g.giverId ?? _none;
+      _occasionId = g.occasionId ?? _none;
+      _status = g.status;
+      _surprise = g.surprise;
+      _store.text = g.store ?? '';
+      _url.text = g.url ?? '';
+      _note.text = g.note ?? '';
+      _size.text = g.size ?? '';
+      _requestNote.text = g.requestNote ?? '';
+      final by = g.requestedBy;
+      _isRequest = by != null;
+      switch (by) {
+        case RequestedByRecipient(:final recipientId):
+          _requestedBy = recipientId;
+        case RequestedByName(:final name):
+          _requestedBy = _other;
+          _requestName.text = name;
+        case null:
+          break;
+      }
+    } else {
+      _giverId = widget.initialGiverId ?? _none;
+      _occasionId = widget.initialOccasionId ?? _none;
+    }
+  }
+
+  bool _pricesShown = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final g = widget.gift;
+    if (!_pricesShown && g != null) {
+      _pricesShown = true;
+      _planned.text = g.plannedCents == null ? '' : _centsText(g.plannedCents!);
+      _actual.text = g.actualCents == null ? '' : _centsText(g.actualCents!);
+      // Compara valores del formulario: importes y textos ya normalizados,
+      // sin convertir esa normalización en una edición del usuario.
+      _originalDraft = _draft();
+    }
+    _initialSignature ??= _signature();
+    if (widget.asPanel && _panelRef == null) {
+      final panel = ref.read(giftEditorPanelProvider);
+      panel.dirtyCheck = _isDirty;
+      _panelRef = panel;
+    }
+  }
+
+  @override
+  void dispose() {
+    // Otro editor del panel ya pudo ocupar el sitio: solo se suelta lo propio.
+    final panel = _panelRef;
+    if (panel != null && panel.dirtyCheck == _isDirty) {
+      panel.dirtyCheck = null;
+    }
+    for (final c in [
+      _title,
+      _planned,
+      _actual,
+      _store,
+      _url,
+      _note,
+      _size,
+      _requestNote,
+      _requestName,
+    ]) {
+      c.dispose();
+    }
+    _titleFocus.dispose();
+    _plannedFocus.dispose();
+    _actualFocus.dispose();
+    _requestNameFocus.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  String _centsText(int cents) {
+    final euros = cents ~/ 100;
+    final rest = cents % 100;
+    if (rest == 0) {
+      return '$euros';
+    }
+    final sep = Localizations.localeOf(context).languageCode == 'en'
+        ? '.'
+        : ',';
+    return '$euros$sep${rest.toString().padLeft(2, '0')}';
+  }
+
+  String? _optional(TextEditingController c) {
+    final text = c.text.trim();
+    return text.isEmpty ? null : text;
+  }
+
+  /// `true` si el importe escrito no vale.
+  bool _badPrice(TextEditingController c) {
+    final text = c.text.trim();
+    return text.isNotEmpty && parseCents(text) == null;
+  }
+
+  Gift? _build() {
+    setState(() => _tried = true);
+    if (_title.text.trim().isEmpty ||
+        _recipientId.isEmpty ||
+        _badPrice(_planned) ||
+        _badPrice(_actual)) {
+      return null;
+    }
+    if (_isRequest &&
+        _requestedBy == _other &&
+        _requestName.text.trim().isEmpty) {
+      return null;
+    }
+    return _draft();
+  }
+
+  Gift _draft() {
+    RequestedBy? requestedBy;
+    if (_isRequest) {
+      if (_requestedBy == _other) {
+        final name = _requestName.text.trim();
+        requestedBy = RequestedByName(name);
+      } else {
+        requestedBy = RequestedByRecipient(_requestedBy);
+      }
+    }
+    return Gift(
+      id: widget.gift?.id ?? newId(),
+      recipientId: _recipientId,
+      title: _title.text.trim(),
+      giverId: _giverId == _none ? null : _giverId,
+      occasionId: _occasionId == _none ? null : _occasionId,
+      status: _status,
+      rawStatus: _status.name,
+      plannedCents: _planned.text.trim().isEmpty
+          ? null
+          : parseCents(_planned.text),
+      actualCents: _actual.text.trim().isEmpty
+          ? null
+          : parseCents(_actual.text),
+      store: _optional(_store),
+      url: _optional(_url),
+      note: _optional(_note),
+      size: _optional(_size),
+      requestedBy: requestedBy,
+      requestNote: _isRequest ? _optional(_requestNote) : null,
+      surprise: _surprise,
+      year: widget.gift?.year ?? clock.now().year,
+    );
+  }
+
+  /// El motivo por el que este móvil no puede guardar regalos para la persona
+  /// [id], o `null` si puede. En un regalo que se edita, su persona de siempre
+  /// no se bloquea aquí: si hace falta, el guardado lo explica.
+  ProtectedPersonReason? _blockedReason(
+    Map<String, GiftRecipientAccess> access,
+    String id,
+  ) {
+    final a = access[id];
+    if (a == null || a.canSelect) {
+      return null;
+    }
+    if (widget.gift?.recipientId == id) {
+      return null;
+    }
+    return a.reason;
+  }
+
+  Future<void> _save() async {
+    if (_busy) {
+      return;
+    }
+    final access = {
+      for (final a
+          in ref.read(giftRecipientAccessProvider).value ??
+              const <GiftRecipientAccess>[])
+        a.recipient.id: a,
+    };
+    if (_blockedReason(access, _recipientId) != null) {
+      // El aviso junto a la persona ya lo explica: solo un toque de error.
+      ref.read(hapticsProvider).medium();
+      return;
+    }
+    final gift = _build();
+    if (gift == null) {
+      // No se ha guardado nada: un toque de error y la vista va hasta el
+      // primer campo que lo explica (con el muelle de la app, y sin viaje con
+      // «Reducir movimiento»).
+      ref.read(hapticsProvider).medium();
+      unawaited(_showFirstError());
+      return;
+    }
+    final l10n = AppLocalizations.of(context);
+    final original = widget.gift;
+    final titleChanged =
+        original == null ||
+        original.title != gift.title ||
+        original.recipientId != gift.recipientId;
+    if (titleChanged) {
+      final view = ref.read(familyViewProvider);
+      final pairs = duplicatesOf(view, gift);
+      if (pairs.isNotEmpty) {
+        final pair = pairs.first;
+        final other = pair.first.id == gift.id ? pair.second : pair.first;
+        final person = view.recipientsById[gift.recipientId]?.name ?? '';
+        final giver = giverNameFor(
+          l10n,
+          other.giverId == null ? null : view.giversById[other.giverId],
+        );
+        final keep = await showRegalosDialog<bool>(
+          context,
+          builder: (dialogContext) {
+            final dt = RegalosTokens.of(dialogContext);
+            return RegalosDialogSurface(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      l10n.giftDuplicateTitle,
+                      style: dt.styles.screenTitleSmall,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.giftDuplicateBody(other.title, person, giver),
+                    style: dt.styles.body,
+                  ),
+                  const SizedBox(height: 20),
+                  DialogButtonRow(
+                    cancelLabel: l10n.giftDuplicateReview,
+                    confirmLabel: l10n.giftDuplicateSave,
+                    cancel: OutlinedButton(
+                      style: regalosDialogCancelStyle(dt),
+                      onPressed: () => Navigator.of(dialogContext).pop(false),
+                      child: Text(l10n.giftDuplicateReview),
+                    ),
+                    confirm: FilledButton(
+                      style: regalosDialogPrimaryStyle(dt),
+                      onPressed: () => Navigator.of(dialogContext).pop(true),
+                      child: Text(l10n.giftDuplicateSave),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+        if (keep != true) {
+          return;
+        }
+      }
+    }
+    setState(() {
+      _busy = true;
+      _rejected = null;
+    });
+    // Guardar es una acción del usuario: si completa a la persona, se celebra.
+    ref.read(celebrationArmedProvider.notifier).arm(gift.recipientId);
+    if (gift.status == GiftStatus.delivered &&
+        widget.gift?.status != GiftStatus.delivered) {
+      ref.read(deliveredArmsProvider).arm(gift.id);
+    }
+    try {
+      final saved = await ref
+          .read(familyControllerProvider.notifier)
+          .upsertGift(gift, original: _originalDraft);
+      if (mounted && !saved) {
+        // Otro móvil borró el regalo o a su persona mientras se editaba: no
+        // se ha guardado nada y no se dibuja el visto.
+        setState(() => _busy = false);
+        showRegalosSnackBar(
+          context,
+          SnackBar(content: Text(l10n.giftNotSaved)),
+        );
+      } else if (mounted) {
+        // Solo lo que hace la persona lleva háptica. El visto se dibuja
+        // mientras la tarjeta baja: no se espera a que termine.
+        ref.read(hapticsProvider).light();
+        setState(() => _saved = true);
+        _close(gift.id);
+      }
+    } on ProtectedPersonException catch (e) {
+      if (!mounted) {
+        return;
+      }
+      final name =
+          ref.read(familyFullViewProvider).recipientsById[e.personId]?.name ??
+          '';
+      if (e.savedLocally) {
+        _savedLocally(gift, e.personId);
+      } else {
+        // No se ha guardado nada y el formulario se conserva: el motivo, junto
+        // a los campos.
+        ref.read(hapticsProvider).medium();
+        setState(() {
+          _busy = false;
+          _rejected =
+              '${protectionReasonText(l10n, e.reason, name)} '
+              '${l10n.giftProtectedRejected}';
+        });
+        unawaited(_scrollToTop());
+      }
+    } on Object {
+      if (mounted) {
+        setState(() => _busy = false);
+        showRegalosSnackBar(
+          context,
+          SnackBar(content: Text(l10n.giftSaveError)),
+        );
+      }
+    }
+  }
+
+  /// El regalo secreto quedó cifrado solo en este móvil: se cierra el editor y
+  /// el aviso dice que está pendiente de guardar y compartir (sin afirmar que
+  /// se haya compartido), con la puerta a los pendientes.
+  void _savedLocally(Gift gift, String personId) {
+    final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final style = regalosSnackBarStyle(context);
+    final root = Navigator.of(context, rootNavigator: true).context;
+    final notice = regalosSnackBar(
+      context,
+      SnackBar(
+        persist: false,
+        duration: const Duration(seconds: 8),
+        content: Text(l10n.giftSavedLocally),
+        action: SnackBarAction(
+          label: l10n.giftSavedLocallyAction,
+          onPressed: () {
+            if (root.mounted) {
+              unawaited(showPendingGiftsSheet(root, personId: personId));
+            }
+          },
+        ),
+      ),
+      besideRail: SheetPane.anchorOf(context) != null,
+    );
+    ref.read(hapticsProvider).warning();
+    setState(() => _saved = true);
+    _close(gift.id);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(notice, snackBarAnimationStyle: style);
+  }
+
+  Future<void> _scrollToTop() async {
+    if (!_scroll.hasClients || _scroll.offset <= 0) {
+      return;
+    }
+    final reduce = RegalosMotion.of(context).reduce;
+    await _scroll.animateTo(
+      0,
+      duration: reduce ? Duration.zero : RegalosSprings.snapDuration,
+      curve: RegalosCurves.snap,
+    );
+  }
+
+  /// La clave del campo que lleva el foco [focus].
+  GlobalKey? _titleKeyFor(FocusNode focus) => identical(focus, _titleFocus)
+      ? _titleKey
+      : (identical(focus, _requestNameFocus) ? _requestNameKey : _priceKey);
+
+  /// Lleva la vista hasta el primer campo con error, de arriba abajo.
+  Future<void> _showFirstError() async {
+    final reduce = RegalosMotion.of(context).reduce;
+    BuildContext? target;
+    final FocusNode focus;
+    if (_recipientId.isEmpty) {
+      // El aviso de la persona está arriba del todo.
+      if (_scroll.hasClients && _scroll.offset > 0) {
+        await _scroll.animateTo(
+          0,
+          duration: reduce ? Duration.zero : RegalosSprings.snapDuration,
+          curve: RegalosCurves.snap,
+        );
+      }
+      return;
+    } else if (_title.text.trim().isEmpty) {
+      target = _titleKey.currentContext;
+      focus = _titleFocus;
+    } else if (_badPrice(_planned) || _badPrice(_actual)) {
+      target = _priceKey.currentContext;
+      focus = _badPrice(_planned) ? _plannedFocus : _actualFocus;
+    } else {
+      target = _requestNameKey.currentContext;
+      focus = _requestNameFocus;
+    }
+    if (target == null || !target.mounted) {
+      // La lista no tiene montado ese campo (está lejos): primero se lleva
+      // hasta arriba, donde están los campos, y luego se afina.
+      if (!_scroll.hasClients) {
+        return;
+      }
+      await _scroll.animateTo(
+        0,
+        duration: reduce ? Duration.zero : RegalosSprings.snapDuration,
+        curve: RegalosCurves.snap,
+      );
+      if (!mounted) {
+        return;
+      }
+      target = _titleKeyFor(focus)?.currentContext;
+      if (target == null || !target.mounted) {
+        return;
+      }
+    }
+    // Solo se mueve lo que haga falta para verlo: cada política mueve en un
+    // sentido (hacia arriba o hacia abajo) y la otra no hace nada.
+    Future<void> reveal(ScrollPositionAlignmentPolicy policy) =>
+        Scrollable.ensureVisible(
+          target!,
+          alignmentPolicy: policy,
+          duration: reduce ? Duration.zero : RegalosSprings.snapDuration,
+          curve: RegalosCurves.snap,
+        );
+    final scrolling = Future.wait([
+      reveal(ScrollPositionAlignmentPolicy.keepVisibleAtStart),
+      reveal(ScrollPositionAlignmentPolicy.keepVisibleAtEnd),
+    ]);
+    // El cursor se queda en el campo que hay que corregir.
+    focus.requestFocus();
+    await scrolling;
+  }
+
+  /// Cambia la persona: si la ocasión elegida es el cumpleaños de otra, ya no
+  /// pega y se quita.
+  void _pickRecipient(String id) {
+    setState(() {
+      _recipientId = id;
+      if (_occasionId != _none) {
+        for (final o in ref.read(familyFullViewProvider).occasions) {
+          if (o.id == _occasionId &&
+              o.kind == OccasionKind.birthday &&
+              o.recipientId != null &&
+              o.recipientId != id) {
+            _occasionId = _none;
+          }
+        }
+      }
+    });
+    if (_choosing && _title.text.trim().isEmpty) {
+      _titleFocus.requestFocus();
+    }
+  }
+
+  /// Sin ninguna persona: crea la primera con la hoja de siempre y la deja
+  /// elegida.
+  Future<void> _addPerson() async {
+    final l10n = AppLocalizations.of(context);
+    final people = ref.read(familyFullViewProvider).recipients;
+    final result = await showPersonSheet(
+      context,
+      defaultColorIndex: people.length,
+    );
+    if (result == null || !mounted) {
+      return;
+    }
+    await saveRecipient(ref, l10n, result);
+    if (mounted) {
+      _pickRecipient(result.id);
+    }
+  }
+
+  Future<void> _delete() async {
+    final l10n = AppLocalizations.of(context);
+    final gift = widget.gift;
+    if (gift == null) {
+      return;
+    }
+    final ok = await showRegalosConfirm(
+      context,
+      title: l10n.confirmDeleteTitle(gift.title),
+      body: l10n.confirmDeleteBody,
+      confirmLabel: l10n.actionDelete,
+      cancelLabel: l10n.actionCancel,
+    );
+    if (!ok || !mounted) {
+      return;
+    }
+    // El regalo desaparece al momento y la fila se pliega con la salida de
+    // borrado cuando la tarjeta baja, pero la lápida no se escribe hasta que
+    // caduca el aviso con «Deshacer» (el contenido sigue en memoria). Todo lo
+    // que necesita el aviso se toma antes de cerrar: después ya no hay
+    // pantalla de la que leerlo.
+    final controller = ref.read(familyControllerProvider.notifier);
+    final messenger = ScaffoldMessenger.of(context);
+    final style = regalosSnackBarStyle(context);
+    // El aviso sale cuando el editor ya ha bajado: lo pinta la pantalla de
+    // debajo, y si es la de las pestañas va centrado junto al raíl.
+    final undoNotice = regalosSnackBar(
+      context,
+      SnackBar(
+        // Con acción, Flutter la deja fija hasta que se toca: que caduque,
+        // siempre antes que el borrado pendiente (ver [FamilyController.undoWindow]).
+        persist: false,
+        duration: FamilyController.undoNoticeDuration,
+        content: Text(l10n.giftDeletedNotice(gift.title)),
+        action: SnackBarAction(
+          label: l10n.actionUndo,
+          onPressed: () => unawaited(controller.undoDeleteGift(gift.id)),
+        ),
+      ),
+      besideRail: SheetPane.anchorOf(context) != null,
+    );
+    ref.read(hapticsProvider).medium();
+    ref.read(recentlyDeletedProvider.notifier).add(gift.id);
+    final hidden = await controller.deleteGiftWithUndo(gift.id);
+    if (mounted) {
+      _close();
+    }
+    if (!hidden) {
+      return;
+    }
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(undoNotice, snackBarAnimationStyle: style);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final t = RegalosTokens.of(context);
+    final view = ref.watch(familyFullViewProvider);
+    final labels = OccasionLabels(l10n, view.recipientsById);
+    final people = view.recipients;
+    final givers = [
+      for (final g in view.givers)
+        if (!g.archived || g.id == widget.gift?.giverId) g,
+    ];
+    final occasions = [
+      for (final o in view.occasions)
+        if (!o.archived || o.id == widget.gift?.occasionId) o,
+    ];
+    // Regalos en secreto: las personas protegidas que este móvil no puede
+    // elegir salen apagadas, con su motivo.
+    final access = {
+      for (final a
+          in ref.watch(giftRecipientAccessProvider).value ??
+              const <GiftRecipientAccess>[])
+        a.recipient.id: a,
+    };
+    PickerOption<String> personOption(Recipient p, {required bool gated}) {
+      final reason = gated ? _blockedReason(access, p.id) : null;
+      return PickerOption(
+        value: p.id,
+        label: p.name,
+        enabled: reason == null,
+        hint: reason == null
+            ? null
+            : protectionReasonText(l10n, reason, p.name),
+        leading: PersonAvatar(name: p.name, colorIndex: p.colorIndex, size: 28),
+      );
+    }
+
+    final personOptions = [
+      for (final p in people)
+        // Un regalo nuevo no se apunta a una persona archivada (salvo que ya
+        // esté elegida).
+        if (!_isNew || !p.archived || p.id == _recipientId)
+          personOption(p, gated: true),
+    ];
+    // Quien lo pidió puede ser cualquiera: ahí no se apaga a nadie.
+    final requesterOptions = [
+      for (final p in people)
+        if (!_isNew || !p.archived || p.id == _recipientId)
+          personOption(p, gated: false),
+    ];
+    final blockedReason = _blockedReason(access, _recipientId);
+    final blockedName = people
+        .where((p) => p.id == _recipientId)
+        .map((p) => p.name)
+        .firstOrNull;
+    // Aviso junto a la persona cuando no se puede guardar para ella.
+    final recipientNotice = UnfoldSection(
+      show: blockedReason != null,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Semantics(
+          liveRegion: true,
+          child: WarningBox(
+            blockedReason == null
+                ? ''
+                : protectionReasonText(l10n, blockedReason, blockedName ?? ''),
+          ),
+        ),
+      ),
+    );
+    final selfId = ref.watch(selfRecipientIdProvider);
+    final ownRestricted =
+        ref.watch(ownGiftRequestStateProvider).value ==
+        OwnGiftRequestState.protectionRestricted;
+    final occasionOptions = _occasionOptions(l10n, labels, occasions, t);
+    const gap = SizedBox(height: 16);
+    final decimal = TextInputType.numberWithOptions(decimal: true);
+    final moneyFormatters = [
+      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,\s€]')),
+    ];
+
+    final dialog = widget.asDialog;
+    final panel = widget.asPanel;
+    final title = _isNew ? l10n.giftEditorNewTitle : l10n.giftEditorEditTitle;
+    // Ya guardado el botón se queda con su color: el visto sigue
+    // dibujándose mientras baja la tarjeta.
+    final VoidCallback? onSave = _saved ? () {} : (_busy ? null : _save);
+    final saveChild = _saved
+        ? DrawnCheck(color: t.onFill, size: 22, strokeWidth: 2.4)
+        : Text(l10n.actionSave);
+    final bodyList = LayoutBuilder(
+      builder: (context, box) {
+        // Dos columnas desde 1280 de ventana (la hoja de 880): lo
+        // que identifica el regalo a la izquierda y su detalle a la
+        // derecha. Por debajo, una columna, como siempre.
+        final two =
+            RegalosLayout.isDesktop(MediaQuery.sizeOf(context).width) &&
+            box.maxWidth >= RegalosLayout.editorTwoColumnsMinWidth;
+        final identity = <Widget>[
+          // El guardado se rechazó: el motivo, arriba, y el formulario
+          // intacto.
+          UnfoldSection(
+            show: _rejected != null,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Semantics(
+                liveRegion: true,
+                child: WarningBox(_rejected ?? ''),
+              ),
+            ),
+          ),
+          if (_choosing) ...[
+            _RecipientChooser(
+              label: l10n.fieldFor,
+              options: personOptions,
+              value: _recipientId,
+              invalid: _tried && _recipientId.isEmpty,
+              onChanged: _pickRecipient,
+              onAddPerson: _addPerson,
+            ),
+            recipientNotice,
+            gap,
+          ],
+          TextField(
+            key: _titleKey,
+            controller: _title,
+            focusNode: _titleFocus,
+            autofocus: _isNew && (!_choosing || _recipientId.isNotEmpty),
+            textCapitalization: TextCapitalization.sentences,
+            textInputAction: TextInputAction.next,
+            decoration: InputDecoration(
+              labelText: l10n.giftFieldTitle,
+              hintText: l10n.giftFieldTitleHint,
+              errorText: _tried && _title.text.trim().isEmpty
+                  ? l10n.giftFieldTitleRequired
+                  : null,
+            ),
+            onChanged: (_) {
+              if (_tried) {
+                setState(() {});
+              }
+            },
+          ),
+          gap,
+          if (!_choosing) ...[
+            PickerField<String>(
+              label: l10n.fieldFor,
+              value: _recipientId,
+              options: personOptions,
+              onChanged: _pickRecipient,
+            ),
+            recipientNotice,
+            gap,
+          ],
+          PickerField<String>(
+            label: l10n.fieldGiver,
+            value: givers.any((g) => g.id == _giverId) ? _giverId : _none,
+            options: [
+              PickerOption(
+                value: _none,
+                label: l10n.giverUnassigned,
+                leading: const GiverDot(size: 12),
+              ),
+              for (final g in givers)
+                PickerOption(
+                  value: g.id,
+                  label: giverNameFor(l10n, g),
+                  leading: GiverDot(colorIndex: g.colorIndex, size: 12),
+                ),
+            ],
+            onChanged: (v) => setState(() => _giverId = v),
+          ),
+          gap,
+          PickerField<String>(
+            label: l10n.fieldOccasion,
+            value: occasions.any((o) => o.id == _occasionId)
+                ? _occasionId
+                : _none,
+            options: occasionOptions,
+            onChanged: (v) => setState(() => _occasionId = v),
+          ),
+          gap,
+          Semantics(
+            header: true,
+            child: Text(
+              l10n.fieldStatus,
+              style: t.styles.label.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ChoiceGrid(
+            leadingSize: kStatusChoiceGlyph,
+            leadingGap: kStatusChoiceGap,
+            items: [
+              for (final status in GiftStatus.values)
+                statusChoice(
+                  l10n,
+                  status,
+                  selected: status == _status,
+                  onTap: () => setState(() => _status = status),
+                ),
+            ],
+          ),
+        ];
+        final details = <Widget>[
+          Semantics(
+            header: true,
+            child: Text(
+              l10n.giftPriceSection,
+              style: t.styles.label.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            key: _priceKey,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _planned,
+                  focusNode: _plannedFocus,
+                  keyboardType: decimal,
+                  inputFormatters: moneyFormatters,
+                  decoration: InputDecoration(
+                    labelText: l10n.giftFieldPlanned,
+                    suffixText: '€',
+                    errorText: _tried && _badPrice(_planned)
+                        ? l10n.giftPriceInvalid
+                        : null,
+                    errorMaxLines: 3,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _actual,
+                  focusNode: _actualFocus,
+                  keyboardType: decimal,
+                  inputFormatters: moneyFormatters,
+                  decoration: InputDecoration(
+                    labelText: l10n.giftFieldActual,
+                    suffixText: '€',
+                    errorText: _tried && _badPrice(_actual)
+                        ? l10n.giftPriceInvalid
+                        : null,
+                    errorMaxLines: 3,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          gap,
+          TextField(
+            controller: _store,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: InputDecoration(labelText: l10n.giftFieldStore),
+          ),
+          gap,
+          TextField(
+            controller: _url,
+            keyboardType: TextInputType.url,
+            autocorrect: false,
+            decoration: InputDecoration(labelText: l10n.giftFieldUrl),
+          ),
+          gap,
+          TextField(
+            controller: _size,
+            decoration: InputDecoration(labelText: l10n.giftFieldSize),
+          ),
+          gap,
+          TextField(
+            controller: _note,
+            minLines: 2,
+            maxLines: 4,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: InputDecoration(labelText: l10n.giftFieldNote),
+          ),
+          gap,
+          SwitchRow(
+            title: l10n.giftRequestSwitch,
+            value: _isRequest,
+            onChanged: (v) => setState(() => _isRequest = v),
+          ),
+          // Los campos del pedido se despliegan al activar el
+          // interruptor y se pliegan al apagarlo.
+          UnfoldSection(
+            show: _isRequest,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 12),
+                PickerField<String>(
+                  label: l10n.giftRequestedByField,
+                  value:
+                      _requestedBy == _other ||
+                          people.any((p) => p.id == _requestedBy)
+                      ? _requestedBy
+                      : _other,
+                  options: [
+                    ...requesterOptions,
+                    PickerOption(
+                      value: _other,
+                      label: l10n.giftRequestedByOther,
+                    ),
+                  ],
+                  onChanged: (v) => setState(() => _requestedBy = v),
+                ),
+                // Mientras la protección de la propia persona esté activa,
+                // este móvil no puede crear ni ver sus peticiones.
+                UnfoldSection(
+                  show:
+                      ownRestricted && selfId != null && _requestedBy == selfId,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Semantics(
+                      liveRegion: true,
+                      child: WarningBox(l10n.giftOwnRequestRestricted),
+                    ),
+                  ),
+                ),
+                UnfoldSection(
+                  show: _requestedBy == _other,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: TextField(
+                      key: _requestNameKey,
+                      controller: _requestName,
+                      focusNode: _requestNameFocus,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: InputDecoration(
+                        labelText: l10n.giftRequestedByName,
+                        errorText: _tried && _requestName.text.trim().isEmpty
+                            ? l10n.fieldNameRequired
+                            : null,
+                      ),
+                      onChanged: (_) {
+                        if (_tried) {
+                          setState(() {});
+                        }
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _requestNote,
+                  minLines: 1,
+                  maxLines: 3,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: InputDecoration(labelText: l10n.giftRequestNote),
+                ),
+              ],
+            ),
+          ),
+          gap,
+          SwitchRow(
+            title: l10n.giftSurpriseSwitch,
+            hint: l10n.giftSurpriseHint,
+            value: _surprise,
+            onChanged: (v) => setState(() => _surprise = v),
+          ),
+          // En el panel del tablero, «Borrar regalo» va en el pie (a la
+          // izquierda): al final de la lista se cortaba con el pie al
+          // desplazarse.
+          if (!_isNew && !panel) ...[
+            const SizedBox(height: 24),
+            DangerButton(label: l10n.giftDelete, onPressed: _delete),
+          ],
+        ];
+        return ListView(
+          controller: _scroll,
+          // En el diálogo la lista mide lo que su contenido y solo
+          // se desplaza si no cabe en la ventana.
+          shrinkWrap: dialog,
+          padding: panel
+              ? const EdgeInsets.fromLTRB(20, 8, 20, 24)
+              : (dialog
+                    ? const EdgeInsets.fromLTRB(24, 8, 24, 24)
+                    : const EdgeInsets.fromLTRB(16, 16, 16, 24)),
+          children: two
+              ? [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: identity,
+                        ),
+                      ),
+                      const SizedBox(width: 24),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: details,
+                        ),
+                      ),
+                    ],
+                  ),
+                ]
+              : [...identity, gap, ...details],
+        );
+      },
+    );
+    // En el panel del tablero los campos son más compactos (unos 40 de alto).
+    final body = panel
+        ? Theme(
+            data: Theme.of(context).copyWith(
+              inputDecorationTheme: Theme.of(context).inputDecorationTheme
+                  .copyWith(
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 9,
+                    ),
+                  ),
+            ),
+            child: bodyList,
+          )
+        : bodyList;
+    // Esc cierra el editor, como la «x» de la cabecera (la hoja no se cierra
+    // tocando fuera: tiene datos sin guardar). Ya guardado o guardando, no. El
+    // foco es de la tarjeta desde que se abre (en un regalo nuevo lo toma el
+    // título): así Esc llega aunque no se haya tocado nada.
+    return Focus(
+      autofocus: !(_isNew && (!_choosing || _recipientId.isNotEmpty)),
+      skipTraversal: true,
+      // Sin nodo de accesibilidad propio: uniría lo de debajo en uno solo.
+      includeSemantics: false,
+      onKeyEvent: (node, event) {
+        if (event is! KeyDownEvent ||
+            event.logicalKey != LogicalKeyboardKey.escape ||
+            _busy ||
+            _saved) {
+          return KeyEventResult.ignored;
+        }
+        if (widget.asPanel) {
+          _close();
+        } else {
+          unawaited(Navigator.of(context).maybePop());
+        }
+        return KeyEventResult.handled;
+      },
+      child: panel
+          // Panel fijo de la derecha del tablero de la web: cabecera con su
+          // «x», el formulario ocupando el alto y «Cancelar» y «Guardar»
+          // abajo a la derecha. No tapa nada: la pantalla de al lado se
+          // estrecha.
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ScreenHeader(
+                  title: title,
+                  compactTitle: true,
+                  actions: [
+                    Semantics(
+                      button: true,
+                      label: l10n.actionClose,
+                      excludeSemantics: true,
+                      onTap: _busy || _saved ? null : _close,
+                      child: Tooltip(
+                        message: l10n.actionClose,
+                        excludeFromSemantics: true,
+                        child: SizedBox.square(
+                          dimension: 44,
+                          child: InkResponse(
+                            onTap: _busy || _saved ? null : _close,
+                            radius: 22,
+                            child: Center(
+                              child: StrokeIcon(
+                                AppIcons.close,
+                                size: 22,
+                                color: t.text,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                Expanded(child: body),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                  decoration: BoxDecoration(
+                    border: Border(top: BorderSide(color: t.separator)),
+                  ),
+                  child: Row(
+                    children: [
+                      if (!_isNew)
+                        DangerButton(
+                          label: l10n.giftDelete,
+                          onPressed: _delete,
+                          compact: true,
+                        ),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: _busy || _saved ? null : _close,
+                        child: Text(l10n.actionCancel),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(onPressed: onSave, child: saveChild),
+                    ],
+                  ),
+                ),
+              ],
+            )
+          : dialog
+          // En escritorio es un diálogo: cabecera sin flecha, el formulario
+          // con el alto de su contenido (y desplazable si no cabe) y
+          // «Cancelar» y «Guardar» abajo a la derecha.
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ScreenHeader(title: title, compactTitle: true),
+                Flexible(child: body),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+                  decoration: BoxDecoration(
+                    border: Border(top: BorderSide(color: t.separator)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: _busy || _saved ? null : _close,
+                        child: Text(l10n.actionCancel),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(onPressed: onSave, child: saveChild),
+                    ],
+                  ),
+                ),
+              ],
+            )
+          : Scaffold(
+              body: SafeArea(
+                top: false,
+                child: Column(
+                  children: [
+                    CardSheetHandle(
+                      child: ScreenHeader(
+                        title: title,
+                        onBack: () => Navigator.of(context).pop(),
+                        backLabel: l10n.actionClose,
+                        compactTitle: true,
+                      ),
+                    ),
+                    Expanded(child: body),
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                      decoration: BoxDecoration(
+                        border: Border(top: BorderSide(color: t.separator)),
+                      ),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: onSave,
+                          child: saveChild,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+    );
+  }
+}
+
+/// La persona del regalo cuando se elige arriba del todo: el campo de
+/// siempre, con el aviso si se intenta guardar sin elegir; y, si todavía no
+/// hay ninguna persona, la invitación a crear la primera.
+class _RecipientChooser extends StatelessWidget {
+  const _RecipientChooser({
+    required this.label,
+    required this.options,
+    required this.value,
+    required this.invalid,
+    required this.onChanged,
+    required this.onAddPerson,
+  });
+
+  final String label;
+  final List<PickerOption<String>> options;
+  final String value;
+  final bool invalid;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onAddPerson;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final t = RegalosTokens.of(context);
+    final Widget body;
+    if (options.isEmpty) {
+      body = Column(
+        key: const ValueKey('recipient-none'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(l10n.giftEditorNoPeople, style: t.styles.body),
+          const SizedBox(height: 12),
+          OutlinedButton(onPressed: onAddPerson, child: Text(l10n.obPeopleAdd)),
+        ],
+      );
+    } else {
+      body = PickerField<String>(
+        key: const ValueKey('recipient-picker'),
+        label: label,
+        value: value,
+        options: options,
+        onChanged: onChanged,
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ValueSwitcher(child: body),
+        // El aviso entra desplegándose, sin saltos.
+        UnfoldSection(
+          show: invalid,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 6, 12, 0),
+            child: Semantics(
+              liveRegion: true,
+              // Ancho completo y a la izquierda, como el error de «Regalo»
+              // (`UnfoldSection` centra lo que no ocupa todo el ancho).
+              child: SizedBox(
+                width: double.infinity,
+                child: Text(
+                  l10n.giftRecipientRequired,
+                  textAlign: TextAlign.start,
+                  style: t.styles.meta.copyWith(color: t.danger),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Las ocasiones para la hoja de selección: «Sin ocasión» arriba, luego las
+/// fiestas y después los cumpleaños, como en la pantalla Ocasiones.
+List<PickerOption<String>> _occasionOptions(
+  AppLocalizations l10n,
+  OccasionLabels labels,
+  List<Occasion> occasions,
+  RegalosTokens t,
+) {
+  final ordered = occasionsByNextDate(occasions, clock.now());
+  PickerOption<String> option(Occasion o, String group) {
+    final p = OccasionTheme.forOccasion(o).palette;
+    return PickerOption(
+      value: o.id,
+      label: labels.of(o),
+      group: group,
+      leading: DecoratedBox(
+        decoration: BoxDecoration(
+          color: t.isDark ? p.tintD : p.pastel,
+          borderRadius: RegalosShape.chip,
+        ),
+        child: SizedBox.square(
+          dimension: 28,
+          child: Center(
+            child: OccasionKindIcon(
+              o.kind,
+              customIcon: o.icon,
+              size: 18,
+              color: t.isDark ? p.tintaD : p.tinta,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  return [
+    PickerOption(
+      value: _none,
+      label: l10n.giftNoOccasion,
+      leading: DecoratedBox(
+        decoration: BoxDecoration(
+          color: t.track,
+          borderRadius: RegalosShape.chip,
+        ),
+        child: SizedBox.square(
+          dimension: 28,
+          child: Icon(
+            Icons.horizontal_rule_rounded,
+            size: 18,
+            color: t.textSecondary,
+          ),
+        ),
+      ),
+    ),
+    for (final o in ordered)
+      if (o.kind != OccasionKind.birthday)
+        option(o, l10n.occasionsGroupCelebrations),
+    for (final o in ordered)
+      if (o.kind == OccasionKind.birthday)
+        option(o, l10n.occasionsGroupBirthdays),
+  ];
+}

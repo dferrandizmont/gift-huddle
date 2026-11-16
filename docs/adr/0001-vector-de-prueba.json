@@ -1,0 +1,10 @@
+{
+  "description": "Regalos envelope v1 test vector. Decrypt envelope with key (AES-256-GCM, AAD = bytes from \"RG\" to end of header), then inflate raw deflate; result must equal document JSON.",
+  "listId": "lista-0001",
+  "fromNode": "nodo-aritz",
+  "at": "0001a2b3c4d5-0003-nodo-aritz",
+  "keyBase64Url": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+  "nonceBase64Url": "oKGio6Slpqeoqaqr",
+  "documentJson": "{\"items\":[{\"id\":\"i1\",\"name\":\"Muñeca con sombrero\"}],\"v\":1}",
+  "envelopeBase64Url": "UkcBAGB7ImF0IjoiMDAwMWEyYjNjNGQ1LTAwMDMtbm9kby1hcml0eiIsImZyb20iOiJub2RvLWFyaXR6Iiwia2luZCI6ImZhbWlseSIsImwiOiJsaXN0YS0wMDAxIiwidiI6MX2goaKjpKWmp6ipqqtNTrYBDAYv6dDvKYXNNpFsImZtREDmiCdQQyM0AuB6bp47Cavn7Jxud1LLhSMwrjMQscudM_pJzHPyDl5M8YsV0GLeL7AsD8NC32iE"
+}

@@ -1,0 +1,74 @@
+# Gift Huddle sync server (ADR 0002). One Durable Object per list.
+# No secrets live here: v2 uses independent device credentials.
+name = "gift-huddle-sync"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+
+routes = [{ pattern = "sync.gifthuddle.app", custom_domain = true }]
+# workers.dev and preview URLs stay closed so the WAF rules of the domain cannot be
+# bypassed (see README). Closed on 2026-11-13, once every phone left the pre.18 app.
+workers_dev = false
+preview_urls = false
+
+# Workers Logs would record the request URLs (list and invite ids). Keep it off.
+[vars]
+RENEWAL_ENABLED = "false"
+ALLOWED_ORIGIN = "https://gifthuddle.app,https://web.gifthuddle.app"
+
+[observability]
+enabled = false
+
+[[durable_objects.bindings]]
+name = "LISTS_V2"
+class_name = "ListV2Object"
+
+[[durable_objects.bindings]]
+name = "INVITES_V2"
+class_name = "InviteV2Object"
+
+[[durable_objects.bindings]]
+name = "LIMITER_V2"
+class_name = "LimiterV2Object"
+
+[[durable_objects.bindings]]
+name = "RECOVERIES_V2"
+class_name = "RecoveryLocatorObject"
+
+# Coarse per-client flood limit in front of every route, checked before any Durable Object
+# is touched. Counted per Cloudflare location, so it is approximate; the exact limits
+# (writes per list, invitations per IP, new lists per hour) live in the Durable Objects.
+[[ratelimits]]
+name = "IP_LIMITER"
+namespace_id = "1001"
+  [ratelimits.simple]
+  limit = 200
+  period = 60
+
+# v2 invitation routes per client (finding 16): 120 a minute lets several phones and
+# families behind one NAT pair at once; each invitation keeps its own 30 a minute in
+# its list object. A rate limit binding writes no rows, so a request costs nothing in
+# storage before the router knows whether the invitation exists.
+[[ratelimits]]
+name = "INVITE_IP_LIMITER"
+namespace_id = "1002"
+  [ratelimits.simple]
+  limit = 120
+  period = 60
+
+# SQLite-backed Durable Objects: the only kind available on the free plan.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ListObject", "InviteObject", "LimiterObject"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["ListV2Object", "InviteV2Object", "LimiterV2Object"]
+
+[[migrations]]
+tag = "v3-recovery"
+new_sqlite_classes = ["RecoveryLocatorObject"]
+
+# Product decision (2026-11-15): permanently erase the retired v1 namespaces and their data.
+[[migrations]]
+tag = "v4-delete-v1"
+deleted_classes = ["ListObject", "InviteObject", "LimiterObject"]

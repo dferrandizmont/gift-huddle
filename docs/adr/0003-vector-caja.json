@@ -1,0 +1,33 @@
+{
+  "pin": "Cafe Nora",
+  "salt": "AAECAwQFBgcICQoLDA0ODw",
+  "iterations": 600000,
+  "A": "lZwb1CGCqdOv5kub7yG0GLkddaNwNi1G3fExCJhDYDM",
+  "a": "afCAykzfzA6Ruw5I5DzxMN5sHKFrGkofdkwwVck87Uw",
+  "prueba": "NO5yhaztOua2S2Ea95XP-oxB3bMjjHPEa5ky9uGOEwI",
+  "b": "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8",
+  "K": "iwgSz7TvZncJ-5MMTlQMB225OJDygVlIDqUVoM7-lh8",
+  "nonce": "AAECAwQFBgcICQoL",
+  "aad": "{\"deviceId\":\"bbbbbbbbbb\",\"format\":1,\"guardVersion\":1,\"id\":\"\",\"kind\":\"vault\",\"syncId\":\"AAAAAAAAAAAAAAAAAAAAAA\"}",
+  "plaintext": {
+    "message": "Nora"
+  },
+  "box": {
+    "nonce": "AAECAwQFBgcICQoL",
+    "ciphertext": "xhAkKzKB0fXodtrLDFYfP0vV",
+    "mac": "woCzD7m0LOC_2R3rDqED2w"
+  },
+  "header": {
+    "format": 1,
+    "syncId": "AAAAAAAAAAAAAAAAAAAAAA",
+    "deviceId": "bbbbbbbbbb",
+    "guardVersion": 1,
+    "salt": "AAECAwQFBgcICQoLDA0ODw",
+    "guardToken": "QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8",
+    "iterations": 600000
+  },
+  "nfc": {
+    "pin": "Café Nora",
+    "A": "iq75xwY1ldf3WmnGQ6TfSXxu3_GTwFtiY9esyB_fOEY"
+  }
+}

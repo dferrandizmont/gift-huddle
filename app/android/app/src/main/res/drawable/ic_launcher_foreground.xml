@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Gift Huddle launcher icon foreground: stack of three gifts. Generated from the app icon assets. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+  <path android:fillColor="#FFFFFFFF" android:pathData="M34.5 66.2H73.5A1.5 1.5 0 0 1 75 67.7V77A1.5 1.5 0 0 1 73.5 78.5H34.5A1.5 1.5 0 0 1 33 77V67.7A1.5 1.5 0 0 1 34.5 66.2Z"/>
+  <path android:fillColor="#FFFFFFFF" android:pathData="M32.5 60H75.5A1.5 1.5 0 0 1 77 61.5V63.5A1.5 1.5 0 0 1 75.5 65H32.5A1.5 1.5 0 0 1 31 63.5V61.5A1.5 1.5 0 0 1 32.5 60Z"/>
+  <path android:fillColor="#FFF5A9C3" android:pathData="M43 60H48V78.5H43Z"/>
+  <path android:fillColor="#FFFFFFFF" android:pathData="M43 49.7H70A1.5 1.5 0 0 1 71.5 51.2V57A1.5 1.5 0 0 1 70 58.5H43A1.5 1.5 0 0 1 41.5 57V51.2A1.5 1.5 0 0 1 43 49.7Z"/>
+  <path android:fillColor="#FFFFFFFF" android:pathData="M41 43.5H72A1.5 1.5 0 0 1 73.5 45V47A1.5 1.5 0 0 1 72 48.5H41A1.5 1.5 0 0 1 39.5 47V45A1.5 1.5 0 0 1 41 43.5Z"/>
+  <path android:fillColor="#FFF5A9C3" android:pathData="M60 43.5H65V58.5H60Z"/>
+  <path android:fillColor="#FFFFFFFF" android:pathData="M44.5 34.2H61.5A1.5 1.5 0 0 1 63 35.7V40.5A1.5 1.5 0 0 1 61.5 42H44.5A1.5 1.5 0 0 1 43 40.5V35.7A1.5 1.5 0 0 1 44.5 34.2Z"/>
+  <path android:fillColor="#FFFFFFFF" android:pathData="M42.5 28H63.5A1.5 1.5 0 0 1 65 29.5V31.5A1.5 1.5 0 0 1 63.5 33H42.5A1.5 1.5 0 0 1 41 31.5V29.5A1.5 1.5 0 0 1 42.5 28Z"/>
+  <path android:fillColor="#FFF5A9C3" android:pathData="M50.5 28H55.5V42H50.5Z"/>
+</vector>
