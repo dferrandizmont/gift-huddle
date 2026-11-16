@@ -4,9 +4,14 @@ All notable changes to Gift Huddle are listed here. Store versions may skip numb
 
 ## Unreleased
 
+- The old trial addresses no longer open the app or sync; all services now use gifthuddle.app and its subdomains.
+- Website (gifthuddle.app): a discreet link in the header and footer opens the web version (web.gifthuddle.app), and the sync feature now says you can view and edit the list in your computer's browser after pairing it once with your phone.
+- Website (gifthuddle.app): the grey panel behind the animated phone on the home page is gone, and the screenshots follow the site theme: light screenshots in light mode and dark ones in dark mode (new dark screenshots of the same five screens in Spanish, Catalan and English).
+
+## 1.0.1 · 2026-11-16
+
 - With very large text, Who gives what no longer cuts or splits words: the screen title, dates, countdowns, totals, person cards, gift rows, the gift sheets and the "Not in the split" block wrap onto more lines or shrink slightly, and long giver names fit in their chip.
 - After unlocking, the list can no longer stay dimmed behind a light grey veil if the fade-in animation stalls: it always finishes within a second.
-- The old trial addresses no longer open the app or sync; all services now use gifthuddle.app and its subdomains.
 - Website (gifthuddle.app): a button next to the language selector switches between light and dark mode and remembers the choice (it still follows the system until you use it), and the animated phone on the home page now has a phone frame.
 - With very large text (200 %), the giver names above the columns of Who gives what turn sideways and take up to two lines, so "Grandparents" or "Avis de Girona" read in full instead of "Gra..."; and the four labels of the bottom tab bar all use the same size instead of some looking bigger than others.
 - Keep the phone name confirmed on the welcome screen when joining by invitation link or QR. A phone with confirmed removal from the family now shows the existing reconnect notice, stops retrying sync and lists only itself, including after restarting. Ordinary authentication failures remain retryable, and older unconfirmed removal flags are checked again with the server.
