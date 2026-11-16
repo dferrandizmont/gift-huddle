@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 
 import '../../../core/motion/haptics.dart';
 import '../../../core/motion/sheet_motion.dart';
@@ -68,23 +69,53 @@ enum DeviceSheetResult {
 
   /// Lo mismo, y además quedaron móviles sueltos por confirmar.
   removedCutPendingWithOrphans,
+
+  /// No se pudo quitar: el móvil sigue en la lista. La hoja ya estaba
+  /// cerrada, así que lo avisa la pantalla.
+  removeFailed,
+}
+
+/// La hoja se cerró al confirmar «Quitar móvil» y el corte sigue en marcha:
+/// el resultado llega cuando termine, para que la pantalla de debajo avise.
+class _RemovalStarted {
+  const _RemovalStarted(this.result);
+
+  final Future<DeviceSheetResult?> result;
 }
 
 /// Abre la hoja de [entry] (su detalle, con quitarlo o aprobarlo). [people]
 /// son los nombres por id de persona.
+///
+/// Al confirmar «Quitar móvil» la hoja se cierra al momento (cortar el acceso
+/// espera a la red y la lista de debajo ya no lleva ese móvil); el resultado
+/// llega cuando termina el corte, así que [context] es el de la pantalla de
+/// debajo: se sigue usando después de cerrar la hoja.
 Future<DeviceSheetResult?> showDeviceDetailSheet(
   BuildContext context, {
   required FamilyDeviceEntry entry,
   required Map<String, String> people,
   required String selfName,
-}) => showRegalosSheet<DeviceSheetResult>(
-  context,
-  flat: true,
-  isScrollControlled: true,
-  useSafeArea: true,
-  builder: (_) =>
-      _DeviceSheet(entry: entry, people: people, selfName: selfName),
-);
+}) async {
+  final container = ProviderScope.containerOf(context, listen: false);
+  final popped = await showRegalosSheet<Object>(
+    context,
+    flat: true,
+    isScrollControlled: true,
+    useSafeArea: true,
+    builder: (_) => _DeviceSheet(
+      entry: entry,
+      people: people,
+      selfName: selfName,
+      anchor: context,
+      container: container,
+    ),
+  );
+  return switch (popped) {
+    _RemovalStarted(:final result) => await result,
+    final DeviceSheetResult result => result,
+    _ => null,
+  };
+}
 
 /// Abre la bandeja «Revisar móviles».
 Future<void> showDeviceReviewSheet(
@@ -117,18 +148,44 @@ enum _Fail { none, approve, remove }
 /// El resultado de «Permitir desbloquear otra vez» en la hoja de una web.
 enum _Resume { none, done, failed }
 
+/// Cómo acaba [_removeFlow] para la pantalla, ya con la hoja cerrada.
+DeviceSheetResult? _removalResult((_Outcome, List<DeviceReviewItem>) flow) {
+  final (outcome, orphans) = flow;
+  return switch (outcome) {
+    _Outcome.done =>
+      orphans.isEmpty
+          ? DeviceSheetResult.removed
+          : DeviceSheetResult.removedWithOrphans,
+    _Outcome.cutPending =>
+      orphans.isEmpty
+          ? DeviceSheetResult.removedCutPending
+          : DeviceSheetResult.removedCutPendingWithOrphans,
+    // Cancelado a medias (el reintento): no hay nada que avisar.
+    _Outcome.cancelled => null,
+    _Outcome.changed || _Outcome.failed => DeviceSheetResult.removeFailed,
+  };
+}
+
 /// Aviso N7 (si toca), consecuencias y, al confirmar, quita [deviceId].
 /// Los huérfanos quedan recordados para la bandeja.
+///
+/// [read] lee los proveedores (`ref.read` o el de un contenedor) y no se toca
+/// ningún `WidgetRef`: el flujo puede seguir después de cerrar la hoja que lo
+/// lanzó. [onConfirmed] se llama una vez, en cuanto se confirma y antes de
+/// esperar a la red. [abandoned] dice si quien lo lanzó ya no está (la hoja se
+/// cerró a mano): antes de confirmar, entonces no se abre ningún diálogo.
 Future<(_Outcome, List<DeviceReviewItem>)> _removeFlow(
   BuildContext context,
-  WidgetRef ref,
+  T Function<T>(ProviderListenable<T>) read,
   String deviceId, {
   bool retried = false,
   bool web = false,
+  VoidCallback? onConfirmed,
+  bool Function()? abandoned,
 }) async {
   final l10n = AppLocalizations.of(context);
-  final actions = ref.read(familyDeviceActionsProvider);
-  final haptics = ref.read(hapticsProvider);
+  final actions = read(familyDeviceActionsProvider);
+  final haptics = read(hapticsProvider);
   final DeviceRemovalPreview preview;
   try {
     preview = await actions.previewRemoval(deviceId);
@@ -136,7 +193,9 @@ Future<(_Outcome, List<DeviceReviewItem>)> _removeFlow(
     haptics.error();
     return (_Outcome.failed, const <DeviceReviewItem>[]);
   }
-  if (!context.mounted) return (_Outcome.cancelled, const <DeviceReviewItem>[]);
+  if (!context.mounted || (abandoned?.call() ?? false)) {
+    return (_Outcome.cancelled, const <DeviceReviewItem>[]);
+  }
   if (preview.selfWouldWait) {
     haptics.warning();
     final go = await showRegalosConfirm(
@@ -146,7 +205,7 @@ Future<(_Outcome, List<DeviceReviewItem>)> _removeFlow(
       confirmLabel: l10n.deviceRemoveWaitAction,
       cancelLabel: l10n.actionCancel,
     );
-    if (!go || !context.mounted) {
+    if (!go || !context.mounted || (abandoned?.call() ?? false)) {
       return (_Outcome.cancelled, const <DeviceReviewItem>[]);
     }
   }
@@ -165,6 +224,7 @@ Future<(_Outcome, List<DeviceReviewItem>)> _removeFlow(
   if (!sure || !context.mounted) {
     return (_Outcome.cancelled, const <DeviceReviewItem>[]);
   }
+  onConfirmed?.call();
   try {
     final orphans = await actions.remove(
       deviceId,
@@ -178,7 +238,15 @@ Future<(_Outcome, List<DeviceReviewItem>)> _removeFlow(
       haptics.error();
       return (_Outcome.failed, const <DeviceReviewItem>[]);
     }
-    return _removeFlow(context, ref, deviceId, retried: true, web: web);
+    return _removeFlow(
+      context,
+      read,
+      deviceId,
+      retried: true,
+      web: web,
+      onConfirmed: onConfirmed,
+      abandoned: abandoned,
+    );
   } on DeviceRemovalPendingException catch (e) {
     haptics.warning();
     return (_Outcome.cutPending, e.orphans);
@@ -340,11 +408,19 @@ class _DeviceSheet extends ConsumerStatefulWidget {
     required this.entry,
     required this.people,
     required this.selfName,
+    required this.anchor,
+    required this.container,
   });
 
   final FamilyDeviceEntry entry;
   final Map<String, String> people;
   final String selfName;
+
+  /// El contexto de la pantalla de debajo: sigue vivo cuando la hoja se cierra.
+  final BuildContext anchor;
+
+  /// Los proveedores, para seguir quitando después de cerrar la hoja.
+  final ProviderContainer container;
 
   @override
   ConsumerState<_DeviceSheet> createState() => _DeviceSheetState();
@@ -359,6 +435,8 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
   late DeviceReviewItem? _item = widget.entry.review;
   bool _changed = false;
   _Resume _resumed = _Resume.none;
+  // La hoja ya se está cerrando porque se confirmó quitar el móvil.
+  bool _closing = false;
 
   void _go(_Step step, {bool back = false}) => setState(() {
     _step = step;
@@ -405,31 +483,40 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
     }
   }
 
+  // Cierra la hoja al confirmar, sin esperar a la red: la lista de debajo ya
+  // no lleva el móvil y la hoja no puede quedarse enseñando uno que no está.
+  // El resultado (hecho, corte pendiente o fallo) lo avisa la pantalla cuando
+  // llegue, y si falla el móvil sigue en la lista.
   Future<void> _remove() async {
     setState(() {
       _busy = true;
       _failed = _Fail.none;
     });
-    final (outcome, orphans) = await _removeFlow(
-      context,
-      ref,
+    final navigator = Navigator.of(context);
+    Future<(_Outcome, List<DeviceReviewItem>)>? flow;
+    // Los diálogos y los reintentos usan el contexto de la pantalla de debajo
+    // y los proveedores del contenedor: nada de esto depende de la hoja.
+    flow = _removeFlow(
+      widget.anchor,
+      widget.container.read,
       widget.entry.row.deviceId,
       web: widget.entry.row.isWeb,
+      // Hasta confirmar, cerrar la hoja a mano cancela: no se abre después
+      // ningún diálogo. Tras confirmar, el flujo sigue sin la hoja (N7).
+      abandoned: () => !_closing && !mounted,
+      onConfirmed: () {
+        if (_closing || !mounted) return;
+        _closing = true;
+        navigator.pop(_RemovalStarted(flow!.then(_removalResult)));
+      },
     );
-    if (!mounted) return;
+    final (outcome, orphans) = await flow;
+    // Ya se cerró al confirmar: el resultado va por la pantalla.
+    if (_closing || !mounted) return;
     switch (outcome) {
       case _Outcome.done:
-        Navigator.of(context).pop(
-          orphans.isEmpty
-              ? DeviceSheetResult.removed
-              : DeviceSheetResult.removedWithOrphans,
-        );
       case _Outcome.cutPending:
-        Navigator.of(context).pop(
-          orphans.isEmpty
-              ? DeviceSheetResult.removedCutPending
-              : DeviceSheetResult.removedCutPendingWithOrphans,
-        );
+        navigator.pop(_removalResult((outcome, orphans)));
       case _Outcome.cancelled:
         setState(() => _busy = false);
       case _Outcome.changed:
@@ -702,7 +789,7 @@ class _ReviewSheetState extends ConsumerState<_ReviewSheet> {
 
   Future<void> _remove(DeviceReviewItem item) => _after(
     () async {
-      final (outcome, _) = await _removeFlow(context, ref, item.deviceId);
+      final (outcome, _) = await _removeFlow(context, ref.read, item.deviceId);
       return outcome;
     }(),
     _Fail.remove,

@@ -135,6 +135,10 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
               : l10n.deviceRemovedPendingSnack,
         );
         await _review(people);
+      case DeviceSheetResult.removeFailed:
+        // La hoja ya se cerró al confirmar: el móvil sigue en la lista y se
+        // puede volver a intentar.
+        _say(web ? l10n.deviceRemoveWebError : l10n.deviceRemoveError);
     }
   }
 

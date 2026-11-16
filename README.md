@@ -29,9 +29,9 @@ Android 8 or later is in closed testing on Google Play. The iPhone version (iOS 
 <details>
 <summary>Join the beta on Google Play</summary>
 
-1. Open the [testing link](https://play.google.com/apps/testing/es.gifthuddle.app) with the Google account you use on your phone.
-2. Choose to become a tester.
-3. Install Gift Huddle from Google Play, as with any other app.
+1. Join the [Gift Huddle testers group](https://groups.google.com/g/gifthuddle-tester) with the Google account you use on your phone.
+2. Open the [testing page](https://play.google.com/apps/testing/es.gifthuddle.app) with that same account and tap **Become a tester**.
+3. Install Gift Huddle from Google Play and stay in the test for at least 14 days in a row: Google requires that before the app can be released to everyone.
 
 </details>
 

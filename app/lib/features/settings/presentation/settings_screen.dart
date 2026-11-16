@@ -9,6 +9,8 @@ import '../../../core/layout/two_pane.dart';
 import '../../../core/layout/window_class.dart';
 import '../../../core/motion/shared_axis_switcher.dart';
 import '../../../core/motion/stagger.dart';
+import '../../../core/sync/pairing_v2.dart'
+    show kSyncProtocolV2, syncProtocolOf;
 import '../../../core/theme/regalos_tokens.dart';
 import '../../../core/widgets/pane_list_row.dart';
 import '../../../core/widgets/screen_header.dart';
@@ -17,12 +19,15 @@ import '../../../core/widgets/settings_icons.dart';
 import '../../../core/widgets/settings_row.dart';
 import '../../../core/widgets/stroke_icon.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../family/application/family_controller.dart';
 import '../../family/application/family_providers.dart';
 import '../../lock/application/lock_controller.dart';
 import '../../recovery/presentation/recovery_screen.dart' show recoveryRowValue;
+import '../../sync/application/family_device_rows.dart';
 import '../../sync/application/recovery_providers.dart'
     show recoveryStatusProvider;
 import '../../sync/application/sync_controller.dart';
+import '../../sync/domain/sync_status.dart';
 import '../../sync/presentation/sync_texts.dart';
 import '../../web_device/application/web_app_provider.dart';
 import '../../web_device/application/web_device_providers.dart';
@@ -159,11 +164,35 @@ class SettingsScreen extends ConsumerWidget {
     final paired = ref.watch(familyStateProvider)?.paired ?? false;
     final sync = ref.watch(syncControllerProvider);
     final syncShort = syncShortText(l10n, sync);
-    final devicesValue = !paired
-        ? l10n.settingsDevicesOnlyThis
-        : syncShort == null
-        ? '2'
-        : l10n.settingsDevicesValue(2, syncShort);
+    // Cuántos móviles hay: el mismo criterio que «Móviles de la familia»
+    // (`share_screen.dart`). En v2 sale del registro firmado (la web cuenta);
+    // si retiraron este móvil, es solo este; mientras el registro carga o
+    // falla (aunque quede un valor anterior) se enseña solo el estado. En v1,
+    // la marca de emparejado (dos móviles).
+    final family = ref.watch(familyControllerProvider).value;
+    final isV2 =
+        family != null && syncProtocolOf(family.doc) == kSyncProtocolV2;
+    String withStatus(int count) => syncShort == null
+        ? '$count'
+        : l10n.settingsDevicesValue(count, syncShort);
+    final String? devicesValue;
+    if (!isV2) {
+      devicesValue = !paired ? l10n.settingsDevicesOnlyThis : withStatus(2);
+    } else if (sync.phase == SyncPhase.removed) {
+      devicesValue = withStatus(1);
+    } else {
+      final rows = ref.watch(familyDeviceRowsProvider);
+      // Solo se afirma el número con el registro leído y al día: mientras
+      // recarga o tras un error, aunque Riverpod conserve el valor anterior,
+      // no (el mismo criterio que `registryFresh` en `share_screen.dart`).
+      final fresh = !rows.isLoading && !rows.hasError;
+      final count = fresh && rows.hasValue ? rows.value?.length : null;
+      devicesValue = count == null
+          ? syncShort
+          : count <= 1
+          ? l10n.settingsDevicesOnlyThis
+          : withStatus(count);
+    }
 
     // Tocar un apartado abre su pantalla; con dos paneles cambia la del
     // detalle (la URL es la selección).

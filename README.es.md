@@ -29,9 +29,9 @@ Android 8 o posterior está en prueba cerrada en Google Play. La versión para i
 <details>
 <summary>Únete a la beta de Google Play</summary>
 
-1. Abre el [enlace de prueba](https://play.google.com/apps/testing/es.gifthuddle.app) con la cuenta de Google que usas en el móvil.
-2. Elige hacerte probador.
-3. Instala Gift Huddle desde Google Play, como cualquier otra app.
+1. Únete al [grupo de testers de Gift Huddle](https://groups.google.com/g/gifthuddle-tester) con la cuenta de Google que usas en el móvil.
+2. Abre la [página de la prueba](https://play.google.com/apps/testing/es.gifthuddle.app) con esa misma cuenta y pulsa el botón para hacerte tester (en inglés, **Become a tester**).
+3. Instala Gift Huddle desde Google Play y no salgas de la prueba durante al menos 14 días seguidos: Google lo exige antes de que la app pueda publicarse para todo el mundo.
 
 </details>
 

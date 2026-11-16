@@ -4,9 +4,13 @@ All notable changes to Gift Huddle are listed here. Store versions may skip numb
 
 ## Unreleased
 
+- Website (gifthuddle.app): the footer links to the public source code on GitHub (github.com/dferrandizmont/gift-huddle, GPL-3.0).
+- Settings shows the real number of phones in the family (it always said 2), and a phone removed from the family counts only itself.
+- After confirming "Remove phone", its sheet closes at once instead of staying open while the access is cut; the result still shows as a message, and if it fails the phone stays in the list to try again.
 - The old trial addresses no longer open the app or sync; all services now use gifthuddle.app and its subdomains.
 - Website (gifthuddle.app): a discreet link in the header and footer opens the web version (web.gifthuddle.app), and the sync feature now says you can view and edit the list in your computer's browser after pairing it once with your phone.
 - Website (gifthuddle.app): the grey panel behind the animated phone on the home page is gone, and the screenshots follow the site theme: light screenshots in light mode and dark ones in dark mode (new dark screenshots of the same five screens in Spanish, Catalan and English).
+- Website (gifthuddle.app): the whole site now uses the app's current colours, including the neutral dark theme (grey backgrounds without tint, vivid accents) and darker control borders in light mode, and the animated phone on the home page and its two floating cards match the app screenshots, with the occasion colours on the filter chips.
 
 ## 1.0.1 · 2026-11-16
 

@@ -3,6 +3,8 @@
 // bandeja «Revisar móviles», uno a uno. Las acciones son un doble que apunta
 // lo que se le pide; el controlador real se prueba en
 // `test/sync/family_device_review_app_test.dart`.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -28,6 +30,18 @@ final _reviewState = NotifierProvider<_ReviewState, DeviceReview>(
   _ReviewState.new,
 );
 
+/// Los móviles del registro, reactivos: quitar uno lo saca de la lista.
+class _RowsState extends Notifier<List<FamilyDeviceRow>> {
+  @override
+  List<FamilyDeviceRow> build() => const [];
+
+  void set(List<FamilyDeviceRow> rows) => state = rows;
+}
+
+final _rowsState = NotifierProvider<_RowsState, List<FamilyDeviceRow>>(
+  _RowsState.new,
+);
+
 class _Actions implements FamilyDeviceActions {
   _Actions(this.container);
 
@@ -47,7 +61,22 @@ class _Actions implements FamilyDeviceActions {
   /// Lo que lanza el siguiente quitar, si algo.
   Object? removeError;
 
+  /// Si hay, `remove` espera a que se complete (la red tarda): el móvil ya
+  /// salió de la lista local, como en la app.
+  Completer<void>? removeGate;
+
+  /// Si hay, `previewRemoval` espera a que se complete (la hoja se puede
+  /// cerrar a mano mientras tanto).
+  Completer<void>? previewGate;
+
+  /// El siguiente quitar falla antes de guardar nada: el móvil sigue.
+  bool failBeforeSave = false;
+
   void _drop(String id) {
+    container.read(_rowsState.notifier).set([
+      for (final r in container.read(_rowsState))
+        if (r.deviceId != id) r,
+    ]);
     final review = container.read(_reviewState);
     container
         .read(_reviewState.notifier)
@@ -62,6 +91,7 @@ class _Actions implements FamilyDeviceActions {
   @override
   Future<DeviceRemovalPreview> previewRemoval(String deviceId) async {
     calls.add('preview $deviceId');
+    await previewGate?.future;
     return preview;
   }
 
@@ -71,6 +101,11 @@ class _Actions implements FamilyDeviceActions {
     bool selfWaitAccepted = false,
   }) async {
     calls.add('remove $deviceId');
+    if (failBeforeSave) {
+      failBeforeSave = false;
+      await removeGate?.future;
+      throw StateError('sin red');
+    }
     if (changeOnFirstRemove) {
       changeOnFirstRemove = false;
       preview = const DeviceRemovalPreview(selfWouldWait: true);
@@ -80,9 +115,11 @@ class _Actions implements FamilyDeviceActions {
     if (error != null) {
       removeError = null;
       _drop(deviceId);
+      await removeGate?.future;
       throw error;
     }
     _drop(deviceId);
+    await removeGate?.future;
     if (orphansOnRemove.isNotEmpty) {
       final review = container.read(_reviewState);
       container
@@ -147,13 +184,16 @@ Future<(SyncPhone, _Actions)> _open(
   });
   addTearDown(a.dispose);
   a.c.read(_reviewState.notifier).set(review);
+  a.c.read(_rowsState.notifier).set(rows);
   final actions = _Actions(a.c);
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: a.c,
       child: ProviderScope(
         overrides: [
-          familyDeviceRowsProvider.overrideWith((ref) async => rows),
+          familyDeviceRowsProvider.overrideWith(
+            (ref) async => ref.watch(_rowsState),
+          ),
           deviceReviewProvider.overrideWith(
             (ref) async => ref.watch(_reviewState),
           ),
@@ -293,6 +333,108 @@ void main() {
       expect(find.text('¿Quitar este móvil?'), findsOneWidget);
       await _tapText(tester, 'Quitar móvil');
       expect(actions.calls.last, 'remove n');
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('la hoja se cierra al confirmar, sin esperar a la red; el '
+        'aviso sale al terminar', (tester) async {
+      final (_, actions) = await _open(tester);
+      final gate = Completer<void>();
+      actions.removeGate = gate;
+      await _tapText(tester, 'Nora');
+      expect(find.text('De quién es'), findsOneWidget);
+      await _tapText(tester, 'Quitar este móvil');
+      await _tapText(tester, 'Quitar móvil');
+      // El corte sigue en marcha, pero la hoja del móvil ya no está.
+      expect(actions.calls, ['preview n', 'remove n']);
+      expect(gate.isCompleted, isFalse);
+      expect(find.text('De quién es'), findsNothing);
+      expect(find.text('Quitar este móvil'), findsNothing);
+      expect(find.text('Móvil quitado'), findsNothing);
+      // La lista de debajo ya no lleva el móvil, aunque la red siga.
+      expect(find.text('Nora'), findsNothing);
+      gate.complete();
+      await _settle(tester);
+      expect(find.text('Móvil quitado'), findsOneWidget);
+      expect(find.text('Nora'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('con el corte pendiente, la hoja también se cierra y el aviso '
+        'llega después', (tester) async {
+      final (_, actions) = await _open(tester);
+      final gate = Completer<void>();
+      actions
+        ..removeGate = gate
+        ..removeError = const DeviceRemovalPendingException([]);
+      await _tapText(tester, 'Nora');
+      await _tapText(tester, 'Quitar este móvil');
+      await _tapText(tester, 'Quitar móvil');
+      expect(find.text('De quién es'), findsNothing);
+      expect(find.textContaining('Falta cortar su acceso'), findsNothing);
+      gate.complete();
+      await _settle(tester);
+      expect(find.textContaining('Falta cortar su acceso'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets(
+      'si falla antes de guardar, la hoja ya está cerrada, lo dice un '
+      'aviso, el móvil sigue y se puede reintentar',
+      (tester) async {
+        final (_, actions) = await _open(tester);
+        final gate = Completer<void>();
+        actions
+          ..removeGate = gate
+          ..failBeforeSave = true;
+        await _tapText(tester, 'Nora');
+        await _tapText(tester, 'Quitar este móvil');
+        await _tapText(tester, 'Quitar móvil');
+        expect(find.text('De quién es'), findsNothing);
+        expect(find.textContaining('No se ha podido quitar'), findsNothing);
+        gate.complete();
+        await _settle(tester);
+        expect(find.textContaining('No se ha podido quitar'), findsOneWidget);
+        expect(find.text('Móvil quitado'), findsNothing);
+        // El móvil sigue en la lista de debajo.
+        expect(find.text('Nora'), findsOneWidget);
+
+        // Reintentar: ahora sí se quita y desaparece de la lista.
+        actions.removeGate = null;
+        await _tapText(tester, 'Nora');
+        await _tapText(tester, 'Quitar este móvil');
+        await _tapText(tester, 'Quitar móvil');
+        expect(actions.calls, [
+          'preview n',
+          'remove n',
+          'preview n',
+          'remove n',
+        ]);
+        expect(find.text('Móvil quitado'), findsOneWidget);
+        expect(find.text('Nora'), findsNothing);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+
+    testWidgets('cerrar la hoja a mano mientras se prepara la vista previa '
+        'cancela: no se abre la confirmación ni se quita', (tester) async {
+      final (_, actions) = await _open(tester);
+      final gate = Completer<void>();
+      actions.previewGate = gate;
+      await _tapText(tester, 'Nora');
+      await _tapText(tester, 'Quitar este móvil');
+      expect(actions.calls, ['preview n']);
+      // La persona cierra la hoja (toca fuera) antes de que acabe la vista
+      // previa.
+      await tester.tapAt(const Offset(195, 40));
+      await _settle(tester);
+      expect(find.text('De quién es'), findsNothing);
+      gate.complete();
+      await _settle(tester);
+      expect(find.text('¿Quitar este móvil?'), findsNothing);
+      expect(actions.calls, ['preview n']);
+      expect(find.text('Móvil quitado'), findsNothing);
+      expect(find.text('Nora'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     });
 
