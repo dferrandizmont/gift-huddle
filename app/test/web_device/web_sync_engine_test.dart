@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/core/sync/device_registry.dart';
@@ -17,6 +18,9 @@ import 'package:regalos/features/family/data/storage_providers.dart';
 import 'package:regalos/features/sync/application/recovery_providers.dart';
 import 'package:regalos/features/sync/data/sync_config.dart';
 import 'package:regalos/features/sync/data/sync_transport_v2.dart';
+import 'package:regalos/features/sync/data/sync_transport_common.dart';
+import 'package:regalos/features/sync/data/sync_transport.dart';
+import 'package:regalos/features/sync/application/sync_v2_engine.dart';
 import 'package:regalos/features/sync/application/sync_controller.dart';
 import 'package:regalos/features/web_device/application/web_sync_controller.dart';
 import 'package:regalos/features/web_device/application/web_sync_engine.dart';
@@ -33,14 +37,540 @@ FamilyDoc edit(FamilyDoc doc, String person, {String id = 'gift'}) => doc.set(
   {'recipientId': person, 'title': 'Libro'},
 );
 
+// Vault futures created during setup belong to the outer zone. Fake timers
+// still control all engine deadlines, while microtasks run in their real zones.
+class _FakeTimerClock {
+  _FakeTimerClock(this.time, this.outer);
+  final FakeAsync time;
+  final Zone outer;
+  DateTime now() => DateTime.utc(2026).add(time.elapsed);
+  Future<void> elapse(Duration duration) async {
+    time.elapse(duration);
+    await outer.run(() => Future<void>.delayed(Duration.zero));
+    time.elapse(Duration.zero);
+    await outer.run(() => Future<void>.delayed(Duration.zero));
+  }
+
+  int get nonPeriodicTimerCount => time.nonPeriodicTimerCount;
+  int get periodicTimerCount => time.periodicTimerCount;
+}
+
+Future<void> _withFakeTimers(Future<void> Function(_FakeTimerClock) body) {
+  final outer = Zone.current;
+  return fakeAsync(
+    (time) => runZoned(
+      () => body(_FakeTimerClock(time, outer)),
+      zoneSpecification: ZoneSpecification(
+        scheduleMicrotask: (self, parent, zone, callback) {
+          outer.scheduleMicrotask(zone.bindCallback(callback));
+        },
+      ),
+    ),
+  );
+}
+
 void main() {
   late WebHarness h;
+  late SyncResponse snapshot;
   setUp(() async {
     h = WebHarness();
     await h.setup();
+    snapshot = await h.worker.send(
+      'GET',
+      h.client.base.resolve('/v2/lists/$kV2Sync'),
+      headers: {
+        'Authorization': 'Bearer ${encodeBase64Url(h.engine.auth.credential)}',
+      },
+    );
   });
   tearDown(() => h.close());
 
+  test('a live socket gets only one backup read per 60 idle seconds', () async {
+    await _withFakeTimers((time) async {
+      final notices = StreamController<SyncEvent>();
+      var reads = 0;
+      final engine = WebSyncEngine(
+        transport: SyncV2Client(
+          base: h.client.base,
+          sendRequest: (method, uri, {body, headers = const {}}) {
+            if (method == 'GET' && uri.path == '/v2/lists/$kV2Sync') reads++;
+            return Future.value(snapshot);
+          },
+          openSocket: (_, _) => notices.stream,
+        ),
+        vault: h.vault,
+        queue: h.queue,
+        commonV2Ready: false,
+        now: time.now,
+      );
+      engine.start();
+      await time.elapse(Duration.zero);
+      notices.add(const SyncOpenEvent());
+      await time.elapse(Duration.zero);
+      final initial = reads;
+      expect(initial, greaterThan(0));
+      await time.elapse(const Duration(seconds: 30));
+      notices.add(const SyncAliveEvent());
+      await time.elapse(const Duration(seconds: 29));
+      expect(reads, initial);
+      await time.elapse(const Duration(seconds: 1));
+      expect(reads, initial + 1);
+      await time.elapse(const Duration(seconds: 60));
+      expect(reads, initial + 2);
+      engine.stop();
+      notices.close();
+      await time.elapse(const Duration(minutes: 5));
+      expect(reads, initial + 2);
+      expect(time.nonPeriodicTimerCount + time.periodicTimerCount, 0);
+    });
+  });
+
+  test(
+    'backup never queues behind a slow sync and stops with the session',
+    () async {
+      await _withFakeTimers((time) async {
+        final notices = StreamController<SyncEvent>();
+        final release = Completer<void>();
+        var hold = false;
+        var reads = 0;
+        final engine = WebSyncEngine(
+          transport: SyncV2Client(
+            base: h.client.base,
+            sendRequest: (method, uri, {body, headers = const {}}) async {
+              if (method == 'GET' && uri.path == '/v2/lists/$kV2Sync') {
+                reads++;
+                if (hold) await release.future;
+              }
+              return Future.value(snapshot);
+            },
+            openSocket: (_, _) => notices.stream,
+          ),
+          vault: h.vault,
+          queue: h.queue,
+          commonV2Ready: false,
+          now: time.now,
+        );
+        engine.start();
+        await time.elapse(Duration.zero);
+        final initial = reads;
+        await time.elapse(const Duration(seconds: 59));
+        hold = true;
+        engine.sync();
+        await time.elapse(Duration.zero);
+        expect(reads, initial + 1);
+        await time.elapse(const Duration(minutes: 3));
+        expect(reads, initial + 1);
+        hold = false;
+        release.complete();
+        await time.elapse(Duration.zero);
+        await time.elapse(const Duration(seconds: 59));
+        expect(reads, initial + 1);
+        await time.elapse(const Duration(seconds: 1));
+        expect(reads, initial + 2);
+        engine.stop();
+        notices.close();
+        await time.elapse(const Duration(minutes: 3));
+        expect(reads, initial + 2);
+        expect(time.nonPeriodicTimerCount + time.periodicTimerCount, 0);
+      });
+    },
+  );
+
+  test('hidden tab performs no backup, socket-event or retry GET', () async {
+    await _withFakeTimers((time) async {
+      var visible = true;
+      var reads = 0;
+      var fail = false;
+      final notices = StreamController<SyncEvent>();
+      final engine = WebSyncEngine(
+        transport: SyncV2Client(
+          base: h.client.base,
+          sendRequest: (method, uri, {body, headers = const {}}) {
+            if (method == 'GET') reads++;
+            if (fail) {
+              throw const SyncTransportException(
+                SyncFailure.network,
+                'offline',
+              );
+            }
+            return Future.value(snapshot);
+          },
+          openSocket: (_, _) => notices.stream,
+        ),
+        vault: h.vault,
+        queue: h.queue,
+        commonV2Ready: false,
+        now: time.now,
+        isVisible: () => visible,
+      );
+      engine.start();
+      await time.elapse(Duration.zero);
+      final initial = reads;
+      visible = false;
+      notices.add(const SyncOpenEvent());
+      notices.add(const SyncVersionEvent(999));
+      await time.elapse(const Duration(minutes: 3));
+      expect(reads, initial);
+      visible = true;
+      fail = true;
+      engine.requestSync();
+      await time.elapse(Duration.zero);
+      expect(reads, initial + 1);
+      visible = false;
+      await time.elapse(const Duration(minutes: 3));
+      expect(reads, initial + 1);
+      engine.stop();
+      notices.close();
+      await time.elapse(Duration.zero);
+      expect(time.nonPeriodicTimerCount + time.periodicTimerCount, 0);
+    });
+  });
+
+  for (final failure in [SyncFailure.network, SyncFailure.rateLimited]) {
+    test('direct sync retries $failure and restores the idle backup', () async {
+      await _withFakeTimers((time) async {
+        final notices = StreamController<SyncEvent>();
+        var reads = 0;
+        var fail = false;
+        final engine = WebSyncEngine(
+          transport: SyncV2Client(
+            base: h.client.base,
+            sendRequest: (method, uri, {body, headers = const {}}) async {
+              reads++;
+              if (fail) {
+                throw SyncTransportException(
+                  failure,
+                  'offline',
+                  retryAfter: failure == SyncFailure.rateLimited
+                      ? const Duration(seconds: 90)
+                      : null,
+                );
+              }
+              return snapshot;
+            },
+            openSocket: (_, _) => notices.stream,
+          ),
+          vault: h.vault,
+          queue: h.queue,
+          commonV2Ready: false,
+          now: time.now,
+        );
+        engine.start();
+        await time.elapse(Duration.zero);
+        expect(reads, 1);
+        fail = true;
+        Object? error;
+        engine.sync().catchError((Object e) {
+          error = e;
+        });
+        await time.elapse(Duration.zero);
+        expect(error, isA<SyncTransportException>());
+        expect(reads, 2);
+        final delay = failure == SyncFailure.rateLimited ? 90 : 5;
+        await time.elapse(Duration(seconds: delay - 1));
+        expect(reads, 2);
+        await time.elapse(const Duration(seconds: 1));
+        expect(reads, 3);
+        // The automatic retry consumes the next backoff step only once.
+        fail = false;
+        final nextDelay = failure == SyncFailure.rateLimited ? 90 : 15;
+        await time.elapse(Duration(seconds: nextDelay - 1));
+        expect(reads, 3);
+        await time.elapse(const Duration(seconds: 1));
+        expect(reads, 4);
+        await time.elapse(const Duration(seconds: 59));
+        expect(reads, 4);
+        await time.elapse(const Duration(seconds: 1));
+        expect(reads, 5);
+        engine.stop();
+        notices.close();
+        await time.elapse(const Duration(minutes: 5));
+        expect(reads, 5);
+        expect(time.nonPeriodicTimerCount + time.periodicTimerCount, 0);
+      });
+    });
+  }
+
+  test(
+    'hidden tab skips a GET queued while visible and resumes once',
+    () async {
+      await _withFakeTimers((time) async {
+        var visible = true;
+        var reads = 0;
+        var hold = false;
+        final release = Completer<void>();
+        final sockets = <StreamController<SyncEvent>>[];
+        final engine = WebSyncEngine(
+          transport: SyncV2Client(
+            base: h.client.base,
+            sendRequest: (method, uri, {body, headers = const {}}) async {
+              reads++;
+              if (hold) await release.future;
+              return snapshot;
+            },
+            openSocket: (_, _) {
+              final socket = StreamController<SyncEvent>();
+              sockets.add(socket);
+              return socket.stream;
+            },
+          ),
+          vault: h.vault,
+          queue: h.queue,
+          commonV2Ready: false,
+          now: time.now,
+          isVisible: () => visible,
+        );
+        engine.start();
+        await time.elapse(Duration.zero);
+        expect(reads, 1);
+        hold = true;
+        engine.sync();
+        await time.elapse(Duration.zero);
+        expect(reads, 2);
+        engine.requestSync(); // Waits in _serial behind the held response.
+        await time.elapse(Duration.zero);
+        visible = false;
+        engine.suspend();
+        expect(sockets.single.hasListener, isFalse);
+        hold = false;
+        release.complete();
+        await time.elapse(const Duration(minutes: 4));
+        engine.sync();
+        engine.requestSync();
+        await time.elapse(Duration.zero);
+        expect(reads, 2);
+        expect(sockets, hasLength(1));
+        visible = true;
+        engine.resume();
+        await time.elapse(Duration.zero);
+        expect(sockets, hasLength(2));
+        expect(reads, 3);
+        sockets.last.add(const SyncOpenEvent());
+        await time.elapse(Duration.zero);
+        expect(reads, 3);
+        engine.stop();
+        for (final socket in sockets) {
+          socket.close();
+        }
+        await time.elapse(const Duration(minutes: 5));
+        expect(time.nonPeriodicTimerCount + time.periodicTimerCount, 0);
+      });
+    },
+  );
+
+  test(
+    'Retry-After survives queued reads, hide/show and socket versions',
+    () async {
+      await _withFakeTimers((time) async {
+        var visible = true;
+        var reads = 0;
+        var limited = false;
+        final release = Completer<void>();
+        final sockets = <StreamController<SyncEvent>>[];
+        final errors = <Object>[];
+        final engine = WebSyncEngine(
+          transport: SyncV2Client(
+            base: h.client.base,
+            sendRequest: (method, uri, {body, headers = const {}}) async {
+              reads++;
+              if (limited) {
+                limited = false;
+                await release.future;
+                return SyncResponse(429, {'retry-after': '90'}, Uint8List(0));
+              }
+              return snapshot;
+            },
+            openSocket: (_, _) {
+              final socket = StreamController<SyncEvent>();
+              sockets.add(socket);
+              return socket.stream;
+            },
+          ),
+          vault: h.vault,
+          queue: h.queue,
+          commonV2Ready: false,
+          now: time.now,
+          isVisible: () => visible,
+          onError: errors.add,
+        );
+        engine.start();
+        await time.elapse(Duration.zero);
+        expect(reads, 1);
+        limited = true;
+        engine.requestSync();
+        await time.elapse(Duration.zero);
+        expect(reads, 2);
+        engine.requestSync(); // Already queued when the first GET fails.
+        await time.elapse(Duration.zero);
+        release.complete();
+        await time.elapse(Duration.zero);
+        expect(errors, hasLength(1));
+        expect(errors.single, isA<SyncTransportException>());
+        expect(reads, 2);
+
+        visible = false;
+        engine.suspend();
+        await time.elapse(const Duration(seconds: 1));
+        visible = true;
+        engine.resume();
+        await time.elapse(Duration.zero);
+        sockets.last.add(const SyncOpenEvent());
+        sockets.last.add(const SyncVersionEvent(999));
+        engine.sync();
+        engine.requestSync();
+        await time.elapse(Duration.zero);
+        expect(reads, 2);
+        expect(time.nonPeriodicTimerCount, 1);
+        await time.elapse(const Duration(seconds: 60));
+        expect(reads, 2);
+        sockets.last.add(const SyncVersionEvent(999));
+        await time.elapse(const Duration(seconds: 28));
+        expect(reads, 2);
+        expect(time.nonPeriodicTimerCount, 1);
+        await time.elapse(const Duration(seconds: 1));
+        expect(reads, 3); // A single GET at the original 90-second deadline.
+        await time.elapse(Duration.zero);
+        expect(reads, 3);
+        engine.requestSync(); // Success cleared the deadline.
+        await time.elapse(Duration.zero);
+        expect(reads, 4);
+        engine.stop();
+        for (final socket in sockets) {
+          socket.close();
+        }
+        await time.elapse(const Duration(minutes: 5));
+        expect(reads, 4);
+        expect(time.nonPeriodicTimerCount + time.periodicTimerCount, 0);
+      });
+    },
+  );
+
+  test('errors back off and respect Retry-After for every request', () async {
+    await _withFakeTimers((time) async {
+      var reads = 0;
+      var failure = SyncFailure.network;
+      var fail = false;
+      final notices = StreamController<SyncEvent>();
+      final engine = WebSyncEngine(
+        transport: SyncV2Client(
+          base: h.client.base,
+          sendRequest: (method, uri, {body, headers = const {}}) {
+            if (method == 'GET') reads++;
+            if (fail) {
+              throw SyncTransportException(
+                failure,
+                'offline',
+                retryAfter: failure == SyncFailure.rateLimited
+                    ? const Duration(seconds: 90)
+                    : null,
+              );
+            }
+            return Future.value(snapshot);
+          },
+          openSocket: (_, _) => notices.stream,
+        ),
+        vault: h.vault,
+        queue: h.queue,
+        commonV2Ready: false,
+        now: time.now,
+      );
+      engine.start();
+      await time.elapse(Duration.zero);
+      final initial = reads;
+      fail = true;
+      await time.elapse(const Duration(seconds: 60));
+      expect(reads, initial + 1);
+      await time.elapse(const Duration(seconds: 4));
+      expect(reads, initial + 1);
+      await time.elapse(const Duration(seconds: 1));
+      expect(reads, initial + 2);
+      await time.elapse(const Duration(seconds: 14));
+      expect(reads, initial + 2);
+      await time.elapse(const Duration(seconds: 1));
+      expect(reads, initial + 3);
+      fail = false;
+      engine.requestSync();
+      await time.elapse(Duration.zero);
+      expect(reads, initial + 3);
+      await time.elapse(const Duration(seconds: 44));
+      expect(reads, initial + 3);
+      await time.elapse(const Duration(seconds: 1));
+      expect(reads, initial + 4);
+      await time.elapse(const Duration(seconds: 59));
+      expect(reads, initial + 4);
+      fail = true;
+      failure = SyncFailure.rateLimited;
+      await time.elapse(const Duration(seconds: 1));
+      expect(reads, initial + 5);
+      await time.elapse(const Duration(seconds: 89));
+      expect(reads, initial + 5);
+      await time.elapse(const Duration(seconds: 1));
+      expect(reads, initial + 6);
+      engine.stop();
+      notices.close();
+      await time.elapse(const Duration(minutes: 5));
+      expect(reads, initial + 6);
+      expect(time.nonPeriodicTimerCount + time.periodicTimerCount, 0);
+    });
+  });
+
+  test('a version received during an older GET queues another read', () async {
+    final notices = StreamController<SyncEvent>();
+    final arrived = Completer<void>();
+    final release = Completer<void>();
+    final changed = Completer<void>();
+    var hold = false;
+    late final WebSyncEngine engine;
+    engine = WebSyncEngine(
+      transport: SyncV2Client(
+        base: h.client.base,
+        sendRequest: (method, uri, {body, headers = const {}}) async {
+          final response = await h.worker.send(
+            method,
+            uri,
+            body: body,
+            headers: headers,
+          );
+          if (hold && method == 'GET' && uri.path == '/v2/lists/$kV2Sync') {
+            hold = false;
+            arrived.complete();
+            await release.future;
+          }
+          return response;
+        },
+        openSocket: (_, _) => notices.stream,
+      ),
+      vault: h.vault,
+      queue: h.queue,
+      commonV2Ready: false,
+      refreshInterval: const Duration(hours: 1),
+      onChanged: () {
+        if (!changed.isCompleted &&
+            engine.candidate?.record(Collections.gifts, 'gift')?['title'] ==
+                'Libro') {
+          changed.complete();
+        }
+      },
+    );
+    addTearDown(() async {
+      engine.stop();
+      await notices.close();
+    });
+    await engine.start();
+    hold = true;
+    final reading = engine.requestSync();
+    await arrived.future;
+    h.phone.doc = h.phone.doc.set(h.phone.clock, Collections.gifts, 'gift', {
+      'title': 'Libro',
+    });
+    await SyncV2Engine(transport: h.client, local: h.phone).sync();
+    notices.add(SyncVersionEvent(h.worker.versionOf(kV2Sync)!));
+    await Future<void>.delayed(Duration.zero);
+    release.complete();
+    await reading;
+    await changed.future.timeout(const Duration(seconds: 2));
+    expect(engine.version, h.worker.versionOf(kV2Sync));
+  });
   test('web startup and recovery providers never access mobile stores or transports', () async {
     final c = ProviderContainer(
       overrides: [
@@ -531,11 +1061,13 @@ void main() {
     test('a network failure reads offline and clears on the next success; '
         'onChanged fires on each change', () async {
       var changes = 0;
+      var instant = DateTime.utc(2026);
       final engine = WebSyncEngine(
         transport: h.client,
         vault: h.vault,
         queue: h.queue,
         onChanged: () => changes++,
+        now: () => instant,
       );
       addTearDown(engine.stop);
       h.worker.offline = true;
@@ -543,6 +1075,7 @@ void main() {
       expect(engine.activity, WebSyncActivity.offline);
       expect(changes, 1);
       h.worker.offline = false;
+      instant = instant.add(const Duration(seconds: 5));
       await engine.requestSync();
       expect(engine.activity, WebSyncActivity.idle);
       expect(changes, greaterThanOrEqualTo(2));

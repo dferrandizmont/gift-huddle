@@ -1477,10 +1477,6 @@
   "@joinIntro": {
     "description": "Subtítulo de la pantalla de lectura."
   },
-  "joinCameraError": "No se puede usar la cámara. Revisa el permiso de cámara en los ajustes del móvil.",
-  "@joinCameraError": {
-    "description": "Error de la cámara al leer el QR."
-  },
   "scannerWaitingPermission": "Esperando el permiso de la cámara…",
   "@scannerWaitingPermission": {
     "description": "Texto mientras el sistema pregunta por el permiso de cámara del lector de QR (sobre fondo negro, junto a un indicador)."
@@ -5519,5 +5515,13 @@
   "recoveryProblemPersonBody": "Cambió la persona de este móvil o hay un cambio pendiente. Crea un código nuevo y guarda ese.",
   "@recoveryProblemPersonBody": {
     "description": "Explicación del error de código que ya no es el de la persona actual."
+  },
+  "recoveryFileProblemStorageTitle": "No se ha podido leer la lista de este móvil",
+  "recoveryFileProblemStorageBody": "El fichero sigue a la espera. Vuelve a intentarlo: antes de recuperar, la app tiene que comprobar que este móvil no tiene ya una lista.",
+  "@recoveryFileProblemStorageTitle": {
+    "description": "Error al leer la familia local antes de abrir un fichero recibido."
+  },
+  "@recoveryFileProblemStorageBody": {
+    "description": "Conserva el fichero y pide reintentar sin asumir que el móvil esté vacío."
   }
 }

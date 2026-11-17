@@ -301,7 +301,6 @@
   "showQrWarning": "No facis cap captura ni el comparteixis: aquest codi dona accés a tota la llista. Ensenya'l només en persona.",
   "showQrLabel": "Codi QR per connectar un altre mòbil",
   "joinIntro": "Apunta la càmera al codi QR de l'altre mòbil.",
-  "joinCameraError": "No es pot fer servir la càmera. Revisa el permís de càmera als ajustos del mòbil.",
   "scannerWaitingPermission": "Esperant el permís de la càmera…",
   "scannerDeniedTitle": "Cal la càmera",
   "scannerDeniedBody": "Només es fa servir per llegir el codi QR; no es desa cap imatge.",
@@ -1209,5 +1208,7 @@
   "recoverFileWaitingSwitch": "Canvia de fitxer",
   "recoverFileWaitingKeep": "Continua amb l'actual",
   "recoveryProblemPersonTitle": "Aquest codi ja no és el de la teva persona actual",
-  "recoveryProblemPersonBody": "Ha canviat la persona d'aquest mòbil o hi ha un canvi pendent. Crea un codi nou i desa aquell."
+  "recoveryProblemPersonBody": "Ha canviat la persona d'aquest mòbil o hi ha un canvi pendent. Crea un codi nou i desa aquell.",
+  "recoveryFileProblemStorageTitle": "No s'ha pogut llegir la llista d'aquest mòbil",
+  "recoveryFileProblemStorageBody": "El fitxer continua a l'espera. Torna-ho a provar: abans de recuperar, l'app ha de comprovar que aquest mòbil no té ja una llista."
 }

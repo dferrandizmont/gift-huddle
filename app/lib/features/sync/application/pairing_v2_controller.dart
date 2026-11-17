@@ -522,7 +522,48 @@ class PairingV2HostController extends Notifier<PairingV2HostState> {
 
   Future<void> _check(int run) async {
     final host = _host;
-    if (host == null || state.phase != PairingV2HostPhase.waiting) return;
+    if (host == null) return;
+    if (state.phase == PairingV2HostPhase.compare ||
+        state.phase == PairingV2HostPhase.confirmPerson) {
+      try {
+        _pacer?.sent();
+        await host.ensureAlive();
+        if (run != _run ||
+            !ref.mounted ||
+            (state.phase != PairingV2HostPhase.compare &&
+                state.phase != PairingV2HostPhase.confirmPerson)) {
+          return;
+        }
+        _pacer?.succeeded();
+        _schedule(run);
+      } on InviteGoneException catch (e) {
+        if (run == _run &&
+            ref.mounted &&
+            (state.phase == PairingV2HostPhase.compare ||
+                state.phase == PairingV2HostPhase.confirmPerson)) {
+          _end(
+            PairingV2HostPhase.cancelled,
+            failureCode: _failureCode('poll', e),
+          );
+        }
+      } on Object catch (e) {
+        if (run != _run ||
+            !ref.mounted ||
+            (state.phase != PairingV2HostPhase.compare &&
+                state.phase != PairingV2HostPhase.confirmPerson)) {
+          return;
+        }
+        final limited =
+            e is SyncTransportException && e.failure == SyncFailure.rateLimited;
+        _schedule(
+          run,
+          limited: limited,
+          retryAfter: limited ? e.retryAfter : null,
+        );
+      }
+      return;
+    }
+    if (state.phase != PairingV2HostPhase.waiting) return;
     try {
       _pacer?.sent();
       final answered = await host.poll();
@@ -561,6 +602,7 @@ class PairingV2HostController extends Notifier<PairingV2HostState> {
         guestPersonId: person,
         guestPersonName: name,
       );
+      _schedule(run);
     } on InviteGoneException catch (e) {
       // De una invitación vieja: la nueva no se toca.
       if (run != _run || !ref.mounted) return;
@@ -613,6 +655,7 @@ class PairingV2HostController extends Notifier<PairingV2HostState> {
     final host = _host!;
     final run = _run;
     final current = state;
+    _stop();
     state = current._as(PairingV2HostPhase.approving);
     try {
       await host.confirm(

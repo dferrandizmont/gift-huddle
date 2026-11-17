@@ -1,3 +1,4 @@
+import { euNamespace } from "./eu-namespace";
 import { DurableObject } from "cloudflare:workers";
 import type { Env } from "./env";
 import { LIST_TTL_MS, RECOVERY_RESERVATION_MS } from "./limits";
@@ -75,7 +76,7 @@ export class RecoveryLocatorObject extends DurableObject<Env> {
     // Never hold the locator lock while calling a list: list -> reserve is the
     // other direction. The token check below fences a delayed alarm result.
     try {
-      const ns = this.env.LISTS_V2.jurisdiction("eu");
+      const ns = euNamespace(this.env.LISTS_V2, this.env);
       const state = await ns.get(ns.idFromName(row.sid)).recoveryReconcile(row.reservationId);
       if (state === "linked") await this.confirm(row.sid, row.reservationId);
       else if (state === "retired") await this.retire(row.sid, row.reservationId);

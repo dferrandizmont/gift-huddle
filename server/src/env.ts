@@ -4,6 +4,8 @@ import type { LimiterV2Object } from "./limiter-v2-object";
 import type { RecoveryLocatorObject } from "./recovery-locator-object";
 
 export interface Env {
+  /** Local workerd only; never set in the deployed configuration. */
+  LOCAL_DEV?: string;
   RECOVERIES_V2: DurableObjectNamespace<RecoveryLocatorObject>;
   /** Fail closed unless explicitly enabled after renewal engine integration. */
   RENEWAL_ENABLED?: string;
@@ -21,6 +23,7 @@ declare global {
       mainModule: typeof import("./index");
     }
     interface Env {
+      LOCAL_DEV?: string;
       RECOVERIES_V2: DurableObjectNamespace<RecoveryLocatorObject>;
       RENEWAL_ENABLED?: string;
       LIMITER_V2: DurableObjectNamespace<LimiterV2Object>;

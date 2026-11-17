@@ -83,7 +83,7 @@ No hay cuentas ni publicidad, y el desarrollador no usa analítica ni informes d
 
 ## Novedades
 
-La versión 1.0.2 (16 de noviembre de 2026) permite guardar el código de recuperación en un fichero, con contraseña si quieres, hace que conectar la versión web vuelva a funcionar y vaya más rápido, y evita que el escáner QR se quede en negro. La versión 1.0.0 (16 de noviembre de 2026) es la primera en las tiendas. Trae la lista de regalos de cada persona, el reparto en rejilla, las ocasiones con cuenta atrás, los regalos secretos, compartir entre móviles y con la versión web, el código de recuperación y los temas claro y oscuro. Los detalles, en [CHANGELOG.md](CHANGELOG.md).
+La versión 1.0.3 (17 de noviembre de 2026) abre un fichero de recuperación directamente desde Archivos, también con la app ya abierta, y muestra «Guardar en un fichero» en la pantalla de las 24 palabras sin tener que bajar. La versión 1.0.2 (16 de noviembre de 2026) permite guardar el código de recuperación en un fichero, con contraseña si quieres, hace que conectar la versión web vuelva a funcionar y vaya más rápido, y evita que el escáner QR se quede en negro. La versión 1.0.0 (16 de noviembre de 2026) es la primera en las tiendas. Trae la lista de regalos de cada persona, el reparto en rejilla, las ocasiones con cuenta atrás, los regalos secretos, compartir entre móviles y con la versión web, el código de recuperación y los temas claro y oscuro. Los detalles, en [CHANGELOG.md](CHANGELOG.md).
 
 ## Contribuir
 

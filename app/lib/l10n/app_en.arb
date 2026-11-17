@@ -301,7 +301,6 @@
   "showQrWarning": "Don't take a screenshot or share it: this code gives access to the whole list. Show it in person only.",
   "showQrLabel": "QR code to connect another phone",
   "joinIntro": "Point the camera at the other phone's QR code.",
-  "joinCameraError": "The camera can't be used. Check the camera permission in the phone settings.",
   "scannerWaitingPermission": "Waiting for camera permission…",
   "scannerDeniedTitle": "The camera is needed",
   "scannerDeniedBody": "It is only used to read the QR code; no image is saved.",
@@ -1209,5 +1208,7 @@
   "recoverFileWaitingSwitch": "Switch file",
   "recoverFileWaitingKeep": "Keep the current one",
   "recoveryProblemPersonTitle": "This code is no longer your current person's",
-  "recoveryProblemPersonBody": "This phone's person changed or a change is pending. Create a new code and keep that one."
+  "recoveryProblemPersonBody": "This phone's person changed or a change is pending. Create a new code and keep that one.",
+  "recoveryFileProblemStorageTitle": "Could not read this phone's list",
+  "recoveryFileProblemStorageBody": "The file is still waiting. Try again: before recovering, the app has to check that this phone does not already have a list."
 }

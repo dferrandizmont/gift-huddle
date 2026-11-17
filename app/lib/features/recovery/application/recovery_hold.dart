@@ -19,5 +19,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// No se "desecha" con el contenedor: los oyentes (router y puerta) se quitan
 /// ellos, y soltar la retención en un microtask tras desmontar la pantalla no
 /// debe tropezar con un notificador ya cerrado.
-final Provider<ValueNotifier<bool>> recoveryHoldProvider =
-    Provider<ValueNotifier<bool>>((ref) => ValueNotifier<bool>(false));
+final Provider<RecoveryHold> recoveryHoldProvider = Provider<RecoveryHold>(
+  (ref) => RecoveryHold(),
+);
+
+/// Cada pantalla conserva su retención aunque otra termine de desmontarse.
+class RecoveryHold extends ValueNotifier<bool> {
+  RecoveryHold() : super(false);
+
+  final Set<Object> _owners = {};
+
+  void acquire(Object owner) {
+    _owners.add(owner);
+    value = _owners.isNotEmpty;
+  }
+
+  void release(Object owner) {
+    _owners.remove(owner);
+    value = _owners.isNotEmpty;
+  }
+}

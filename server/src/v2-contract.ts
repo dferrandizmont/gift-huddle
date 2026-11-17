@@ -169,7 +169,7 @@ export function validateSnapshot(b: Record<string, unknown>): 400 | 413 | null {
 const SLOT_HEADER_CHARS = 560;
 
 export type V2Route = {
-  resource: "list" | "common" | "capability" | "guard" | "ws" | "revoke" | "invites" | "slot" | "invite" | "reveal" | "approve" | "offer" | "answer" | "result" | "checkpoint" | "renewal" | "recoveries" | "recovery" | "recoveryClaim" | "recoveryRotation" | "recoveryCommit";
+  resource: "list" | "common" | "capability" | "guard" | "ws" | "revoke" | "invites" | "slot" | "invite" | "reveal" | "approve" | "offer" | "answer" | "withdraw" | "result" | "checkpoint" | "renewal" | "recoveries" | "recovery" | "recoveryClaim" | "recoveryRotation" | "recoveryCommit";
   action?: "prepare" | "commit" | "cancel" | "open" | "resume";
   methods: string[];
   syncId?: string;
@@ -198,7 +198,7 @@ export function matchV2(path: string): V2Route | null {
     if (p.length !== 5) return null;
     if (p[4] === "offer" || p[4] === "result") return { inviteId: p[3], resource: p[4], methods: ["GET"] };
     if (p[4] === "checkpoint") return { inviteId: p[3], resource: "checkpoint", methods: ["GET", "DELETE"] };
-    if (p[4] === "answer") return { inviteId: p[3], resource: "answer", methods: ["POST"] };
+    if (p[4] === "answer" || p[4] === "withdraw") return { inviteId: p[3], resource: p[4], methods: ["POST"] };
     return null;
   }
   if (p[2] !== "lists") return null;

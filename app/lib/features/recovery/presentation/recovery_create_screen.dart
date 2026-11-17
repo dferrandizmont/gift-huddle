@@ -418,42 +418,22 @@ class _RecoveryCreateScreenState extends ConsumerState<RecoveryCreateScreen> {
                   ? l10n.recoveryWordsWarn
                   : '${l10n.recoveryWordsWarn} ${l10n.recoveryWordsWarnNoBlock}',
             ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: _busy ? null : _saveToFile,
-              icon: StrokeIcon(
-                SettingsIcons.download,
-                size: 18,
-                color: t.text,
-                strokeWidth: 1.9,
-              ),
-              label: Text(l10n.recoveryFileAction),
-            ),
           ],
         );
-        footer = Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            FilledButton(
-              onPressed: () => setState(() {
-                for (final c in _answers) {
-                  c.clear();
-                }
-                _wrong = false;
-                _go(_Step.check);
-                unawaited(_secure(false));
-              }),
-              child: Text(l10n.recoveryWordsSaved),
-            ),
-            const SizedBox(height: 4),
-            TextButton(
-              onPressed: () => setState(() => _showQr = !_showQr),
-              child: Text(
-                _showQr ? l10n.recoveryShowWords : l10n.recoveryShowQr,
-              ),
-            ),
-          ],
+        // Las tres acciones van siempre a la vista, en la zona fija: «Ya las he
+        // guardado» como principal y «Guardar en un fichero» y el QR debajo.
+        footer = _WordsActions(
+          onSaved: () => setState(() {
+            for (final c in _answers) {
+              c.clear();
+            }
+            _wrong = false;
+            _go(_Step.check);
+            unawaited(_secure(false));
+          }),
+          onFile: _busy ? null : _saveToFile,
+          onToggleQr: () => setState(() => _showQr = !_showQr),
+          showQr: _showQr,
         );
       case _Step.check:
         body = Column(
@@ -562,6 +542,77 @@ class _RecoveryCreateScreenState extends ConsumerState<RecoveryCreateScreen> {
         footer: footer,
         child: SharedAxisSwitcher(index: _step.index, child: body),
       ),
+    );
+  }
+}
+
+/// Los botones fijos de las palabras: la acción principal y, debajo, las dos
+/// secundarias en una fila (apiladas con letra muy grande, para que no se
+/// corten).
+class _WordsActions extends StatelessWidget {
+  const _WordsActions({
+    required this.onSaved,
+    required this.onFile,
+    required this.onToggleQr,
+    required this.showQr,
+  });
+
+  final VoidCallback onSaved;
+  final VoidCallback? onFile;
+  final VoidCallback onToggleQr;
+  final bool showQr;
+
+  /// A partir de esta escala de letra, las secundarias se apilan.
+  static const _stackScale = 1.3;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final t = RegalosTokens.of(context);
+    final stacked =
+        MediaQuery.textScalerOf(context).scale(15) > 15 * _stackScale;
+    const compact = EdgeInsets.symmetric(horizontal: 12, vertical: 8);
+    final file = OutlinedButton.icon(
+      onPressed: onFile,
+      style: OutlinedButton.styleFrom(padding: compact),
+      icon: StrokeIcon(
+        SettingsIcons.download,
+        size: 18,
+        color: t.text,
+        strokeWidth: 1.9,
+      ),
+      label: Text(l10n.recoveryFileAction, textAlign: TextAlign.center),
+    );
+    final qr = OutlinedButton(
+      onPressed: onToggleQr,
+      style: OutlinedButton.styleFrom(padding: compact),
+      child: Text(
+        showQr ? l10n.recoveryShowWords : l10n.recoveryShowQr,
+        textAlign: TextAlign.center,
+      ),
+    );
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FilledButton(onPressed: onSaved, child: Text(l10n.recoveryWordsSaved)),
+        const SizedBox(height: 8),
+        if (stacked) ...[
+          file,
+          const SizedBox(height: 8),
+          qr,
+        ] else
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(flex: 3, child: file),
+                const SizedBox(width: 8),
+                Expanded(flex: 2, child: qr),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }

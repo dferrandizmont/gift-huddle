@@ -26,6 +26,7 @@ import 'package:regalos/features/web_device/presentation/web_gate_model.dart';
 
 import 'test_support.dart';
 import 'web_engine_support.dart';
+import '../sync/v2_harness.dart';
 
 /// Runs [future] to completion advancing the fake clock 1 ms at a time.
 T _drive<T>(FakeAsync async, Future<T> future) {
@@ -68,45 +69,87 @@ void main() {
   /// with [hangResult], the next one never answers.
   var failResults = 0;
   var hangResult = false;
+  var hangWithdraw = false;
+  var failWithdraw = false;
+  var hangRevoke = false, failRevoke = false;
+  var separateWithdrawal = false, pollingClosed = false, cleanupClosed = false;
+  Completer<void>? holdAnswer;
 
   /// How many requests had been made when the offer came back with 200.
   int? offerOkAt;
 
   WebGateController start(FakeAsync async) {
-    final client = SyncV2Client(
-      base: Uri.parse('https://sync.test'),
-      sendRequest: (method, uri, {body, headers = const {}}) {
-        requests.add('$method ${uri.path.split('/').last}');
-        if (uri.path.endsWith('/result')) {
-          if (hangResult) {
-            hangResult = false;
-            return Completer<SyncResponse>().future;
-          }
-          if (failResults > 0) {
-            failResults--;
-            return Future.error(
-              const SyncTransportException(SyncFailure.network, 'corte'),
-            );
-          }
+    Future<SyncResponse> sendRequest(
+      String method,
+      Uri uri, {
+      Object? body,
+      Map<String, String> headers = const {},
+    }) {
+      requests.add('$method ${uri.path.split('/').last}');
+      if (uri.path.endsWith('/withdraw')) {
+        if (hangWithdraw) return Completer<SyncResponse>().future;
+        if (failWithdraw) return Future.error(StateError('offline'));
+      }
+      if (uri.path.endsWith('/revoke')) {
+        if (hangRevoke) return Completer<SyncResponse>().future;
+        if (failRevoke) return Future.error(StateError('offline'));
+      }
+      if (uri.path.endsWith('/result')) {
+        if (hangResult) {
+          hangResult = false;
+          return Completer<SyncResponse>().future;
         }
-        if (uri.path.endsWith('/answer')) {
-          answers.add(jsonEncode(body));
-          // The Worker refuses it before reading it, like its rate limiter.
-          if (limitAnswer) {
-            limitAnswer = false;
-            return Future.value(_limited(5));
-          }
+        if (failResults > 0) {
+          failResults--;
+          return Future.error(
+            const SyncTransportException(SyncFailure.network, 'corte'),
+          );
         }
-        return h.worker.send(method, uri, body: body, headers: headers).then((
-          r,
-        ) {
-          if (uri.path.endsWith('/offer') && r.status == 200) {
-            offerOkAt ??= requests.length;
-          }
-          return r;
-        });
-      },
-    );
+      }
+      if (uri.path.endsWith('/answer')) {
+        answers.add(jsonEncode(body));
+        // The Worker refuses it before reading it, like its rate limiter.
+        if (limitAnswer) {
+          limitAnswer = false;
+          return Future.value(_limited(5));
+        }
+      }
+      final hold = holdAnswer;
+      if (hold != null && uri.path.endsWith('/answer')) {
+        holdAnswer = null;
+        return hold.future.then(
+          (_) => h.worker.send(method, uri, body: body, headers: headers),
+        );
+      }
+      return h.worker.send(method, uri, body: body, headers: headers).then((r) {
+        if (uri.path.endsWith('/offer') && r.status == 200) {
+          offerOkAt ??= requests.length;
+        }
+        return r;
+      });
+    }
+
+    SyncV2Client? client;
+    void Function()? closePolling;
+    SyncV2Client network() {
+      if (client != null) return client!;
+      // Like the bootstrap, restart closes the old client and lazily opens a
+      // new one. Each client keeps its own closed state for late requests.
+      var closed = false;
+      pollingClosed = false;
+      closePolling = () {
+        closed = pollingClosed = true;
+        client = null;
+      };
+      return client = SyncV2Client(
+        base: Uri.parse('https://sync.test'),
+        sendRequest: (method, uri, {body, headers = const {}}) {
+          if (closed) return Future.error(StateError('polling closed'));
+          return sendRequest(method, uri, body: body, headers: headers);
+        },
+      );
+    }
+
     final next = WebGateController(
       vault: VaultService(
         store: MemoryVaultStore(),
@@ -118,7 +161,31 @@ void main() {
         persist: () async => false,
       ),
       platform: FakeSessionPlatform(FakeLockHub()),
-      transport: () => client,
+      transport: network,
+      cancelTransport: separateWithdrawal ? () => closePolling?.call() : null,
+      withdrawInvite: separateWithdrawal
+          ? (
+              inviteId, {
+              required credential,
+              required onAlreadyApproved,
+            }) async {
+              final cleanup = SyncV2Client(
+                base: Uri.parse('https://sync.test'),
+                sendRequest: sendRequest,
+              );
+              try {
+                final result = await cleanup
+                    .withdrawInvite(inviteId, credential: credential)
+                    .timeout(const Duration(seconds: 2));
+                if (result == V2InviteWithdrawal.alreadyApproved) {
+                  await onAlreadyApproved(cleanup);
+                }
+                return result;
+              } finally {
+                cleanupClosed = true;
+              }
+            }
+          : null,
       createContainer: (_) {},
       disposeContainer: () {},
       pairingNow: () =>
@@ -132,7 +199,7 @@ void main() {
     return next;
   }
 
-  void setUpAll(FakeAsync async) {
+  void setUpAll(FakeAsync async, {bool separate = false}) {
     requests = [];
     answers = [];
     shift = Duration.zero;
@@ -140,6 +207,12 @@ void main() {
     offerOkAt = null;
     failResults = 0;
     hangResult = false;
+    hangWithdraw = false;
+    failWithdraw = false;
+    hangRevoke = failRevoke = false;
+    separateWithdrawal = separate;
+    pollingClosed = cleanupClosed = false;
+    holdAnswer = null;
     h = WebHarness();
     _drive(async, h.setup(approve: false));
     h.guest.cancel();
@@ -166,6 +239,279 @@ void main() {
     async.elapse(const Duration(seconds: 70));
     expect(requests, isEmpty);
   }
+
+  for (final action in [
+    'reject',
+    'restart',
+    'watchdog',
+    'expiry',
+    'close',
+    'cancel',
+  ]) {
+    test(
+      '$action withdraws exactly once after answer and never waits for HTTP',
+      () {
+        fakeAsync((async) {
+          setUpAll(async);
+          final host = scan(async);
+          async.elapse(const Duration(seconds: 3));
+          _drive(async, host.poll());
+          async.elapse(const Duration(seconds: 3));
+          expect(gate.view, isA<WebGateComparing>());
+          hangWithdraw = true;
+          requests.clear();
+          switch (action) {
+            case 'reject':
+              _drive(async, gate.rejectCode());
+            case 'restart':
+              _drive(async, gate.restartPairing());
+            case 'watchdog':
+              _drive(async, gate.confirmCode());
+              hangResult = true;
+              async.elapse(const Duration(seconds: 35));
+              failResults = 3;
+              async.elapse(const Duration(seconds: 15));
+            case 'expiry':
+              shift = const Duration(minutes: 11);
+              _drive(async, gate.checkPairing());
+            case 'close':
+              unawaited(gate.close());
+              async.flushMicrotasks();
+            case 'cancel':
+              gate.session.lock();
+              async.flushMicrotasks();
+          }
+          expect(requests.where((r) => r == 'POST withdraw'), hasLength(1));
+          if (action == 'restart') {
+            expect(gate.view, isA<WebGateConnect>());
+          } else if (action != 'close' && action != 'cancel') {
+            expect(gate.view, isA<WebGateConnectFailed>());
+          }
+          // Even a stuck withdrawal times out without an unhandled exception.
+          async.elapse(const Duration(seconds: 3));
+          expect(requests.where((r) => r == 'POST withdraw'), hasLength(1));
+          if (action != 'close') close(async);
+        });
+      },
+    );
+  }
+
+  test('withdrawal failure never replaces the mismatch message; no answer means no withdrawal', () {
+    fakeAsync((async) {
+      setUpAll(async);
+      _drive(async, gate.rejectCode());
+      expect(requests.where((r) => r == 'POST withdraw'), isEmpty);
+      _drive(async, gate.restartPairing());
+      final host = scan(async);
+      async.elapse(const Duration(seconds: 3));
+      _drive(async, host.poll());
+      async.elapse(const Duration(seconds: 3));
+      failWithdraw = true;
+      _drive(async, gate.rejectCode());
+      async.flushMicrotasks();
+      expect(
+        (gate.view as WebGateConnectFailed).reason,
+        WebConnectFailure.codeMismatch,
+      );
+      expect(requests.where((r) => r == 'POST withdraw'), hasLength(1));
+      close(async);
+    });
+  });
+
+  test('delivered withdrawal removes the invitation seen by the phone', () {
+    fakeAsync((async) {
+      setUpAll(async);
+      final host = scan(async);
+      async.elapse(const Duration(seconds: 3));
+      _drive(async, host.poll());
+      async.elapse(const Duration(seconds: 3));
+      _drive(async, gate.rejectCode());
+      Object? error;
+      _drive(
+        async,
+        host.ensureAlive().catchError((Object e) {
+          error = e;
+        }),
+      );
+      expect(error, isA<InviteGoneException>());
+      close(async);
+    });
+  });
+
+  for (final failure in [
+    'none',
+    'result error',
+    'result timeout',
+    'result pending',
+    'result gone',
+    'result malformed',
+    'revoke error',
+    'revoke timeout',
+  ]) {
+    test(
+      'approval wins: $failure never blocks cancellation with a closed polling client',
+      () {
+        fakeAsync((async) {
+          setUpAll(async, separate: true);
+          final host = scan(async);
+          async.elapse(const Duration(seconds: 3));
+          _drive(async, host.poll());
+          async.elapse(const Duration(seconds: 3));
+          expect(gate.view, isA<WebGateComparing>());
+          _drive(async, host.confirm(confirmedPersonId: 'nora'));
+          // Phone approval alone leaves the unconfirmed comparison in place.
+          async.elapse(const Duration(seconds: 5));
+          expect(gate.view, isA<WebGateComparing>());
+          expect((gate.view as WebGateComparing).confirmed, isFalse);
+          expect(pollingClosed, isFalse);
+          expect(requests.where((r) => r == 'POST withdraw'), isEmpty);
+          expect(requests.where((r) => r == 'POST revoke'), isEmpty);
+          final webId = h.worker
+              .devicesOf(kV2Sync)
+              .keys
+              .singleWhere((id) => id != h.phone.identity.deviceId);
+          final guest = gate.guest!;
+          switch (failure) {
+            case 'result error':
+              failResults = 1;
+            case 'result timeout':
+              hangResult = true;
+            case 'revoke error':
+              failRevoke = true;
+            case 'revoke timeout':
+              hangRevoke = true;
+            case 'result pending':
+            case 'result gone':
+            case 'result malformed':
+              h.worker.tamper = (method, uri, response) {
+                if (!uri.path.endsWith('/result')) return response;
+                return SyncResponse(
+                  failure == 'result pending'
+                      ? 202
+                      : failure == 'result gone'
+                      ? 404
+                      : 200,
+                  const {},
+                  Uint8List.fromList(
+                    utf8.encode(
+                      failure == 'result pending'
+                          ? '{"status":"pending","reveal":null}'
+                          : '{}',
+                    ),
+                  ),
+                );
+              };
+          }
+          requests.clear();
+          var cancelled = false;
+          unawaited(gate.rejectCode().then((_) => cancelled = true));
+          async.flushMicrotasks();
+          expect(
+            cancelled,
+            isTrue,
+            reason: 'cancellation never waits for HTTP',
+          );
+          expect(pollingClosed, isTrue);
+          expect(
+            (gate.view as WebGateConnectFailed).reason,
+            WebConnectFailure.codeMismatch,
+          );
+          // The 409 has not come back yet: the cleanup runs on its own.
+          expect(guest.approved, isFalse);
+          async.elapse(const Duration(seconds: 5));
+          expect(cleanupClosed, isTrue);
+          expect(guest.approved, isTrue);
+          expect(
+            (gate.view as WebGateConnectFailed).reason,
+            WebConnectFailure.codeMismatch,
+          );
+          expect(requests, [
+            'POST withdraw',
+            'GET result',
+            if (failure == 'none' || failure.startsWith('revoke'))
+              'POST revoke',
+          ]);
+          expect(h.worker.devicesOf(kV2Sync)[webId], failure == 'none');
+          expect(
+            h.worker.devicesOf(kV2Sync)[h.phone.identity.deviceId],
+            isFalse,
+          );
+          close(async);
+        });
+      },
+    );
+  }
+
+  test(
+    'a restart can compare again while the old approval cleanup times out',
+    () {
+      fakeAsync((async) {
+        setUpAll(async, separate: true);
+        final host = scan(async);
+        async.elapse(const Duration(seconds: 3));
+        _drive(async, host.poll());
+        async.elapse(const Duration(seconds: 3));
+        expect(gate.view, isA<WebGateComparing>());
+        _drive(async, host.confirm(confirmedPersonId: 'nora'));
+        final oldGuest = gate.guest!;
+        hangResult = true;
+        _drive(async, gate.restartPairing());
+        expect(gate.view, isA<WebGateConnect>());
+        expect(pollingClosed, isFalse);
+        expect(cleanupClosed, isFalse);
+        expect(gate.guest!.qr.inviteId, isNot(oldGuest.qr.inviteId));
+
+        final nextHost = scan(async);
+        _drive(async, gate.checkPairing());
+        _drive(async, nextHost.poll());
+        _drive(async, gate.checkPairing());
+        expect(cleanupClosed, isFalse);
+        final comparison = gate.view;
+        expect(comparison, isA<WebGateComparing>());
+        async.elapse(const Duration(seconds: 3));
+        expect(cleanupClosed, isTrue);
+        expect(oldGuest.approved, isTrue);
+        expect(gate.view, same(comparison));
+        expect((gate.view as WebGateComparing).confirmed, isFalse);
+        expect(pollingClosed, isFalse);
+        expect(requests.where((r) => r == 'POST withdraw'), hasLength(1));
+        expect(requests.where((r) => r == 'POST revoke'), isEmpty);
+        close(async);
+      });
+    },
+  );
+
+  test(
+    'a late accepted answer retries a withdrawal that saw no answer yet',
+    () {
+      fakeAsync((async) {
+        setUpAll(async);
+        final host = scan(async);
+        final hold = holdAnswer = Completer<void>();
+        async.elapse(const Duration(seconds: 3));
+        expect(requests.where((r) => r == 'POST answer'), hasLength(1));
+        _drive(async, gate.rejectCode());
+        async.flushMicrotasks();
+        expect(requests.where((r) => r == 'POST withdraw'), hasLength(1));
+        hold.complete();
+        async.elapse(const Duration(milliseconds: 10));
+        expect(requests.where((r) => r == 'POST withdraw'), hasLength(2));
+        Object? error;
+        _drive(
+          async,
+          host.ensureAlive().catchError((Object e) {
+            error = e;
+          }),
+        );
+        expect(error, isA<InviteGoneException>());
+        expect(
+          (gate.view as WebGateConnectFailed).reason,
+          WebConnectFailure.codeMismatch,
+        );
+        close(async);
+      });
+    },
+  );
 
   test('1: after a 429, a second «They match» does not bring the poll '
       'forward; the poll comes when Retry-After ends', () {

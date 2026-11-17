@@ -5,6 +5,7 @@ import 'package:regalos/core/sync/hlc.dart';
 import 'package:regalos/core/sync/model.dart';
 import 'package:regalos/core/sync/envelope.dart';
 import 'package:regalos/features/sync/data/sync_transport_v2.dart';
+import 'package:regalos/features/sync/data/sync_transport.dart';
 import 'package:regalos/features/web_device/data/guard_client.dart';
 import 'package:regalos/features/web_device/application/web_session_platform.dart';
 import 'package:regalos/features/sync/application/pairing_v2_flow.dart';
@@ -78,6 +79,99 @@ void main() {
     await gate.checkPairing();
     expect(gate.view, isA<WebGateChoosePin>());
   }
+
+  test(
+    'returning to a visible session catches up a silently stale socket',
+    () async {
+      await gate.close();
+      final sockets = <StreamController<SyncEvent>>[];
+      var reads = 0;
+      Completer<void>? reconnected;
+      final client = SyncV2Client(
+        base: Uri.parse('https://sync.test'),
+        sendRequest: (method, uri, {body, headers = const {}}) {
+          if (method == 'GET') reads++;
+          return h.worker.send(method, uri, body: body, headers: headers);
+        },
+        openSocket: (_, _) {
+          final socket = StreamController<SyncEvent>();
+          sockets.add(socket);
+          reconnected?.complete();
+          return socket.stream;
+        },
+      );
+      gate = WebGateController(
+        vault: h.vault,
+        platform: FakeSessionPlatform(locks),
+        transport: () => client,
+        createContainer: (_) {},
+        disposeContainer: () {},
+      );
+      await gate.initialize();
+      await gate.submitPin('123456');
+      await gate.engine!.start();
+      await gate.engine!.sync(); // Drain startup; no more explicit sync calls.
+      expect(sockets, hasLength(1));
+      final initialReads = reads;
+      final platform = locks.platforms.last;
+      platform.life.add(SessionLifecycle.hidden);
+      expect(sockets.single.hasListener, isFalse);
+      await h.publish(
+        doc: h.phone.doc.set(h.phone.clock, Collections.gifts, 'gift', {
+          'title': 'Libro',
+        }),
+      );
+      // The browser can suspend a tab without delivering a socket close or
+      // the version notification. Visibility must recover independently.
+      expect(reads, initialReads);
+      platform.life.add(SessionLifecycle.visible);
+      Future<void> expectTitle(String title) async {
+        final deadline = DateTime.now().add(const Duration(seconds: 2));
+        while (gate.engine!.candidate!.record(
+                  Collections.gifts,
+                  'gift',
+                )!['title'] !=
+                title &&
+            DateTime.now().isBefore(deadline)) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        expect(
+          gate.engine!.candidate!.record(Collections.gifts, 'gift')!['title'],
+          title,
+        );
+      }
+
+      await expectTitle('Libro');
+      expect(sockets, hasLength(2));
+      expect(reads, initialReads + 1);
+      await h.publish(
+        doc: h.phone.doc.set(h.phone.clock, Collections.gifts, 'gift', {
+          'title': 'Cuento',
+        }),
+      );
+      sockets.last.add(
+        SyncVersionEvent(h.worker.versionOf(gate.engine!.auth.syncId)!),
+      );
+      await expectTitle('Cuento');
+      // Ordinary close/retry must still work after replacing the old socket.
+      final reconnection = Completer<void>();
+      reconnected = reconnection;
+      await sockets.last.close();
+      await h.publish(
+        doc: h.phone.doc.set(h.phone.clock, Collections.gifts, 'gift', {
+          'title': 'Puzzle',
+        }),
+      );
+      await reconnection.future.timeout(const Duration(seconds: 3));
+      sockets.last.add(const SyncOpenEvent());
+      await expectTitle('Puzzle');
+      expect(sockets, hasLength(3));
+      gate.engine!.stop();
+      for (final socket in sockets) {
+        await socket.close();
+      }
+    },
+  );
 
   for (final phase in ['qr', 'comparison', 'pin']) {
     test(

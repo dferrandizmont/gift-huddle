@@ -38,6 +38,7 @@ class WebGateController extends ChangeNotifier implements WebGateActions {
     required this.createContainer,
     required this.disposeContainer,
     this.cancelTransport,
+    this.withdrawInvite,
     this.candidateChanged,
     SessionClock? clock,
     this.pairingOrigin = kWebPairingOrigin,
@@ -57,6 +58,12 @@ class WebGateController extends ChangeNotifier implements WebGateActions {
       unlockVault: _unlockVault,
       createContainer: () => createContainer(engine!),
       onStateChanged: _sessionChanged,
+      onHidden: () => engine?.suspend(),
+      onVisible: () {
+        if (vault.status == VaultStatus.open) {
+          unawaited(engine?.resume().catchError((Object _) {}));
+        }
+      },
     );
   }
   final VaultService vault;
@@ -65,6 +72,7 @@ class WebGateController extends ChangeNotifier implements WebGateActions {
   final void Function() disposeContainer;
   final void Function()? cancelTransport, candidateChanged;
   final String pairingOrigin;
+  final V2WithdrawInvite? withdrawInvite;
 
   /// Si un sondeo del emparejamiento no termina en este tiempo, el intento
   /// acaba en [WebConnectFailure.network] en vez de quedarse colgado.
@@ -170,7 +178,7 @@ class WebGateController extends ChangeNotifier implements WebGateActions {
     _poll?.cancel();
     _poll = null;
     nextPairingPoll = null;
-    guest?.cancel();
+    guest?.cancel(withdrawInvite: withdrawInvite);
     guest = null;
     engine?.stop();
     engine = null;
@@ -192,6 +200,7 @@ class WebGateController extends ChangeNotifier implements WebGateActions {
     final captured = session.generation;
     final next = WebSyncEngine(
       transport: transport(),
+      isVisible: () => session.visible,
       vault: vault,
       queue: queue,
       onChanged: () {

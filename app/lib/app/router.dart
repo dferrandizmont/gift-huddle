@@ -123,6 +123,7 @@ GoRouter buildRouter({
   late final GoRouter router;
   router = GoRouter(
     navigatorKey: rootNavigatorKey,
+    observers: [rootNavigatorObserver],
     initialLocation: initialLocation,
     redirect: (context, state) {
       // Los documentos y enlaces /i y /s tienen sus propios receptores.

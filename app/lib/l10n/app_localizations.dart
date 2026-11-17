@@ -1912,12 +1912,6 @@ abstract class AppLocalizations {
   /// **'Apunta la cámara al código QR del otro móvil.'**
   String get joinIntro;
 
-  /// Error de la cámara al leer el QR.
-  ///
-  /// In es, this message translates to:
-  /// **'No se puede usar la cámara. Revisa el permiso de cámara en los ajustes del móvil.'**
-  String get joinCameraError;
-
   /// Texto mientras el sistema pregunta por el permiso de cámara del lector de QR (sobre fondo negro, junto a un indicador).
   ///
   /// In es, this message translates to:
@@ -7053,6 +7047,18 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Cambió la persona de este móvil o hay un cambio pendiente. Crea un código nuevo y guarda ese.'**
   String get recoveryProblemPersonBody;
+
+  /// Error al leer la familia local antes de abrir un fichero recibido.
+  ///
+  /// In es, this message translates to:
+  /// **'No se ha podido leer la lista de este móvil'**
+  String get recoveryFileProblemStorageTitle;
+
+  /// Conserva el fichero y pide reintentar sin asumir que el móvil esté vacío.
+  ///
+  /// In es, this message translates to:
+  /// **'El fichero sigue a la espera. Vuelve a intentarlo: antes de recuperar, la app tiene que comprobar que este móvil no tiene ya una lista.'**
+  String get recoveryFileProblemStorageBody;
 }
 
 class _AppLocalizationsDelegate

@@ -4,6 +4,15 @@ All notable changes to Gift Huddle are listed here. Store versions may skip numb
 
 ## Unreleased
 
+- Tapping "They do not match" or starting again on the web now cancels the connection on the phone too, so the phone can no longer approve a computer that gave up. If approval arrives first, the web also tries to remove its unused access automatically.
+- Web version: changes made on the phone now show up on an open page without reloading. If the connection stops answering, the page reconnects on its own, and a hidden tab uses no network.
+
+## 1.0.3 · 2026-11-17
+
+- Opening a recovery file from the Files app now opens "Recover with a file", also when the app is already open. Invalid files and local storage errors show a notice instead of leaving the welcome screen silent.
+- "Save to a file" on the 24 words screen is now always visible without scrolling: it sits next to "Show QR code" in the fixed buttons at the bottom, under "I have saved them", and can no longer end up hidden behind them.
+- The recovery code scanner now shows the same camera messages as the other scanners, with "Try again" or "Open settings", instead of a fixed text.
+
 ## 1.0.2 · 2026-11-16
 
 - The privacy policy now explains the recovery code file: it is optional, it goes only where you save or share it, Gift Huddle never receives it, and without a password it is as sensitive as the 24 words.
@@ -13,6 +22,9 @@ All notable changes to Gift Huddle are listed here. Store versions may skip numb
 - Pairing the web version and another phone is faster: both sides now check every one or two seconds while the pairing screen is open, without going over the server's limits.
 - The QR scanner asks for the camera reliably and never stays as a black screen: if the permission dialog does not answer it checks again on its own, a second request waits for the first one's answer, and the camera preview starts right after the permission is granted. While it waits it says so, and if the camera is denied, blocked or does not answer, the scanner explains why with a "Try again" or "Open settings" button instead of a black box.
 - The recovery code can also be saved as a file, next to the 24 words, while they are shown: save it with the system file picker or share it to your own drive or email, optionally protected with a password (at least 15 characters). "Recover with a file" on the welcome screen, or opening the file from Files on a new phone, brings the list back just like typing the words; a saved and re-read file, or "Check a file" in Settings, counts as a checked code. Changing or removing the code makes old files stop working, just like old words.
+- Website (gifthuddle.app): the home page gets to the point faster: a shorter introduction, the download buttons above the key facts and a solid button for the version you can install now. The lock text says exactly when the app locks (with the PIN on, when you open it and after more than 30 seconds in the background), the synchronisation and privacy summaries are shorter (the QR reader detail moved to a new FAQ entry), the animated phone shows the same four givers as the real Who gives what (Reparto) screen (with higher contrast icons in dark mode), the footer links to the full privacy policy, the language and theme buttons are 44 px tall, the invitation page links to the installation steps, and a few Spanish, Catalan and English captions and texts read better.
+- Website (gifthuddle.app): the home page and the Downloads section show the official Google Play badge with "Closed test" under it (App Store stays as plain text until it is available), and the privacy policy index stays in view while you scroll on desktop, with 44 px high links.
+- Website (gifthuddle.app): a "Pause animations" button stops the moving phone, the feature thumbnails and the PIN animation (and resumes them); the full privacy policy has a table of contents (a side column on desktop, a folded list on phones), stable links to each section, no repeated title or date, and its own page title and description; each screenshot has an "Enlarge screenshot" link to a bigger image.
 - Website (gifthuddle.app): the Downloads section now explains how to join the Google Play closed test in three steps (join the testers group, become a tester, install the app) and asks to keep the app installed for at least 14 days, in Spanish, Catalan and English.
 - Website (gifthuddle.app): the footer links to the public source code on GitHub (github.com/dferrandizmont/gift-huddle, GPL-3.0).
 - Settings shows the real number of phones in the family (it always said 2), and a phone removed from the family counts only itself.

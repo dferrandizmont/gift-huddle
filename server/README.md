@@ -31,11 +31,22 @@ Object RPCs through a separate unrouted operator Worker; it adds no sync API rou
 
 ```sh
 cd server
-pnpm install
-pnpm exec wrangler dev --local --port 8787   # http://127.0.0.1:8787
+pnpm install --frozen-lockfile
+pnpm exec wrangler dev --local --var LOCAL_DEV:true --port 8787   # http://127.0.0.1:8787
 pnpm test       # workerd, no external network
 pnpm typecheck  # tsc --noEmit
 ```
+
+Local workerd does not implement `DurableObjectNamespace.jurisdiction("eu")`.
+The explicit `--var LOCAL_DEV:true` opt-in uses the plain local namespaces for
+v2 requests only after checking the URL hostname is `localhost`, `127.0.0.1`
+or `[::1]`; any other hostname fails with 500 before accessing an object.
+Internal RPCs inherit proof only for that checked request under the list lock;
+alarms and calls without proof always select EU. Local alarms may therefore
+fail to reconcile locators in workerd; they never fall back to unrestricted storage.
+Without that exact value, every namespace still selects EU and any error
+propagates. Never set `LOCAL_DEV` in `wrangler.toml` or deployed variables.
+No production data or migration changes.
 
 Retirement smoke test (does not create any object):
 
@@ -57,6 +68,26 @@ Nothing here deploys by itself, and no secret is needed: the Worker has no varia
 4. The custom-domain route `sync.gifthuddle.app` is configured in `wrangler.toml`; the retired trial hosts are no longer supported. `workers_dev = false` and `preview_urls = false` keep the alternate URLs closed. The exact browser origins are `https://gifthuddle.app` and `https://web.gifthuddle.app`; native clients send no Origin.
 5. Domain WAF rules must cover both `/v1/` and `/v2/`, including list PUTs. WAF rules do not apply to `workers.dev`.
 6. Changing a class name or removing one needs a new `[[migrations]]` entry with a new tag; never edit `v1`.
+7. Check `wrangler secret list` and `wrangler.toml`: neither must contain `LOCAL_DEV`.
+
+Guest withdrawal is ordered against approval by the list object's lock. A phone
+running 1.0.1 sees the same 404 as a cancelled invitation. The current phone
+also checks liveness while comparing the code. Withdrawal is best effort with
+a two-second timeout on web cancellation, restart, expiry, watchdog failure and
+dispose, only after sending an answer. The browser polling client is closed
+separately from a short-lived withdrawal client.
+
+If approval wins, withdrawal returns `409 already_approved`; the web uses its
+still-live withdrawal client and keys to GET the invitation result and revoke
+its own device in that syncId. Each step has a two-second timeout; UI cancellation
+never waits for cleanup or changes its failure message. Network
+loss, page termination, or a delayed answer accepted after an unsuccessful
+withdrawal can also prevent delivery; a late answer completion retries a 404.
+A host may also have published the signed guest record before sending its
+approval request. Withdrawal in that interval refuses the service credential,
+but cannot erase that signed registry declaration (the existing pre-approval
+publication window, ADR 0004 finding 14). It may still need removal on the phone.
+No new UI string or pagehide handler is introduced.
 
 ## Retired API v1
 
@@ -97,7 +128,8 @@ only ever sees and stores `SHA-256(credential)` (`serviceCredentialVerifier`).
 | `DELETE I` | Bearer of the owner | `204` | `403`; `404` |
 | `GET J/offer` | none (the id comes from the QR) | `200 {offer, guestPerson, expiresAt}` (`guestPerson: null` when absent) | `404` unknown, expired, cancelled or owner revoked |
 | `POST J/answer` | `{answer: PairingAnswer.toJson(), serviceCredentialVerifier}` | `201 {expiresAt}` | `400 person_mismatch` if the guest record's `p` differs from the reserved person; `400` unknown `k` (only optional `"web"`); `409 already_answered`; `409 credential_exists` (device id or verifier already in the list); `401` revoked verifier; `400`; `413` |
-| `GET J/result` | Bearer of the guest (the credential behind the submitted verifier) | `202 {status:"pending", reveal}` + `Retry-After: 4` until approved, then `200 {reveal, package, minVersion, syncId}`, repeatable until installation acknowledgement or the invitation expires | `404` wrong or missing credential, acknowledged or gone |
+| `POST J/withdraw` | Guest Bearer matching the verifier registered by the answer; `{}` | `204`; atomically removes the unapproved invitation for both sides, its package/checkpoint and locator reservation; no credential registered | `404 not_found` before answer, wrong/missing credential, unknown/already gone (idempotent); `409 already_approved` if approval won, preserving its credential/package/checkpoint; normal invitation body/IP/invite limits |
+| `GET J/result` | Bearer of the guest (the credential behind the submitted verifier) | `202 {status:"pending", reveal}` (client-paced at 1-2 s; no Retry-After hint) until approved, then `200 {reveal, package, minVersion, syncId}`, repeatable until installation acknowledgement or the invitation expires | `404` wrong or missing credential, acknowledged or gone |
 | `GET J/checkpoint` | Bearer of the guest | `200 {common, registry}`: the exact common text and the registry as canonical JSON text copied at approval (B7), repeatable and immutable until the invitation expires, is cancelled or released | `404` wrong credential, not approved, approved without a checkpoint, released, or gone |
 | `DELETE J/checkpoint` | Bearer of the guest | `204`: installation acknowledgement erases the entire invitation, encrypted package and checkpoint, and durably releases the global locator (also accepts approvals from older hosts without checkpoints) | `404` as above |
 | `PUT G/prepare` | Bearer of that web; `{version, tokenHash, verifier, secret}` | `200`; prepares current version + 1 (initially 1); identical pending content is idempotent | `400` shape/size/encoding; `409 invalid_state` different pending content or wrong version; `403 forbidden_role` |

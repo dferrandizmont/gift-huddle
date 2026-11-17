@@ -43,6 +43,8 @@ class WebSessionController {
     SessionClock? clock,
     bool hasIdentity = true,
     this.onStateChanged,
+    this.onVisible,
+    this.onHidden,
   }) : clock = clock ?? RealSessionClock(),
        state = hasIdentity
            ? WebSessionState.bloqueada
@@ -56,6 +58,10 @@ class WebSessionController {
   }
   final SessionPlatform platform;
   final void Function()? onStateChanged;
+
+  /// Called after visibility deadlines have been checked, only if still open.
+  final void Function()? onVisible;
+  final void Function()? onHidden;
   final SessionClock clock;
   final void Function() cover,
       cancelWork,
@@ -72,6 +78,8 @@ class WebSessionController {
   void Function()? _timer;
   DateTime? _lastUse, _hiddenAt;
   bool _hidden = false;
+
+  bool get visible => !_hidden && !platform.hidden;
 
   bool accept(int capturedGeneration) =>
       !_disposed &&
@@ -211,6 +219,7 @@ class WebSessionController {
       case SessionLifecycle.hidden:
         _hidden = true;
         _hiddenAt ??= clock.now();
+        if (state == WebSessionState.abierta) onHidden?.call();
         if (_active) {
           if (_expired()) {
             lock();
@@ -219,12 +228,14 @@ class WebSessionController {
           }
         }
       case SessionLifecycle.visible:
+        final wasHidden = _hidden;
         _hidden = false;
         if (_active && _expired()) {
           lock();
         }
         _hiddenAt = null;
         _arm();
+        if (wasHidden && state == WebSessionState.abierta) onVisible?.call();
       case SessionLifecycle.activity:
         activity();
     }

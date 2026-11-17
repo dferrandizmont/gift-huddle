@@ -489,7 +489,17 @@ class V2InviteOffer {
   final DateTime expiresAt;
 }
 
-/// Respuesta a `GET J/result`.
+/// Guest withdrawal sender, separate from the polling connection. Keep its
+/// transport alive while [onAlreadyApproved] performs bounded cleanup.
+typedef V2WithdrawInvite = Future<V2InviteWithdrawal> Function(
+  String inviteId, {
+  required Uint8List credential,
+  required Future<void> Function(SyncV2Transport) onAlreadyApproved,
+});
+
+enum V2InviteWithdrawal { withdrawn, gone, alreadyApproved }
+
+/// Result of polling an invitation.
 sealed class V2InviteOutcome {
   const V2InviteOutcome();
 }
@@ -719,6 +729,12 @@ abstract interface class SyncV2Transport {
   });
 
   /// `GET J/result` con la credencial de este móvil.
+  Future<V2InviteWithdrawal> withdrawInvite(
+    String inviteId, {
+    required Uint8List credential,
+  });
+
+  /// `GET J/result` with the guest credential.
   Future<V2InviteOutcome> pollInviteResult(
     String inviteId, {
     required Uint8List credential,
@@ -1669,6 +1685,26 @@ class SyncV2Client implements SyncV2Transport {
     );
     if (r.status == 201 || r.status == 200) return;
     _inviteFail(r);
+  }
+
+  @override
+  Future<V2InviteWithdrawal> withdrawInvite(
+    String inviteId, {
+    required Uint8List credential,
+  }) async {
+    _checkId(inviteId);
+    final r = await sendRequest(
+      'POST',
+      _uri('/v2/invites/$inviteId/withdraw'),
+      body: const <String, Object?>{},
+      headers: {'Authorization': 'Bearer ${encodeBase64Url(credential)}'},
+    );
+    if (r.status == 204) return V2InviteWithdrawal.withdrawn;
+    if (r.status == 404) return V2InviteWithdrawal.gone;
+    if (r.status == 409 && r.json()['error'] == 'already_approved') {
+      return V2InviteWithdrawal.alreadyApproved;
+    }
+    _fail(r);
   }
 
   @override

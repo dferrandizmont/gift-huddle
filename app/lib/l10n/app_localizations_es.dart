@@ -1094,10 +1094,6 @@ class AppLocalizationsEs extends AppLocalizations {
   String get joinIntro => 'Apunta la cámara al código QR del otro móvil.';
 
   @override
-  String get joinCameraError =>
-      'No se puede usar la cámara. Revisa el permiso de cámara en los ajustes del móvil.';
-
-  @override
   String get scannerWaitingPermission => 'Esperando el permiso de la cámara…';
 
   @override
@@ -4254,4 +4250,12 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get recoveryProblemPersonBody =>
       'Cambió la persona de este móvil o hay un cambio pendiente. Crea un código nuevo y guarda ese.';
+
+  @override
+  String get recoveryFileProblemStorageTitle =>
+      'No se ha podido leer la lista de este móvil';
+
+  @override
+  String get recoveryFileProblemStorageBody =>
+      'El fichero sigue a la espera. Vuelve a intentarlo: antes de recuperar, la app tiene que comprobar que este móvil no tiene ya una lista.';
 }

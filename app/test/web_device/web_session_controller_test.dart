@@ -25,6 +25,8 @@ void main() {
     disposeContainer: () => events.add('dispose'),
     createContainer: () => events.add('create'),
     unlockVault: unlock ?? (_) async {},
+    onVisible: () => events.add('visible'),
+    onHidden: () => events.add('hidden'),
   );
   setUp(() {
     clock = FakeSessionClock();
@@ -57,6 +59,25 @@ void main() {
     expect(session.state, WebSessionState.abierta);
     platform.life.add(SessionLifecycle.visible);
     expect(session.state, WebSessionState.bloqueada);
+    expect(events, isNot(contains('visible')));
+  });
+  test('only a returning open session requests a visibility refresh', () async {
+    expect(session.visible, isTrue);
+    platform.life.add(SessionLifecycle.hidden);
+    expect(session.visible, isFalse);
+    platform.life.add(SessionLifecycle.visible);
+    expect(session.visible, isTrue);
+    expect(events, isEmpty);
+    await session.unlock('123456');
+    platform.life.add(SessionLifecycle.visible);
+    expect(events.where((e) => e == 'visible'), isEmpty);
+    platform.life.add(SessionLifecycle.hidden);
+    clock.elapse(const Duration(minutes: 1));
+    platform.life.add(SessionLifecycle.visible);
+    platform.life.add(SessionLifecycle.visible);
+    expect(session.state, WebSessionState.abierta);
+    expect(events.where((e) => e == 'visible'), hasLength(1));
+    expect(events.where((e) => e == 'hidden'), hasLength(1));
   });
   test(
     'hidden timer locks at five minutes; hidden activity does not extend',

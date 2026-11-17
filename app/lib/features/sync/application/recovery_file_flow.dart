@@ -141,8 +141,9 @@ class RecoveryFileSelection {
   final RecoveryFileFailure? failure;
 
   /// Este móvil ya tiene familia: solo se avisa de que sirve para un móvil
-  /// vacío.
-  final bool hasFamily;
+  /// vacío. Null si falló la lectura: no confirma que haya familia ni que
+  /// el móvil esté vacío; abrir y restaurar exigen una nueva lectura.
+  final bool? hasFamily;
 
   /// Ya se abrió (E obtenida): listo para [RecoveryFileController.restore].
   final bool opened;
@@ -238,14 +239,14 @@ class RecoveryFileCheck {
 
 /// Si este móvil ya tiene una familia. Lectura local sin efectos: no carga
 /// `familyControllerProvider` (que puede reanudar una restauración, con red y
-/// Argon2). Falla en cerrado: si no se puede leer, cuenta como que la hay y
-/// no se restaura nada. Se puede sustituir en pruebas.
-final recoveryFileHasFamilyProvider = Provider<Future<bool> Function()>(
+/// Argon2). Si no se puede leer, devuelve null: abrir y restaurar requieren
+/// un false explícito. Se puede sustituir en pruebas.
+final recoveryFileHasFamilyProvider = Provider<Future<bool?> Function()>(
   (ref) => () async {
     try {
       return await ref.read(familyStoreProvider).hasFamily();
     } on Object {
-      return true;
+      return null;
     }
   },
 );
@@ -329,6 +330,8 @@ class RecoveryFileController extends Notifier<RecoveryFileState> {
   /// la E si se abrió, y cancela lo que estuviera en marcha).
   void clear() {
     _invalidate();
+    _waiting = null;
+    state = state._copy(clearWaiting: true);
     _dropSelection();
   }
 
@@ -355,7 +358,7 @@ class RecoveryFileController extends Notifier<RecoveryFileState> {
     try {
       final hasFamily = await ref.read(recoveryFileHasFamilyProvider)();
       _check(op);
-      if (hasFamily) {
+      if (hasFamily != false) {
         throw const RecoveryFileFlowException(RecoveryFileFlowError.hasFamily);
       }
       final bytes = await _pick(op);
@@ -393,7 +396,7 @@ class RecoveryFileController extends Notifier<RecoveryFileState> {
       if (file == null || selection == null) {
         throw const RecoveryFileFlowException(RecoveryFileFlowError.noFile);
       }
-      if (selection.hasFamily) {
+      if (selection.hasFamily == true) {
         throw const RecoveryFileFlowException(RecoveryFileFlowError.hasFamily);
       }
       await _requireNoFamily(op);
@@ -440,7 +443,7 @@ class RecoveryFileController extends Notifier<RecoveryFileState> {
       if (code == null || selection == null || !selection.opened) {
         throw const RecoveryFileFlowException(RecoveryFileFlowError.noFile);
       }
-      if (selection.hasFamily) {
+      if (selection.hasFamily == true) {
         throw const RecoveryFileFlowException(RecoveryFileFlowError.hasFamily);
       }
       // La familia puede haber llegado mientras se pedía la confirmación.
@@ -667,7 +670,7 @@ class RecoveryFileController extends Notifier<RecoveryFileState> {
   Future<void> _requireNoFamily(int op) async {
     final hasFamily = await ref.read(recoveryFileHasFamilyProvider)();
     _check(op);
-    if (hasFamily) {
+    if (hasFamily != false) {
       throw const RecoveryFileFlowException(RecoveryFileFlowError.hasFamily);
     }
   }

@@ -125,6 +125,9 @@ class ShareService {
   /// fichero queda guardado y se vuelve a probar al sincronizar). Sin la
   /// marca, un fichero nuevo da [ExchangeNotReadyException].
   Future<ImportSummary> importEnvelopeBytes(Uint8List bytes) async {
+    // Rechazar basura antes de esperar al almacenamiento o comprobar si
+    // hay familia: también un móvil vacío debe decir que no es un envío.
+    if (!isExchangeFile(bytes)) peekHeader(bytes);
     final state = await _ref.read(familyControllerProvider.future);
     final identity = state.identity;
     final key = _controller.familyKey;

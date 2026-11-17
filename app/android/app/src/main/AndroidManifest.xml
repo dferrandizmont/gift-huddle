@@ -18,12 +18,17 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTop"
+            android:launchMode="singleTask"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
+            <!-- Una sola Activity/motor, también desde la tarea de Archivos.
+                 singleTask reutiliza la tarea por su componente raíz; la
+                 afinidad vacía protege frente a StrandHogg en Android 8-10.
+                 VIEW/SEND llegan al intent original en onNewIntent, con su
+                 permiso temporal de lectura, sin actividad intermediaria. -->
             <!-- Specifies an Android theme to apply to this Activity as soon as
                  the Android process has started. This theme is visible to the user
                  while the Flutter UI initializes. After that, this theme continues

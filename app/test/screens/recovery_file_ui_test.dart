@@ -6,19 +6,32 @@
 // (`helpers/fake_document_exchange.dart`); el formato y el flujo real los
 // prueban `test/sync`.
 import 'dart:async';
-import 'dart:typed_data';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/app/router.dart';
+import 'package:regalos/features/family/application/family_controller.dart';
+import 'package:regalos/features/family/data/family_store.dart';
+import 'package:regalos/features/family/data/device_keys_store.dart';
+import 'package:regalos/features/family/data/storage_providers.dart';
+import 'package:regalos/features/lock/application/lock_controller.dart';
+import 'package:regalos/app/root_navigator.dart';
 import 'package:regalos/core/motion/haptics.dart';
 import 'package:regalos/core/platform/document_exchange.dart';
+import 'package:regalos/core/platform/document_exchange_native.dart';
+import 'package:regalos/features/sharing/application/incoming_share.dart';
+import 'package:regalos/features/recovery/application/recovery_hold.dart';
 import 'package:regalos/features/recovery/presentation/recovery_file_save_screen.dart';
+import 'package:regalos/features/recovery/presentation/recovery_file_listener.dart';
+import 'package:regalos/features/recovery/presentation/recovery_file_parts.dart';
 import 'package:regalos/features/recovery/presentation/recovery_restore_screen.dart';
 import 'package:regalos/features/sync/application/recovery_file_flow.dart';
 import 'package:regalos/features/sync/application/recovery_providers.dart';
+import 'package:regalos/l10n/app_localizations.dart';
 
 import '../helpers/fake_document_exchange.dart';
 import '../helpers/fake_haptics.dart';
@@ -30,10 +43,39 @@ import 'recovery_ui_test.dart' show openRecoveryRow, spin;
 
 late FakeRecovery fake;
 late FakeDocumentExchange exchange;
+NativeDocumentExchange? initialExchange;
 late FakeHaptics haptics;
 late RecoveryCodeDisplay display;
 late SlowFileController slow;
 bool hasFamily = false;
+late Completer<FamilyState> familyLoad;
+late Completer<Uint8List> openingKey;
+
+class ControlledFamilyController extends FamilyController {
+  @override
+  Future<FamilyState> build() => familyLoad.future;
+}
+
+class UnreadableFamilyStore extends FamilyStore {
+  UnreadableFamilyStore({
+    required super.secrets,
+    required super.files,
+    required super.deviceKeys,
+  });
+
+  bool? family;
+  int reads = 0;
+
+  @override
+  Future<bool> hasFamily() async {
+    reads++;
+    final result = family;
+    if (result == null) {
+      throw const FamilyStoreException('test storage failure');
+    }
+    return result;
+  }
+}
 
 /// El flujo del fichero con la derivación de la contraseña a mano: con
 /// contraseña no deriva de verdad (Argon2 tarda segundos), espera a [gate] y
@@ -73,15 +115,32 @@ class SlowFileController extends RecoveryFileController {
   }
 }
 
-List<Override> _overrides() => [
+List<Override> _overrides({
+  bool controlledFamily = false,
+  bool unreadableFamily = false,
+  bool holdOpening = false,
+}) => [
+  if (controlledFamily)
+    familyControllerProvider.overrideWith(ControlledFamilyController.new),
   recoveryApplicationProvider.overrideWith(() => fake),
   hapticsProvider.overrideWith((ref) => haptics),
-  documentExchangeProvider.overrideWith((ref) => exchange),
-  recoveryFileHasFamilyProvider.overrideWith(
-    (ref) =>
-        () async => hasFamily,
-  ),
+  documentExchangeProvider.overrideWith((ref) => initialExchange ?? exchange),
+  if (unreadableFamily)
+    familyStoreProvider.overrideWith(
+      (ref) => UnreadableFamilyStore(
+        secrets: ref.watch(secretStoreProvider),
+        files: ref.watch(fileStoreProvider),
+        deviceKeys: ref.watch(deviceKeysStoreProvider),
+      ),
+    )
+  else
+    recoveryFileHasFamilyProvider.overrideWith(
+      (ref) =>
+          () async => hasFamily,
+    ),
   recoveryFileProvider.overrideWith(() => slow),
+  if (holdOpening)
+    recoveryFileDeriverProvider.overrideWithValue((_, _) => openingKey.future),
 ];
 
 void fileTest(
@@ -89,6 +148,9 @@ void fileTest(
   Future<void> Function(WidgetTester tester, FakePhone phone) body, {
   RecoveryStatus initial = const RecoveryStatus(RecoveryReadiness.absent),
   bool family = false,
+  bool controlledFamily = false,
+  bool unreadableFamily = false,
+  bool holdOpening = false,
   Size size = const Size(390, 844),
   double textScale = 1,
 }) {
@@ -97,16 +159,30 @@ void fileTest(
     (tester, phone) async {
       haptics = FakeHaptics();
       exchange = FakeDocumentExchange();
+      initialExchange = null;
       slow = SlowFileController();
       hasFamily = family;
+      familyLoad = Completer<FamilyState>();
+      openingKey = Completer<Uint8List>();
       display = (await tester.runAsync(sampleRecoveryDisplay))!;
       fake = FakeRecovery(initial: initial, display: display);
       await body(tester, phone);
     },
     size: size,
     textScale: textScale,
-    overrides: _overrides(),
+    overrides: _overrides(
+      controlledFamily: controlledFamily,
+      unreadableFamily: unreadableFamily,
+      holdOpening: holdOpening,
+    ),
   );
+}
+
+Future<FakePhone> _seededPhone(WidgetTester tester) async {
+  final phone = FakePhone();
+  addTearDown(phone.dispose);
+  await seedSample(tester, phone);
+  return phone;
 }
 
 Future<void> createUntilWords(WidgetTester tester, FakePhone phone) async {
@@ -729,6 +805,306 @@ void main() {
   });
 
   group('recuperar con fichero', () {
+    fileTest('Files retries when the navigator is absent on the first frame', (
+      tester,
+      phone,
+    ) async {
+      await familyState(tester, phone);
+      await tester.runAsync(
+        () => phone.container
+            .read(recoveryFileProvider.notifier)
+            .receive(vectors.protectedAscii),
+      );
+      final selection = phone.container.read(recoveryFileProvider).selection;
+      final ready = ValueNotifier(false);
+      addTearDown(ready.dispose);
+      await pumpThemed(
+        tester,
+        UncontrolledProviderScope(
+          container: phone.container,
+          child: Builder(
+            builder: (context) => MaterialApp.router(
+              theme: Theme.of(context),
+              locale: const Locale('es'),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              routerConfig: phone.container.read(routerProvider),
+              builder: (_, child) => RecoveryFileListener(
+                navigatorKey: rootNavigatorKey,
+                child: ValueListenableBuilder(
+                  valueListenable: ready,
+                  builder: (_, visible, _) =>
+                      visible ? child! : const SizedBox(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(rootNavigatorKey.currentContext, isNull);
+      await tester.pumpAndSettle();
+      expect(tester.binding.hasScheduledFrame, isFalse);
+      expect(
+        phone.container.read(recoveryFileProvider).selection,
+        same(selection),
+      );
+      // No provider event accompanies the navigator becoming available.
+      ready.value = true;
+      await settle(tester);
+      expect(find.text('Contraseña del fichero'), findsOneWidget);
+      expect(
+        find.text('Has abierto un fichero de recuperación.'),
+        findsOneWidget,
+      );
+      expect(fake.calls, isEmpty);
+    });
+
+    for (final loadedFamily in [false, true]) {
+      fileTest('Files waits for controlled family load: $loadedFamily', (
+        tester,
+        phone,
+      ) async {
+        if (loadedFamily) {
+          await tester.runAsync(
+            () => phone.container
+                .read(lockControllerProvider.notifier)
+                .skipSetup(),
+          );
+        }
+        final existing = loadedFamily
+            ? await familyState(tester, await _seededPhone(tester))
+            : FamilyState.noFamily();
+        await tester.runAsync(
+          () => phone.container
+              .read(recoveryFileProvider.notifier)
+              .receive(vectors.protectedAscii),
+        );
+        final selection = phone.container.read(recoveryFileProvider).selection;
+        await pumpRegalos(tester, phone);
+        expect(
+          phone.container.read(familyControllerProvider).isLoading,
+          isTrue,
+        );
+        expect(find.byType(RecoveryRestoreScreen), findsNothing);
+        expect(
+          phone.container.read(recoveryFileProvider).selection,
+          same(selection),
+        );
+        familyLoad.complete(existing);
+        await settle(tester);
+        if (loadedFamily) {
+          expect(find.text('Este móvil ya tiene una lista'), findsOneWidget);
+          expect(find.byType(RecoveryRestoreScreen), findsNothing);
+        } else {
+          expect(find.text('Contraseña del fichero'), findsOneWidget);
+          expect(
+            phone.container.read(recoveryFileProvider).selection,
+            same(selection),
+          );
+          final router = phone.container.read(routerProvider);
+          expect(router.state.uri.path, AppRoutes.recoverFile);
+          expect(find.byType(RecoveryRestoreScreen), findsOneWidget);
+          // Repeated navigator/family signals must not add a second route.
+          router.refresh();
+          await settle(tester);
+          await tapLabel(tester, 'Atrás');
+          expect(find.byType(RecoveryRestoreScreen), findsNothing);
+          expect(router.state.uri.path, AppRoutes.welcome);
+        }
+        expect(fake.calls, isEmpty);
+      }, controlledFamily: true);
+    }
+
+    fileTest('Files queued before a recovery screen opens adopt the latest', (
+      tester,
+      phone,
+    ) async {
+      final flow = phone.container.read(recoveryFileProvider.notifier);
+      await tester.runAsync(() => flow.receive(vectors.protectedAscii));
+      await tester.runAsync(() => flow.receive(vectors.open));
+      await pumpRegalos(tester, phone);
+      familyLoad.complete(FamilyState.noFamily());
+      await settle(tester);
+      expect(find.text('Ha llegado otro fichero'), findsNothing);
+      expect(find.text('¿Recuperar con este fichero?'), findsOneWidget);
+      expect(
+        phone.container.read(recoveryFileProvider).selection!.variant,
+        RecoveryFileVariant.open,
+      );
+      expect(phone.container.read(recoveryFileProvider).waiting, isNull);
+      expect(fake.calls, isEmpty);
+    }, controlledFamily: true);
+
+    for (final loadedFamily in [false, true]) {
+      fileTest(
+        'Files retry after both storage reads fail: family=$loadedFamily',
+        (tester, phone) async {
+          if (loadedFamily) {
+            await tester.runAsync(
+              () => phone.container
+                  .read(lockControllerProvider.notifier)
+                  .skipSetup(),
+            );
+          }
+          final recovered = loadedFamily
+              ? await familyState(tester, await _seededPhone(tester))
+              : FamilyState.noFamily();
+          await tester.runAsync(
+            () => phone.container
+                .read(recoveryFileProvider.notifier)
+                .receive(vectors.protectedAscii),
+          );
+          final selection = phone.container
+              .read(recoveryFileProvider)
+              .selection;
+          final store = phone.container.read(
+            familyStoreProvider,
+          ) as UnreadableFamilyStore;
+          expect(store.reads, 1);
+          expect(selection, isNotNull);
+          expect(selection!.hasFamily, isNull);
+          await pumpRegalos(tester, phone);
+          familyLoad.completeError(
+            const FamilyStoreException('test storage failure'),
+          );
+          await settle(tester);
+          expect(
+            find.text('No se ha podido leer la lista de este móvil'),
+            findsOneWidget,
+          );
+          expect(find.byType(RecoveryRestoreScreen), findsNothing);
+          expect(
+            phone.container.read(recoveryFileProvider).selection,
+            same(selection),
+          );
+          store.family = loadedFamily;
+          familyLoad = Completer<FamilyState>();
+          await tapText(tester, 'Reintentar');
+          expect(
+            phone.container.read(familyControllerProvider).isLoading,
+            isTrue,
+          );
+          familyLoad.complete(recovered);
+          await settle(tester);
+          if (loadedFamily) {
+            expect(find.text('Este móvil ya tiene una lista'), findsOneWidget);
+            expect(find.byType(RecoveryRestoreScreen), findsNothing);
+            expect(
+              phone.container.read(recoveryFileProvider).selection,
+              isNull,
+            );
+          } else {
+            expect(find.text('Contraseña del fichero'), findsOneWidget);
+            expect(
+              phone.container.read(recoveryFileProvider).selection,
+              same(selection),
+            );
+            expect(find.byType(RecoveryRestoreScreen), findsOneWidget);
+            expect(
+              phone.container.read(routerProvider).state.uri.path,
+              AppRoutes.recoverFile,
+            );
+          }
+          expect(fake.calls, isEmpty);
+        },
+        controlledFamily: true,
+        unreadableFamily: true,
+      );
+    }
+
+    for (final arrival in ['before runApp', 'onFile']) {
+      for (final variant in [
+        'protected',
+        'open',
+        'invalid',
+        'garbage',
+        'family',
+      ]) {
+        fileTest('Files channel $arrival: $variant', (tester, phone) async {
+          final bytes = switch (variant) {
+            'garbage' => Uint8List.fromList('hola'.codeUnits),
+            'protected' => vectors.protectedAscii,
+            'invalid' => Uint8List.fromList([0x47, 0x48, 0x4b, 1]),
+            _ => vectors.open,
+          };
+          hasFamily = variant == 'family';
+          final messenger = tester.binding.defaultBinaryMessenger;
+          var initialRequests = 0;
+          messenger.setMockMethodCallHandler(kIncomingChannel, (call) async {
+            if (call.method != 'takeInitialFile') return null;
+            initialRequests++;
+            return arrival == 'before runApp' ? bytes : null;
+          });
+          addTearDown(
+            () => messenger.setMockMethodCallHandler(kIncomingChannel, null),
+          );
+          final temp = Directory.systemTemp.createTempSync('gifthuddle-m1-');
+          addTearDown(() => temp.deleteSync(recursive: true));
+          initialExchange = NativeDocumentExchange(() async => temp);
+          if (variant == 'family') await seedSample(tester, phone);
+          phone.container.read(incomingShareProvider);
+          if (arrival == 'onFile') {
+            await pumpRegalos(tester, phone);
+            await tester.runAsync(
+              () => messenger.handlePlatformMessage(
+                kIncomingChannel.name,
+                const StandardMethodCodec().encodeMethodCall(
+                  MethodCall('onFile', bytes),
+                ),
+                (_) {},
+              ),
+            );
+          } else {
+            await tester.runAsync(() => pumpEventQueue());
+          }
+          final state = phone.container.read(recoveryFileProvider);
+          if (arrival == 'before runApp' && variant != 'garbage') {
+            expect(state.selection, isNotNull);
+          }
+          expect(state.waiting, isNull);
+          if (arrival == 'before runApp') {
+            await pumpRegalos(tester, phone);
+          } else {
+            await settle(tester);
+          }
+          expect(initialRequests, 1);
+          expect(
+            find.text(switch (variant) {
+              'protected' => 'Contraseña del fichero',
+              'open' => '¿Recuperar con este fichero?',
+              'garbage' => 'No se pudo abrir el envío',
+              'invalid' => 'No es un fichero de recuperación',
+              _ => 'Este móvil ya tiene una lista',
+            }),
+            findsOneWidget,
+            reason:
+                'route=${phone.container.read(routerProvider).routeInformationProvider.value.uri}; '
+                'selection=${phone.container.read(recoveryFileProvider).selection}; '
+                'waiting=${phone.container.read(recoveryFileProvider).waiting}',
+          );
+          expect(fake.calls, isEmpty);
+          if (variant == 'garbage') {
+            expect(
+              find.text('Este fichero o texto no es un envío de Gift Huddle.'),
+              findsOneWidget,
+            );
+          }
+          expect(phone.container.read(incomingShareProvider), isNull);
+          if (variant == 'family' ||
+              variant == 'invalid' ||
+              variant == 'garbage') {
+            expect(
+              phone.container.read(recoveryFileProvider).selection,
+              isNull,
+            );
+            expect(find.byType(RecoveryRestoreScreen), findsNothing);
+          } else {
+            expect(find.byType(RecoveryRestoreScreen), findsOneWidget);
+          }
+        });
+      }
+    }
+
     Future<void> openFromWelcome(WidgetTester tester) async {
       final button = find.text('Recuperar con fichero');
       await tester.ensureVisible(button);
@@ -821,6 +1197,236 @@ void main() {
         await tester.pump(const Duration(milliseconds: 50));
       }
     }
+
+    Future<void> startFilesChannel(WidgetTester tester, FakePhone phone) async {
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(kIncomingChannel, (call) async {
+        if (call.method == 'normalizeNfc') return call.arguments;
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(kIncomingChannel, null),
+      );
+      final temp = Directory.systemTemp.createTempSync('gifthuddle-back-');
+      addTearDown(() => temp.deleteSync(recursive: true));
+      initialExchange = NativeDocumentExchange(() async => temp);
+      phone.container.read(incomingShareProvider);
+      await pumpRegalos(tester, phone);
+    }
+
+    Future<void> onFile(
+      WidgetTester tester,
+      Uint8List bytes, {
+      bool settleAfter = true,
+    }) async {
+      await tester.runAsync(
+        () => tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+          kIncomingChannel.name,
+          const StandardMethodCodec().encodeMethodCall(
+            MethodCall('onFile', bytes),
+          ),
+          (_) {},
+        ),
+      );
+      if (settleAfter) await settle(tester);
+    }
+
+    Future<void> confirmProtectedFile(WidgetTester tester) async {
+      await onFile(tester, vectors.protectedAscii);
+      expect(find.text('Contraseña del fichero'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), vectors.asciiPassword);
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, 'Abrir el fichero'));
+      await untilText(tester, '¿Recuperar con este fichero?');
+      await settle(tester);
+      expect(find.text('¿Recuperar con este fichero?'), findsOneWidget);
+    }
+
+    for (final systemBack in [false, true]) {
+      fileTest('onFile after protected confirmation and back '
+          '(system=$systemBack) opens the new file', (tester, phone) async {
+        await startFilesChannel(tester, phone);
+        await confirmProtectedFile(tester);
+        expect(
+          phone.container.read(recoveryFileProvider).selection!.opened,
+          isTrue,
+        );
+        if (systemBack) {
+          await tester.binding.handlePopRoute();
+          await settle(tester);
+        } else {
+          await tapLabel(tester, 'Atrás');
+        }
+        expect(find.byType(RecoveryRestoreScreen), findsNothing);
+        expect(
+          phone.container.read(routerProvider).state.uri.path,
+          AppRoutes.welcome,
+        );
+        expect(phone.container.read(recoveryFileScreenOpenProvider), 0);
+        expect(phone.container.read(recoveryFileProvider).selection, isNull);
+        expect(phone.container.read(recoveryFileProvider).waiting, isNull);
+        await onFile(tester, vectors.open);
+        expect(find.text('Ha llegado otro fichero'), findsNothing);
+        expect(find.text('¿Recuperar con este fichero?'), findsOneWidget);
+        expect(phone.container.read(recoveryFileScreenOpenProvider), 1);
+        expect(fake.calls, isEmpty);
+      });
+    }
+
+    for (final deriving in [false, true]) {
+      for (final systemBack in [false, true]) {
+        fileTest('onFile after leaving the password step '
+            '(deriving=$deriving, system=$systemBack) opens the new file', (
+          tester,
+          phone,
+        ) async {
+          await startFilesChannel(tester, phone);
+          await onFile(tester, vectors.protectedAscii);
+          if (deriving) {
+            await tester.enterText(
+              find.byType(TextField),
+              vectors.asciiPassword,
+            );
+            await tester.pump();
+            await tester.tap(
+              find.widgetWithText(FilledButton, 'Abrir el fichero'),
+            );
+            await spin(tester, 2);
+            expect(
+              phone.container.read(recoveryFileProvider).activity,
+              RecoveryFileActivity.deriving,
+            );
+          }
+          if (systemBack) {
+            await tester.binding.handlePopRoute();
+            await settle(tester);
+          } else {
+            await tapLabel(tester, 'Atrás');
+          }
+          expect(find.byType(RecoveryRestoreScreen), findsNothing);
+          expect(phone.container.read(recoveryFileScreenOpenProvider), 0);
+          final cleared = phone.container.read(recoveryFileProvider);
+          expect(cleared.selection, isNull);
+          expect(cleared.waiting, isNull);
+          expect(cleared.activity, RecoveryFileActivity.idle);
+          await onFile(tester, vectors.open);
+          expect(find.text('Ha llegado otro fichero'), findsNothing);
+          expect(find.text('¿Recuperar con este fichero?'), findsOneWidget);
+          final current = phone.container.read(recoveryFileProvider).selection;
+          if (deriving) {
+            openingKey.completeError(StateError('cancelled derivation ended'));
+            await settle(tester);
+            expect(
+              phone.container.read(recoveryFileProvider).selection,
+              same(current),
+            );
+            expect(find.text('¿Recuperar con este fichero?'), findsOneWidget);
+          }
+          expect(phone.container.read(recoveryFileScreenOpenProvider), 1);
+          expect(fake.calls, isEmpty);
+        }, holdOpening: true);
+      }
+    }
+
+    fileTest('onFile during the back transition survives the old dispose', (
+      tester,
+      phone,
+    ) async {
+      await startFilesChannel(tester, phone);
+      await confirmProtectedFile(tester);
+      final oldScreen = tester.state(find.byType(RecoveryRestoreScreen));
+      final hold = phone.container.read(recoveryHoldProvider);
+      expect(hold.value, isTrue);
+      await tester.tap(find.bySemanticsLabel('Atrás').first);
+      await tester.pump();
+      expect(phone.container.read(recoveryFileScreenOpenProvider), 0);
+      await onFile(tester, vectors.open);
+      expect(find.text('Ha llegado otro fichero'), findsNothing);
+      expect(find.text('¿Recuperar con este fichero?'), findsOneWidget);
+      expect(
+        phone.container.read(recoveryFileProvider).selection!.opened,
+        isTrue,
+      );
+      expect(phone.container.read(recoveryFileScreenOpenProvider), 1);
+      expect(oldScreen.mounted, isFalse);
+      expect(hold.value, isTrue);
+
+      fake.holdRestore = Completer<void>();
+      await tester.tap(find.widgetWithText(FilledButton, 'Recuperar la lista'));
+      await spin(tester);
+      await tester.runAsync(
+        () => familyOf(phone).createFamily(deviceName: 'Móvil nuevo'),
+      );
+      await spin(tester, 12);
+      expect(hold.value, isTrue);
+      expect(find.text('Recuperando la lista'), findsOneWidget);
+      expect(find.text('Crea un PIN'), findsNothing);
+      fake.holdRestore!.complete();
+      await settle(tester);
+      expect(hold.value, isTrue);
+      expect(find.text('Lista recuperada'), findsOneWidget);
+      expect(find.text('Crea un PIN'), findsNothing);
+      await tester.tap(find.text('Entrar en la lista'));
+      await settle(tester);
+      expect(hold.value, isFalse);
+      expect(find.text('Crea un PIN'), findsOneWidget);
+    });
+
+    fileTest('two onFile arrivals during a pending push open one screen', (
+      tester,
+      phone,
+    ) async {
+      await startFilesChannel(tester, phone);
+      await onFile(tester, vectors.open, settleAfter: false);
+      // El listener pide el push al final del fotograma; la pantalla aún no
+      // se ha montado ni ha incrementado su contador.
+      await tester.pump();
+      expect(phone.container.read(recoveryFileScreenOpenProvider), 0);
+      await onFile(tester, vectors.protectedAscii, settleAfter: false);
+      await settle(tester);
+      expect(
+        find.byType(RecoveryRestoreScreen, skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(phone.container.read(recoveryFileScreenOpenProvider), 1);
+      expect(fake.calls, isEmpty);
+      await tapLabel(tester, 'Atrás');
+      expect(
+        find.byType(RecoveryRestoreScreen, skipOffstage: false),
+        findsNothing,
+      );
+      expect(phone.container.read(recoveryFileScreenOpenProvider), 0);
+    });
+
+    fileTest('onFile during protected confirmation keeps or switches the '
+        'visible file', (tester, phone) async {
+      await startFilesChannel(tester, phone);
+      await confirmProtectedFile(tester);
+      final current = phone.container.read(recoveryFileProvider).selection;
+      await onFile(tester, vectors.open);
+      expect(find.text('Ha llegado otro fichero'), findsOneWidget);
+      await tapText(tester, 'Seguir con el actual');
+      expect(find.text('¿Recuperar con este fichero?'), findsOneWidget);
+      expect(
+        phone.container.read(recoveryFileProvider).selection,
+        same(current),
+      );
+      expect(phone.container.read(recoveryFileProvider).waiting, isNull);
+      await onFile(tester, vectors.open);
+      await tapText(tester, 'Cambiar de fichero');
+      expect(find.text('¿Recuperar con este fichero?'), findsOneWidget);
+      expect(
+        phone.container.read(recoveryFileProvider).selection!.variant,
+        RecoveryFileVariant.open,
+      );
+      expect(
+        phone.container.read(recoveryFileProvider).selection!.opened,
+        isTrue,
+      );
+      expect(phone.container.read(recoveryFileProvider).waiting, isNull);
+      expect(phone.container.read(recoveryFileScreenOpenProvider), 1);
+      expect(fake.calls, isEmpty);
+    });
 
     fileTest('la contraseña real abre el fichero con progreso y Cancelar; una '
         'errónea lo dice sin perder el campo', (tester, phone) async {

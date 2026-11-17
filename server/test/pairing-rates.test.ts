@@ -131,6 +131,7 @@ async function simulate(plans: Plan[], seed: number): Promise<{ log: Entry[]; st
       const r = await send("POST", `${p.privatePath}/approve`, { ...own, key: p.home.key, headers: { "If-Match": '"1"' }, body: { package: { c: "opaque" }, role: "web" } });
       expect(r.status).toBe(200);
       p.host = "approved";
+      p.hostAt = Infinity;
       continue;
     }
     if (now === p.hostAt) {
@@ -145,12 +146,17 @@ async function simulate(plans: Plan[], seed: number): Promise<{ log: Entry[]; st
         const state = await r.json() as { answer?: unknown };
         if (state.answer) {
           expect((await send("POST", `${p.privatePath}/reveal`, { ...own, key: p.home.key, body: { reveal: { v: 2, n: b64u(rand(32)) } } })).status).toBe(200);
-          p.host = "compare"; // the phone shows the code: no more polling
-          p.hostAt = Infinity;
+          p.host = "compare"; // keep checking guest withdrawal during comparison
+          p.hostAt = p.hostPacer.next(now);
           p.approveAt = now + p.plan.approveAfter;
         } else {
           p.hostAt = p.hostPacer.next(now);
         }
+      } else if (p.host === "compare") {
+        const r = await send("GET", p.privatePath, { ...own, key: p.home.key });
+        expect(r.status).toBe(200);
+        p.hostPacer.note(now);
+        p.hostAt = p.hostPacer.next(now);
       }
       continue;
     }

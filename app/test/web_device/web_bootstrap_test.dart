@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:regalos/app/web_bootstrap.dart';
+import 'package:regalos/core/sync/model.dart';
 import 'package:regalos/features/family/application/family_controller.dart';
 import 'package:regalos/features/family/data/device_keys_store.dart';
 import 'package:regalos/features/sync/data/sync_config.dart';
@@ -15,7 +16,7 @@ import 'web_engine_support.dart';
 
 void main() {
   testWidgets(
-    'real bootstrap container is destroyed on lock, including a durable undo action',
+    'real bootstrap receives phone changes live and destroys its container on lock',
     (tester) async {
       late WebHarness h;
       final locks = FakeLockHub();
@@ -73,6 +74,29 @@ void main() {
         await container
             .read(familyControllerProvider.future)
             .timeout(const Duration(seconds: 15));
+        await h.publish(
+          doc: h.phone.doc.set(h.phone.clock, Collections.gifts, 'gift', {
+            'title': 'Libro',
+          }),
+        );
+        final deadline = DateTime.now().add(const Duration(seconds: 5));
+        while (container
+                    .read(familyControllerProvider)
+                    .value!
+                    .doc
+                    .record(Collections.gifts, 'gift')!['title'] !=
+                'Libro' &&
+            DateTime.now().isBefore(deadline)) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        expect(
+          container
+              .read(familyControllerProvider)
+              .value!
+              .doc
+              .record(Collections.gifts, 'gift')!['title'],
+          'Libro',
+        );
         expect(
           await container
               .read(familyControllerProvider.notifier)

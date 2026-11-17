@@ -1,6 +1,6 @@
 /// Versión de la app que enseña Ajustes › Acerca de. Debe coincidir con la
 /// de `pubspec.yaml` (lo comprueba una prueba).
-const String kAppVersion = '1.0.2';
+const String kAppVersion = '1.0.3';
 
 /// Web de la app (`web/site.toml`, `domain`).
 const String kWebsiteOrigin = 'https://gifthuddle.app';

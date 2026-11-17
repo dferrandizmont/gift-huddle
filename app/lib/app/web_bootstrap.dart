@@ -91,6 +91,23 @@ class _WebBootstrapState extends State<WebBootstrap> {
       platform: createSessionPlatform(),
       transport: () => _network().v2,
       cancelTransport: _cancelNetwork,
+      withdrawInvite:
+          (inviteId, {required credential, required onAlreadyApproved}) async {
+            // Cancellation closes the polling client immediately. Withdrawal gets
+            // its own short-lived client, so restart/close cannot abort it.
+            final client = createSyncTransport(SyncEndpoint.parse(kSyncHost)!);
+            try {
+              final result = await client.v2
+                  .withdrawInvite(inviteId, credential: credential)
+                  .timeout(const Duration(seconds: 2));
+              if (result == V2InviteWithdrawal.alreadyApproved) {
+                await onAlreadyApproved(client.v2);
+              }
+              return result;
+            } finally {
+              client.close();
+            }
+          },
       createContainer: _createContainer,
       disposeContainer: _disposeContainer,
       candidateChanged: _candidateChanged,

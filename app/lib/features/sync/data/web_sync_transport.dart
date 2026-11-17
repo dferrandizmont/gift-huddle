@@ -142,6 +142,7 @@ class WebSyncTransport extends BaseSyncTransport {
     web.WebSocket? socket;
     Timer? connectTimer;
     Timer? ping;
+    Timer? pongDeadline;
     final listeners = <String, JSFunction>{};
     var stopped = false;
     void stop() {
@@ -149,6 +150,7 @@ class WebSyncTransport extends BaseSyncTransport {
       stopped = true;
       connectTimer?.cancel();
       ping?.cancel();
+      pongDeadline?.cancel();
       final ws = socket;
       if (ws != null) {
         listeners.forEach(
@@ -187,16 +189,29 @@ class WebSyncTransport extends BaseSyncTransport {
             }
             events.add(const SyncOpenEvent());
             ping = Timer.periodic(const Duration(seconds: 30), (_) {
-              if (!stopped) ws.send('ping'.toJS);
+              if (stopped) return;
+              pongDeadline = Timer(const Duration(seconds: 10), fail);
+              try {
+                ws.send('ping'.toJS);
+              } catch (_) {
+                fail();
+              }
             });
           }).toJS;
           listeners['message'] = ((web.Event event) {
             if (stopped) return;
+            // Any inbound message proves that the connection still works.
+            pongDeadline?.cancel();
+            pongDeadline = null;
             final data = (event as web.MessageEvent).data;
             if (data.isA<JSString>()) {
               final message = (data as JSString).toDart;
               if (utf8.encode(message).length > maxSyncResponseBytes) {
                 fail();
+                return;
+              }
+              if (message == 'pong') {
+                events.add(const SyncAliveEvent());
                 return;
               }
               final parsed = parse(message);

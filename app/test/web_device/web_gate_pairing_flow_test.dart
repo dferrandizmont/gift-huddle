@@ -182,7 +182,7 @@ void main() {
     await host.cancel();
     final before = requests.length;
     await gate.checkPairing();
-    expect(requests.sublist(before), ['GET result']);
+    expect(requests.sublist(before), ['GET result', 'POST withdraw']);
     expect(
       (gate.view as WebGateConnectFailed).reason,
       WebConnectFailure.cancelled,

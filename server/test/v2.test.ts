@@ -235,6 +235,32 @@ describe("web credentials and common-only writes", () => {
     expect((await call("GET", id.path, { key: web.guestKey })).status).toBe(401);
   });
 
+  it("notifies an open browser and a phone after either role writes", async () => {
+    const id = await setup();
+    const web = await webPair(id);
+    const browserResponse = await exports.default.fetch(new Request(`https://sync.test${id.path}/ws`, {
+      headers: { Upgrade: "websocket", Origin: "https://web.gifthuddle.app", "Sec-WebSocket-Protocol": `gift-huddle.v2, bearer.${web.guestKey}` },
+    }));
+    expect(browserResponse.status).toBe(101);
+    expect(browserResponse.headers.get("Sec-WebSocket-Protocol")).toBe("gift-huddle.v2");
+    const browser = browserResponse.webSocket!;
+    const phone = (await openSocket(id, id.key)).webSocket!;
+    browser.accept();
+    phone.accept();
+    const next = (ws: WebSocket) => new Promise<string>((resolve) => ws.addEventListener("message", (event) => resolve(String(event.data)), { once: true }));
+    try {
+      let received = Promise.all([next(browser), next(phone)]);
+      expect((await put(id, snapshot(), 2)).status).toBe(200);
+      expect(await received).toEqual(Array(2).fill(JSON.stringify({ type: "version", version: 3 })));
+      received = Promise.all([next(browser), next(phone)]);
+      expect((await call("PUT", `${id.path}/common`, { key: web.guestKey, headers: { "If-Match": '"3"' }, body: { common: "BBBB" } })).status).toBe(200);
+      expect(await received).toEqual(Array(2).fill(JSON.stringify({ type: "version", version: 4 })));
+    } finally {
+      browser.close();
+      phone.close();
+    }
+  });
+
   it("cannot recreate an existing list or promote the web with extra role fields", async () => {
     const id = await setup();
     const web = await webPair(id);

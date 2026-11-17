@@ -1094,10 +1094,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get joinIntro => 'Point the camera at the other phone\'s QR code.';
 
   @override
-  String get joinCameraError =>
-      'The camera can\'t be used. Check the camera permission in the phone settings.';
-
-  @override
   String get scannerWaitingPermission => 'Waiting for camera permission…';
 
   @override
@@ -4242,4 +4238,12 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get recoveryProblemPersonBody =>
       'This phone\'s person changed or a change is pending. Create a new code and keep that one.';
+
+  @override
+  String get recoveryFileProblemStorageTitle =>
+      'Could not read this phone\'s list';
+
+  @override
+  String get recoveryFileProblemStorageBody =>
+      'The file is still waiting. Try again: before recovering, the app has to check that this phone does not already have a list.';
 }

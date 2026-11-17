@@ -1,3 +1,4 @@
+import { euNamespace, localhostRequest } from "./eu-namespace";
 import { DurableObject } from "cloudflare:workers";
 import type { Env } from "./env";
 import { decodeB64Url, encodeB64Url, randomBytes, sha256, timingSafeEqual } from "./encoding";
@@ -180,6 +181,8 @@ type Invitation = {
 };
 type Release = Pick<Invitation, "id" | "expiresAt" | "reservationId"> & { syncId: string };
 export type V2Call = {
+  /** Internal router proof, never taken from a client header/body. */
+  localRequest?: boolean;
   /** Router's fail-closed switch, independent of the object's environment. */
   renewalDisabled?: boolean;
   recoveryReadVerifier?: string;
@@ -306,6 +309,17 @@ export class ListV2Object extends DurableObject<Env> {
    * only reads writes no rows.
    */
   private rate = new Map<string, Counter>();
+  /** Scoped to the object lock; alarms and unrelated RPCs never inherit it. */
+  private localRequest = false;
+
+  private async withLocalRequest<T>(local: boolean, run: () => Promise<T>): Promise<T> {
+    this.localRequest = local;
+    try {
+      return await run();
+    } finally {
+      this.localRequest = false;
+    }
+  }
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -769,7 +783,7 @@ export class ListV2Object extends DurableObject<Env> {
   // ---- API --------------------------------------------------------------------
 
   async handle(c: V2Call): Promise<ApiResult> {
-    return this.ctx.blockConcurrencyWhile(() => this.locked(c));
+    return this.ctx.blockConcurrencyWhile(() => this.withLocalRequest(c.localRequest === true, () => this.locked(c)));
   }
 
   private async locked(c: V2Call): Promise<ApiResult> {
@@ -937,7 +951,7 @@ export class ListV2Object extends DurableObject<Env> {
     let failed = false;
     for (const row of this.sql.exec<{ rid: string; sid: string; token: string; action: string }>("SELECT * FROM recovery_release").toArray()) {
       try {
-        const ns = this.env.RECOVERIES_V2.jurisdiction("eu");
+        const ns = euNamespace(this.env.RECOVERIES_V2, this.env, this.localRequest);
         const locator = ns.get(ns.idFromName(row.rid));
         if (row.action === "retire") await locator.retire(row.sid, row.token);
         else if (!await locator.confirm(row.sid, row.token)) { failed = true; continue; }
@@ -986,7 +1000,7 @@ export class ListV2Object extends DurableObject<Env> {
   }
 
   private async finishRecoveryIntention(m: Meta, row: RecoveryRow, capsule: string): Promise<ApiResult> {
-    const ns = this.env.RECOVERIES_V2.jurisdiction("eu");
+    const ns = euNamespace(this.env.RECOVERIES_V2, this.env, this.localRequest);
     let reserved: boolean;
     try { reserved = await ns.get(ns.idFromName(row.rid)).reserve(m.syncId, row.reservationId); }
     catch { return err(503, "recovery_unavailable", { "Retry-After": "60" }); }
@@ -1242,7 +1256,7 @@ export class ListV2Object extends DurableObject<Env> {
     // A new list stays small; it can grow with later versions.
     if (bytes(b) > MAX_FIRST_UPLOAD_BYTES) return err(413, "too_large");
     // Creating Durable Objects is the expensive thing a stranger can do.
-    const ns = this.env.LIMITER_V2.jurisdiction("eu");
+    const ns = euNamespace(this.env.LIMITER_V2, this.env, this.localRequest);
     const quota = await ns.get(ns.idFromName(`v2:new:${c.client}`)).hit(V2_NEW_LISTS_PER_HOUR, NEW_LIST_WINDOW_MS);
     if (!quota.ok) return limited(quota.retryAfter);
 
@@ -1532,7 +1546,7 @@ export class ListV2Object extends DurableObject<Env> {
       if (pending.length >= MAX_OPEN_INVITES) return limited(Math.ceil(WINDOW_MS / 1000));
       if (this.invites().filter((i) => !i.package).length >= MAX_OPEN_INVITES) return err(429, "too_many_invites");
       const i: Invitation = { id: b.inviteId as string | undefined ?? encodeB64Url(randomBytes(16)), owner: auth.deviceId, expiresAt: Date.now() + INVITE_TTL_MS, offer, guestPerson };
-      const ns = this.env.INVITES_V2.jurisdiction("eu");
+      const ns = euNamespace(this.env.INVITES_V2, this.env, this.localRequest);
       const reservation = await ns.get(ns.idFromName(i.id)).reserve({ syncId: m.syncId, owner: auth.deviceId, offerHash, guestPerson, expiresAt: i.expiresAt, reservationId: encodeB64Url(randomBytes(16)) });
       if (!reservation.ok) return err(409, "invite_exists");
       i.expiresAt = reservation.expiresAt;
@@ -1680,8 +1694,27 @@ export class ListV2Object extends DurableObject<Env> {
       return { status: 201, body: { expiresAt: i.expiresAt } };
     }
 
-    // result and checkpoint: only for the credential whose hash came with the answer.
+    // Only the credential whose hash came with the answer has guest authority.
     if (c.verifier === null || !i.verifier || !equal(c.verifier, i.verifier)) return NOT_FOUND;
+    if (c.route.resource === "withdraw") {
+      // Shape follows guest authentication: wrong credentials and unknown ids
+      // keep the same 404, including when the object has extra fields.
+      if (Object.keys(c.body).length !== 0) return err(400, "bad_request");
+      // Ordered against approval by handle's list lock. An approved credential
+      // is real: do not silently erase its package/checkpoint or claim success.
+      if (i.package) return err(409, "already_approved");
+      if (this.pendingReleases().length >= MAX_OPEN_INVITES) return limited();
+      await this.ctx.storage.setAlarm(Math.min(this.nextAlarm(m), Date.now() + WINDOW_MS));
+      this.ctx.storage.transactionSync(() => {
+        this.queueRelease(m.syncId, i);
+        this.sql.exec("DELETE FROM invite WHERE id = ?", i.id);
+        this.dropCheckpoints(i.id);
+      });
+      // The authoritative deletion is committed; failed locator cleanup is
+      // retried by the alarm, just like the other invitation releases.
+      await this.drainReleases();
+      return { status: 204 };
+    }
     if (c.route.resource === "checkpoint") {
       // B7: the exact approved common and registry, immutable until the
       // invitation expires or is cancelled. The app checks the hashes.
@@ -1704,7 +1737,9 @@ export class ListV2Object extends DurableObject<Env> {
       if (common === null || registry === null) return NOT_FOUND;
       return { status: 200, body: { common, registry } };
     }
-    if (!i.package) return { status: 202, body: { status: "pending", reveal: i.reveal ?? null }, headers: { "Retry-After": "4" } };
+    // Clients pace at 1-2 s with their invitation budget; a 4 s hint would
+    // unnecessarily delay pairing. Only rate limits prescribe a retry delay.
+    if (!i.package) return { status: 202, body: { status: "pending", reveal: i.reveal ?? null } };
     // Repeatable until the invitation expires: a lost response must not strand a
     // guest whose credential is already registered.
     return { status: 200, body: { reveal: i.reveal, package: i.package, minVersion: i.minVersion, syncId: m.syncId } };
@@ -1714,7 +1749,9 @@ export class ListV2Object extends DurableObject<Env> {
 
   /** Only reachable from the router, which sets `x-verifier` itself. */
   override async fetch(request: Request): Promise<Response> {
-    return this.ctx.blockConcurrencyWhile(async () => {
+    const local = this.env.LOCAL_DEV === "true" && localhostRequest(request);
+    if (this.env.LOCAL_DEV === "true" && !local) return new Response(null, { status: 500 });
+    return this.ctx.blockConcurrencyWhile(() => this.withLocalRequest(local, async () => {
       const m = await this.live();
       if (m === null || isRetired(m)) return new Response(null, { status: 404 });
       const v = request.headers.get("x-verifier");
@@ -1733,7 +1770,7 @@ export class ListV2Object extends DurableObject<Env> {
       pair[1].serializeAttachment({ deviceId: auth.deviceId, credentialVerifier: auth.verifier, t: Date.now() });
       const headers: Record<string, string> = request.headers.has("x-ws-protocol") ? { "Sec-WebSocket-Protocol": V2_WS_PROTOCOL } : {};
       return new Response(null, { status: 101, webSocket: pair[0], headers });
-    });
+    }));
   }
 
   /** Text keepalives are bounded per device and revalidate the stored credential. */
@@ -1830,7 +1867,7 @@ export class ListV2Object extends DurableObject<Env> {
         continue;
       }
       try {
-        const ns = this.env.INVITES_V2.jurisdiction("eu");
+        const ns = euNamespace(this.env.INVITES_V2, this.env, this.localRequest);
         await ns.get(ns.idFromName(r.id)).release(r.syncId, r.expiresAt, r.reservationId);
       } catch {
         failed = true;

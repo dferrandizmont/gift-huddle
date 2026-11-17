@@ -105,6 +105,12 @@ final class SyncOpenEvent extends SyncEvent {
   const SyncOpenEvent();
 }
 
+/// A WebSocket pong confirms liveness without announcing a list change.
+/// Emitted by the browser transport; wire-message parsers remain unchanged.
+final class SyncAliveEvent extends SyncEvent {
+  const SyncAliveEvent();
+}
+
 /// `{"type":"version","version":n}`: la lista cambió en el servidor.
 final class SyncVersionEvent extends SyncEvent {
   /// Crea el evento.

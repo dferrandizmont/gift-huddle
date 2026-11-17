@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../../app/root_navigator.dart' show rootNavigatorObserver;
+import '../../family/application/family_controller.dart';
 import '../../family/domain/family_errors.dart';
 import '../../family/presentation/family_texts.dart';
 import '../../sync/presentation/invite_link_listener.dart';
@@ -73,22 +75,40 @@ class IncomingShareListener extends ConsumerStatefulWidget {
 
 class _IncomingShareListenerState extends ConsumerState<IncomingShareListener> {
   bool _showing = false;
+  bool _scheduled = false;
 
   @override
   void initState() {
     super.initState();
+    rootNavigatorObserver.addListener(_retryWhenReady);
+    _retryWhenReady();
+  }
+
+  @override
+  void dispose() {
+    rootNavigatorObserver.removeListener(_retryWhenReady);
+    super.dispose();
+  }
+
+  void _retryWhenReady() {
+    if (_scheduled) return;
+    _scheduled = true;
     // Un envío que llegó antes de montar la interfaz.
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scheduled = false;
       if (mounted) {
         _handle(ref.read(incomingShareProvider));
       }
     });
+    WidgetsBinding.instance.scheduleFrame();
   }
 
   Future<void> _handle(IncomingShareEvent? event) async {
     if (event == null || _showing) {
       return;
     }
+    // No consumir el aviso hasta que termine la redirección de bienvenida.
+    if (ref.read(familyControllerProvider).isLoading) return;
     final dialogContext = widget.navigatorKey.currentContext;
     if (dialogContext == null) {
       return;
@@ -110,8 +130,9 @@ class _IncomingShareListenerState extends ConsumerState<IncomingShareListener> {
   @override
   Widget build(BuildContext context) {
     ref.listen<IncomingShareEvent?>(incomingShareProvider, (_, next) {
-      _handle(next);
+      _retryWhenReady();
     });
+    ref.listen(familyControllerProvider, (_, _) => _retryWhenReady());
     return InviteLinkListener(
       navigatorKey: widget.navigatorKey,
       child: widget.child,

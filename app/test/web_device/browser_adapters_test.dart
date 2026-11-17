@@ -6,6 +6,7 @@ import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 import 'dart:typed_data';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/core/sync/envelope.dart';
 import 'package:regalos/features/sync/data/sync_endpoint.dart';
@@ -15,6 +16,9 @@ import 'package:regalos/features/sync/data/web_sync_transport.dart';
 import 'package:regalos/features/web_device/application/web_session_platform_web.dart'
     as browser;
 import 'package:regalos/features/web_device/data/vault_pin_web.dart';
+import 'package:regalos/features/web_device/application/pending_queue.dart';
+import 'package:regalos/features/web_device/application/vault_service.dart';
+import 'package:regalos/features/web_device/application/web_sync_engine.dart';
 import 'package:regalos/web_probe/main_probe.dart';
 import 'package:web/web.dart' as web;
 
@@ -92,7 +96,208 @@ class _Socket {
       listeners[name]?.callAsFunction(null, event);
 }
 
+// These paths only use auth and sync; plaintext/queue handling is covered by
+// web_sync_engine_test. Here we exercise real browser transport timers and
+// the engine's reconnect/SyncOpenEvent wiring without asynchronous crypto.
+class _UnusedVault implements VaultService {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _UnusedQueue implements PendingQueue {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _HeartbeatEngine extends WebSyncEngine {
+  _HeartbeatEngine(WebSyncTransport transport, {super.isVisible})
+    : super(
+        transport: transport.v2,
+        vault: _UnusedVault(),
+        queue: _UnusedQueue(),
+      );
+  int syncs = 0;
+  @override
+  V2Auth get auth => V2Auth(
+    syncId: 'AAAAAAAAAAAAAAAAAAAAAA',
+    deviceId: 'test-web',
+    credential: Uint8List(32),
+  );
+  @override
+  Future<void> sync() async {
+    syncs++;
+  }
+}
+
 void main() {
+  for (final hideAt in [0, 30, 40]) {
+    test('hidden at ${hideAt}s suspends pings, deadlines and reconnects', () {
+      fakeAsync((time) {
+        var visible = true;
+        final sockets = <_Socket>[];
+        final transport = WebSyncTransport(
+          SyncEndpoint.parse('https://example.test')!,
+          openSocket: (uri, protocols) {
+            final socket = _Socket();
+            sockets.add(socket);
+            return socket.open(uri, protocols);
+          },
+        );
+        final engine = _HeartbeatEngine(transport, isVisible: () => visible);
+        engine.start();
+        time.flushMicrotasks();
+        sockets.single.emit('open', web.Event('open'));
+        time.flushMicrotasks();
+        time.elapse(Duration(seconds: hideAt));
+        final pings = sockets.single.sent;
+        final reads = engine.syncs;
+        visible = false;
+        engine.suspend();
+        time.elapse(const Duration(minutes: 4));
+        expect(sockets, hasLength(1));
+        expect(sockets.single.sent, pings);
+        expect(sockets.single.closed, 1);
+        expect(sockets.single.listeners, isEmpty);
+        expect(engine.syncs, reads);
+        expect(time.nonPeriodicTimerCount + time.periodicTimerCount, 0);
+        visible = true;
+        engine.resume();
+        time.flushMicrotasks();
+        expect(sockets, hasLength(2));
+        expect(engine.syncs, reads + 1);
+        sockets.last.emit('open', web.Event('open'));
+        time.flushMicrotasks();
+        expect(engine.syncs, reads + 1);
+        engine.stop();
+        transport.close();
+        time.elapse(const Duration(minutes: 2));
+        expect(sockets.last.closed, 1);
+        expect(time.nonPeriodicTimerCount + time.periodicTimerCount, 0);
+      });
+    });
+  }
+
+  test('consecutive failed socket connections back off 1, 2, 5, 15, 30s', () {
+    fakeAsync((time) {
+      final sockets = <_Socket>[];
+      final transport = WebSyncTransport(
+        SyncEndpoint.parse('https://example.test')!,
+        openSocket: (uri, protocols) {
+          final socket = _Socket();
+          sockets.add(socket);
+          return socket.open(uri, protocols);
+        },
+      );
+      final engine = _HeartbeatEngine(transport);
+      engine.start();
+      time.flushMicrotasks();
+      for (final seconds in [1, 2, 5, 15, 30, 30]) {
+        final attempts = sockets.length;
+        sockets.last.emit('error', web.Event('error'));
+        time.flushMicrotasks();
+        time.elapse(Duration(milliseconds: seconds * 1000 - 1));
+        expect(sockets, hasLength(attempts));
+        time.elapse(const Duration(milliseconds: 1));
+        expect(sockets, hasLength(attempts + 1));
+      }
+      engine.stop();
+      transport.close();
+      time.elapse(const Duration(minutes: 2));
+      expect(time.nonPeriodicTimerCount + time.periodicTimerCount, 0);
+    });
+  });
+
+  test('unanswered ping closes, backs off, reopens and syncs on open', () {
+    fakeAsync((time) {
+      final sockets = <_Socket>[];
+      final transport = WebSyncTransport(
+        SyncEndpoint.parse('https://example.test')!,
+        openSocket: (uri, protocols) {
+          final socket = _Socket();
+          sockets.add(socket);
+          return socket.open(uri, protocols);
+        },
+      );
+      final engine = _HeartbeatEngine(transport);
+      engine.start();
+      time.flushMicrotasks();
+      sockets.single.emit('open', web.Event('open'));
+      time.flushMicrotasks();
+      final initial = engine.syncs;
+      expect(initial, 2); // Startup and SyncOpenEvent.
+      time.elapse(const Duration(seconds: 30));
+      expect(sockets.single.sent, 1);
+      time.elapse(const Duration(seconds: 9));
+      expect(sockets.single.closed, 0);
+      time.elapse(const Duration(seconds: 1));
+      expect(sockets.single.closed, 1);
+      expect(sockets.single.listeners, isEmpty);
+      expect(engine.activity, WebSyncActivity.offline);
+      time.elapse(const Duration(milliseconds: 999));
+      expect(sockets, hasLength(1));
+      time.elapse(const Duration(milliseconds: 1));
+      expect(sockets, hasLength(2));
+      sockets.last.emit('open', web.Event('open'));
+      time.flushMicrotasks();
+      expect(engine.syncs, initial + 1);
+      expect(engine.activity, WebSyncActivity.idle);
+      // Stop with another ping deadline outstanding.
+      time.elapse(const Duration(seconds: 30));
+      engine.stop();
+      transport.close();
+      time.elapse(const Duration(minutes: 2));
+      expect(sockets, hasLength(2));
+      expect(sockets.last.closed, 1);
+      expect(time.nonPeriodicTimerCount + time.periodicTimerCount, 0);
+    });
+  });
+
+  for (final message in ['pong', '{"type":"future-message"}']) {
+    test('inbound $message answers ping without announcing a change', () {
+      fakeAsync((time) {
+        final socket = _Socket();
+        final transport = WebSyncTransport(
+          SyncEndpoint.parse('https://example.test')!,
+          openSocket: socket.open,
+        );
+        final events = <SyncEvent>[];
+        final errors = <Object>[];
+        final sub = transport
+            .socketV2(Uri.parse('wss://example.test/ws'), [
+              'gift-huddle.v2',
+              'bearer.test',
+            ])
+            .listen(events.add, onError: errors.add);
+        socket.emit('open', web.Event('open'));
+        time.flushMicrotasks();
+        for (var i = 0; i < 3; i++) {
+          time.elapse(Duration(seconds: i == 0 ? 39 : 30));
+          socket.emit(
+            'message',
+            web.MessageEvent(
+              'message',
+              web.MessageEventInit(data: message.toJS),
+            ),
+          );
+          time.flushMicrotasks();
+          expect(socket.closed, 0);
+        }
+        expect(socket.sent, 3);
+        expect(events.whereType<SyncVersionEvent>(), isEmpty);
+        expect(
+          events.whereType<SyncAliveEvent>(),
+          hasLength(message == 'pong' ? 3 : 0),
+        );
+        expect(errors, isEmpty);
+        sub.cancel();
+        transport.close();
+        time.elapse(const Duration(minutes: 2));
+        expect(socket.closed, 1);
+        expect(time.nonPeriodicTimerCount + time.periodicTimerCount, 0);
+      });
+    });
+  }
+
   test(
     'NFC uses browser normalization and probe matches Unicode vector A',
     () async {

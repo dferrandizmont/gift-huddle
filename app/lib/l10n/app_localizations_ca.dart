@@ -1093,10 +1093,6 @@ class AppLocalizationsCa extends AppLocalizations {
   String get joinIntro => 'Apunta la càmera al codi QR de l\'altre mòbil.';
 
   @override
-  String get joinCameraError =>
-      'No es pot fer servir la càmera. Revisa el permís de càmera als ajustos del mòbil.';
-
-  @override
   String get scannerWaitingPermission => 'Esperant el permís de la càmera…';
 
   @override
@@ -4259,4 +4255,12 @@ class AppLocalizationsCa extends AppLocalizations {
   @override
   String get recoveryProblemPersonBody =>
       'Ha canviat la persona d\'aquest mòbil o hi ha un canvi pendent. Crea un codi nou i desa aquell.';
+
+  @override
+  String get recoveryFileProblemStorageTitle =>
+      'No s\'ha pogut llegir la llista d\'aquest mòbil';
+
+  @override
+  String get recoveryFileProblemStorageBody =>
+      'El fitxer continua a l\'espera. Torna-ho a provar: abans de recuperar, l\'app ha de comprovar que aquest mòbil no té ja una llista.';
 }

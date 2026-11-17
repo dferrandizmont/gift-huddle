@@ -103,6 +103,7 @@ class _RecoveryRestoreScreenState extends ConsumerState<RecoveryRestoreScreen> {
   int? _reopenSerial;
   late final RecoveryFileRestoring _restoring;
   RecoveryFileScreenOpen? _screens;
+  bool _fileReleased = false;
   bool _fileReceived = false;
 
   bool _running = false;
@@ -120,7 +121,8 @@ class _RecoveryRestoreScreenState extends ConsumerState<RecoveryRestoreScreen> {
 
   /// La retención de la entrada a la app (ver `recoveryHoldProvider`); se
   /// guarda aquí para soltarla en `dispose`, donde `ref` ya no vale.
-  late final ValueNotifier<bool> _hold = ref.read(recoveryHoldProvider);
+  late final RecoveryHold _hold = ref.read(recoveryHoldProvider);
+  final Object _holdOwner = Object();
 
   @override
   void initState() {
@@ -131,7 +133,7 @@ class _RecoveryRestoreScreenState extends ConsumerState<RecoveryRestoreScreen> {
       _stage = _Stage.filePick;
       // Un fichero que llegó desde Archivos antes de abrir esta pantalla.
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
+        if (mounted && !_fileReleased) {
           _screens = ref.read(recoveryFileScreenOpenProvider.notifier);
           _screens!.add(1);
           unawaited(_adoptSelection(ref.read(recoveryFileProvider).selection));
@@ -143,7 +145,7 @@ class _RecoveryRestoreScreenState extends ConsumerState<RecoveryRestoreScreen> {
     // adelanten.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _hold.value = true;
+        _hold.acquire(_holdOwner);
       }
     });
     // Lo que se escribe o se pega aquí son las 24 palabras: Android no deja
@@ -173,28 +175,8 @@ class _RecoveryRestoreScreenState extends ConsumerState<RecoveryRestoreScreen> {
     // Fuera del fotograma en que se desmonta: el router y la puerta del
     // bloqueo se repintan.
     final defer = _hold;
-    scheduleMicrotask(() => defer.value = false);
-    if (widget.fileMode) {
-      final screens = _screens;
-      if (screens != null) {
-        scheduleMicrotask(() {
-          try {
-            screens.add(-1);
-          } on Object {
-            // El contenedor ya se cerró con la app.
-          }
-        });
-      }
-      // Fuera del fotograma en que se desmonta: el estado del flujo se repinta.
-      final file = _file;
-      scheduleMicrotask(() {
-        try {
-          file.clear();
-        } on Object {
-          // El contenedor ya se cerró con la app.
-        }
-      });
-    }
+    scheduleMicrotask(() => defer.release(_holdOwner));
+    _releaseFile(defer: true);
     _filePassword.dispose();
     for (final c in _controllers) {
       c.dispose();
@@ -203,6 +185,35 @@ class _RecoveryRestoreScreenState extends ConsumerState<RecoveryRestoreScreen> {
       n.dispose();
     }
     super.dispose();
+  }
+
+  /// Suelta el flujo al empezar a salir, antes de la animación de vuelta.
+  /// Dispose es el respaldo para salidas ajenas a _exit; nunca vuelve a
+  /// limpiar un fichero nuevo que haya llegado durante esa animación.
+  void _releaseFile({bool defer = false}) {
+    if (!widget.fileMode || _fileReleased) return;
+    _fileReleased = true;
+    _fileSerial++;
+    _reopenSerial = null;
+    _filePassword.clear();
+    final file = _file;
+    final screens = _screens;
+    void release() {
+      file.clear();
+      screens?.add(-1);
+    }
+
+    if (defer) {
+      scheduleMicrotask(() {
+        try {
+          release();
+        } on Object {
+          // El contenedor ya se cerró con la app.
+        }
+      });
+    } else {
+      release();
+    }
   }
 
   /// Mira el estado real al abrir (esperando a que se lea del diario) y lo
@@ -645,6 +656,7 @@ class _RecoveryRestoreScreenState extends ConsumerState<RecoveryRestoreScreen> {
   }
 
   void _exit() {
+    _releaseFile();
     if (widget.embedded) {
       Navigator.of(context).pop();
       return;
@@ -659,7 +671,7 @@ class _RecoveryRestoreScreenState extends ConsumerState<RecoveryRestoreScreen> {
   /// se dice y se descarta; el protegido pide la contraseña y el abierto pasa
   /// directo a la confirmación. Nunca deriva sin la contraseña.
   Future<void> _adoptSelection(RecoveryFileSelection? selection) async {
-    if (!widget.fileMode || selection == null || _running) {
+    if (!widget.fileMode || _fileReleased || selection == null || _running) {
       return;
     }
     if (_stage == _Stage.progress || _stage == _Stage.done) {
@@ -705,7 +717,7 @@ class _RecoveryRestoreScreenState extends ConsumerState<RecoveryRestoreScreen> {
       });
       return;
     }
-    if (selection.hasFamily) {
+    if (selection.hasFamily == true) {
       _file.clear();
       setState(() {
         _fileProblem = const RecoveryFileProblem(
@@ -1085,7 +1097,7 @@ class _RecoveryRestoreScreenState extends ConsumerState<RecoveryRestoreScreen> {
           onPressed: () {
             // Ahora sí: a la app, y el aviso del PIN, si toca, sobre ella.
             final router = ref.read(routerProvider);
-            _hold.value = false;
+            _hold.release(_holdOwner);
             router.go('/people');
           },
           child: Text(l10n.recoverEnter),

@@ -8,6 +8,7 @@
 // Dart puro: la aplicación guarda lo que devuelve.
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -224,6 +225,11 @@ class PairingV2Host {
 
   /// Id de la invitación (lo lleva el QR o el enlace).
   final String inviteId;
+
+  /// Liveness while the host is comparing an already answered invitation.
+  Future<void> ensureAlive() async {
+    await _transport.getInvite(_authOf(_local), inviteId);
+  }
 
   PairingV2Answered? _answered;
 
@@ -625,6 +631,82 @@ class PairingV2Guest {
   String? _preparedPerson;
   bool _preparedWithoutPerson = false;
   bool _approved = false;
+  bool _answerSent = false, _withdrawRequested = false;
+  Future<void>? _withdrawal;
+  bool _withdrawGone = false;
+  V2WithdrawInvite? _withdrawInvite;
+
+  /// Best effort, once per attempt. A late answer retries a pre-answer 404.
+  Future<void> withdraw({V2WithdrawInvite? send}) {
+    _withdrawInvite ??= send;
+    _withdrawRequested = true;
+    if (!_answerSent) return Future<void>.value();
+    return _withdrawal ??= _withdraw();
+  }
+
+  Future<void> _withdrawAfterAnswer() async {
+    await withdraw();
+    // A 404 may have been decided before the answer was accepted, even if
+    // its response arrived afterwards. Retry once after both requests settle.
+    if (_withdrawGone) {
+      _withdrawGone = false;
+      _withdrawal = null;
+      await withdraw();
+    }
+  }
+
+  Future<void> _withdraw() async {
+    try {
+      onRequest?.call();
+      final send = _withdrawInvite;
+      final V2InviteWithdrawal result;
+      if (send == null) {
+        result = await _transport
+            .withdrawInvite(inviteId, credential: _keys.serviceCredential)
+            .timeout(const Duration(seconds: 2));
+        if (result == V2InviteWithdrawal.alreadyApproved) {
+          await _revokeApprovedWeb(_transport);
+        }
+      } else {
+        // The polling connection may already be closed. Cleanup must use the
+        // sender's separate client, with two seconds for each of three steps.
+        result = await send(
+          inviteId,
+          credential: _keys.serviceCredential,
+          onAlreadyApproved: _revokeApprovedWeb,
+        ).timeout(const Duration(seconds: 6));
+      }
+      if (result == V2InviteWithdrawal.alreadyApproved) _approved = true;
+      _withdrawGone = result == V2InviteWithdrawal.gone;
+    } on Object {
+      // Network loss/page termination remains best effort.
+    }
+  }
+
+  Future<void> _revokeApprovedWeb(SyncV2Transport transport) async {
+    _approved = true;
+    if (kind != DeviceKind.web) return;
+    try {
+      onRequest?.call();
+      final outcome = await transport
+          .pollInviteResult(inviteId, credential: _keys.serviceCredential)
+          .timeout(const Duration(seconds: 2));
+      if (outcome is! V2InviteApproved) return;
+      await transport
+          .revoke(
+            V2Auth(
+              syncId: outcome.syncId,
+              deviceId: _deviceId,
+              credential: _keys.serviceCredential,
+            ),
+            _deviceId,
+          )
+          .timeout(const Duration(seconds: 2));
+    } on Object {
+      // Approval is real, but cancellation must never wait for or surface
+      // network/server failures while trying to remove the unused credential.
+    }
+  }
 
   /// Si el servidor ya ha dado la aprobación: la credencial de servicio de
   /// este móvil está registrada en la lista aunque no se llegue a instalar.
@@ -687,13 +769,22 @@ class PairingV2Guest {
     _prepared = join;
     _preparedPerson = personId;
     _preparedWithoutPerson = withoutPerson;
+    final verifier = await _keys.serviceCredentialVerifier();
+    if (_withdrawRequested) {
+      throw const PairingException('emparejamiento cancelado');
+    }
     onRequest?.call();
-    await _transport.answerInvite(
-      inviteId,
-      answer: join.answer.toJson(),
-      verifier: await _keys.serviceCredentialVerifier(),
-    );
-    _join = join;
+    _answerSent = true;
+    try {
+      await _transport.answerInvite(
+        inviteId,
+        answer: join.answer.toJson(),
+        verifier: verifier,
+      );
+      _join = join;
+    } finally {
+      if (_withdrawRequested) unawaited(_withdrawAfterAnswer());
+    }
   }
 
   /// El código, en cuanto el anfitrión revela su nonce (null antes). Lanza

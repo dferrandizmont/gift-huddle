@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import '../../../core/sync/device_keys.dart';
@@ -90,6 +91,11 @@ class WebPairingGuest {
   String? _answeringPerson;
   String? personId, code;
   bool confirmed = false, _cancelled = false;
+
+  /// Set once the browser starts writing its identity: the approved device is
+  /// no longer spare, so cancelling the attempt must not withdraw or revoke it
+  /// (a cut after the commit recovers that very identity with the PIN).
+  bool _enrolling = false;
   PairingV2Joined? joined;
   DateTime? _offerExpiresAt;
 
@@ -140,8 +146,10 @@ class WebPairingGuest {
     }
   }
 
-  void cancel() {
+  void cancel({V2WithdrawInvite? withdrawInvite}) {
     _cancelled = true;
+    final pending = _guest ?? _answering;
+    if (pending != null && !_enrolling) unawaited(pending.withdraw(send: withdrawInvite));
   }
 
   /// Null before an offer; a pre-offer 404 is explicitly not expiration.
@@ -232,6 +240,7 @@ class WebPairingGuest {
     if (result == null || !confirmed) {
       throw const PairingException('aprobación pendiente');
     }
+    _enrolling = true;
     await vault.enroll(
       pin: pin,
       syncId: result.identity.syncId,

@@ -173,7 +173,7 @@ void main() {
 
   late FakeExchange exchange;
   late FakeRecovery recovery;
-  late bool hasFamily;
+  late bool? hasFamily;
   late bool holdDerive;
   final derivations =
       <({Completer<Uint8List> done, String password, List<int> salt})>[];
@@ -379,6 +379,56 @@ void main() {
   });
 
   group('una operación y una derivación a la vez', () {
+    test('clear releases the opened code and the waiting file', () async {
+      await flow().receive(asciiFile);
+      await flow().open(password: text(ascii, 'passwordUtf8Hex'));
+      await flow().receive(openFile);
+      expect(state().selection!.opened, isTrue);
+      expect(state().waiting, isNotNull);
+      flow().clear();
+      expect(state().selection, isNull);
+      expect(state().waiting, isNull);
+      expect(state().activity, RecoveryFileActivity.idle);
+      flow().acceptWaiting();
+      await expectLater(
+        flow().restore(),
+        flowFails(RecoveryFileFlowError.noFile),
+      );
+      await flow().receive(openFile);
+      expect(state().waiting, isNull);
+      await flow().open();
+      await flow().restore();
+      expect(recovery.calls, ['file']);
+    });
+
+    test('clear during derivation releases both files and a late result '
+        'cannot change the new selection', () async {
+      holdDerive = true;
+      await flow().receive(asciiFile);
+      final opening = flow().open(password: text(ascii, 'passwordUtf8Hex'));
+      final cancelled = expectLater(
+        opening,
+        flowFails(RecoveryFileFlowError.cancelled),
+      );
+      await pumpEventQueue();
+      expect(derivations, hasLength(1));
+      await flow().receive(asciiFile);
+      flow().clear();
+      expect(state().selection, isNull);
+      expect(state().waiting, isNull);
+      expect(state().activity, RecoveryFileActivity.idle);
+      await flow().receive(openFile);
+      expect(state().waiting, isNull);
+      await flow().open();
+      final current = state().selection;
+      await completeDerivation(0);
+      await cancelled;
+      expect(state().selection, same(current));
+      expect(state().selection!.opened, isTrue);
+      await flow().restore();
+      expect(recovery.calls, ['file']);
+    });
+
     test('the next derivation waits for the cancelled one: never two at '
         'once', () async {
       holdDerive = true;
@@ -527,16 +577,40 @@ void main() {
       expect(state().selection, isNull);
     });
 
-    test('a family that appeared meanwhile stops the restore', () async {
+    test('an unknown family state blocks picking and opening without '
+        'discarding the file', () async {
+      hasFamily = null;
       await flow().receive(openFile);
-      await flow().open();
-      hasFamily = true;
+      final selection = state().selection;
+      expect(selection!.hasFamily, isNull);
       await expectLater(
-        flow().restore(),
+        flow().pickForRestore(),
         flowFails(RecoveryFileFlowError.hasFamily),
       );
+      await expectLater(
+        flow().open(),
+        flowFails(RecoveryFileFlowError.hasFamily),
+      );
+      expect(state().selection, same(selection));
       expect(recovery.calls, isEmpty);
+      hasFamily = false;
+      await flow().open();
+      expect(state().selection!.opened, isTrue);
     });
+
+    for (final currentFamily in [true, null]) {
+      test('family=$currentFamily after opening stops the restore', () async {
+        await flow().receive(openFile);
+        await flow().open();
+        hasFamily = currentFamily;
+        await expectLater(
+          flow().restore(),
+          flowFails(RecoveryFileFlowError.hasFamily),
+        );
+        expect(recovery.calls, isEmpty);
+        expect(state().selection!.opened, isTrue);
+      });
+    }
 
     test('a picker result after clear is discarded', () async {
       exchange.holdPick = Completer<Uint8List?>();

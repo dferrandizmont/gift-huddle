@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -38,6 +39,40 @@ void main() {
   late WebHarness h;
   setUp(() {
     h = WebHarness();
+  });
+
+  test('approval winning withdrawal preserves the result until the web revokes itself', () async {
+    await h.setup(approve: false);
+    await h.host.confirm(confirmedPersonId: 'leo');
+    expect(
+      await h.client.withdrawInvite(
+        h.guest.qr.inviteId,
+        credential: h.guest.keys.serviceCredential,
+      ),
+      V2InviteWithdrawal.alreadyApproved,
+    );
+    expect(
+      await h.client.pollInviteResult(
+        h.guest.qr.inviteId,
+        credential: h.guest.keys.serviceCredential,
+      ),
+      isA<V2InviteApproved>(),
+    );
+    final snapshot = (await h.client.getList(h.phone.auth) as V2GetOk).snapshot;
+    final webId = snapshot.devices.singleWhere((d) => d.role == 'web').deviceId;
+    final revoked = Completer<void>();
+    h.worker.tamper = (method, uri, response) {
+      if (method == 'POST' && uri.path.endsWith('/revoke')) {
+        expect(response.status, 200);
+        revoked.complete();
+      }
+      return response;
+    };
+    h.guest.cancel();
+    await revoked.future.timeout(const Duration(seconds: 5));
+    expect(h.guest.approved, isTrue);
+    expect(h.worker.devicesOf(kV2Sync)[webId], isTrue);
+    expect(h.worker.devicesOf(kV2Sync)[h.phone.identity.deviceId], isFalse);
   });
 
   test(

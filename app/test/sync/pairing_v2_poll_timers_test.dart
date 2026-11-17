@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/core/prefs/shared_preferences_provider.dart';
 import 'package:regalos/core/sync/model.dart';
+import 'package:regalos/features/web_device/application/web_pairing_guest.dart';
 import 'package:regalos/features/family/application/family_controller.dart';
 import 'package:regalos/features/sync/application/pairing_v2_controller.dart';
 import 'package:regalos/features/sync/application/sync_controller.dart';
@@ -86,6 +87,39 @@ void main() {
 
   int invitePolls(String inviteId) =>
       requests.where((r) => r.endsWith('/invites/$inviteId')).length;
+
+  test(
+    'guest withdrawal takes the phone from the code screen to cancelled',
+    () async {
+      final a = await owner();
+      final guest = await WebPairingGuest.create(transport: counting());
+      final host = a.container.read(pairingV2HostProvider.notifier);
+      await host.startWeb(
+        guest.qr.url(origin: 'https://web.gifthuddle.app'),
+        guestPerson: 'nora',
+      );
+      await guest.poll();
+      await eventually(
+        () =>
+            a.container.read(pairingV2HostProvider).phase ==
+            PairingV2HostPhase.compare,
+        reason: 'phone shows the code',
+      );
+      guest.cancel();
+      await eventually(
+        () =>
+            a.container.read(pairingV2HostProvider).phase ==
+            PairingV2HostPhase.cancelled,
+        reason: 'withdrawal ends the code comparison without approval',
+      );
+      expect(host.polling, isFalse);
+      await host.confirm();
+      expect(
+        a.container.read(pairingV2HostProvider).phase,
+        PairingV2HostPhase.cancelled,
+      );
+    },
+  );
 
   test('the host polls by itself while waiting and stops on cancel, restart '
       'and close', () async {

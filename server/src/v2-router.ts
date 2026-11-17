@@ -1,3 +1,4 @@
+import { euNamespace } from "./eu-namespace";
 import type { Env } from "./env";
 import { decodeB64Url, encodeB64Url, sha256 } from "./encoding";
 import { err, readJsonObject, toResponse } from "./http";
@@ -33,6 +34,7 @@ async function verifierOf(credential: string | undefined): Promise<string | null
  * reads only what it can ever accept: a create (`If-Match: "0"`) is small.
  */
 function bodyLimit(r: V2Route, match: string | null): number {
+  if (r.resource === "withdraw") return 64;
   if (r.resource === "recoveryCommit") return RECOVERY_CONTROL_BYTES;
   if (r.recoveryId !== undefined) return RECOVERY_MAX_BODY_BYTES;
   if (r.resource === "renewal") return V2_MAX_RENEWAL_BODY_BYTES;
@@ -44,11 +46,13 @@ function bodyLimit(r: V2Route, match: string | null): number {
 }
 
 /**
- * Every v2 namespace is selected with `.jurisdiction("eu")` before an id is made.
+ * Production selects `.jurisdiction("eu")` before an id is made. Only an
+ * explicit local development opt-in bypasses jurisdiction in workerd.
  * The list object decides everything else (access, revocation, versions) under
  * one lock, so a revocation is ordered against every other operation.
  */
-export async function routeV2(request: Request, env: Env): Promise<Response> {
+export async function routeV2(request: Request, env: Env, localRequest = false): Promise<Response> {
+  if (env.LOCAL_DEV === "true" && !localRequest) return toResponse(err(500, "internal"));
   const r = matchV2(new URL(request.url).pathname);
   const recoveryPath = /^\/v2\/(recoveries(?:\/|$)|lists\/[^/]+\/recoveries(?:\/|$))/.test(new URL(request.url).pathname);
   if (!r) return toResponse(err(recoveryPath ? 400 : 404, recoveryPath ? "invalid_recovery" : "not_found"));
@@ -63,13 +67,13 @@ export async function routeV2(request: Request, env: Env): Promise<Response> {
   if (listRoute && !guardOpen && !verifier && !recoveryPath) return toResponse(err(401, "unauthorized"));
 
   if (recoveryPath && !listRoute) {
-    const ns = env.LIMITER_V2.jurisdiction("eu");
+    const ns = euNamespace(env.LIMITER_V2, env, localRequest);
     const q = await ns.get(ns.idFromName(`v2:recovery:${client}`)).hit(RECOVERY_REQUESTS_PER_IP, WINDOW_MS);
     if (!q.ok) return toResponse(err(429, "rate_limited", { "Retry-After": String(q.retryAfter) }));
   }
 
   if (guardOpen) {
-    const ns = env.LIMITER_V2.jurisdiction("eu");
+    const ns = euNamespace(env.LIMITER_V2, env, localRequest);
     const q = await ns.get(ns.idFromName(`v2:guard:${client}`)).hit(V2_GUARD_OPENS_PER_IP, WINDOW_MS);
     if (!q.ok) return toResponse(err(429, "rate_limited", { "Retry-After": String(q.retryAfter) }));
   }
@@ -128,15 +132,15 @@ export async function routeV2(request: Request, env: Env): Promise<Response> {
   let syncId = r.syncId;
   if (!listRoute) {
     if (recoveryPath) {
-      const ns = env.RECOVERIES_V2.jurisdiction("eu");
+      const ns = euNamespace(env.RECOVERIES_V2, env, localRequest);
       syncId = (await ns.get(ns.idFromName(r.recoveryId!)).locate()) ?? undefined;
     } else {
-      const ns = env.INVITES_V2.jurisdiction("eu");
+      const ns = euNamespace(env.INVITES_V2, env, localRequest);
       syncId = (await ns.get(ns.idFromName(r.inviteId!)).locate()) ?? undefined;
     }
     if (!syncId) return toResponse(err(404, "not_found"));
   }
-  const ns = env.LISTS_V2.jurisdiction("eu");
+  const ns = euNamespace(env.LISTS_V2, env, localRequest);
   const list = ns.get(ns.idFromName(syncId!));
   // Probe before acquiring the source lock: cross-object probes while holding
   // two source locks could deadlock. The result is an internal field only;
@@ -152,7 +156,7 @@ export async function routeV2(request: Request, env: Env): Promise<Response> {
     // client header never reach the object.
     const headers = new Headers({ Upgrade: "websocket", "x-verifier": verifier! });
     if (protocols.includes(V2_WS_PROTOCOL)) headers.set("x-ws-protocol", V2_WS_PROTOCOL);
-    const response = await list.fetch(new Request("https://internal/ws", { headers }));
+    const response = await list.fetch(new Request(localRequest ? new URL("/ws", request.url) : "https://internal/ws", { headers }));
     if (response.status === 101) return response;
     const retry = response.headers.get("Retry-After");
     const code = response.status === 403 ? response.headers.get("x-auth-error") ?? "credential_replaced" : response.status === 404 ? "not_found" : response.status === 429 ? "rate_limited" : "unauthorized";
@@ -161,6 +165,7 @@ export async function routeV2(request: Request, env: Env): Promise<Response> {
 
   return toResponse(
     await list.handle({
+      localRequest,
       destinationCreated,
       renewalDisabled: env.RENEWAL_ENABLED !== "true",
       recoveryReadVerifier: readVerifier,

@@ -83,7 +83,7 @@ No hi ha comptes ni publicitat, i el desenvolupador no fa servir analítica ni i
 
 ## Novetats
 
-La versió 1.0.2 (16 de novembre de 2026) permet desar el codi de recuperació en un fitxer, amb contrasenya si vols, fa que connectar la versió web torni a funcionar i vagi més de pressa, i evita que l'escàner QR es quedi en negre. La versió 1.0.0 (16 de novembre de 2026) és la primera a les botigues. Porta la llista de regals de cada persona, el repartiment en graella, les ocasions amb compte enrere, els regals secrets, compartir entre mòbils i amb la versió web, el codi de recuperació i els temes clar i fosc. Els detalls, a [CHANGELOG.md](CHANGELOG.md).
+La versió 1.0.3 (17 de novembre de 2026) obre un fitxer de recuperació directament des d'Arxius, també amb l'app ja oberta, i mostra «Desa en un fitxer» a la pantalla de les 24 paraules sense haver de baixar. La versió 1.0.2 (16 de novembre de 2026) permet desar el codi de recuperació en un fitxer, amb contrasenya si vols, fa que connectar la versió web torni a funcionar i vagi més de pressa, i evita que l'escàner QR es quedi en negre. La versió 1.0.0 (16 de novembre de 2026) és la primera a les botigues. Porta la llista de regals de cada persona, el repartiment en graella, les ocasions amb compte enrere, els regals secrets, compartir entre mòbils i amb la versió web, el codi de recuperació i els temes clar i fosc. Els detalls, a [CHANGELOG.md](CHANGELOG.md).
 
 ## Contribuir
 

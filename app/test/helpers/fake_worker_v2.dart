@@ -1333,6 +1333,13 @@ class _List {
     if (verifier == null || verifier != i.verifier) {
       return FakeWorkerV2._err(404, 'not_found');
     }
+    if (resource == 'withdraw') {
+      if (b.isNotEmpty) return FakeWorkerV2._err(400, 'bad_request');
+      if (i.package != null) return FakeWorkerV2._err(409, 'already_approved');
+      invites.remove(i.id);
+      server._invites.remove(i.id);
+      return FakeWorkerV2._r(204);
+    }
     if (resource == 'checkpoint') {
       final copy = i.checkpoint;
       if (i.package == null) {

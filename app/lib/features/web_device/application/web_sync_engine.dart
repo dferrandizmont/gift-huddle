@@ -143,8 +143,15 @@ class WebSyncEngine {
     this.onError,
     DateTime Function()? now,
     this.commonV2Ready = kCommonV2Ready,
-  }) : now = now ?? DateTime.now;
+    this.refreshInterval = const Duration(seconds: 60),
+    bool Function()? isVisible,
+  }) : now = now ?? DateTime.now,
+       isVisible = isVisible ?? (() => true);
   final DateTime Function() now;
+  final bool Function() isVisible;
+
+  /// Backup check after a successful sync, only while the tab is visible.
+  final Duration refreshInterval;
 
   /// ADR 0005, B4/B5: with it this web announces that it reads and writes
   /// the common format 2. Following a cut never depends on it (the mark in
@@ -178,12 +185,17 @@ class WebSyncEngine {
   bool get hasRoots => (vault.opened.data['roots'] as List).isNotEmpty;
   int version = 0;
   int _generation = 0;
+  int _watchGeneration = 0;
   bool _stopped = false;
   bool _started = false;
   Future<void> _tail = Future.value();
   StreamSubscription<SyncEvent>? _socket;
   Timer? _retry;
   Timer? _syncRetry;
+  DateTime? _notBefore;
+  Timer? _refresh;
+  int _syncRequests = 0;
+  int _syncing = 0;
   Timer? _undoDeadline;
   int _failures = 0;
   int _undoRevision = 0;
@@ -237,42 +249,122 @@ class WebSyncEngine {
     }
   }
 
+  /// A suspended browser can lose notifications without a close event. Read
+  /// on return (respecting backoff) and replace the potentially stale connection.
+  Future<void> resume() async {
+    if (!_started || _stopped || !isVisible()) return;
+    final watchGeneration = ++_watchGeneration;
+    _retry?.cancel();
+    _retry = null;
+    final socket = _socket;
+    _socket = null;
+    await socket?.cancel();
+    if (_stopped || !isVisible() || watchGeneration != _watchGeneration) return;
+    _watch(syncOnOpen: false);
+    await requestSync();
+  }
+
+  /// Closing the subscription also cancels transport pings and their deadline.
+  /// Keep the session open: its existing five-minute hidden lock still applies.
+  void suspend() {
+    _watchGeneration++;
+    _retry?.cancel();
+    _retry = null;
+    _syncRetry?.cancel();
+    _syncRetry = null;
+    _refresh?.cancel();
+    _refresh = null;
+    final socket = _socket;
+    _socket = null;
+    unawaited(socket?.cancel());
+  }
+
   /// Used by edits/socket notifications. A network cut retains the encrypted
   /// action and retries with bounded backoff; Retry-After is a lower bound.
   Future<void> requestSync() async {
+    if (_stopped || !isVisible() || _deferSync()) return;
+    _refresh?.cancel();
+    _refresh = null;
+    _syncRetry?.cancel();
+    _syncRetry = null;
+    _syncRequests++;
+    var refreshed = false;
     try {
       await sync();
-      _failures = 0;
-      _flag(syncOffline: false);
+      refreshed = true;
     } catch (e) {
       if (_stopped) return;
-      if (e is SyncTransportException && e.failure == SyncFailure.network) {
-        _flag(syncOffline: true);
-      }
       onError?.call(e);
-      if (e is SyncTransportException &&
-          {
-            SyncFailure.network,
-            SyncFailure.server,
-            SyncFailure.rateLimited,
-          }.contains(e.failure)) {
-        var delay = Duration(
-          seconds: [5, 15, 45, 120, 300][(_failures++).clamp(0, 4)],
-        );
-        if (e.retryAfter != null && e.retryAfter! > delay) {
-          delay = e.retryAfter!;
-        }
-        _syncRetry?.cancel();
-        _syncRetry = Timer(delay, () => unawaited(requestSync()));
-      }
+    } finally {
+      _syncRequests--;
+      if (refreshed) _scheduleRefresh();
     }
+  }
+
+  bool _deferSync() {
+    final deadline = _notBefore;
+    if (deadline == null || !now().isBefore(deadline)) return false;
+    _armSyncRetry();
+    return true;
+  }
+
+  void _armSyncRetry() {
+    if (_stopped || !isVisible() || _syncRetry != null) return;
+    final delay = _notBefore!.difference(now());
+    _syncRetry = Timer(delay.isNegative ? Duration.zero : delay, () {
+      _syncRetry = null;
+      unawaited(requestSync());
+    });
+  }
+
+  void _scheduleSyncRetry(Object e) {
+    if (_stopped) return;
+    if (e is SyncTransportException && e.failure == SyncFailure.network) {
+      _flag(syncOffline: true);
+    }
+    if (e is! SyncTransportException ||
+        !{
+          SyncFailure.network,
+          SyncFailure.server,
+          SyncFailure.rateLimited,
+        }.contains(e.failure)) {
+      return;
+    }
+    var delay = Duration(
+      seconds: [5, 15, 45, 120, 300][(_failures++).clamp(0, 4)],
+    );
+    if (e.retryAfter != null && e.retryAfter! > delay) delay = e.retryAfter!;
+    _notBefore = now().add(delay);
+    _syncRetry?.cancel();
+    _syncRetry = null;
+    _armSyncRetry();
+  }
+
+  void _scheduleRefresh() {
+    if (!_started ||
+        _stopped ||
+        !isVisible() ||
+        _syncRequests != 0 ||
+        _syncing != 0 ||
+        _syncRetry != null) {
+      return;
+    }
+    _refresh?.cancel();
+    _refresh = Timer(refreshInterval, () {
+      _refresh = null;
+      // A direct/manual sync also uses the serial queue. Never add a backup
+      // read behind it, or perform background reads while the tab is hidden.
+      if (_syncing == 0) unawaited(requestSync());
+    });
   }
 
   void stop() {
     _stopped = true;
     _generation++;
+    _watchGeneration++;
     _retry?.cancel();
     _syncRetry?.cancel();
+    _refresh?.cancel();
     _undoDeadline?.cancel();
     unawaited(_socket?.cancel());
     _socket = null;
@@ -289,14 +381,20 @@ class WebSyncEngine {
     onDisconnected?.call();
   }
 
-  void _watch() {
-    if (_stopped) return;
+  void _watch({bool syncOnOpen = true}) {
+    if (_stopped || !isVisible() || _socket != null) return;
     final g = _generation;
+    final watchGeneration = ++_watchGeneration;
+    bool current() =>
+        !_stopped &&
+        isVisible() &&
+        g == _generation &&
+        watchGeneration == _watchGeneration;
     _socket = transport
         .watch(auth)
         .listen(
           (event) {
-            if (_stopped || g != _generation) return;
+            if (!current()) return;
             if (event is SyncRevokedEvent || event is SyncGoneEvent) {
               _disconnect();
               return;
@@ -305,13 +403,13 @@ class WebSyncEngine {
               _failures = 0;
               _flag(socketDown: false);
             }
-            if (event is SyncOpenEvent ||
+            if (event is SyncOpenEvent && syncOnOpen ||
                 event is SyncVersionEvent && event.version > version) {
               unawaited(requestSync());
             }
           },
           onError: (Object e) {
-            if (_stopped || g != _generation) return;
+            if (!current()) return;
             if (e is SyncTransportException &&
                 e.failure == SyncFailure.unauthorized) {
               _disconnect();
@@ -321,7 +419,8 @@ class WebSyncEngine {
             }
           },
           onDone: () {
-            if (_stopped || g != _generation) return;
+            if (!current()) return;
+            _socket = null;
             _flag(socketDown: true);
             final delay = [1, 2, 5, 15, 30][(_failures++).clamp(0, 4)];
             _retry = Timer(Duration(seconds: delay), _watch);
@@ -386,7 +485,39 @@ class WebSyncEngine {
     return undone;
   }
 
-  Future<void> sync() => _serial((g) async {
+  Future<void> sync() async {
+    if (_stopped || !isVisible() || _deferSync()) return;
+    _refresh?.cancel();
+    _refresh = null;
+    _syncRetry?.cancel();
+    _syncRetry = null;
+    _syncing++;
+    try {
+      await _sync();
+    } finally {
+      _syncing--;
+      _scheduleRefresh();
+    }
+  }
+
+  Future<void> _sync() => _serial((g) async {
+    // A preceding queued request may have failed since this one was admitted.
+    if (!isVisible() || _deferSync()) return;
+    try {
+      await _syncOnce(g);
+      _notBefore = null;
+      _failures = 0;
+      _syncRetry?.cancel();
+      _syncRetry = null;
+      _flag(syncOffline: false);
+    } catch (e) {
+      // Record the deadline before releasing the serial queue to other reads.
+      _scheduleSyncRetry(e);
+      rethrow;
+    }
+  });
+
+  Future<void> _syncOnce(int g) async {
     try {
       for (var attempt = 0; attempt < 4; attempt++) {
         final snap = await _read(g);
@@ -445,6 +576,7 @@ class WebSyncEngine {
             canonicalJsonOf(revalidated) != canonicalJsonOf(admitted)) {
           continue;
         }
+        if (!isVisible()) return;
         final put = await transport.putCommon(
           auth,
           version: snap.version,
@@ -496,7 +628,7 @@ class WebSyncEngine {
       }
       rethrow;
     }
-  });
+  }
 
   /// The common document of the saved snapshot (format 1 before the cut,
   /// format 2 opened by `kid` afterwards).
@@ -507,6 +639,7 @@ class WebSyncEngine {
   );
 
   Future<V2Snapshot?> _read(int g, {bool announced = false}) async {
+    if (!isVisible()) return null;
     // Recover observations from enrollment (including an interrupted commit)
     // before a new GET can replace the only snapshot which contains them.
     final initial = vault.opened.data['snapshot'] as Map;
@@ -520,8 +653,10 @@ class WebSyncEngine {
       },
     );
     _check(g);
+    if (!isVisible()) return null;
     final got = await transport.getList(auth);
     _check(g);
+    if (!isVisible()) return null;
     if (got is V2GetNotFound) {
       _disconnect();
       return null;

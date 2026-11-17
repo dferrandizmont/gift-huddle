@@ -8,7 +8,6 @@ import '../../../core/layout/window_class.dart';
 import '../../../core/platform/secure_screen.dart';
 import '../../../core/theme/regalos_motion.dart';
 import '../../../core/theme/regalos_shape.dart';
-import '../../../core/theme/regalos_tokens.dart';
 import '../../../core/sync/recovery.dart';
 import '../../../core/widgets/regalos_snack_bar.dart';
 import '../../../core/widgets/screen_header.dart';
@@ -78,7 +77,6 @@ class _RecoveryScanScreenState extends ConsumerState<RecoveryScanScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final t = RegalosTokens.of(context);
     final custom = ref.watch(scannerBuilderProvider);
     final compact = WindowClass.of(context) == WindowClass.compact;
     Widget scanner(BuildContext context) =>
@@ -93,16 +91,8 @@ class _RecoveryScanScreenState extends ConsumerState<RecoveryScanScreen> {
               setState(() => _denied = denied);
             }
           },
-          errorBuilder: (context) => Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text(
-                l10n.joinCameraError,
-                textAlign: TextAlign.center,
-                style: t.styles.body.copyWith(color: Colors.white),
-              ),
-            ),
-          ),
+          // Sin errorBuilder: los avisos de siempre del lector, con
+          // «Reintentar» o «Abrir ajustes» según el caso.
         );
     final camera = Container(
       clipBehavior: Clip.antiAlias,

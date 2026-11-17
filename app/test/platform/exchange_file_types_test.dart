@@ -28,9 +28,7 @@ void main() {
     final verifiedFilters = RegExp(
       r'<intent-filter android:autoVerify="true">(.*?)</intent-filter>',
       dotAll: true,
-    ).allMatches(
-      manifest.replaceAll(RegExp(r'<!--.*?-->', dotAll: true), ''),
-    );
+    ).allMatches(manifest.replaceAll(RegExp(r'<!--.*?-->', dotAll: true), ''));
     expect(verifiedFilters, isNotEmpty);
     for (final filter in verifiedFilters) {
       expect(
@@ -40,6 +38,26 @@ void main() {
         everyElement('gifthuddle.app'),
       );
     }
+  });
+
+  test('Android reuses its own task for Files and launcher intents', () {
+    final manifest = File('android/app/src/main/AndroidManifest.xml')
+        .readAsStringSync()
+        .replaceAll(RegExp(r'<!--.*?-->', dotAll: true), '');
+    final activity = RegExp(
+      r'<activity\s+android:name=".MainActivity"(.*?)</activity>',
+      dotAll: true,
+    ).firstMatch(manifest)!.group(1)!;
+    expect(activity, contains('android:launchMode="singleTask"'));
+    expect(activity, contains('android:taskAffinity=""'));
+    expect(activity, contains('android.intent.category.LAUNCHER'));
+    expect(activity, contains('android.intent.action.VIEW'));
+    expect(activity, contains('android.intent.action.SEND'));
+    expect(
+      activity,
+      contains('orientation|keyboardHidden|keyboard|screenSize'),
+    );
+    expect(manifest, contains('android.permission.CAMERA'));
   });
 
   test('iOS associates only the current public invitation host', () {
