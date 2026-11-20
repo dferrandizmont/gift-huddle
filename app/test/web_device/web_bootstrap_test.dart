@@ -6,7 +6,9 @@ import 'package:regalos/app/web_bootstrap.dart';
 import 'package:regalos/core/sync/model.dart';
 import 'package:regalos/features/family/application/family_controller.dart';
 import 'package:regalos/features/family/data/device_keys_store.dart';
+import 'package:regalos/features/sharing/presentation/share_dialogs.dart';
 import 'package:regalos/features/sync/data/sync_config.dart';
+import 'package:regalos/features/sync/presentation/invite_link_listener.dart';
 import 'package:regalos/features/web_device/application/web_gate_controller.dart';
 import 'package:regalos/features/web_device/data/web_device_keys_store.dart';
 import 'package:regalos/features/web_device/presentation/web_gate_model.dart';
@@ -53,6 +55,16 @@ void main() {
       });
       await tester.pump();
       expect(gate.view, isA<WebGateOpen>());
+      // The web gate owns invitations. The Wasm guard's reviewed dead
+      // InviteLinkListener traps rely on native listeners never mounting here.
+      expect(
+        find.byType(IncomingShareListener, skipOffstage: false),
+        findsNothing,
+      );
+      expect(
+        find.byType(InviteLinkListener, skipOffstage: false),
+        findsNothing,
+      );
       final container = tester
           .widget<UncontrolledProviderScope>(
             find.byType(UncontrolledProviderScope).first,

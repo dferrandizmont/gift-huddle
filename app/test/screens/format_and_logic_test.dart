@@ -51,13 +51,56 @@ void main() {
       expect(parseCents('12,5'), 1250);
       expect(parseCents('12,50'), 1250);
       expect(parseCents('12.50'), 1250);
+      expect(parseCents('€ 12'), 1200);
       expect(parseCents(' 49,99 € '), 4999);
+      expect(parseCents('1.250,00 €'), 125000);
+      expect(parseCents('1,250.00', locale: 'es'), 125000);
       expect(parseCents('1.234,56'), 123456);
       expect(parseCents('1,234.56'), 123456);
       expect(parseCents('1.234'), 123400);
       expect(parseCents('0,05'), 5);
       expect(parseCents(',5'), 50);
       expect(parseCents('12,345'), 1234500);
+    });
+
+    test('los tres espacios de millares separan grupos completos', () {
+      for (final space in [' ', '\u00a0', '\u202f']) {
+        expect(parseCents('12${space}345,67 €', locale: 'es'), 1234567);
+        expect(parseCents('€ 12${space}345.67', locale: 'en'), 1234567);
+        expect(parseCents('1${space}234${space}567', locale: 'ca'), 123456700);
+        expect(parseCents('12${space}345,'), 1234500);
+        expect(parseCents('1${space}23,45'), isNull);
+        expect(parseCents('12${space}50'), isNull);
+      }
+    });
+
+    test('coma y punto valen de decimal, también al final', () {
+      expect(parseCents('12,'), 1200);
+      expect(parseCents('12.'), 1200);
+      expect(parseCents('7.5'), 750);
+      expect(parseCents('7,5'), 750);
+      expect(parseCents('0.99'), 99);
+      expect(parseCents('1.234,', locale: 'es'), 123400);
+      expect(parseCents('1.234,', locale: 'ca'), 123400);
+      expect(parseCents('1,234.', locale: 'en'), 123400);
+      expect(parseCents('1.234.', locale: 'es'), isNull);
+    });
+
+    test('con el idioma, un solo separador con tres cifras es un millar solo '
+        'si es el de millares', () {
+      // es y ca: el punto agrupa y la coma separa decimales.
+      expect(parseCents('1.234', locale: 'es'), 123400);
+      expect(parseCents('1,234', locale: 'es'), isNull);
+      expect(parseCents('12,5', locale: 'es'), 1250);
+      expect(parseCents('12.5', locale: 'es'), 1250);
+      expect(parseCents('1.234,56', locale: 'ca'), 123456);
+      // en: al revés.
+      expect(parseCents('1,234', locale: 'en'), 123400);
+      expect(parseCents('1.234', locale: 'en'), isNull);
+      expect(parseCents('12,5', locale: 'en'), 1250);
+      expect(parseCents('12.5', locale: 'en'), 1250);
+      // Varios grupos no son ambiguos.
+      expect(parseCents('1.234.567', locale: 'es'), 123456700);
     });
 
     test('lo que no es un importe da null', () {
@@ -68,12 +111,21 @@ void main() {
         '1,2,3',
         '12,345,6',
         '12 euros',
-        '12,',
+        '12 € 50 €',
+        '€12€',
+        '12€50',
+        '1  234,56',
+        '1234 567,89',
+        '1 234,5 6',
+        '1\t234,56',
+        '1 .250,00',
         '.',
+        ',',
       ]) {
         expect(parseCents(bad), isNull, reason: bad);
       }
       expect(parseCents('99999999999'), isNull);
+      expect(parseCents('4611686018427387904,'), isNull);
     });
 
     test('se escriben sin decimales si son redondos', () {

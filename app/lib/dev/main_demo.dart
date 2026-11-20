@@ -189,6 +189,10 @@ Future<void> _seed(ProviderContainer container) async {
     await c.upsertGiver(g);
   }
   await c.seedDefaultOccasions('ES-CT');
+  // Presupuestos de muestra: uno holgado, uno justo y uno que se pasa.
+  await c.setOccasionBudget('seed-kings', 25000);
+  await c.setOccasionBudget('seed-santa', 10000);
+  await c.setOccasionBudget('seed-tio', 2000);
 
   Gift gift(
     String id,

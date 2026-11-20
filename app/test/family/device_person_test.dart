@@ -60,7 +60,7 @@ void main() {
     expect(s.isDevicePerson('nora'), isFalse);
     expect(s.devicePersonOwner('nora'), isNull);
     expect(s.isDevicePerson('nadie'), isFalse);
-    // (b) Otros móviles: pendiente de la fase 2b/3; hoy no se sabe de nadie.
+    // Una lista v1 no tiene registro firmado de otros móviles.
     expect(s.otherDevicePeople, isEmpty);
   });
 

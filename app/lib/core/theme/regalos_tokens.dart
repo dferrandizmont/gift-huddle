@@ -22,6 +22,9 @@ class RegalosTokens extends ThemeExtension<RegalosTokens> {
     required this.ink,
     required this.soft,
     required this.swatchBorder,
+    required this.selection,
+    required this.selectionBorder,
+    required this.selectionEdge,
     required this.cardBorder,
     required this.givers,
     required this.giverOns,
@@ -48,6 +51,13 @@ class RegalosTokens extends ThemeExtension<RegalosTokens> {
       ink: dark ? p.tintaD : p.tinta,
       soft: dark ? p.tintD : p.pastel,
       swatchBorder: p.swatchBorder,
+      selection: dark ? p.selectionD : p.selection,
+      selectionBorder: dark ? p.borderD : p.swatchBorder,
+      selectionEdge: Color.lerp(
+        dark ? p.borderD : p.swatchBorder,
+        dark ? p.tintaD : p.tinta,
+        0.7,
+      )!,
       cardBorder: occasion == null
           ? null
           : (dark ? occasion.cardBorderD : occasion.cardBorder),
@@ -65,7 +75,8 @@ class RegalosTokens extends ThemeExtension<RegalosTokens> {
   final OccasionTheme? occasion;
   final NeutralPalette neutral;
 
-  /// Relleno del acento: píldora de la barra, botón, casilla, segmento activo.
+  /// Relleno del acento: «Añadir regalo», «Guardar», segmento activo. En
+  /// oscuro, el pastel velado al 18 %.
   final Color fill;
 
   /// Texto e iconos sobre [fill].
@@ -79,6 +90,18 @@ class RegalosTokens extends ThemeExtension<RegalosTokens> {
 
   /// Borde de las muestras de color (solo se pinta en claro).
   final Color swatchBorder;
+
+  /// Fondo de lo elegido: el filtro activo, el destino de la barra lateral, la
+  /// opción de un desplegable. El texto encima va en [ink].
+  final Color selection;
+
+  /// Borde de lo elegido (un filtro activo).
+  final Color selectionBorder;
+
+  /// Borde de lo elegido cuando se reconoce también por él (la opción activa
+  /// de un conmutador sin texto): el de [selectionBorder] acercado a la tinta,
+  /// a 3:1 o más sobre el fondo, la tarjeta y la hoja, en claro y en oscuro.
+  final Color selectionEdge;
 
   /// Borde de la tarjeta de cuenta atrás; `null` fuera de una ocasión.
   final Color? cardBorder;
@@ -113,6 +136,7 @@ class RegalosTokens extends ThemeExtension<RegalosTokens> {
 
   /// Rojo de error o de acción destructiva, y su fondo suave.
   Color get danger => neutral.danger;
+  Color get dangerOnTint => neutral.dangerOnTint;
   Color get dangerSoft => neutral.dangerSoft;
   Color get dangerRow => neutral.dangerRow;
   Color get text => neutral.text;
@@ -126,6 +150,11 @@ class RegalosTokens extends ThemeExtension<RegalosTokens> {
   /// (3:1 como mínimo sobre el fondo y la hoja, en claro y en oscuro).
   Color get chipBorder => neutral.controlBorder;
   Color get track => neutral.track;
+
+  /// Barra lateral del tablero, campos de texto y desplegables.
+  Color get sidebar => neutral.sidebar;
+  Color get field => neutral.field;
+  Color get popover => neutral.popover;
   Color get ideaStroke => neutral.idea;
 
   /// Adorno principal, secundario y filete de la cabecera de la ocasión.
@@ -143,8 +172,9 @@ class RegalosTokens extends ThemeExtension<RegalosTokens> {
   Color statusStroke(GiftStatus status) =>
       status == GiftStatus.idea ? ideaStroke : ink;
 
-  /// Relleno de la casilla de estado (solo las formas con relleno lo pintan).
-  Color statusFill(GiftStatus status) => fill;
+  /// Relleno de la casilla de estado (el sector que avanza y el círculo de
+  /// entregado): la tinta del acento, que se lee igual en claro y en oscuro.
+  Color statusFill(GiftStatus status) => ink;
 
   /// Color de quien regala; el índice se repite si hay más de seis.
   Color giver(int index) => givers[index % givers.length];

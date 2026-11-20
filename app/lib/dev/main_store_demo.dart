@@ -23,6 +23,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const String _lang = String.fromEnvironment('DEMO_LOCALE', defaultValue: 'es');
 
+/// `--dart-define=DEMO_LOCK=true`: la app arranca bloqueada con un PIN de
+/// muestra (para la captura de privacidad: la pantalla de bloqueo no enseña
+/// ningún dato de la familia).
+const bool _lock = bool.fromEnvironment('DEMO_LOCK');
+
 int get _i => _lang == 'ca' ? 1 : (_lang == 'en' ? 2 : 0);
 
 /// Quien regala: [es, ca, en].
@@ -284,9 +289,162 @@ Future<void> _seed(ProviderContainer container) async {
       status: GiftStatus.decided,
       planned: 1500,
     ),
+    // Más regalos para que los paneles de detalle de la tablet se vean llenos.
+    gift(
+      'g14',
+      'aritz',
+      [
+        'Kit de experimentos de ciencia',
+        'Kit d\'experiments de ciència',
+        'Science experiment kit',
+      ],
+      giver: 'pere',
+      occasion: 'seed-kings',
+      status: GiftStatus.decided,
+      planned: 3200,
+      store: shop,
+    ),
+    gift(
+      'g15',
+      'aritz',
+      ['Zapatillas de deporte', 'Vambes esportives', 'Running shoes'],
+      giver: 'marta',
+      occasion: 'birthday-aritz',
+      status: GiftStatus.bought,
+      planned: 3900,
+      actual: 3590,
+      store: decathlon,
+    ),
+    gift(
+      'g16',
+      'aritz',
+      ['Casco para la bici', 'Casc per a la bici', 'Bike helmet'],
+      giver: 'us',
+      occasion: 'seed-kings',
+      status: GiftStatus.wrapped,
+      planned: 3500,
+      actual: 3500,
+      store: decathlon,
+    ),
+    gift(
+      'g17',
+      'aritz',
+      [
+        'Juego de mesa cooperativo',
+        'Joc de taula cooperatiu',
+        'Cooperative board game',
+      ],
+      giver: 'grand',
+      occasion: 'seed-tio',
+      status: GiftStatus.arrived,
+      planned: 2900,
+      actual: 2750,
+    ),
+    gift(
+      'g18',
+      'nora',
+      [
+        'Caballete con pizarra',
+        'Cavallet amb pissarra',
+        'Easel with chalkboard',
+      ],
+      giver: 'us',
+      occasion: 'birthday-nora',
+      status: GiftStatus.decided,
+      planned: 3600,
+    ),
+    gift(
+      'g19',
+      'nora',
+      ['Muñeca con carrito', 'Nina amb cotxet', 'Doll with stroller'],
+      giver: 'grand',
+      occasion: 'seed-kings',
+      status: GiftStatus.decided,
+      planned: 4200,
+      store: shop,
+    ),
+    gift(
+      'g20',
+      'nora',
+      ['Pinturas de dedos', 'Pintures de dits', 'Finger paints'],
+      giver: 'pere',
+      occasion: 'seed-tio',
+      status: GiftStatus.arrived,
+      planned: 1200,
+      actual: 1090,
+    ),
+    gift(
+      'g21',
+      'nora',
+      ['Zapatillas de ballet', 'Sabatilles de ballet', 'Ballet slippers'],
+      giver: 'marta',
+      occasion: 'seed-kings',
+      planned: 2600,
+    ),
+    gift(
+      'g22',
+      'leo',
+      [
+        'Libro de tela con texturas',
+        'Llibre de tela amb textures',
+        'Textured cloth book',
+      ],
+      giver: 'marta',
+      occasion: 'birthday-leo',
+      status: GiftStatus.bought,
+      planned: 1400,
+      actual: 1350,
+      store: books,
+    ),
+    gift(
+      'g23',
+      'leo',
+      ['Cubo de actividades', 'Cub d\'activitats', 'Activity cube'],
+      giver: 'us',
+      occasion: 'seed-kings',
+      status: GiftStatus.decided,
+      planned: 3400,
+      store: shop,
+    ),
+    gift(
+      'g24',
+      'leo',
+      ['Camión de arrastre', 'Camió d\'arrossegar', 'Pull-along truck'],
+      giver: 'pere',
+      occasion: 'seed-santa',
+      status: GiftStatus.arrived,
+      planned: 2200,
+      actual: 2050,
+    ),
+    gift(
+      'g25',
+      'leo',
+      ['Xilófono de colores', 'Xilòfon de colors', 'Colourful xylophone'],
+      giver: 'grand',
+      occasion: 'seed-tio',
+      status: GiftStatus.wrapped,
+      planned: 1800,
+      actual: 1800,
+    ),
+    gift(
+      'g26',
+      'leo',
+      ['Pijama de dinosaurios', 'Pijama de dinosaures', 'Dinosaur pyjamas'],
+      giver: 'us',
+      occasion: 'birthday-leo',
+      status: GiftStatus.delivered,
+      planned: 2100,
+      actual: 1950,
+    ),
   ];
   for (final g in gifts) {
     await c.upsertGift(g);
   }
-  await container.read(lockControllerProvider.notifier).skipSetup();
+  final lock = container.read(lockControllerProvider.notifier);
+  if (_lock) {
+    await lock.setPin('2468');
+    await lock.lockNow();
+  } else {
+    await lock.skipSetup();
+  }
 }

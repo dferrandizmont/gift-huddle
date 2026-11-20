@@ -142,7 +142,7 @@ class SettingsScreen extends ConsumerWidget {
     final full = ref.watch(familyFullViewProvider);
     final archived =
         full.recipients.where((r) => r.archived).length +
-        full.givers.where((g) => g.archived).length +
+        full.allGivers.where((g) => g.archived).length +
         full.occasions.where((o) => o.archived).length;
     final lock = ref.watch(lockControllerProvider).value;
     final pinOn = (lock?.enabled ?? false) && (lock?.pinSet ?? false);

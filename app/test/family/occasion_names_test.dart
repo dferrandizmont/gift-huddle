@@ -74,6 +74,23 @@ void main() {
       }
     });
 
+    test('los nombres antiguos de Navidad («Papá Noel», «Pare Noel», '
+        '«Santa Claus») también cuentan como de serie', () {
+      for (final stored in kLegacySantaOccasionNames) {
+        final o = _occasion(OccasionKind.santa, stored);
+        expect(hasSeedOccasionName(o), isTrue, reason: stored);
+        expect(occasionTitle(es, o), 'Navidad', reason: stored);
+        expect(occasionTitle(ca, o), 'Nadal', reason: stored);
+        expect(occasionTitle(en, o), 'Christmas', reason: stored);
+        // El dato guardado no se toca.
+        expect(o.name, stored);
+      }
+      // Solo en Navidad: en otro tipo, «Santa Claus» es un nombre puesto a mano.
+      final other = _occasion(OccasionKind.kings, 'Santa Claus');
+      expect(hasSeedOccasionName(other), isFalse);
+      expect(occasionTitle(es, other), 'Santa Claus');
+    });
+
     test('si el usuario la renombró, se respeta tal cual', () {
       final renamed = _occasion(
         OccasionKind.santa,

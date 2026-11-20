@@ -10,6 +10,7 @@ import '../../../core/sync/family_candidate.dart';
 import '../../../core/sync/family_doc.dart';
 import '../../../core/sync/family_envelope.dart';
 import '../../../core/sync/family_key_bundle.dart';
+import '../../../core/sync/hlc.dart';
 import '../../../core/sync/key_bundle.dart';
 import '../../../core/sync/model.dart';
 import '../../../core/sync/pairing_v2.dart' show syncProtocolOf;
@@ -522,8 +523,21 @@ class WebSyncEngine {
       for (var attempt = 0; attempt < 4; attempt++) {
         final snap = await _read(g);
         if (snap == null) return;
-        final admitted = await _candidate(g);
-        if (status != WebSyncStatus.confirmed || admitted.isEmpty) return;
+        var admitted = await _candidate(g);
+        if (status != WebSyncStatus.confirmed) return;
+        if (commonStatus == null || commonStatus == RemoteCommonStatus.opened) {
+          final beforeRepair = _publicationCandidate!;
+          final repaired = reconcileGiverCopies(
+            beforeRepair,
+            HlcClock(node: auth.deviceId, last: beforeRepair.maxStamp),
+          );
+          if (!identical(repaired, beforeRepair)) {
+            _check(g);
+            await queue.add(webDelta(beforeRepair, repaired));
+            admitted = await _candidate(g);
+          }
+        }
+        if (admitted.isEmpty) return;
         _check(g);
         final data = vault.opened.data;
         final sealedCandidate = _publicationCandidate!.canonicalJson();

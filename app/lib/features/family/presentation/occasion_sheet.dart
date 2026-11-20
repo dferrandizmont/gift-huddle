@@ -2,6 +2,7 @@ import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/format/dates.dart';
+import '../../../core/format/money_input.dart';
 import '../../../core/motion/haptics.dart';
 import '../../../core/motion/pop_in.dart';
 import '../../../core/motion/unfold_section.dart';
@@ -13,6 +14,7 @@ import '../../../core/theme/regalos_shape.dart';
 import '../../../core/theme/regalos_tokens.dart';
 import '../../../core/widgets/choice_grid.dart';
 import '../../../core/widgets/occasion_icons.dart';
+import '../../../core/widgets/release_text_focus.dart';
 import '../../../core/widgets/sheet_frame.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/gift_logic.dart';
@@ -29,6 +31,11 @@ import 'family_texts.dart';
 ///
 /// Devuelve la ocasión, o `null` si se cancela. No guarda nada. La fecha de
 /// un cumpleaños sale de la persona y no se puede cambiar aquí.
+///
+/// El presupuesto es opcional, en cualquier tipo de ocasión: vacío es «sin
+/// presupuesto» y vaciarlo lo quita. Para guardar una ocasión que ya existía
+/// hay que pasar la que se abrió como `original` a `upsertOccasion`, o el
+/// presupuesto no se escribe.
 ///
 /// [initialName] es el nombre con que se enseña [initial] (las ocasiones de
 /// serie no guardan el suyo: ver `occasionTitle`). Si se deja tal cual, se
@@ -54,6 +61,11 @@ class _OccasionSheet extends StatefulWidget {
 
 class _OccasionSheetState extends State<_OccasionSheet> {
   late final TextEditingController _name;
+  final TextEditingController _budget = TextEditingController();
+  final FocusNode _budgetFocus = FocusNode();
+
+  /// El botón de la fecha: al cerrar el calendario el foco vuelve aquí.
+  final FocusNode _dateFocus = FocusNode(debugLabel: 'OccasionDate');
   late int? _month;
   late int? _day;
   late int? _year;
@@ -94,6 +106,7 @@ class _OccasionSheetState extends State<_OccasionSheet> {
     super.initState();
     final o = widget.initial;
     _name = TextEditingController(text: widget.initialName ?? (o?.name ?? ''));
+    _budgetFocus.addListener(_tidyBudget);
     _month = o?.month;
     _day = o?.day;
     _year = o?.year;
@@ -105,8 +118,48 @@ class _OccasionSheetState extends State<_OccasionSheet> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // El importe de una ocasión que ya lo tiene se escribe una vez, con el
+    // idioma delante.
+    final cents = widget.initial?.budgetCents;
+    if (!_budgetFilled && cents != null) {
+      _budget.text = centsInputText(cents, _language);
+    }
+    _budgetFilled = true;
+  }
+
+  bool _budgetFilled = false;
+
+  String get _language => Localizations.localeOf(context).languageCode;
+
+  /// El presupuesto escrito: vacío vale (sin presupuesto), un importe que no
+  /// se lee no.
+  ({int? cents, bool valid}) get _budgetValue =>
+      readMoneyField(_budget.text, _language);
+
+  /// Al salir del campo lo deja escrito como lo escribe el idioma («12.5»
+  /// pasa a «12,50» en es y ca).
+  void _tidyBudget() {
+    if (_budgetFocus.hasFocus || !mounted) {
+      return;
+    }
+    final cents = _budgetValue.cents;
+    if (cents == null) {
+      return;
+    }
+    final tidy = centsInputText(cents, _language);
+    if (_budget.text != tidy) {
+      _budget.text = tidy;
+    }
+  }
+
+  @override
   void dispose() {
     _name.dispose();
+    _budget.dispose();
+    _budgetFocus.dispose();
+    _dateFocus.dispose();
     super.dispose();
   }
 
@@ -116,11 +169,14 @@ class _OccasionSheetState extends State<_OccasionSheet> {
     final initial = _month != null && _day != null
         ? DateTime(_year ?? now.year, _month!, _day!)
         : base;
+    final first = DateTime(now.year - 1);
+    final last = DateTime(now.year + 10);
+    releaseTextFocus(to: _dateFocus);
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
-      firstDate: DateTime(now.year - 1),
-      lastDate: DateTime(now.year + 10),
+      firstDate: initial.isBefore(first) ? initial : first,
+      lastDate: initial.isAfter(last) ? initial : last,
     );
     if (picked != null && mounted) {
       setState(() {
@@ -162,7 +218,7 @@ class _OccasionSheetState extends State<_OccasionSheet> {
 
   void _save() {
     var name = _name.text.trim();
-    if (name.isEmpty || _month == null || _day == null) {
+    if (name.isEmpty || _month == null || _day == null || !_budgetValue.valid) {
       setState(() => _showError = true);
       return;
     }
@@ -197,6 +253,7 @@ class _OccasionSheetState extends State<_OccasionSheet> {
         archived: base?.archived ?? false,
         color: custom ? _color : null,
         icon: custom ? _icon : null,
+        budgetCents: _budgetValue.cents,
       ),
     );
   }
@@ -298,6 +355,7 @@ class _OccasionSheetState extends State<_OccasionSheet> {
         Text(l10n.occasionDate, style: t.styles.label),
         const SizedBox(height: 4),
         OutlinedButton(
+          focusNode: _dateFocus,
           onPressed: _isBirthday || _autoDate ? null : _pickDate,
           style: OutlinedButton.styleFrom(
             minimumSize: const Size(44, 48),
@@ -359,6 +417,29 @@ class _OccasionSheetState extends State<_OccasionSheet> {
             ),
           ),
         ),
+        const SizedBox(height: 16),
+        TextField(
+          key: const ValueKey<String>('occasion-budget-field'),
+          controller: _budget,
+          focusNode: _budgetFocus,
+          keyboardType: moneyKeyboard,
+          inputFormatters: moneyInputFormatters,
+          onChanged: (_) {
+            if (_showError) {
+              setState(() {});
+            }
+          },
+          decoration: InputDecoration(
+            labelText: l10n.occasionBudgetField,
+            helperText: l10n.occasionBudgetHint,
+            helperMaxLines: 3,
+            suffixText: '€',
+            errorText: _showError && !_budgetValue.valid
+                ? l10n.giftPriceInvalid
+                : null,
+            errorMaxLines: 3,
+          ),
+        ),
       ],
     );
   }
@@ -381,8 +462,9 @@ class _ColorSwatchButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RegalosTokens.of(context);
-    final dark = t.isDark;
-    final fill = dark ? color.palette.pastelD : color.palette.pastel;
+    // La muestra lleva el pastel tal cual en los dos temas: en oscuro, el
+    // velo de los rellenos no deja distinguir un color de otro.
+    final fill = color.palette.pastel;
     return Semantics(
       container: true,
       button: true,
@@ -428,9 +510,7 @@ class _ColorSwatchButton extends StatelessWidget {
                         child: Icon(
                           Icons.check_rounded,
                           size: 18,
-                          color: dark
-                              ? color.palette.onFill
-                              : color.palette.tinta,
+                          color: color.palette.tinta,
                         ),
                       )
                     : const SizedBox(key: ValueKey('free')),
@@ -477,10 +557,13 @@ class _IconButtonTile extends StatelessWidget {
               : RegalosSprings.softDuration,
           curve: RegalosCurves.soft,
           builder: (context, k, _) => Material(
-            color: t.fill.withValues(alpha: k),
+            color: t.selection.withValues(alpha: k),
             shape: RoundedRectangleBorder(
               borderRadius: RegalosShape.chip,
-              side: BorderSide(color: Color.lerp(t.chipBorder, t.fill, k)!),
+              // Es un icono sin texto: se reconoce también por su borde, a 3:1.
+              side: BorderSide(
+                color: Color.lerp(t.chipBorder, t.selectionEdge, k)!,
+              ),
             ),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
@@ -494,7 +577,7 @@ class _IconButtonTile extends StatelessWidget {
                 child: Icon(
                   icon,
                   size: 22,
-                  color: Color.lerp(t.text, t.onFill, k),
+                  color: Color.lerp(t.text, t.ink, k),
                 ),
               ),
             ),

@@ -38,6 +38,7 @@ class SettingsRow extends StatelessWidget {
     this.bordered = true,
     this.selected = false,
     this.hintMaxLines,
+    this.focusNode,
   });
 
   final String title;
@@ -66,6 +67,10 @@ class SettingsRow extends StatelessWidget {
   /// con puntos suspensivos (un enlace largo, en una sola línea). Sin valor,
   /// todas las que haga falta.
   final int? hintMaxLines;
+
+  /// El foco de la fila: un desplegable que se abre desde ella lo recupera al
+  /// cerrarse (`showAnchoredPicker(returnFocusTo: …)`).
+  final FocusNode? focusNode;
 
   @override
   Widget build(BuildContext context) {
@@ -203,7 +208,7 @@ class SettingsRow extends StatelessWidget {
         radius: selected || PaneScope.roleOf(context) == PaneRole.list
             ? RegalosShape.card
             : BorderRadius.zero,
-        child: InkWell(onTap: onTap, child: row),
+        child: InkWell(focusNode: focusNode, onTap: onTap, child: row),
       ),
     );
   }

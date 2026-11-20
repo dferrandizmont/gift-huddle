@@ -41,6 +41,7 @@ void main() {
     for (final (answer, state) in [
       (CameraPermissionOutcome.granted, CameraPermissionState.granted),
       (CameraPermissionOutcome.denied, CameraPermissionState.denied),
+      (CameraPermissionOutcome.restricted, CameraPermissionState.restricted),
       (
         CameraPermissionOutcome.permanentlyDenied,
         CameraPermissionState.permanentlyDenied,

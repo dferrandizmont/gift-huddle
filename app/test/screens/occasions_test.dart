@@ -155,13 +155,26 @@ void main() {
     phone,
   ) async {
     await seedSample(tester, phone);
+    await setBudgets(tester, phone, {'seed-santa': 15000, 'seed-kings': 30000});
     await pumpRegalos(tester, phone);
     await openOccasions(tester);
     await tapText(tester, 'Presupuesto de la casa');
-    expect(find.text('Solo lo que paga la casa'), findsOneWidget);
-    expect(find.text(eur('174,50 €')), findsWidgets); // previsto
-    expect(find.text(eur('169,49 €')), findsWidgets); // gastado
-    expect(find.text(eur('5,01 €')), findsOneWidget); // queda
+    expect(find.textContaining('Lo pones tú en cada ocasión'), findsOneWidget);
+    expect(find.text(eur('450 €')), findsWidgets); // presupuesto
+    // Solo las ocasiones con presupuesto; los 24 € de Tió van aparte.
+    expect(find.text(eur('145,49 €')), findsWidgets); // gastado
+    expect(
+      find.text(eur('304,51 €')),
+      findsWidgets,
+    ); // queda (y si compras lo que falta)
+    expect(
+      find.text(
+        eur(
+          'Además, la casa ha gastado 24 € fuera de las ocasiones con presupuesto.',
+        ),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Queda'), findsOneWidget);
     // Los 180 € de los yayos son un regalo, no un gasto de la casa.
     expect(find.textContaining('180'), findsNothing);

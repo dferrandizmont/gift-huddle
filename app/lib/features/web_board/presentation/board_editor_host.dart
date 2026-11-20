@@ -169,6 +169,7 @@ class _BoardEditorHostState extends ConsumerState<BoardEditorHost> {
                 initialRecipientId: shown.recipientId,
                 initialOccasionId: shown.occasionId,
                 initialGiverId: shown.giverId,
+                initialStatus: shown.status,
                 chooseRecipient: shown.chooseRecipient,
                 asPanel: true,
                 onClose: _panel.close,

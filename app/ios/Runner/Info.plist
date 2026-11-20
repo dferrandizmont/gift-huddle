@@ -34,6 +34,8 @@
 	<string>Leer los códigos QR para conectar otro móvil de tu familia o la web, y para usar un código de recuperación.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Desbloquear Gift Huddle con Face ID.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<false/>
 	<key>CFBundleDocumentTypes</key>

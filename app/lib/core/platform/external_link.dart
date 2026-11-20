@@ -1,8 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'external_link_hosts.dart';
 import 'external_link_native.dart'
     if (dart.library.js_interop) 'external_link_web.dart'
     as platform;
+
+export 'external_link_hosts.dart';
 
 /// Abre un enlace fuera de la app, en el navegador del sistema.
 ///
@@ -11,22 +14,25 @@ import 'external_link_native.dart'
 /// en iOS) y en la web, `window.open`. La app no hace ninguna petición: quien
 /// se conecta es el navegador.
 ///
-/// Es solo para los enlaces fijos de la app (hoy, la política de privacidad y
-/// el correo de soporte): en el móvil no abre nada que no sea de
-/// [kExternalLinkHosts] o [kSupportMailto]. Los enlaces
-/// que pegue la persona (fase 2: la tienda de un regalo) **no pasan por
-/// aquí**: necesitarán otro método, con sus propias comprobaciones, y no se
-/// arreglan ampliando esta lista.
+/// [open] es solo para los enlaces fijos de la app (hoy, la política de
+/// privacidad y el correo de soporte): en el móvil no abre nada que no sea de
+/// [kExternalLinkHosts] o [kSupportMailto]. Los enlaces que pega la persona (el
+/// de un regalo) **no pasan por ahí**: tienen su propio método,
+/// [openUserLink], con sus propias comprobaciones ([userLinkUri]), y la lista
+/// de [kExternalLinkHosts] no se amplía.
 abstract interface class ExternalLinkOpener {
   /// Abre [url] (solo `https` de [kExternalLinkHosts] o [kSupportMailto]).
   /// Devuelve `false` si no se ha podido: no hay navegador ni app de correo,
   /// el enlace no está permitido o no hay código nativo (pruebas).
   // The original text is required to reject explicit HTTPS default ports.
   Future<bool> open(String url);
-}
 
-/// Los únicos sitios que la app abre en el navegador: la web de Gift Huddle.
-const Set<String> kExternalLinkHosts = {'gifthuddle.app'};
+  /// Abre el enlace de un regalo que escribió o pegó la persona. Solo `https`
+  /// con un nombre de sitio normal ([userLinkUri]): nunca `javascript:`,
+  /// `http:` ni otro esquema, ni un usuario, un puerto o una IP. Devuelve
+  /// `false` si no vale o no se ha podido abrir.
+  Future<bool> openUserLink(String url);
+}
 
 /// El correo de soporte (el mismo de la web, `contact_email` de
 /// `web/site.toml`). Reenvía al buzón del titular desde el 2026-11-15.

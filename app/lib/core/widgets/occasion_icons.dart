@@ -9,12 +9,14 @@ import 'tabler_icons.dart';
 /// El icono de trazo propio de un tipo de ocasión, o `null` si ese tipo usa
 /// uno de Material ([occasionKindIcon]).
 ///
-/// Tió: tronco con barretina; Papá Noel: gorro; Reyes: corona; Año Nuevo
-/// chino: farolillo; boda: dos alianzas. Mismo trazo que Tabler.
+/// Navidad: `christmas-tree`; Reyes: `crown`; cumpleaños: `cake` (los tres
+/// de Tabler). Tió, Año Nuevo chino (farolillo) y boda (dos alianzas) están
+/// dibujados con las reglas de Tabler porque ninguna biblioteca los trae.
 StrokeIconBuilder? occasionKindStrokeIcon(OccasionKind kind) => switch (kind) {
   OccasionKind.tio => occasionIconTio,
-  OccasionKind.santa => occasionIconSanta,
+  OccasionKind.santa => tablerChristmasTree,
   OccasionKind.kings => tablerCrown,
+  OccasionKind.birthday => tablerCake,
   OccasionKind.chineseNewYear => occasionIconChineseNewYear,
   OccasionKind.wedding => occasionIconWedding,
   _ => null,

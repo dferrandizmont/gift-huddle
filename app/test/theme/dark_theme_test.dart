@@ -5,9 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/core/theme/theme.dart';
 import 'package:regalos/features/family/presentation/giver_picker.dart';
 
-// Contrastes del tema oscuro «Todoist neutro» (la guía del tema oscuro):
-// 4,5:1 para texto y 3:1 para controles, con los seis acentos, las doce
-// ocasiones y las ocasiones «Otra».
+// Contrastes del tema oscuro «Pastel en velo» (D1): 4,5:1 para texto y 3:1
+// para lo que se reconoce solo por su trazo, con los seis acentos, las doce
+// ocasiones y las ocasiones «Otra». Los rellenos de color son el pastel velado
+// sobre el fondo: el botón se reconoce por su texto pastel (4,5:1), no por el
+// relleno.
 
 double _contrast(Color a, Color b) {
   final la = a.computeLuminance();
@@ -63,6 +65,11 @@ void main() {
         'texto sobre fondo suave': (t.text, t.soft),
         'secundario sobre fondo suave': (t.textOnSoft, t.soft),
         'texto sobre relleno': (t.onFill, t.fill),
+        'tinta sobre la selección': (t.ink, t.selection),
+        'texto sobre la selección': (t.text, t.selection),
+        'texto sobre desplegable': (t.text, t.popover),
+        'secundario sobre la barra lateral': (t.textSecondary, t.sidebar),
+        'secundario sobre campo': (t.textSecondary, t.field),
         'aviso sobre su fondo': (t.danger, t.dangerSoft),
         'rojo sobre fondo': (t.danger, t.bg),
         'rojo sobre hoja': (t.danger, t.sheet),
@@ -76,14 +83,16 @@ void main() {
         );
       });
       final controls = <String, (Color, Color)>{
-        'relleno frente al fondo': (t.fill, t.bg),
-        'relleno frente a la hoja': (t.fill, t.sheet),
         'borde de control sobre fondo': (t.chipBorder, t.bg),
         'borde de control sobre hoja': (t.chipBorder, t.sheet),
         'borde de selector sobre fondo': (t.controlBorder, t.bg),
         'trazo «Idea» sobre fondo': (t.ideaStroke, t.bg),
         'trazo «Idea» sobre hoja': (t.ideaStroke, t.sheet),
         'tinta frente al fondo': (t.ink, t.bg),
+        'borde de control sobre campo': (t.controlBorder, t.field),
+        'borde de lo elegido sobre fondo': (t.selectionEdge, t.bg),
+        'borde de lo elegido sobre tarjeta': (t.selectionEdge, t.surface),
+        'borde de lo elegido sobre hoja': (t.selectionEdge, t.sheet),
       };
       controls.forEach((what, c) {
         expect(
@@ -92,6 +101,12 @@ void main() {
           reason: '$what en $name',
         );
       });
+      // El velo se distingue del fondo aunque no llegue a 3:1.
+      expect(
+        _contrast(t.fill, t.bg),
+        greaterThanOrEqualTo(1.25),
+        reason: 'relleno frente al fondo en $name',
+      );
     });
   }
 
@@ -144,30 +159,60 @@ void main() {
     }
   });
 
+  // Los adornos de la cabecera conviven con el velo: ni saturados (el dorado
+  // #F5C672 de antes) ni apagados (siguen a 3:1 sobre el fondo y la hoja).
+  test('oscuro: los adornos de ocasión no están saturados y se leen', () {
+    final t = tokens(AccentId.lavender.palette, null);
+    for (final o in OccasionTheme.all) {
+      for (final (what, c) in [
+        ('adorno', o.ornamentD),
+        ('adorno secundario', o.ornamentAltD),
+      ]) {
+        final hsl = HSLColor.fromColor(c);
+        expect(
+          hsl.saturation,
+          lessThanOrEqualTo(0.65),
+          reason: '$what de ${o.id}',
+        );
+        expect(
+          _contrast(c, t.bg),
+          greaterThanOrEqualTo(control),
+          reason: '$what de ${o.id} sobre el fondo',
+        );
+        expect(
+          _contrast(c, t.sheet),
+          greaterThanOrEqualTo(control),
+          reason: '$what de ${o.id} sobre la hoja',
+        );
+      }
+    }
+  });
+
   test('oscuro: aviso de duplicado (mantequilla) y acento de serie', () {
     final warn = AccentId.butter.palette;
     expect(_contrast(warn.tintaD, warn.tintD), greaterThanOrEqualTo(text));
     expect(_contrast(warn.onFill, warn.pastelD), greaterThanOrEqualTo(text));
   });
 
-  // «Todoist neutro»: grises sin tinte, escalones claros y acentos vivos.
-  test('oscuro: neutros grises, sin tinte, con escalones claros', () {
+  // «Pastel en velo»: neutros cálidos (más rojo que azul) y escalones claros.
+  test('oscuro: neutros cálidos, casi negros, con escalones claros', () {
     final t = tokens(AccentId.lavender.palette, null);
+    expect(t.bg, const Color(0xFF161514));
     for (final c in [t.bg, t.surface, t.sheet, t.text, t.textSecondary]) {
       expect(
-        (c.r - c.g).abs() < 1e-6 && (c.g - c.b).abs() < 1e-6,
+        c.r >= c.g && c.g >= c.b,
         isTrue,
-        reason: 'el neutro $c no es gris',
+        reason: 'el neutro $c no es cálido',
       );
     }
     expect(
       _contrast(t.surface, t.bg),
-      greaterThanOrEqualTo(1.15),
+      greaterThanOrEqualTo(1.08),
       reason: 'tarjeta frente al fondo',
     );
     expect(
       _contrast(t.sheet, t.surface),
-      greaterThanOrEqualTo(1.1),
+      greaterThanOrEqualTo(1.05),
       reason: 'hoja frente a la tarjeta',
     );
     expect(_contrast(t.text, t.bg), greaterThanOrEqualTo(15));
@@ -194,28 +239,69 @@ void main() {
       });
       expect(
         _contrast(t.fill, t.surface),
-        greaterThanOrEqualTo(control),
+        greaterThanOrEqualTo(1.25),
         reason: 'relleno frente a la tarjeta en $name',
       );
     });
   }
 
-  test('oscuro: los rellenos de cada acento son vivos, no pasteles lavados', () {
+  test('oscuro: los colores salen del pastel velado sobre el fondo', () {
+    final palettes = [
+      for (final id in AccentId.values) id.palette,
+      for (final o in OccasionTheme.all) o.palette,
+    ];
+    const bg = Color(0xFF161514);
+    for (final p in palettes) {
+      expect(p.tintaD, p.pastel);
+      expect(p.onFill, p.pastel);
+      final source = Color.lerp(p.pastel, p.tinta, kVeilTintaShare)!;
+      expect(p.veilSource, source);
+      expect(p.pastelD, Color.lerp(bg, source, kVeilFill));
+      expect(p.tintD, Color.lerp(bg, source, kVeilSoft));
+      expect(p.borderD, Color.lerp(bg, source, kVeilBorder));
+      expect(p.selectionD, Color.lerp(bg, source, kVeilSelection));
+    }
+  });
+
+  // La maqueta vela el pastel solo y en pantalla se ve gris: las superficies
+  // de color tienen que distinguirse del gris neutro y del fondo, y el texto
+  // pastel llegar a 4,5:1 sobre todas.
+  test('oscuro: el velo se ve y el texto pastel llega a 4,5:1', () {
     final palettes = [
       for (final id in AccentId.values) id.palette,
       for (final o in OccasionTheme.all) o.palette,
     ];
     for (final p in palettes) {
-      expect(
-        HSVColor.fromColor(p.pastelD).saturation,
-        greaterThanOrEqualTo(0.4),
-        reason: 'relleno ${p.pastelD}',
-      );
-      expect(
-        HSVColor.fromColor(p.tintD).saturation,
-        greaterThanOrEqualTo(0.4),
-        reason: 'fondo suave ${p.tintD}',
-      );
+      for (final (what, veil) in [
+        ('relleno', p.pastelD),
+        ('superficie', p.tintD),
+        ('selección', p.selectionD),
+        ('borde', p.borderD),
+      ]) {
+        expect(
+          _contrast(p.tintaD, veil),
+          greaterThanOrEqualTo(text),
+          reason: 'pastel sobre $what de ${p.pastel}',
+        );
+        expect(
+          _contrast(veil, kVeilBackground),
+          greaterThanOrEqualTo(what == 'selección' ? 1.15 : 1.2),
+          reason: '$what de ${p.pastel} frente al fondo',
+        );
+      }
+    }
+  });
+
+  test('claro y oscuro: la tinta sobre la selección llega a 4,5:1', () {
+    for (final id in AccentId.values) {
+      for (final b in Brightness.values) {
+        final t = RegalosTokens.resolve(accent: id.palette, brightness: b);
+        expect(
+          _contrast(t.ink, t.selection),
+          greaterThanOrEqualTo(text),
+          reason: '${id.name} / ${b.name}',
+        );
+      }
     }
   });
 

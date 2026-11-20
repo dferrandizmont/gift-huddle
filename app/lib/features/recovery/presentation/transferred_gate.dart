@@ -80,9 +80,14 @@ class _TransferredGateState extends ConsumerState<TransferredGate> {
       children: [
         TickerMode(
           enabled: !transferred,
+          // Tapada, la app no recibe ni puntero ni foco (el Tab no entra en
+          // su buscador) ni lectura de pantalla.
           child: ExcludeSemantics(
             excluding: transferred,
-            child: IgnorePointer(ignoring: transferred, child: widget.child),
+            child: ExcludeFocus(
+              excluding: transferred,
+              child: IgnorePointer(ignoring: transferred, child: widget.child),
+            ),
           ),
         ),
         Positioned.fill(

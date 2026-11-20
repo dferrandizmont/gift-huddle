@@ -958,6 +958,58 @@ void main() {
       'gn': encodeBase64Url(List.filled(32, 4)),
     };
 
+    for (final status in [204, 404]) {
+      test('offer $status means wait only when allowNotYet is true', () async {
+        var pending = false;
+        worker.tamper = (method, uri, response) {
+          expect(method, 'GET');
+          expect(uri.path, '/v2/invites/$_sync/offer');
+          expect(uri.queryParameters, pending ? {'pending': '204'} : isEmpty);
+          return SyncResponse(status, const {}, Uint8List(0));
+        };
+        await expectLater(
+          client.getOffer(_sync),
+          throwsA(
+            status == 404
+                ? isA<InviteGoneException>()
+                : isA<SyncTransportException>(),
+          ),
+        );
+        pending = true;
+        await expectLater(
+          client.getOffer(_sync, allowNotYet: true),
+          throwsA(isA<V2OfferNotYetException>()),
+        );
+      });
+    }
+
+    test(
+      'offer 200 has the same content with and without pending=204',
+      () async {
+        await client.createList(aritz, _body());
+        final expected = offer('aritz-phone');
+        final ticket = await client.createInvite(
+          aritz,
+          expected,
+          guestPerson: 'leo',
+        );
+        for (final pending in [false, true]) {
+          worker.tamper = (method, uri, response) {
+            expect(uri.queryParameters, pending ? {'pending': '204'} : isEmpty);
+            expect(response.status, 200);
+            return response;
+          };
+          final got = await client.getOffer(
+            ticket.inviteId,
+            allowNotYet: pending,
+          );
+          expect(got.offer, expected);
+          expect(got.guestPerson, 'leo');
+          expect(got.expiresAt.isAfter(DateTime.now()), isTrue);
+        }
+      },
+    );
+
     test('oferta, respuesta única, revelación, aprobación y resultado '
         'repetible', () async {
       await client.createList(aritz, _body());

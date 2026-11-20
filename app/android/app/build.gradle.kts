@@ -7,6 +7,10 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+configurations.all {
+    exclude(group = "com.google.android.gms", module = "play-services-base")
+}
+
 // Última actualización privada del paquete antiguo para obtener la recuperación.
 val legacyAppId = project.findProperty("legacyAppId") == "true"
 

@@ -79,6 +79,28 @@ void main() {
     expect(tester.takeException(), isNull);
   }, size: tall);
 
+  screenTest('las pestañas de ocasión de la lista miden 56 de alto', (
+    tester,
+    phone,
+  ) async {
+    await seedSample(tester, phone);
+    await pumpRegalos(tester, phone);
+    await openFamily(tester, all: false);
+    await toOccasion(tester);
+    final tabs = tester.getRect(find.byKey(kRepartoOccasionTabsKey));
+    expect(tabs.height, 56);
+    // Cada pestaña llena el alto de la banda: es el área que se pulsa.
+    final reyes = find.descendant(
+      of: find.byKey(kRepartoOccasionTabsKey),
+      matching: find.ancestor(
+        of: find.text('Reyes'),
+        matching: find.byType(GestureDetector),
+      ),
+    );
+    expect(tester.getSize(reyes.first).height, 56);
+    expect(tester.takeException(), isNull);
+  }, size: tall);
+
   screenTest('la lista abre la ocasión filtrada y la rejilla vuelve con la '
       'que se estaba viendo', (tester, phone) async {
     await seedSample(tester, phone);
@@ -144,6 +166,27 @@ void main() {
     expect(find.text('Yayos de Terrassa'), findsOneWidget);
     expect(tester.takeException(), isNull);
   }, size: tall);
+
+  screenTest(
+    'Por ocasión omite el regalo del alias archivado en tarjeta y total',
+    (tester, phone) async {
+      await seedSample(tester, phone);
+      await tester.runAsync(() async {
+        final controller = familyOf(phone);
+        await controller.linkGiver('us', 'leo');
+        await controller.linkGiver('marta', 'leo');
+        await controller.archiveGiver('marta');
+      });
+      await pumpRegalos(tester, phone);
+      await openFamily(tester, all: false);
+      await toOccasion(tester);
+      expect(find.text('Pijama de astronautas, talla 8'), findsOneWidget);
+      expect(find.text('Libro de dinosaurios con solapas'), findsNothing);
+      expect(find.text('1 regalo'), findsWidgets);
+      expect(find.text('2 regalos'), findsNothing);
+    },
+    size: tall,
+  );
 
   screenTest('los regalos vuelan de su celda a su fila y no se admite otro '
       'cambio mientras viajan', (tester, phone) async {

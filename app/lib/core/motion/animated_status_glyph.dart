@@ -191,7 +191,8 @@ class _AnimatedStatusGlyphState extends State<AnimatedStatusGlyph>
             painter: StatusGlyphPainter(
               status: widget.status,
               stroke: Color.lerp(t.ideaStroke, t.ink, _solid.value)!,
-              fill: t.fill,
+              fill: t.statusFill(widget.status),
+              checkColor: t.bg,
               sweep: _sweep.value.clamp(0.0, 1.0),
               solid: _solid.value,
               grow: _grow.value,

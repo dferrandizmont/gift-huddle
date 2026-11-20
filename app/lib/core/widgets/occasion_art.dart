@@ -1430,7 +1430,7 @@ void _graduation(Canvas c, bool dark) {
 void _custom(Canvas c, OccasionTheme theme, bool dark) {
   final p = theme.palette;
   final strong = dark ? p.tintaD : p.tinta;
-  final soft = dark ? p.pastelD : p.pastelD;
+  final soft = dark ? p.pastel : Color.lerp(p.tinta, p.pastel, 0.35)!;
   // Círculos suaves de fondo.
   for (final (x, y, r, o) in const [
     (60.0, 40.0, 40.0, 0.18),

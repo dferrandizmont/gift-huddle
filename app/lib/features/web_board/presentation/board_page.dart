@@ -48,15 +48,16 @@ class BoardPage extends StatelessWidget {
   static const double gutter = 32;
 
   /// El margen de arriba.
-  static const double top = 24;
+  static const double top = 20;
 
-  /// El margen de abajo del cuerpo que llena el alto.
+  /// El margen de abajo del cuerpo que llena el alto, por encima del margen
+  /// seguro del sistema (la barra de gestos de una tableta, por ejemplo).
   static const double bottom = 16;
 
   Widget _header(BuildContext context, RegalosTokens t) => Padding(
-    padding: const EdgeInsets.only(bottom: 20),
+    padding: const EdgeInsets.only(bottom: 14),
     child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
           child: Column(
@@ -64,11 +65,11 @@ class BoardPage extends StatelessWidget {
             children: [
               Semantics(
                 header: true,
-                child: Text(title, style: t.styles.screenTitle),
+                child: Text(title, style: t.styles.boardTitle),
               ),
               if (subtitle != null) ...[
-                const SizedBox(height: 4),
-                Text(subtitle!, style: t.styles.meta),
+                const SizedBox(height: 2),
+                Text(subtitle!, style: t.styles.boardSubtitle),
               ],
             ],
           ),
@@ -92,12 +93,16 @@ class BoardPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RegalosTokens.of(context);
     final margin = BoardScope.marginOf(context);
+    // El margen seguro de abajo va dentro del relleno: con `SafeArea` de
+    // abajo apagado, el final del carril quedaba debajo de la barra del
+    // sistema.
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
     var order = 0;
     final header = StaggerItem(index: order++, child: _header(context, t));
     final Widget content;
     if (body != null) {
       content = Padding(
-        padding: EdgeInsets.fromLTRB(margin, top, margin, bottom),
+        padding: EdgeInsets.fromLTRB(margin, top, margin, bottom + safeBottom),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -112,7 +117,7 @@ class BoardPage extends StatelessWidget {
       );
     } else {
       content = ListView(
-        padding: EdgeInsets.fromLTRB(margin, top, margin, 48),
+        padding: EdgeInsets.fromLTRB(margin, top, margin, 48 + safeBottom),
         children: [
           header,
           for (final child in children)

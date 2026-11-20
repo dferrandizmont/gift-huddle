@@ -19,6 +19,8 @@ import '../../../core/sync/hlc.dart';
 import '../../../core/sync/model.dart';
 import '../../../core/sync/pairing_v2.dart'
     show keepProtocolV2, kSyncProtocolV2, syncProtocolOf;
+import '../../review/application/review_providers.dart';
+import '../../review/domain/review_ports.dart';
 import '../data/family_store.dart';
 import '../data/device_keys_store.dart';
 import '../data/recovery_store.dart';
@@ -33,16 +35,22 @@ import '../../sync/application/recovery_providers.dart'
 import '../../sync/application/sync_controller.dart'
     show localRegistryViewProvider;
 import '../../sync/data/sync_transport_v2.dart' show kV2MaxSlotsPerWriter;
+import '../domain/delete_impact.dart';
 import '../domain/family_errors.dart';
 import 'occasion_names.dart';
 import 'remote_change.dart';
 import 'self_person_change.dart';
 
 export 'self_person_change.dart';
+export '../domain/delete_impact.dart' show DeleteImpactChanged;
+export '../domain/family_errors.dart'
+    show GiftWriteResult, GiverPersonNeedsPublicAdd;
 
 part 'person_protection.dart';
 
 const _uuid = Uuid();
+
+typedef _GiftWriteOutcome = ({GiftWriteResult result, String? savedId});
 
 /// Reintentos de los providers: Riverpod reintenta lo que falla, pero un
 /// guardado ilegible (`FamilyStoreException`) no se arregla repitiendo.
@@ -61,6 +69,7 @@ class FamilyState {
     required this.identity,
     this.hiddenGiftIds = const <String>{},
     this.protectionRevision = 0,
+    this.otherDevicePeople = const <String>{},
     bool authorized = false,
   }) : _authorized = authorized,
        view = FamilyView.fromDoc(
@@ -74,6 +83,7 @@ class FamilyState {
       view = _emptyView,
       hiddenGiftIds = const <String>{},
       protectionRevision = 0,
+      otherDevicePeople = const <String>{},
       _authorized = false,
       identity = null;
 
@@ -127,7 +137,7 @@ class FamilyState {
   /// eliminar (ni en la pantalla ni en el controlador).
   ///
   /// - **Este móvil:** es «Yo» (`identity.selfRecipientId`, ADR 0004).
-  /// - **Otro móvil de la familia:** [otherDevicePeople], que hoy está vacío.
+  /// - **Otro móvil de la familia:** [otherDevicePeople].
   DevicePersonOwner? devicePersonOwner(String recipientId) {
     if (identity?.selfRecipientId == recipientId) {
       return DevicePersonOwner.thisDevice;
@@ -145,14 +155,7 @@ class FamilyState {
       devicePersonOwner(recipientId) != null;
 
   /// Las personas dueñas de los **otros** móviles conectados de la familia.
-  ///
-  /// PENDIENTE (fase 2b/3): hoy siempre está vacío, porque la app no lo sabe
-  /// de forma fiable. La identidad solo guarda el nombre del móvil con el
-  /// que se emparejó (`peerName`), no su persona, y el registro firmado de
-  /// móviles (`core/sync/device_registry.dart`) todavía no llega a este
-  /// estado. Cuando llegue, esto devuelve el `personId` de la ficha de cada
-  /// móvil activo de `RegistryView` que no sea este, y lo demás ya funciona.
-  Set<String> get otherDevicePeople => const <String>{};
+  final Set<String> otherDevicePeople;
 
   /// Si el documento tiene algún registro (borrado o no).
   bool get hasData =>
@@ -180,11 +183,13 @@ class FamilyState {
     FamilyIdentity? identity,
     Set<String>? hiddenGiftIds,
     int? protectionRevision,
+    Set<String>? otherDevicePeople,
   }) => FamilyState(
     doc: doc ?? this.doc,
     identity: identity ?? this.identity,
     hiddenGiftIds: hiddenGiftIds ?? this.hiddenGiftIds,
     protectionRevision: protectionRevision ?? this.protectionRevision,
+    otherDevicePeople: otherDevicePeople ?? this.otherDevicePeople,
     authorized: _authorized,
   );
 }
@@ -249,11 +254,17 @@ class FamilyController extends AsyncNotifier<FamilyState> {
     for (final (collection, id) in dirty) {
       doc = doc.delete(_clock!, collection, id);
     }
-    if (dirty.isNotEmpty && writable) {
+    if (!identical(doc, stored.doc) && writable) {
       await _store.saveDoc(doc);
       doc = _store.savedDoc(doc);
     }
-    return FamilyState(doc: doc, identity: stored.identity);
+    return FamilyState(
+      doc: doc,
+      identity: stored.identity,
+      otherDevicePeople: otherMobilePeople(
+        (await _store.readVerifiedRegistry(doc))?.view,
+      ),
+    );
   }
 
   /// La clave de la familia, o `null` si no hay familia. Nunca va en el
@@ -289,8 +300,7 @@ class FamilyController extends AsyncNotifier<FamilyState> {
             ),
       );
 
-  /// A web snapshot replaces the visible candidate without generating a local
-  /// action. Shares ordering with edits and adopts its latest logical clock.
+  /// Adopts the stored candidate and its latest logical clock in edit order.
   Future<void> reloadStoredCandidate() => _serial(() async {
     if (!ref.mounted) return;
     final current = await _current();
@@ -303,8 +313,16 @@ class FamilyController extends AsyncNotifier<FamilyState> {
       _clock = HlcClock(node: stored.identity.node);
     }
     if (max != null) _clock!.receive(max);
+    final otherPeople = otherMobilePeople(
+      (await _store.readVerifiedRegistry(stored.doc))?.view,
+    );
+    if (!ref.mounted) return;
     state = AsyncData(
-      current.copyWith(doc: stored.doc, identity: stored.identity),
+      current.copyWith(
+        doc: stored.doc,
+        identity: stored.identity,
+        otherDevicePeople: otherPeople,
+      ),
     );
   });
 
@@ -480,11 +498,15 @@ class FamilyController extends AsyncNotifier<FamilyState> {
             peerName: peerName,
             paired: paired,
           );
-    await _store.saveFamily(
-      StoredFamily(identity: identity, key: key, doc: doc),
+    final reconciled = reconcileGiverCopies(
+      doc,
+      HlcClock(node: node, last: doc.maxStamp),
     );
-    _adopt(identity, key, doc);
-    state = AsyncData(FamilyState(doc: doc, identity: identity));
+    await _store.saveFamily(
+      StoredFamily(identity: identity, key: key, doc: reconciled),
+    );
+    _adopt(identity, key, reconciled);
+    state = AsyncData(FamilyState(doc: reconciled, identity: identity));
   });
 
   /// Marca esta familia como emparejada con otro móvil y guarda cómo se llama.
@@ -750,6 +772,7 @@ class FamilyController extends AsyncNotifier<FamilyState> {
       merged: merged,
       clock: _clock!,
     );
+    merged = reconcileGiverCopies(merged, _clock!);
     final changed = merged.canonicalJson() != current.doc.canonicalJson();
     final next = changed ? current.copyWith(doc: merged) : current;
     final summary = ImportSummary.between(
@@ -792,14 +815,19 @@ class FamilyController extends AsyncNotifier<FamilyState> {
   Future<bool> _commit(
     FamilyDoc Function(FamilyDoc doc, HlcClock clock) change, {
     bool cascade = false,
-  }) => _serial(() async {
+  }) => _serial(() => _commitNow(change, cascade: cascade));
+
+  Future<bool> _commitNow(
+    FutureOr<FamilyDoc> Function(FamilyDoc doc, HlcClock clock) change, {
+    bool cascade = false,
+  }) async {
     final current = await _requireFamily();
     final before = cascade ? await _store.cascadeDoc(current.doc) : current.doc;
     if (!identical(before, current.doc)) {
       final latest = _store.latestStoredStamp(before);
       if (latest != null && latest > _clock!.last) _clock!.receive(latest);
     }
-    final next = change(before, _clock!);
+    final next = await change(before, _clock!);
     if (identical(next, before)) {
       return false;
     }
@@ -810,7 +838,7 @@ class FamilyController extends AsyncNotifier<FamilyState> {
     }
     state = AsyncData(current.copyWith(doc: _store.savedDoc(next)));
     return true;
-  });
+  }
 
   /// Da de alta o cambia una persona. Solo se escriben los campos que
   /// cambian, y si cambia su fecha de cumpleaños también la de su ocasión.
@@ -822,27 +850,35 @@ class FamilyController extends AsyncNotifier<FamilyState> {
   ///
   /// Lanza [DevicePersonException] (y no escribe nada) si con esto se
   /// archivaría a la persona de un móvil de la familia.
-  Future<void> upsertRecipient(Recipient recipient) => _commit((doc, clock) {
-    if (recipient.archived) {
-      _refuseArchivingDevicePerson(doc, recipient.id);
-    }
-    return _withRecipient(doc, clock, recipient);
-  });
+  Future<void> upsertRecipient(Recipient recipient) => _protectionSerial(
+    () => _commitNow((doc, clock) async {
+      if (recipient.archived) {
+        await _refuseArchivingDevicePerson(doc, recipient.id);
+      }
+      return _withRecipient(doc, clock, recipient);
+    }),
+  );
 
   /// Lanza [DevicePersonException] si [id] es de una persona que existe, es
   /// dueña de un móvil de la familia (`FamilyState.isDevicePerson`) y todavía
   /// no está archivada. Recuperarla, o tocar a una que ya llegó archivada,
   /// no lanza.
-  void _refuseArchivingDevicePerson(FamilyDoc doc, String id) {
+  Future<void> _refuseArchivingDevicePerson(FamilyDoc doc, String id) async {
     final record = doc.record(Collections.recipients, id);
     if (record == null || record.isDeleted || record['archived'] == true) {
       return;
     }
-    _refuseDevicePerson(id);
+    await _refuseDevicePerson(doc, id);
   }
 
-  void _refuseDevicePerson(String id) {
-    final owner = state.value?.devicePersonOwner(id);
+  Future<void> _refuseDevicePerson(FamilyDoc doc, String id) async {
+    final registry = (await _store.readVerifiedRegistry(doc))?.view;
+    final selfId = (await _current()).identity?.selfRecipientId;
+    final owner = selfId == id || registry?.myPerson == id
+        ? DevicePersonOwner.thisDevice
+        : otherMobilePeople(registry).contains(id)
+        ? DevicePersonOwner.otherDevice
+        : null;
     if (owner != null) {
       throw DevicePersonException(recipientId: id, owner: owner);
     }
@@ -909,40 +945,151 @@ class FamilyController extends AsyncNotifier<FamilyState> {
         }
       }
     }
+    final previous = doc.record(Collections.recipients, recipient.id);
+    if (previous?['name'] != recipient.name ||
+        previous?['colorIndex'] != recipient.colorIndex) {
+      return reconcileGiverCopies(next, clock, onlyPersonId: recipient.id);
+    }
     return next;
   }
 
   /// Da de alta o cambia a alguien que regala.
-  Future<void> upsertGiver(Giver giver) => _commit(
-    (doc, clock) => _writeChanged(
-      doc,
-      clock,
-      Collections.givers,
-      giver.id,
-      giver.toFields(),
-    ),
-  );
+  /// El vínculo se cambia únicamente con [linkGiver] y [unlinkGiver].
+  Future<void> upsertGiver(Giver giver) => _commit((doc, clock) {
+    final record = doc.record(Collections.givers, giver.id);
+    if (record?.isDeleted == true ||
+        (record == null && giver.id.startsWith(Giver.personIdPrefix))) {
+      return doc;
+    }
+    final fields = giver.toFields()..remove(Giver.recipientIdField);
+    if (record?[Giver.recipientIdField] is String) {
+      fields
+        ..remove('name')
+        ..remove('colorIndex');
+    }
+    return _writeChanged(doc, clock, Collections.givers, giver.id, fields);
+  });
 
-  /// Da de alta o cambia una ocasión.
-  Future<void> upsertOccasion(Occasion occasion) => _commit(
-    (doc, clock) => _writeChanged(
-      doc,
-      clock,
-      Collections.occasions,
-      occasion.id,
-      occasion.toFields(),
-    ),
-  );
+  /// Links a giver only if its current link matches [expectedPersonId].
+  /// A null expectation requires an unlinked giver.
+  Future<bool> linkGiver(
+    String giverId,
+    String recipientId, {
+    String? expectedPersonId,
+  }) => _commit((doc, clock) {
+    final view = FamilyView.fromDoc(doc);
+    final person = view.allRecipientsById[recipientId];
+    final giver = view.giversByOriginalId[giverId];
+    if (person == null ||
+        giver == null ||
+        giver.recipientId != expectedPersonId) {
+      return doc;
+    }
+    return doc.setChanged(clock, Collections.givers, giverId, {
+      Giver.recipientIdField: recipientId,
+      'name': person.name,
+      'colorIndex': person.colorIndex,
+    });
+  });
+
+  /// Clears the expected link and returns the name preserved on the giver.
+  /// Returns null if the giver is gone or its link has changed.
+  Future<String?> unlinkGiver(
+    String giverId, {
+    required String expectedPersonId,
+  }) async {
+    String? retainedName;
+    await _commit((doc, clock) {
+      final giver = FamilyView.fromDoc(doc).giversByOriginalId[giverId];
+      if (giver == null || giver.recipientId != expectedPersonId) return doc;
+      retainedName = giver.name;
+      return doc.setChanged(clock, Collections.givers, giverId, {
+        Giver.recipientIdField: null,
+        'name': giver.name,
+        'colorIndex': giver.colorIndex,
+      });
+    });
+    return retainedName;
+  }
+
+  /// Da de alta o cambia una ocasión. Con [original], aplica solo los campos
+  /// que el editor cambió desde que se abrió, sobre el documento actual.
+  /// Para cambiar el presupuesto de una ocasión existente, pasa [original]
+  /// o usa [setOccasionBudget].
+  Future<void> upsertOccasion(Occasion occasion, {Occasion? original}) =>
+      _commit((doc, clock) {
+        assert(original == null || original.id == occasion.id);
+        final fields = occasion.toFields();
+        if (original != null) {
+          if (_isGone(doc, Collections.occasions, occasion.id)) return doc;
+          final before = original.toFields();
+          fields.removeWhere(
+            (key, value) =>
+                canonicalJsonOf(value) == canonicalJsonOf(before[key]),
+          );
+        }
+        final budgetEdited =
+            original != null && fields.containsKey(Occasion.budgetField);
+        final exists = doc.record(Collections.occasions, occasion.id) != null;
+        if (exists) {
+          fields.remove(Occasion.budgetField);
+        }
+        final next = _writeChanged(
+          doc,
+          clock,
+          Collections.occasions,
+          occasion.id,
+          fields,
+        );
+        // Un cambio explícito de presupuesto lleva un sello incluso para null.
+        return budgetEdited
+            ? next.set(clock, Collections.occasions, occasion.id, {
+                Occasion.budgetField: occasion.budgetCents,
+              })
+            : next;
+      });
+
+  /// Cambia solo el presupuesto de una ocasión existente. `null` lo quita
+  /// con un sello propio, aunque el documento local aún no tenga el campo.
+  Future<void> setOccasionBudget(String id, int? cents) =>
+      _commit((doc, clock) {
+        final budgetCents = Occasion.checkedBudgetCents(cents);
+        if (_isGone(doc, Collections.occasions, id)) return doc;
+        return doc.set(clock, Collections.occasions, id, {
+          Occasion.budgetField: budgetCents,
+        });
+      });
 
   /// Da de alta o cambia un regalo. Con [original], solo aplica los campos
   /// que el editor cambió desde que se abrió, sobre el documento actual.
   /// Los demás conservan tanto su valor como su sello, aunque lleguen cambios
   /// remotos mientras se edita o se espera en la cola de escrituras.
   ///
-  /// Devuelve `false` si no se guardó porque el regalo ya estaba eliminado o
-  /// su persona ya no existe (otro móvil lo borró mientras se editaba): no se
-  /// escribe nada. `true` si se guardó o si no había nada que cambiar.
-  Future<bool> upsertGift(Gift gift, {Gift? original}) async {
+  /// Devuelve `false` si el regalo ya está eliminado, su persona ya no existe
+  /// o la pareja final de destinatario y quien regala es inválida. La pareja
+  /// se valida en el alta y cuando cambia uno de los dos roles. Devuelve
+  /// `true` si se guardó o si no había nada que cambiar.
+  Future<bool> upsertGift(Gift gift, {Gift? original}) async =>
+      await upsertGiftResult(gift, original: original) == GiftWriteResult.saved;
+
+  /// Like [upsertGift], but says why a save was rejected.
+  Future<GiftWriteResult> upsertGiftResult(Gift gift, {Gift? original}) =>
+      _upsertGift(gift, original: original);
+
+  /// Saves a form and confirms its People choice in the same protected edit.
+  /// Throws [GiverPersonNeedsPublicAdd] if a protected gift needs a public
+  /// giver. Retry explicitly after [addPersonAsGiver].
+  Future<GiftWriteResult> upsertGiftWithGiverPerson(
+    Gift gift,
+    String giverPersonId, {
+    Gift? original,
+  }) => _upsertGift(gift, original: original, giverPersonId: giverPersonId);
+
+  Future<GiftWriteResult> _upsertGift(
+    Gift gift, {
+    Gift? original,
+    String? giverPersonId,
+  }) {
     assert(original == null || original.id == gift.id);
     final fields = gift.toFields();
     if (original != null) {
@@ -951,55 +1098,330 @@ class FamilyController extends AsyncNotifier<FamilyState> {
         (key, value) => canonicalJsonOf(value) == canonicalJsonOf(before[key]),
       );
     }
-    var refused = false;
-    final saved = await _protectionSerial(() async {
-      final current = await _requireFamily();
-      final context = await _protectionContext(current.doc);
-      if (context != null) {
-        return _upsertProtectedAware(current, context, gift, fields, original);
-      }
-      final doc = current.doc;
-      final clock = _clock!;
-      if (_isDeletedRecord(doc, Collections.recipients, gift.recipientId) ||
-          _isDeletedRecord(doc, Collections.gifts, gift.id)) {
-        refused = true;
-        return false;
-      }
-      // Even without v2 credentials a requested policy fails closed.
-      if (_store.supportsSecretScopes) {
-        final slots = await _store.readSlots();
-        final keyring = await ref
-            .read(deviceKeysStoreProvider)
-            .readKeyring(doc.listId);
-        for (final person in {
-          gift.recipientId,
-          doc.record(Collections.gifts, gift.id)?['recipientId'],
-        }) {
-          if (person is String &&
-              (publishedPolicy(doc, person) != null ||
-                  slots.people.contains(person) ||
-                  keyring.people.contains(person))) {
-            throw ProtectedPersonException(
-              person,
-              reason: ProtectedPersonReason.requiresV2,
-            );
-          }
+    return _protectionSerial(() async {
+      return _writeGiftFields(
+        await _requireFamily(),
+        gift,
+        fields,
+        original,
+        giverPersonId: giverPersonId,
+      );
+    });
+  }
+
+  /// Updates only the gift's `giverId` field. Null leaves it unassigned.
+  Future<GiftWriteResult> setGiftGiver(String giftId, String? giverId) =>
+      _assignGiftGiver(giftId, {'giverId': giverId});
+
+  /// Resolves the person's giver against the current gift and protection
+  /// state and updates only the gift's `giverId` field. A public gift can
+  /// restore or create its giver as part of the edit.
+  /// A protected gift without an active link throws [GiverPersonNeedsPublicAdd].
+  Future<GiftWriteResult> assignPersonAsGiver(
+    String giftId,
+    String recipientId,
+  ) => _assignGiftGiver(giftId, {}, giverPersonId: recipientId);
+
+  Future<GiftWriteResult> _assignGiftGiver(
+    String giftId,
+    Map<String, Object?> fields, {
+    String? giverPersonId,
+  }) => _protectionSerial(() async {
+    final current = await _requireFamily();
+    if (current.hiddenGiftIds.contains(giftId)) {
+      return GiftWriteResult.giftUnavailable;
+    }
+    final record =
+        await _secretGift(giftId) ??
+        current.doc.record(Collections.gifts, giftId);
+    if (record == null) return GiftWriteResult.giftUnavailable;
+    if (record.isDeleted) return GiftWriteResult.giftDeleted;
+    final gift = Gift.fromRecord(record);
+    if (gift == null) return GiftWriteResult.giftUnavailable;
+    return _writeGiftFields(
+      current,
+      gift,
+      fields,
+      gift,
+      giverPersonId: giverPersonId,
+    );
+  });
+
+  Future<GiftWriteResult> _writeGiftFields(
+    FamilyState current,
+    Gift gift,
+    Map<String, Object?> fields,
+    Gift? original, {
+    String? giverPersonId,
+  }) async {
+    final context = await _protectionContext(current.doc);
+    final checkReview =
+        isStoreReviewEnabled &&
+        fields['status'] == GiftStatus.delivered.name &&
+        await _matchesDeliveredCount(
+          current,
+          context,
+          gift.id,
+          kReviewDeliveryTarget - 1,
+          targetDelivered: false,
+        );
+    final outcome = context != null
+        ? await _upsertProtectedAware(
+            current,
+            context,
+            gift,
+            fields,
+            original,
+            giverPersonId: giverPersonId,
+          )
+        : await _upsertCommonGift(
+            current,
+            gift,
+            fields,
+            original,
+            giverPersonId: giverPersonId,
+          );
+    final savedId = outcome.savedId;
+    if (checkReview && savedId != null) {
+      await _reviewDeliverySaved(current.listId!, savedId, context != null);
+    }
+    return outcome.result;
+  }
+
+  Future<_GiftWriteOutcome> _upsertCommonGift(
+    FamilyState current,
+    Gift gift,
+    Map<String, Object?> fields,
+    Gift? original, {
+    required String? giverPersonId,
+  }) async {
+    final doc = current.doc;
+    final previous = doc.record(Collections.gifts, gift.id);
+    final recipientId =
+        fields['recipientId'] as String? ??
+        previous?['recipientId'] as String? ??
+        gift.recipientId;
+    if (previous?.isDeleted == true) {
+      return (result: GiftWriteResult.giftDeleted, savedId: null);
+    }
+    if (original != null && previous == null) {
+      return (result: GiftWriteResult.giftUnavailable, savedId: null);
+    }
+    if (_isDeletedRecord(doc, Collections.recipients, recipientId)) {
+      return (result: GiftWriteResult.recipientUnavailable, savedId: null);
+    }
+    // Even without v2 credentials a requested policy fails closed.
+    if (_store.supportsSecretScopes) {
+      final slots = await _store.readSlots();
+      final keyring = await ref
+          .read(deviceKeysStoreProvider)
+          .readKeyring(doc.listId);
+      for (final person in {recipientId, previous?['recipientId']}) {
+        if (person is String &&
+            (publishedPolicy(doc, person) != null ||
+                slots.people.contains(person) ||
+                keyring.people.contains(person))) {
+          throw ProtectedPersonException(
+            person,
+            reason: ProtectedPersonReason.requiresV2,
+          );
         }
       }
-      final next = _writeChanged(
-        doc,
-        clock,
-        Collections.gifts,
-        gift.id,
-        fields,
-        onlyExisting: original != null,
-      );
-      if (identical(next, doc)) return true;
+    }
+    final (result, prepared) = _prepareGiftGiver(
+      doc,
+      recipientId,
+      fields,
+      previous: previous,
+      giverPersonId: giverPersonId,
+      protected: false,
+    );
+    if (result != GiftWriteResult.saved) return (result: result, savedId: null);
+    final next = prepared.setChanged(
+      _clock!,
+      Collections.gifts,
+      gift.id,
+      fields,
+    );
+    if (!identical(next, doc)) {
       await _store.saveDoc(next);
       state = AsyncData(current.copyWith(doc: _store.savedDoc(next)));
-      return true;
+    }
+    return (result: GiftWriteResult.saved, savedId: gift.id);
+  }
+
+  /// Runs inside the protection queue after resolving the real recipient.
+  (GiftWriteResult, FamilyDoc) _prepareGiftGiver(
+    FamilyDoc doc,
+    String recipientId,
+    Map<String, Object?> fields, {
+    required SyncRecord? previous,
+    required String? giverPersonId,
+    required bool protected,
+  }) {
+    if (giverPersonId != null) {
+      final view = FamilyView.fromDoc(doc);
+      final person = view.allRecipientsById[giverPersonId];
+      if (person == null) return (GiftWriteResult.giverPersonUnavailable, doc);
+      if (person.archived) return (GiftWriteResult.giverPersonArchived, doc);
+      if (person.id == recipientId) return (GiftWriteResult.invalidPair, doc);
+      final existing = view.giverForPerson(person.id);
+      if (existing != null && !existing.archived) {
+        fields['giverId'] = existing.id;
+        return (GiftWriteResult.saved, doc);
+      }
+      if (protected) throw GiverPersonNeedsPublicAdd(person.id);
+      final giver = existing ?? _newPersonGiver(doc, person);
+      fields['giverId'] = giver.id;
+      final next = doc.setChanged(
+        _clock!,
+        Collections.givers,
+        giver.id,
+        existing == null ? giver.toFields() : {'archived': false},
+      );
+      return (GiftWriteResult.saved, next);
+    }
+    final oldId = previous?['giverId'];
+    final id = fields.containsKey('giverId') ? fields['giverId'] : oldId;
+    final selectingGiver = previous == null || id != oldId;
+    if (id is! String ||
+        (!selectingGiver && recipientId == previous['recipientId'])) {
+      return (GiftWriteResult.saved, doc);
+    }
+    final record = doc.record(Collections.givers, id);
+    final giver = record == null ? null : Giver.fromRecord(record);
+    if (giver == null) return (GiftWriteResult.giverUnavailable, doc);
+    if (giver.recipientId == recipientId) {
+      return (GiftWriteResult.invalidPair, doc);
+    }
+    if (selectingGiver && giver.archived) {
+      return (GiftWriteResult.giverArchived, doc);
+    }
+    return (GiftWriteResult.saved, doc);
+  }
+
+  Giver _newPersonGiver(FamilyDoc doc, Recipient person) => Giver(
+    id: Giver.nextPersonGiverId(doc, person.id),
+    name: person.name,
+    colorIndex: person.colorIndex,
+    householdPays: false,
+    archived: false,
+    recipientId: person.id,
+  );
+
+  /// Explicitly adds or restores a person's public giver without editing gifts.
+  /// Returns its original record, or null if the person is unavailable.
+  Future<Giver?> addPersonAsGiver(String personId) async {
+    Giver? result;
+    await _commit((doc, clock) {
+      final view = FamilyView.fromDoc(doc);
+      final person = view.allRecipientsById[personId];
+      if (person == null || person.archived) return doc;
+      final existing = view.giverForPerson(personId);
+      final giver = existing ?? _newPersonGiver(doc, person);
+      final next = existing == null
+          ? doc.setChanged(
+              clock,
+              Collections.givers,
+              giver.id,
+              giver.toFields(),
+            )
+          : doc.setChanged(clock, Collections.givers, giver.id, {
+              'archived': false,
+            });
+      result = Giver.fromRecord(next.record(Collections.givers, giver.id)!)!
+          .withPersonDetails(person);
+      return next;
     });
-    return saved && !refused;
+    return result;
+  }
+
+  Future<bool> _matchesDeliveredCount(
+    FamilyState family,
+    _ProtectionContext? context,
+    String giftId,
+    int expectedCount, {
+    required bool targetDelivered,
+  }) async {
+    if (context == null && syncProtocolOf(family.doc) == kSyncProtocolV2) {
+      return false;
+    }
+    try {
+      final delivered = context == null
+          ? family.view.allGifts
+                .where((gift) => gift.status == GiftStatus.delivered)
+                .map((gift) => gift.id)
+          : _deliveredGiftIds(
+              (await _projectAuthorized(family.doc, context)).doc,
+              family.hiddenGiftIds,
+            );
+      var count = 0;
+      var foundGift = false;
+      for (final id in delivered) {
+        if (++count > expectedCount) return false;
+        if (id == giftId) {
+          if (!targetDelivered) return false;
+          foundGift = true;
+        }
+      }
+      return count == expectedCount && foundGift == targetDelivered;
+    } on Object {
+      return false;
+    }
+  }
+
+  static Iterable<String> _deliveredGiftIds(
+    FamilyDoc doc,
+    Set<String> hiddenGiftIds,
+  ) sync* {
+    for (final record
+        in doc.collections[Collections.gifts]?.values ?? const <SyncRecord>[]) {
+      if (record['status'] != GiftStatus.delivered.name ||
+          hiddenGiftIds.contains(record.id)) {
+        continue;
+      }
+      final gift = Gift.fromRecord(record);
+      if (gift != null &&
+          !_isDeletedRecord(doc, Collections.recipients, gift.recipientId)) {
+        yield gift.id;
+      }
+    }
+  }
+
+  Future<void> _reviewDeliverySaved(
+    String familyId,
+    String giftId,
+    bool hasProtectionContext,
+  ) async {
+    try {
+      final current = state.asData?.value;
+      if (current == null || current.listId != familyId) return;
+      final context = hasProtectionContext
+          ? await _protectionContext(current.doc)
+          : null;
+      if ((hasProtectionContext && context == null) ||
+          !await _matchesDeliveredCount(
+            current,
+            context,
+            giftId,
+            kReviewDeliveryTarget,
+            targetDelivered: true,
+          ) ||
+          !ref.mounted) {
+        return;
+      }
+      unawaited(
+        ref
+            .read(reviewServiceProvider)
+            .deliverySaved(
+              familyId: familyId,
+              before: kReviewDeliveryTarget - 1,
+              after: kReviewDeliveryTarget,
+            ),
+      );
+    } on Object {
+      // Rating is optional even after the gift has been saved.
+    }
   }
 
   /// Cambia el estado de un regalo. Devuelve `false` (y no escribe nada) si
@@ -1047,14 +1469,16 @@ class FamilyController extends AsyncNotifier<FamilyState> {
   /// Lanza [DevicePersonException] (y no escribe nada) al archivar a la
   /// persona de un móvil de la familia. Recuperarla siempre se puede.
   Future<void> archiveRecipient(String id, {bool archived = true}) =>
-      _commit((doc, clock) {
-        if (archived) {
-          _refuseArchivingDevicePerson(doc, id);
-        }
-        return _writeChanged(doc, clock, Collections.recipients, id, {
-          'archived': archived,
-        }, onlyExisting: true);
-      });
+      _protectionSerial(
+        () => _commitNow((doc, clock) async {
+          if (archived) {
+            await _refuseArchivingDevicePerson(doc, id);
+          }
+          return _writeChanged(doc, clock, Collections.recipients, id, {
+            'archived': archived,
+          }, onlyExisting: true);
+        }),
+      );
 
   /// Archiva (o recupera) a alguien que regala.
   Future<void> archiveGiver(String id, {bool archived = true}) =>
@@ -1247,51 +1671,140 @@ class FamilyController extends AsyncNotifier<FamilyState> {
   ///
   /// Lanza [DevicePersonException] (y no escribe nada) si es la persona de
   /// un móvil de la familia.
-  Future<void> deleteRecipient(String id) => _commit((doc, clock) {
-    if (_isGone(doc, Collections.recipients, id)) {
-      return doc;
+  Future<void> deleteRecipient(String id, {DeleteImpact? expectedImpact}) =>
+      _deleteWithCascade(
+        id,
+        DeleteImpact.ofRecipient,
+        expectedImpact: expectedImpact,
+        person: true,
+      );
+
+  /// Deletes one original giver record and clears its gift assignments.
+  /// This is the unit displayed by a row in Settings and Archive.
+  /// Pass the impact shown in the dialog as [expectedImpact]. A changed set
+  /// raises [DeleteImpactChanged] before either the common or a scope is saved.
+  Future<void> deleteGiverAlias(String id, {DeleteImpact? expectedImpact}) =>
+      _deleteWithCascade(
+        id,
+        DeleteImpact.ofGiverAlias,
+        expectedImpact: expectedImpact,
+      );
+
+  /// Deletes one original giver record. See [deleteGiverAlias].
+  Future<void> deleteGiver(String id) => deleteGiverAlias(id);
+
+  /// Deletes every alias in a grouped column after confirming its impact.
+  Future<void> deleteGiverColumn(
+    String id, {
+    required DeleteImpact expectedImpact,
+  }) => _deleteWithCascade(
+    id,
+    DeleteImpact.ofGiverColumn,
+    expectedImpact: expectedImpact,
+  );
+
+  /// The gifts, requests, birthday and giver history relevant to confirmation.
+  Future<DeleteImpact> recipientDeleteImpact(String id) =>
+      _deleteImpact(id, DeleteImpact.ofRecipient);
+
+  /// The record and gifts that can be named in an original row's confirmation.
+  Future<DeleteImpact> giverAliasDeleteImpact(String id) =>
+      _deleteImpact(id, DeleteImpact.ofGiverAlias);
+
+  /// The aliases and gifts that can be named in a grouped column's confirmation.
+  Future<DeleteImpact> giverColumnDeleteImpact(String id) =>
+      _deleteImpact(id, DeleteImpact.ofGiverColumn);
+
+  Future<DeleteImpact> _deleteImpact(
+    String id,
+    DeleteImpact Function(FamilyView, String) impactOf,
+  ) => _protectionSerial(() async {
+    final current = await _current();
+    final doc = await _store.cascadeDoc(current.doc);
+    return impactOf(await _authorizedView(doc, includePending: true), id);
+  });
+
+  // See the latest authorized impact inside the same queue as the write.
+  Future<void> _deleteWithCascade(
+    String id,
+    DeleteImpact Function(FamilyView, String) impactOf, {
+    required DeleteImpact? expectedImpact,
+    bool person = false,
+  }) => _protectionSerial(() async {
+    final current = await _requireFamily();
+    final before = await _store.cascadeDoc(current.doc);
+    final collection = person ? Collections.recipients : Collections.givers;
+    final impact = impactOf(
+      await _authorizedView(before, includePending: true),
+      id,
+    );
+    if (expectedImpact != null && !expectedImpact.matches(impact)) {
+      throw DeleteImpactChanged(impact);
     }
-    _refuseDevicePerson(id);
+    if (_isGone(before, collection, id)) return;
+    if (person) await _refuseDevicePerson(before, id);
+    final clock = _clock!;
+    final latest = _store.latestStoredStamp(before);
+    if (latest != null && latest > clock.last) clock.receive(latest);
+    // A live giver can have gift references before all its required fields
+    // have arrived. Its id may be absent from the confirmation view.
+    final aliases = {
+      if (!person) id,
+      for (final giver in impact.affectedAliases) giver.id,
+    };
+    FamilyDoc changeGifts(FamilyDoc doc, HlcClock clock) =>
+        _cascadeGiftReferences(doc, clock, person ? id : null, aliases);
+    var next = changeGifts(before, clock);
+    if (person) {
+      // Preserve the person's last name and color in their giver history.
+      next = reconcileGiverCopies(next, clock, onlyPersonId: id);
+      for (final record in _live(before, Collections.occasions)) {
+        if (record['kind'] == OccasionKind.birthday.name &&
+            record['recipientId'] == id) {
+          next = next.delete(clock, Collections.occasions, record.id);
+        }
+      }
+      next = next.delete(clock, collection, id);
+    }
+    for (final alias in aliases) {
+      next = next.delete(clock, collection, alias);
+    }
+    final protected = await _saveProtectedCascade(before, next, changeGifts);
+    if (!protected) await _store.saveCascadeDoc(before, next);
+    state = AsyncData(
+      current.copyWith(
+        doc: _store.savedDoc(next),
+        protectionRevision: current.protectionRevision + (protected ? 1 : 0),
+      ),
+    );
+  });
+
+  FamilyDoc _cascadeGiftReferences(
+    FamilyDoc doc,
+    HlcClock clock,
+    String? personId,
+    Set<String> aliases,
+  ) {
     var next = doc;
     for (final record in _live(doc, Collections.gifts)) {
-      if (record['recipientId'] == id) {
+      if (personId != null && record['recipientId'] == personId) {
         next = next.delete(clock, Collections.gifts, record.id);
         continue;
       }
       final by = RequestedBy.fromFields(record['requestedBy']);
-      if (by is RequestedByRecipient && by.recipientId == id) {
-        // Quien lo pidió ya no existe: el regalo se queda sin ese dato.
-        next = next.setChanged(clock, Collections.gifts, record.id, {
+      final fields = <String, Object?>{
+        if (personId != null &&
+            by is RequestedByRecipient &&
+            by.recipientId == personId)
           'requestedBy': null,
-        });
+        if (aliases.contains(record['giverId'])) 'giverId': null,
+      };
+      if (fields.isNotEmpty) {
+        next = next.setChanged(clock, Collections.gifts, record.id, fields);
       }
     }
-    for (final record in _live(doc, Collections.occasions)) {
-      if (record['kind'] == OccasionKind.birthday.name &&
-          record['recipientId'] == id) {
-        next = next.delete(clock, Collections.occasions, record.id);
-      }
-    }
-    return next.delete(clock, Collections.recipients, id);
-  }, cascade: true);
-
-  /// Elimina a alguien que regala para siempre: su registro pasa a lápida.
-  /// Sus regalos no se borran: se quedan sin quién regala. No hace nada si no
-  /// existe o ya está eliminado.
-  Future<void> deleteGiver(String id) => _commit((doc, clock) {
-    if (_isGone(doc, Collections.givers, id)) {
-      return doc;
-    }
-    var next = doc;
-    for (final record in _live(doc, Collections.gifts)) {
-      if (record['giverId'] == id) {
-        next = next.setChanged(clock, Collections.gifts, record.id, {
-          'giverId': null,
-        });
-      }
-    }
-    return next.delete(clock, Collections.givers, id);
-  }, cascade: true);
+    return next;
+  }
 
   /// Elimina una ocasión para siempre: su registro pasa a lápida. Sus regalos
   /// no se borran: se quedan sin ocasión (siguen con su persona). No hace

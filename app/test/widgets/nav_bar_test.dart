@@ -79,7 +79,7 @@ void main() {
                     )
                     .decoration
                 as BoxDecoration;
-        expect(deco.color, t.fill);
+        expect(deco.color, t.selection);
         expect(deco.borderRadius, RegalosShape.chip);
         // Etiqueta en negrita y en tinta; el resto, no.
         final style = tester.widget<Text>(find.text('Reparto')).style!;
@@ -172,7 +172,7 @@ void main() {
           matching: find.byType(AnimatedContainer),
         ),
       );
-      return (box.decoration! as BoxDecoration).color == t.fill;
+      return (box.decoration! as BoxDecoration).color == t.selection;
     }
 
     expect(pill('Reparto'), isTrue);

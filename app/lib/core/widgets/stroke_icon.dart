@@ -78,6 +78,18 @@ abstract final class AppIcons {
       ..addOval(Rect.fromCircle(center: const Offset(9, 17), radius: 2));
   }
 
+  /// Cartera: el presupuesto (cuadrícula de 24).
+  static void budget(Path p) {
+    p
+      ..addRRect(RRect.fromLTRBR(3.5, 6, 20.5, 19, const Radius.circular(2.5)))
+      ..moveTo(6.5, 6)
+      ..lineTo(15.5, 3.5)
+      ..lineTo(16.5, 6)
+      ..addRRect(
+        RRect.fromLTRBR(14, 11.5, 20.5, 15.5, const Radius.circular(2)),
+      );
+  }
+
   /// Más (cuadrícula de 24).
   static void plus(Path p) {
     p
@@ -93,6 +105,19 @@ abstract final class AppIcons {
       ..relativeLineTo(12, 12)
       ..moveTo(18, 6)
       ..relativeLineTo(-12, 12);
+  }
+
+  /// Triángulo de aviso con su exclamación.
+  static void alert(Path p) {
+    p
+      ..moveTo(12, 3.5)
+      ..lineTo(21.5, 20)
+      ..lineTo(2.5, 20)
+      ..close()
+      ..moveTo(12, 9.5)
+      ..relativeLineTo(0, 4.5)
+      ..moveTo(12, 17)
+      ..relativeLineTo(0, 0.01);
   }
 
   static void edit(Path p) {
@@ -184,21 +209,6 @@ abstract final class AppIcons {
       )
       ..moveTo(9.5, 5)
       ..lineTo(9.5, 19);
-  }
-
-  /// Eslabón: un enlace.
-  static void link(Path p) {
-    p
-      ..moveTo(10, 14)
-      ..relativeLineTo(4, -4)
-      ..moveTo(11.5, 7.5)
-      ..lineTo(13, 6)
-      ..arcToPoint(const Offset(18, 11), radius: const Radius.circular(3.6))
-      ..lineTo(16.5, 12.5)
-      ..moveTo(12.5, 16.5)
-      ..lineTo(11, 18)
-      ..arcToPoint(const Offset(6, 13), radius: const Radius.circular(3.6))
-      ..lineTo(7.5, 11.5);
   }
 
   /// Tres puntos en horizontal: más acciones.

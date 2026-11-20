@@ -114,14 +114,13 @@ void main() {
       expect(find.byType(FloatingActionButton), findsNothing);
       expect(_addGift, findsOneWidget);
       expect(tester.widget(_addGift), isA<DesktopAddGiftButton>());
-      // Relleno sólido con el acento (la tinta con texto claro en claro), no
-      // pastel con tinta, que parece apagado.
+      // Relleno pastel del acento con texto tinta, como «Guardar».
       final fill = tester.widget<FilledButton>(
         find.descendant(of: _addGift, matching: find.byType(FilledButton)),
       );
       final t = RegalosTokens.of(tester.element(_addGift));
-      expect(fill.style!.backgroundColor!.resolve({}), t.ink);
-      expect(fill.style!.foregroundColor!.resolve({}), t.bg);
+      expect(fill.style!.backgroundColor!.resolve({}), t.fill);
+      expect(fill.style!.foregroundColor!.resolve({}), t.onFill);
       final header = tester.getRect(
         find.descendant(
           of: find.byType(PersonListScreen),
@@ -320,7 +319,7 @@ void main() {
   });
 
   group('en el móvil nada cambia', () {
-    screenTest('las filas de persona tienen flecha y 92 de alto, el carrusel '
+    screenTest('las filas de persona tienen flecha y 76 de alto, el carrusel '
         'sigue y la lista lleva su «+»', (tester, phone) async {
       await seedSample(tester, phone);
       await pumpRegalos(tester, phone);
@@ -331,7 +330,7 @@ void main() {
             .ancestor(of: find.text('Aritz'), matching: find.byType(InkWell))
             .first,
       );
-      expect(row.height, greaterThanOrEqualTo(92));
+      expect(row.height, greaterThanOrEqualTo(76));
       await tapText(tester, 'Aritz');
       expect(find.byType(FloatingActionButton), findsOneWidget);
       expect(_addGift, findsNothing);

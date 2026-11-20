@@ -737,6 +737,13 @@ class AppLocalizationsCa extends AppLocalizations {
   String get giftFieldUrl => 'Enllaç';
 
   @override
+  String get giftLinkOpen => 'Obrir l\'enllaç';
+
+  @override
+  String get giftLinkCopied =>
+      'No s\'ha pogut obrir el navegador. Enllaç copiat.';
+
+  @override
   String get giftFieldNote => 'Nota';
 
   @override
@@ -894,7 +901,7 @@ class AppLocalizationsCa extends AppLocalizations {
   String get budgetCardTitle => 'Pressupost de la casa';
 
   @override
-  String get budgetCardHint => 'Previst, gastat i el que queda';
+  String get budgetCardHint => 'Pressupost, gastat i el que queda';
 
   @override
   String get occasionPeopleSection => 'Cada persona';
@@ -938,7 +945,12 @@ class AppLocalizationsCa extends AppLocalizations {
   String get budgetTitle => 'Pressupost';
 
   @override
-  String get budgetSubtitle => 'Només el que paga la casa';
+  String get budgetSubtitle =>
+      'El poses tu a cada ocasió. Gastat suma el preu real del que paga la casa; si una cosa ja està comprada i no té preu real, compta el previst.';
+
+  @override
+  String get budgetSubtitleBudgeted =>
+      'El poses tu a cada ocasió. Les tres xifres només inclouen ocasions amb pressupost. «Gastat» suma els preus reals del que paga la casa. Si una cosa ja està comprada i no té preu real, compta el previst.';
 
   @override
   String get budgetPlanned => 'Previst';
@@ -965,6 +977,67 @@ class AppLocalizationsCa extends AppLocalizations {
   @override
   String get budgetEmpty =>
       'Encara no hi ha regals que pagui la casa. Marca «Ho paga la casa» a qui regala i posa un preu previst.';
+
+  @override
+  String get occasionBudgetField => 'Pressupost (opcional)';
+
+  @override
+  String get occasionBudgetHint =>
+      'El que voleu gastar en aquesta ocasió. Deixa-ho buit si no n\'hi ha.';
+
+  @override
+  String get budgetFigure => 'Pressupost';
+
+  @override
+  String get budgetNone => 'Sense pressupost';
+
+  @override
+  String get budgetSetAction => 'Posar pressupost';
+
+  @override
+  String get budgetEditAction => 'Canviar pressupost';
+
+  @override
+  String budgetSetFor(String name) {
+    return 'Posar pressupost a $name';
+  }
+
+  @override
+  String budgetEditFor(String name) {
+    return 'Canviar el pressupost de $name';
+  }
+
+  @override
+  String budgetLeftIfBought(String amount) {
+    return 'Si compres el que falta, et quedaran $amount';
+  }
+
+  @override
+  String budgetSpentOutside(String amount) {
+    return 'A més, la casa ha gastat $amount fora de les ocasions amb pressupost.';
+  }
+
+  @override
+  String budgetOverIfBought(String amount) {
+    return 'Si compres el que falta, et passaràs $amount';
+  }
+
+  @override
+  String budgetSheetTitle(String name) {
+    return 'Pressupost de $name';
+  }
+
+  @override
+  String get budgetSheetHint => 'Deixa-ho buit per treure el pressupost.';
+
+  @override
+  String get budgetOpenGifts => 'Veure regals';
+
+  @override
+  String get budgetArchivedTag => 'Arxivada · no suma';
+
+  @override
+  String get budgetCreateOccasion => 'Crear ocasió';
 
   @override
   String get settingsGivers => 'Qui regala';
@@ -1080,7 +1153,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get showQrIntro =>
-      'A l\'altre mòbil obre Gift Huddle, toca «Escanejar el QR» i apunta la càmera a aquest codi.';
+      'A l\'altre mòbil obre Gift Huddle, toca «Unir-me a una família», després «Escanejar el QR» i apunta la càmera a aquest codi.';
 
   @override
   String get showQrWarning =>
@@ -1869,7 +1942,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get giftNotSaved =>
-      'No s\'ha desat: aquest regal ja no existeix, l\'ha esborrat un altre mòbil.';
+      'No s\'ha desat: aquest regal ja no està disponible en aquest mòbil.';
 
   @override
   String giftDeletedNotice(String name) {
@@ -3125,7 +3198,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String protectionIntro(String name) {
-    return 'Amb això actiu, el mòbil de $name no mostra cap regal per a $name, ni quants n\'hi ha. La resta de la família els continua veient.';
+    return 'Amb els regals en secret activats, el mòbil de $name no mostra cap regal per a $name, ni quants n\'hi ha. La resta de la família els continua veient.';
   }
 
   @override
@@ -3359,7 +3432,30 @@ class AppLocalizationsCa extends AppLocalizations {
   String get boardLaneEmpty => 'Res per aquí';
 
   @override
+  String boardMoveTo(String lane) {
+    return 'Mou a $lane';
+  }
+
+  @override
+  String boardLaneAdd(String lane) {
+    return 'Afegeix un regal a $lane';
+  }
+
+  @override
+  String boardGiftMoved(String item, String lane) {
+    return '$item: $lane';
+  }
+
+  @override
   String get boardOccasionsHint => 'Tria una ocasió per veure el seu tauler.';
+
+  @override
+  String boardSeeAll(int count) {
+    return 'Veure-les totes ($count)';
+  }
+
+  @override
+  String get boardBudgetEmptyTitle => 'Res previst encara';
 
   @override
   String get boardChangeDate => 'Canvia la data';
@@ -3384,6 +3480,15 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get boardSearchNone => 'Cap regal coincideix';
+
+  @override
+  String get boardPersonFilter => 'Persona';
+
+  @override
+  String get boardPersonFilterAll => 'Totes les persones';
+
+  @override
+  String get searchClear => 'Esborra la cerca';
 
   @override
   String get boardColStatus => 'Estat';
@@ -4021,11 +4126,11 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get recoveryFileProtectOffHint =>
-      'Sense contrasenya, el fitxer val tant com les paraules: qui el aconsegueixi el pot fer servir.';
+      'Sense contrasenya, el fitxer val tant com les paraules: qui l\'aconsegueixi el pot fer servir.';
 
   @override
   String get recoveryFileProtectOnHint =>
-      'Robar el fitxer no n\'hi ha prou: cal la contrasenya.';
+      'Amb robar el fitxer no n\'hi ha prou: cal la contrasenya.';
 
   @override
   String get recoveryFilePassword => 'Contrasenya';
@@ -4263,4 +4368,214 @@ class AppLocalizationsCa extends AppLocalizations {
   @override
   String get recoveryFileProblemStorageBody =>
       'El fitxer continua a l\'espera. Torna-ho a provar: abans de recuperar, l\'app ha de comprovar que aquest mòbil no té ja una llista.';
+
+  @override
+  String get cameraRestricted =>
+      'La càmera està restringida en aquest dispositiu (per exemple, amb Temps d\'ús). La pots permetre a Configuració > Temps d\'ús > Restriccions de contingut i privadesa.';
+
+  @override
+  String get obJoinFamily => 'Unir-me a una família';
+
+  @override
+  String get obJoinFamilyHint =>
+      'Tria com connectar-te amb el mòbil que ja té la llista.';
+
+  @override
+  String get obJoinQrHint => 'És amb tu: escaneja el seu codi.';
+
+  @override
+  String get obJoinLinkHint => 'És lluny: enganxa l\'enllaç que et va enviar.';
+
+  @override
+  String get obRestoreBackup => 'Restaurar una còpia';
+
+  @override
+  String get obRestoreBackupHint => 'Tria amb què recuperes la llista.';
+
+  @override
+  String get obRestoreCodeHint => 'Escriu les 24 paraules que vas desar.';
+
+  @override
+  String get obRestoreFileHint =>
+      'Obre el fitxer de recuperació que vas desar.';
+
+  @override
+  String get giverPeopleSection => 'Persones';
+
+  @override
+  String get giverPeopleHintAdd => 'Abans s\'afegeix com a qui regala';
+
+  @override
+  String get giverPeopleHintRecover => 'Es recupera com a qui regala';
+
+  @override
+  String giverPersonAddTitle(String name) {
+    return 'Afegir $name com a qui regala?';
+  }
+
+  @override
+  String giverPersonAddBody(String name) {
+    return 'Aquest regal és una sorpresa. Per no delatar-la, primer cal afegir $name com a qui regala per a tota la família, i es veurà a tots els mòbils sense relació amb aquest regal. Després podràs triar $name aquí.';
+  }
+
+  @override
+  String giverPersonAddConfirm(String name) {
+    return 'Afegeix $name com a qui regala';
+  }
+
+  @override
+  String giverPersonAddFailed(String name) {
+    return 'No s\'ha pogut afegir $name com a qui regala.';
+  }
+
+  @override
+  String get giftNoLongerVisible =>
+      'Aquest regal ja no es pot veure en aquest mòbil.';
+
+  @override
+  String deleteGiverRows(int count, String names) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'S\'eliminen aquests $count registres: $names.',
+      one: 'S\'elimina $names.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String deleteGiverGiftTitles(String titles, int more) {
+    String _temp0 = intl.Intl.pluralLogic(
+      more,
+      locale: localeName,
+      other: 'Afecta: $titles i $more més.',
+      zero: 'Afecta: $titles.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String deleteGiverLinkedNote(String name) {
+    return '$name continua a Persones: només s\'elimina com a qui regala.';
+  }
+
+  @override
+  String get deleteImpactChanged =>
+      'Ha canviat mentre tenies l\'avís obert. Això és el que s\'eliminaria ara:';
+
+  @override
+  String get deletePersonLinkedGiver =>
+      'El seu nom continuarà apareixent als regals que va fer, com a qui regala.';
+
+  @override
+  String devicePersonBlockedThisTitle(String name) {
+    return 'Aquest mòbil és de $name';
+  }
+
+  @override
+  String devicePersonBlockedThisBody(String name) {
+    return '$name és la persona d\'aquest mòbil, així que no es pot eliminar ni arxivar des d\'aquí. Per fer-ho, tria abans una altra persona a «Aquest mòbil és de», a Ajustos.';
+  }
+
+  @override
+  String devicePersonBlockedOtherTitle(String name) {
+    return '$name té el seu propi mòbil';
+  }
+
+  @override
+  String devicePersonBlockedOtherBody(String name) {
+    return '$name té el seu propi mòbil a la família, així que no es pot eliminar ni arxivar des d\'aquí.';
+  }
+
+  @override
+  String get giverLinkedLine =>
+      'Enllaçat a una persona: el nom i el color es canvien a Persones.';
+
+  @override
+  String giverLinkedNameHint(String name) {
+    return 'El nom i el color són els de $name. Canvia\'ls a Persones.';
+  }
+
+  @override
+  String get giverLinkLabel => 'Enllaça amb una persona';
+
+  @override
+  String get giverLinkHint =>
+      'El nom i el color passaran a ser els de la persona.';
+
+  @override
+  String get giverLinkExistingHint =>
+      'Ja és qui regala: s\'uniran en una columna';
+
+  @override
+  String giverLinkConfirmTitle(String name) {
+    return 'Enllaçar amb $name?';
+  }
+
+  @override
+  String giverLinkConfirmBody(String giver, String name) {
+    return '«$giver» passarà a dir-se $name, amb el seu color, i seguirà els canvis de $name a Persones. Els seus regals es mantenen.';
+  }
+
+  @override
+  String get giverLinkConfirm => 'Enllaça';
+
+  @override
+  String get giverUnlinkLabel => 'Desenllaça de la persona';
+
+  @override
+  String giverUnlinkConfirmTitle(String name) {
+    return 'Desenllaçar de $name?';
+  }
+
+  @override
+  String giverUnlinkConfirmBody(String name) {
+    return 'Continuarà com a qui regala amb el nom i el color d\'ara, però ja no canviarà amb $name. Els seus regals es mantenen.';
+  }
+
+  @override
+  String get giverUnlinkConfirm => 'Desenllaça';
+
+  @override
+  String get giverLinkError =>
+      'No s\'ha pogut canviar l\'enllaç. Torna-ho a provar.';
+
+  @override
+  String get giftWriteGiftUnavailable =>
+      'No s\'ha desat: aquest regal ja no està disponible en aquest mòbil.';
+
+  @override
+  String get giftWriteRecipientGone =>
+      'No s\'ha desat: la persona a qui va el regal ja no existeix.';
+
+  @override
+  String get giftWriteInvalidPair =>
+      'No s\'ha desat: qui regala no pot ser qui rep el regal.';
+
+  @override
+  String get giftWriteGiverGone => 'No s\'ha desat: qui regala ja no existeix.';
+
+  @override
+  String get giftWriteGiverArchived =>
+      'No s\'ha desat: qui regala està arxivat.';
+
+  @override
+  String get giftWritePersonGone =>
+      'No s\'ha desat: aquesta persona ja no existeix.';
+
+  @override
+  String get giftWritePersonArchived =>
+      'No s\'ha desat: aquesta persona està arxivada.';
+
+  @override
+  String giverUnlinkStale(String name) {
+    return 'Ja no estava enllaçat a $name.';
+  }
+
+  @override
+  String get deleteImpactUnavailable =>
+      'No s\'ha pogut comprovar què s\'elimina. Torna a obrir l\'avís.';
+
+  @override
+  String get deleteImpactChecking => 'Comprovant què s\'elimina…';
 }

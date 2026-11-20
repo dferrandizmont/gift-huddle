@@ -82,6 +82,7 @@ async function simulate(plans: Plan[], seed: number): Promise<{ log: Entry[]; st
     ...env,
     IP_LIMITER: windowLimiter(200),
     INVITE_IP_LIMITER: windowLimiter(V2_INVITE_REQUESTS_PER_IP),
+    INVITE_IP48_LIMITER: windowLimiter(2 * V2_INVITE_REQUESTS_PER_IP),
   } as unknown as Env;
   const ip = newList().ip;
   const log: Entry[] = [];

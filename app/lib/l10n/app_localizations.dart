@@ -1312,6 +1312,18 @@ abstract class AppLocalizations {
   /// **'Enlace'**
   String get giftFieldUrl;
 
+  /// Botón y ayuda que abren en el navegador el enlace de un regalo.
+  ///
+  /// In es, this message translates to:
+  /// **'Abrir enlace'**
+  String get giftLinkOpen;
+
+  /// Aviso cuando el enlace de un regalo no se puede abrir: se copia al portapapeles.
+  ///
+  /// In es, this message translates to:
+  /// **'No se ha podido abrir el navegador. Enlace copiado.'**
+  String get giftLinkCopied;
+
   /// Campo de nota.
   ///
   /// In es, this message translates to:
@@ -1567,7 +1579,7 @@ abstract class AppLocalizations {
   /// Descripción de la fila del presupuesto.
   ///
   /// In es, this message translates to:
-  /// **'Previsto, gastado y lo que queda'**
+  /// **'Presupuesto, gastado y lo que queda'**
   String get budgetCardHint;
 
   /// Cabecera de la lista de personas en una ocasión.
@@ -1642,11 +1654,17 @@ abstract class AppLocalizations {
   /// **'Presupuesto'**
   String get budgetTitle;
 
-  /// Subtítulo del presupuesto.
+  /// Subtítulo del presupuesto cuando ninguna ocasión tiene presupuesto.
   ///
   /// In es, this message translates to:
-  /// **'Solo lo que paga la casa'**
+  /// **'Lo pones tú en cada ocasión. Gastado suma el precio real de lo que paga la casa; si algo ya está comprado y no tiene precio real, cuenta el previsto.'**
   String get budgetSubtitle;
+
+  /// Subtítulo del presupuesto cuando alguna ocasión tiene presupuesto: las tres cifras solo cuentan esas.
+  ///
+  /// In es, this message translates to:
+  /// **'Lo pones tú en cada ocasión. Las tres cifras solo incluyen ocasiones con presupuesto. «Gastado» suma los precios reales de lo que paga la casa. Si algo ya está comprado y no tiene precio real, cuenta el previsto.'**
+  String get budgetSubtitleBudgeted;
 
   /// Número grande del presupuesto: lo previsto.
   ///
@@ -1695,6 +1713,102 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Todavía no hay regalos que pague la casa. Marca «Paga la casa» en quien regala y pon un precio previsto.'**
   String get budgetEmpty;
+
+  /// Campo opcional del editor de ocasión.
+  ///
+  /// In es, this message translates to:
+  /// **'Presupuesto (opcional)'**
+  String get occasionBudgetField;
+
+  /// Ayuda bajo el campo de presupuesto del editor de ocasión.
+  ///
+  /// In es, this message translates to:
+  /// **'Lo que queréis gastar en esta ocasión. Déjalo vacío si no hay.'**
+  String get occasionBudgetHint;
+
+  /// Cifra grande del presupuesto: lo que la familia ha puesto de presupuesto.
+  ///
+  /// In es, this message translates to:
+  /// **'Presupuesto'**
+  String get budgetFigure;
+
+  /// Ocasión o total sin presupuesto puesto.
+  ///
+  /// In es, this message translates to:
+  /// **'Sin presupuesto'**
+  String get budgetNone;
+
+  /// Botón para poner el presupuesto de una ocasión.
+  ///
+  /// In es, this message translates to:
+  /// **'Poner presupuesto'**
+  String get budgetSetAction;
+
+  /// Etiqueta del botón de editar el presupuesto.
+  ///
+  /// In es, this message translates to:
+  /// **'Cambiar presupuesto'**
+  String get budgetEditAction;
+
+  /// Etiqueta accesible del botón de poner el presupuesto de una ocasión.
+  ///
+  /// In es, this message translates to:
+  /// **'Poner presupuesto a {name}'**
+  String budgetSetFor(String name);
+
+  /// Etiqueta accesible del botón de cambiar el presupuesto de una ocasión.
+  ///
+  /// In es, this message translates to:
+  /// **'Cambiar el presupuesto de {name}'**
+  String budgetEditFor(String name);
+
+  /// Línea bajo las cifras: lo que quedaría si se compra lo que falta.
+  ///
+  /// In es, this message translates to:
+  /// **'Si compras lo que falta, te quedarán {amount}'**
+  String budgetLeftIfBought(String amount);
+
+  /// Línea bajo las cifras de Presupuesto: lo gastado en ocasiones sin presupuesto y en regalos sin ocasión, que las tres cifras no cuentan.
+  ///
+  /// In es, this message translates to:
+  /// **'Además, la casa ha gastado {amount} fuera de las ocasiones con presupuesto.'**
+  String budgetSpentOutside(String amount);
+
+  /// Línea bajo las cifras: lo que se pasaría si se compra lo que falta.
+  ///
+  /// In es, this message translates to:
+  /// **'Si compras lo que falta, te pasarás {amount}'**
+  String budgetOverIfBought(String amount);
+
+  /// Título de la hoja del importe del presupuesto de una ocasión.
+  ///
+  /// In es, this message translates to:
+  /// **'Presupuesto de {name}'**
+  String budgetSheetTitle(String name);
+
+  /// Ayuda de la hoja del presupuesto.
+  ///
+  /// In es, this message translates to:
+  /// **'Déjalo vacío para quitar el presupuesto.'**
+  String get budgetSheetHint;
+
+  /// Pista accesible de las tarjetas del presupuesto: al pulsarlas se abren sus regalos.
+  ///
+  /// In es, this message translates to:
+  /// **'Ver regalos'**
+  String get budgetOpenGifts;
+
+  /// Marca de una ocasión archivada en la lista del presupuesto: sus cifras se ven en su fila pero no suman en el total.
+  ///
+  /// In es, this message translates to:
+  /// **'Archivada · no suma'**
+  String get budgetArchivedTag;
+
+  /// Botón del presupuesto cuando no hay ninguna ocasión activa: abre el editor de ocasión.
+  ///
+  /// In es, this message translates to:
+  /// **'Crear ocasión'**
+  String get budgetCreateOccasion;
 
   /// Entrada de Ajustes y título de la pantalla de quién regala.
   ///
@@ -1891,7 +2005,7 @@ abstract class AppLocalizations {
   /// Explicación de la pantalla del QR.
   ///
   /// In es, this message translates to:
-  /// **'En el otro móvil abre Gift Huddle, toca «Escanear el QR» y apunta la cámara a este código.'**
+  /// **'En el otro móvil abre Gift Huddle, toca «Unirme a una familia», luego «Escanear el QR» y apunta la cámara a este código.'**
   String get showQrIntro;
 
   /// Aviso de no hacer captura del QR.
@@ -3085,7 +3199,7 @@ abstract class AppLocalizations {
   /// Aviso del editor de regalos cuando el regalo o su persona se eliminaron en otro móvil.
   ///
   /// In es, this message translates to:
-  /// **'No se ha guardado: este regalo ya no existe, lo ha borrado otro móvil.'**
+  /// **'No se ha guardado: este regalo ya no está disponible en este móvil.'**
   String get giftNotSaved;
 
   /// Aviso tras borrar un regalo, con la acción Deshacer.
@@ -5161,7 +5275,7 @@ abstract class AppLocalizations {
   /// Explicación de la protección de una persona.
   ///
   /// In es, this message translates to:
-  /// **'Con esto activo, el móvil de {name} no muestra ningún regalo para {name}, ni cuántos hay. El resto de la familia los sigue viendo.'**
+  /// **'Con los regalos en secreto activados, el móvil de {name} no muestra ningún regalo para {name}, ni cuántos hay. El resto de la familia los sigue viendo.'**
   String protectionIntro(String name);
 
   /// Primera consecuencia de activar la protección.
@@ -5494,11 +5608,41 @@ abstract class AppLocalizations {
   /// **'Nada por aquí'**
   String get boardLaneEmpty;
 
+  /// Acción de accesibilidad de una fila del tablero: pasar el regalo al carril indicado.
+  ///
+  /// In es, this message translates to:
+  /// **'Mover a {lane}'**
+  String boardMoveTo(String lane);
+
+  /// El «+» de la cabecera de un carril del tablero (ayuda y lector de pantalla).
+  ///
+  /// In es, this message translates to:
+  /// **'Añadir regalo en {lane}'**
+  String boardLaneAdd(String lane);
+
+  /// Aviso (y anuncio para lectores de pantalla) tras pasar un regalo a otro carril del tablero, arrastrándolo o con el teclado.
+  ///
+  /// In es, this message translates to:
+  /// **'{item}: {lane}'**
+  String boardGiftMoved(String item, String lane);
+
   /// Frase bajo el título de Ocasiones en la web de escritorio.
   ///
   /// In es, this message translates to:
   /// **'Elige una ocasión para ver su tablero.'**
   String get boardOccasionsHint;
+
+  /// Enlace al final de la tira de ocasiones de Hoy, a la pantalla Ocasiones, con cuántas ocasiones hay en total.
+  ///
+  /// In es, this message translates to:
+  /// **'Ver todas ({count})'**
+  String boardSeeAll(int count);
+
+  /// Título del estado vacío del presupuesto en la web de escritorio.
+  ///
+  /// In es, this message translates to:
+  /// **'Nada previsto todavía'**
+  String get boardBudgetEmptyTitle;
 
   /// Botón de la cabecera de una ocasión que abre el selector de fecha.
   ///
@@ -5547,6 +5691,24 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Ningún regalo coincide'**
   String get boardSearchNone;
+
+  /// Etiqueta del selector que filtra por persona los carriles de «Hoy» en la web.
+  ///
+  /// In es, this message translates to:
+  /// **'Persona'**
+  String get boardPersonFilter;
+
+  /// Opción del selector de persona de «Hoy» que enseña los regalos de todos.
+  ///
+  /// In es, this message translates to:
+  /// **'Todas las personas'**
+  String get boardPersonFilterAll;
+
+  /// Etiqueta accesible del botón que vacía un campo de búsqueda.
+  ///
+  /// In es, this message translates to:
+  /// **'Borrar la búsqueda'**
+  String get searchClear;
 
   /// Cabecera de la columna del estado del regalo en la tabla de una persona (web de escritorio).
   ///
@@ -7059,6 +7221,300 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'El fichero sigue a la espera. Vuelve a intentarlo: antes de recuperar, la app tiene que comprobar que este móvil no tiene ya una lista.'**
   String get recoveryFileProblemStorageBody;
+
+  /// No description provided for @cameraRestricted.
+  ///
+  /// In es, this message translates to:
+  /// **'La cámara está restringida en este dispositivo (por ejemplo, con Tiempo de uso). Puedes permitirla en Ajustes > Tiempo de uso > Restricciones de contenido y privacidad.'**
+  String get cameraRestricted;
+
+  /// Botón de la bienvenida y título de su hoja: unirse a la lista de otro móvil.
+  ///
+  /// In es, this message translates to:
+  /// **'Unirme a una familia'**
+  String get obJoinFamily;
+
+  /// Frase bajo el título de la hoja «Unirme a una familia».
+  ///
+  /// In es, this message translates to:
+  /// **'Elige cómo conectarte con el móvil que ya tiene la lista.'**
+  String get obJoinFamilyHint;
+
+  /// Frase de la opción del QR en la hoja «Unirme a una familia».
+  ///
+  /// In es, this message translates to:
+  /// **'Está contigo: escanea su código.'**
+  String get obJoinQrHint;
+
+  /// Frase de la opción del enlace en la hoja «Unirme a una familia».
+  ///
+  /// In es, this message translates to:
+  /// **'Está lejos: pega el enlace que te envió.'**
+  String get obJoinLinkHint;
+
+  /// Botón de la bienvenida y título de su hoja: recuperar la lista desde una copia.
+  ///
+  /// In es, this message translates to:
+  /// **'Restaurar una copia'**
+  String get obRestoreBackup;
+
+  /// Frase bajo el título de la hoja «Restaurar una copia».
+  ///
+  /// In es, this message translates to:
+  /// **'Elige con qué recuperas la lista.'**
+  String get obRestoreBackupHint;
+
+  /// Frase de la opción del código de recuperación en la hoja «Restaurar una copia».
+  ///
+  /// In es, this message translates to:
+  /// **'Escribe las 24 palabras que guardaste.'**
+  String get obRestoreCodeHint;
+
+  /// Frase de la opción del fichero en la hoja «Restaurar una copia».
+  ///
+  /// In es, this message translates to:
+  /// **'Abre el fichero de recuperación que guardaste.'**
+  String get obRestoreFileHint;
+
+  /// Cabecera de la sección del selector de quién regala con las personas de la familia que aún no son quién regala.
+  ///
+  /// In es, this message translates to:
+  /// **'Personas'**
+  String get giverPeopleSection;
+
+  /// Frase bajo una persona del selector de quién regala en un regalo secreto: hay que añadirla antes como quién regala.
+  ///
+  /// In es, this message translates to:
+  /// **'Antes se añade como quién regala'**
+  String get giverPeopleHintAdd;
+
+  /// Frase bajo una persona del selector cuya entrada de quién regala estaba archivada.
+  ///
+  /// In es, this message translates to:
+  /// **'Se recupera como quién regala'**
+  String get giverPeopleHintRecover;
+
+  /// Título del paso previo en un regalo secreto.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Añadir a {name} como quién regala?'**
+  String giverPersonAddTitle(String name);
+
+  /// Texto del paso previo: explica por qué hay que añadir a la persona como quién regala antes de elegirla en un regalo secreto.
+  ///
+  /// In es, this message translates to:
+  /// **'Este regalo es una sorpresa. Para no delatarla, primero hay que añadir a {name} como quién regala para toda la familia, y se verá en todos los móviles sin relación con este regalo. Después podrás elegir a {name} aquí.'**
+  String giverPersonAddBody(String name);
+
+  /// Botón del paso previo: añade a la persona como quién regala para toda la familia.
+  ///
+  /// In es, this message translates to:
+  /// **'Añadir a {name} como quién regala'**
+  String giverPersonAddConfirm(String name);
+
+  /// Aviso cuando falla el alta de una persona como quién regala.
+  ///
+  /// In es, this message translates to:
+  /// **'No se ha podido añadir a {name} como quién regala.'**
+  String giverPersonAddFailed(String name);
+
+  /// Aviso cuando el editor se cierra solo porque el regalo ya no está autorizado en este móvil (otro móvil lo movió a una persona protegida, por ejemplo).
+  ///
+  /// In es, this message translates to:
+  /// **'Este regalo ya no se puede ver en este móvil.'**
+  String get giftNoLongerVisible;
+
+  /// Primera frase del diálogo de eliminar a quien regala: nombra lo que se elimina.
+  ///
+  /// In es, this message translates to:
+  /// **'{count, plural, =1{Se elimina {names}.} other{Se eliminan estos {count} registros: {names}.}}'**
+  String deleteGiverRows(int count, String names);
+
+  /// Títulos de los regalos que se quedan sin quién regala; más indica cuántos no caben en la lista.
+  ///
+  /// In es, this message translates to:
+  /// **'{more, plural, =0{Afecta a: {titles}.} other{Afecta a: {titles} y {more} más.}}'**
+  String deleteGiverGiftTitles(String titles, int more);
+
+  /// Consecuencia de eliminar a quien regala si está enlazado a una persona.
+  ///
+  /// In es, this message translates to:
+  /// **'{name} sigue en Personas: solo se elimina como quién regala.'**
+  String deleteGiverLinkedNote(String name);
+
+  /// Primera frase del diálogo de eliminar cuando lo que se elimina cambió (otro móvil) y se pide confirmar de nuevo.
+  ///
+  /// In es, this message translates to:
+  /// **'Ha cambiado mientras tenías el aviso abierto. Esto es lo que se eliminaría ahora:'**
+  String get deleteImpactChanged;
+
+  /// Consecuencia de eliminar a una persona que también es quién regala en algunos regalos.
+  ///
+  /// In es, this message translates to:
+  /// **'Su nombre seguirá apareciendo en los regalos que dio, como quién regala.'**
+  String get deletePersonLinkedGiver;
+
+  /// Título del aviso al intentar eliminar o archivar a la persona de este móvil.
+  ///
+  /// In es, this message translates to:
+  /// **'Este móvil es de {name}'**
+  String devicePersonBlockedThisTitle(String name);
+
+  /// Texto del aviso al intentar eliminar o archivar a la persona de este móvil.
+  ///
+  /// In es, this message translates to:
+  /// **'{name} es la persona de este móvil, así que no se puede eliminar ni archivar desde aquí. Para hacerlo, elige antes a otra persona en «Este móvil es de», en Ajustes.'**
+  String devicePersonBlockedThisBody(String name);
+
+  /// Título del aviso al intentar eliminar o archivar a la persona dueña de otro móvil de la familia.
+  ///
+  /// In es, this message translates to:
+  /// **'{name} tiene su propio móvil'**
+  String devicePersonBlockedOtherTitle(String name);
+
+  /// Texto del aviso al intentar eliminar o archivar a la persona dueña de otro móvil de la familia.
+  ///
+  /// In es, this message translates to:
+  /// **'{name} tiene su propio móvil en la familia, así que no se puede eliminar ni archivar desde aquí.'**
+  String devicePersonBlockedOtherBody(String name);
+
+  /// Línea bajo quién regala en Ajustes cuando está enlazado a una persona.
+  ///
+  /// In es, this message translates to:
+  /// **'Enlazado a una persona: su nombre y color se cambian en Personas.'**
+  String get giverLinkedLine;
+
+  /// Frase bajo el nombre (no editable) de quién regala enlazado a una persona.
+  ///
+  /// In es, this message translates to:
+  /// **'El nombre y el color son los de {name}. Cámbialos en Personas.'**
+  String giverLinkedNameHint(String name);
+
+  /// Fila de la hoja de quién regala y título de la hoja que elige la persona.
+  ///
+  /// In es, this message translates to:
+  /// **'Enlazar con una persona'**
+  String get giverLinkLabel;
+
+  /// Frase bajo la fila de enlazar quién regala con una persona.
+  ///
+  /// In es, this message translates to:
+  /// **'Su nombre y color pasarán a ser los de la persona.'**
+  String get giverLinkHint;
+
+  /// Frase bajo una persona de la hoja de enlazar que ya tiene su propio quién regala.
+  ///
+  /// In es, this message translates to:
+  /// **'Ya es quién regala: se unirán en una columna'**
+  String get giverLinkExistingHint;
+
+  /// Título de la confirmación de enlazar quién regala con una persona.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Enlazar con {name}?'**
+  String giverLinkConfirmTitle(String name);
+
+  /// Texto de la confirmación de enlazar quién regala con una persona.
+  ///
+  /// In es, this message translates to:
+  /// **'«{giver}» pasará a llamarse {name}, con su color, y seguirá los cambios de {name} en Personas. Sus regalos se mantienen.'**
+  String giverLinkConfirmBody(String giver, String name);
+
+  /// Botón que confirma enlazar quién regala con una persona.
+  ///
+  /// In es, this message translates to:
+  /// **'Enlazar'**
+  String get giverLinkConfirm;
+
+  /// Fila de la hoja de quién regala enlazado a una persona.
+  ///
+  /// In es, this message translates to:
+  /// **'Desenlazar de la persona'**
+  String get giverUnlinkLabel;
+
+  /// Título de la confirmación de desenlazar quién regala.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Desenlazar de {name}?'**
+  String giverUnlinkConfirmTitle(String name);
+
+  /// Texto de la confirmación de desenlazar quién regala.
+  ///
+  /// In es, this message translates to:
+  /// **'Seguirá como quién regala con el nombre y el color de ahora, pero ya no cambiará con {name}. Sus regalos se mantienen.'**
+  String giverUnlinkConfirmBody(String name);
+
+  /// Botón que confirma desenlazar quién regala.
+  ///
+  /// In es, this message translates to:
+  /// **'Desenlazar'**
+  String get giverUnlinkConfirm;
+
+  /// Aviso cuando falla enlazar o desenlazar quién regala.
+  ///
+  /// In es, this message translates to:
+  /// **'No se ha podido cambiar el enlace. Inténtalo de nuevo.'**
+  String get giverLinkError;
+
+  /// Aviso cuando un cambio de un regalo se rechaza porque el regalo no está a la vista.
+  ///
+  /// In es, this message translates to:
+  /// **'No se ha guardado: este regalo ya no está disponible en este móvil.'**
+  String get giftWriteGiftUnavailable;
+
+  /// Aviso cuando se rechaza un cambio porque la persona que recibe el regalo ya no existe.
+  ///
+  /// In es, this message translates to:
+  /// **'No se ha guardado: la persona a la que va el regalo ya no existe.'**
+  String get giftWriteRecipientGone;
+
+  /// Aviso cuando quien regala y quien recibe serían la misma persona.
+  ///
+  /// In es, this message translates to:
+  /// **'No se ha guardado: quien regala no puede ser quien recibe el regalo.'**
+  String get giftWriteInvalidPair;
+
+  /// Aviso cuando quien regala se eliminó mientras tanto.
+  ///
+  /// In es, this message translates to:
+  /// **'No se ha guardado: quien regala ya no existe.'**
+  String get giftWriteGiverGone;
+
+  /// Aviso cuando quien regala se archivó mientras tanto.
+  ///
+  /// In es, this message translates to:
+  /// **'No se ha guardado: quien regala está archivado.'**
+  String get giftWriteGiverArchived;
+
+  /// Aviso cuando la persona elegida como quien regala se eliminó mientras tanto.
+  ///
+  /// In es, this message translates to:
+  /// **'No se ha guardado: esa persona ya no existe.'**
+  String get giftWritePersonGone;
+
+  /// Aviso cuando la persona elegida como quien regala se archivó mientras tanto.
+  ///
+  /// In es, this message translates to:
+  /// **'No se ha guardado: esa persona está archivada.'**
+  String get giftWritePersonArchived;
+
+  /// Aviso al desenlazar quién regala cuando otro móvil ya lo había cambiado.
+  ///
+  /// In es, this message translates to:
+  /// **'Ya no estaba enlazado a {name}.'**
+  String giverUnlinkStale(String name);
+
+  /// Aviso cuando el diálogo de eliminar se cierra porque no se pudo recalcular lo que se elimina.
+  ///
+  /// In es, this message translates to:
+  /// **'No se ha podido comprobar qué se elimina. Vuelve a abrir el aviso.'**
+  String get deleteImpactUnavailable;
+
+  /// Texto del diálogo de eliminar mientras se recalcula lo que se elimina: no enseña títulos ni recuentos.
+  ///
+  /// In es, this message translates to:
+  /// **'Comprobando lo que se elimina…'**
+  String get deleteImpactChecking;
 }
 
 class _AppLocalizationsDelegate

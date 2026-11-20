@@ -38,18 +38,18 @@ Android 8 o posterior está en prueba cerrada en Google Play. La versión para i
 ## Capturas
 
 <p>
-  <a href="docs/readme/es/01-reparto.png"><img src="docs/readme/es/01-reparto.png" width="19%" alt="Reparto en rejilla, con un aviso de posible duplicado"></a>
-  <a href="docs/readme/es/02-personas.png"><img src="docs/readme/es/02-personas.png" width="19%" alt="Personas, con la próxima ocasión arriba"></a>
-  <a href="docs/readme/es/03-lista.png"><img src="docs/readme/es/03-lista.png" width="19%" alt="Lista de regalos de Aritz por ocasión"></a>
-  <a href="docs/readme/es/04-ocasiones.png"><img src="docs/readme/es/04-ocasiones.png" width="19%" alt="Ocasiones: fiestas y cumpleaños con los días que faltan"></a>
-  <a href="docs/readme/es/05-ocasion.png"><img src="docs/readme/es/05-ocasion.png" width="19%" alt="Navidad: cuenta atrás y lo pendiente de comprar"></a>
+  <a href="docs/readme/es/01-navidad.png"><img src="docs/readme/es/01-navidad.png" width="19%" alt="Navidad: cuenta atrás y lo pendiente de envolver o de llegar, persona por persona"></a>
+  <a href="docs/readme/es/02-reparto.png"><img src="docs/readme/es/02-reparto.png" width="19%" alt="Reparto en rejilla, con un aviso de posible duplicado"></a>
+  <a href="docs/readme/es/03-bloqueo.png"><img src="docs/readme/es/03-bloqueo.png" width="19%" alt="Pantalla de bloqueo que pide el PIN"></a>
+  <a href="docs/readme/es/04-personas.png"><img src="docs/readme/es/04-personas.png" width="19%" alt="Personas, con las próximas ocasiones arriba"></a>
+  <a href="docs/readme/es/05-lista.png"><img src="docs/readme/es/05-lista.png" width="19%" alt="Lista de regalos de Aritz por ocasión, con el presupuesto de la casa"></a>
 </p>
 
 <details>
 <summary>Más capturas</summary>
 
 <p>
-  <a href="docs/readme/es/06-oscuro.png"><img src="docs/readme/es/06-oscuro.png" width="19%" alt="La misma lista en el tema oscuro"></a>
+  <a href="docs/readme/es/06-oscuro.png"><img src="docs/readme/es/06-oscuro.png" width="19%" alt="La lista de Aritz en el tema oscuro"></a>
 </p>
 
 </details>
@@ -83,7 +83,7 @@ No hay cuentas ni publicidad, y el desarrollador no usa analítica ni informes d
 
 ## Novedades
 
-La versión 1.0.3 (17 de noviembre de 2026) abre un fichero de recuperación directamente desde Archivos, también con la app ya abierta, y muestra «Guardar en un fichero» en la pantalla de las 24 palabras sin tener que bajar. La versión 1.0.2 (16 de noviembre de 2026) permite guardar el código de recuperación en un fichero, con contraseña si quieres, hace que conectar la versión web vuelva a funcionar y vaya más rápido, y evita que el escáner QR se quede en negro. La versión 1.0.0 (16 de noviembre de 2026) es la primera en las tiendas. Trae la lista de regalos de cada persona, el reparto en rejilla, las ocasiones con cuenta atrás, los regalos secretos, compartir entre móviles y con la versión web, el código de recuperación y los temas claro y oscuro. Los detalles, en [CHANGELOG.md](CHANGELOG.md).
+La versión 1.0.4 (20 de noviembre de 2026) trae un diseño más claro con nuevos tonos pastel en el modo oscuro, presupuesto por ocasión, las ocasiones más próximas primero, enlaces de regalo que se abren con un toque y cualquier persona de la familia como quien regala. La versión 1.0.3 (17 de noviembre de 2026) abre un fichero de recuperación directamente desde Archivos, también con la app ya abierta, y muestra «Guardar en un fichero» en la pantalla de las 24 palabras sin tener que bajar. La versión 1.0.2 (16 de noviembre de 2026) permite guardar el código de recuperación en un fichero, con contraseña si quieres, hace que conectar la versión web vuelva a funcionar y vaya más rápido, y evita que el escáner QR se quede en negro. La versión 1.0.0 (16 de noviembre de 2026) es la primera en las tiendas. Trae la lista de regalos de cada persona, el reparto en rejilla, las ocasiones con cuenta atrás, los regalos secretos, compartir entre móviles y con la versión web, el código de recuperación y los temas claro y oscuro. Los detalles, en [CHANGELOG.md](CHANGELOG.md).
 
 ## Contribuir
 

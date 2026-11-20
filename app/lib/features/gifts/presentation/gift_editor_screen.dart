@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/format/money.dart';
+import '../../../core/format/money_input.dart';
 import '../../../core/layout/window_class.dart';
 import '../../../core/motion/animated_rows.dart';
 import '../../../core/motion/card_sheet_route.dart';
@@ -14,6 +15,7 @@ import '../../../core/motion/sheet_motion.dart';
 import '../../../core/motion/success_mark.dart';
 import '../../../core/motion/unfold_section.dart';
 import '../../../core/motion/value_switcher.dart';
+import '../../../core/platform/user_link.dart';
 import '../../../core/sync/model.dart';
 import '../../../core/sync/protected_doc.dart'
     show ProtectedPersonException, ProtectedPersonReason;
@@ -25,6 +27,7 @@ import '../../../core/widgets/choice_grid.dart';
 import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/widgets/danger_button.dart';
 import '../../../core/widgets/giver_dot.dart';
+import '../../../core/widgets/link_icon_button.dart';
 import '../../../core/widgets/occasion_icons.dart';
 import '../../../core/widgets/person_avatar.dart';
 import '../../../core/widgets/picker_field.dart';
@@ -33,6 +36,7 @@ import '../../../core/widgets/screen_header.dart';
 import '../../../core/widgets/sheet_frame.dart';
 import '../../../core/widgets/sheet_parts.dart' show WarningBox;
 import '../../../core/widgets/stroke_icon.dart';
+import '../../../core/widgets/tabler_icons.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../family/application/family_actions.dart';
 import '../../family/application/family_controller.dart';
@@ -40,6 +44,7 @@ import '../../family/application/family_providers.dart';
 import '../../family/application/gift_logic.dart';
 import '../../family/application/self_recipient_provider.dart';
 import '../../family/presentation/family_texts.dart';
+import '../../family/presentation/giver_person_flow.dart';
 import '../../family/presentation/pending_gifts_sheet.dart';
 import '../../family/presentation/person_sheet.dart';
 import '../../family/presentation/protection_texts.dart';
@@ -48,7 +53,10 @@ import '../../web_board/application/web_board.dart';
 import '../../web_device/application/web_app_provider.dart';
 import '../application/delivered_arm.dart';
 import '../application/person_completion.dart';
+import '../domain/store_from_url.dart';
 import 'gift_actions.dart';
+import 'gift_link_actions.dart';
+import 'editor_footer_row.dart';
 
 /// Si el editor de una ventana de escritorio (desde 1280) es un diálogo: solo
 /// en la web. Las pruebas lo cambian sin montar toda la web.
@@ -73,6 +81,7 @@ Future<String?> openGiftEditor(
   String? recipientId,
   String? occasionId,
   String? giverId,
+  GiftStatus? status,
   bool chooseRecipient = false,
 }) {
   // En el tablero de la web de escritorio (desde 1280) el editor es el panel
@@ -87,6 +96,7 @@ Future<String?> openGiftEditor(
       recipientId: recipientId,
       occasionId: occasionId,
       giverId: giverId,
+      status: status,
       chooseRecipient: chooseRecipient,
     );
   }
@@ -103,6 +113,7 @@ Future<String?> openGiftEditor(
     initialRecipientId: recipientId,
     initialOccasionId: occasionId,
     initialGiverId: giverId,
+    initialStatus: status,
     chooseRecipient: chooseRecipient,
     asDialog: dialog,
   );
@@ -114,6 +125,10 @@ Future<String?> openGiftEditor(
 const String _none = '__none__';
 const String _other = '__other__';
 
+/// Prefijo del valor de una persona elegida como quién regala en el selector
+/// (aún no es un quién regala: se crea o se recupera al guardar).
+const String _personPrefix = '__person__:';
+
 /// Editor de un regalo: nuevo o existente.
 class GiftEditorScreen extends ConsumerStatefulWidget {
   /// Crea el editor.
@@ -123,6 +138,7 @@ class GiftEditorScreen extends ConsumerStatefulWidget {
     this.initialRecipientId,
     this.initialOccasionId,
     this.initialGiverId,
+    this.initialStatus,
     this.chooseRecipient = false,
     this.asDialog = false,
     this.asPanel = false,
@@ -140,6 +156,10 @@ class GiftEditorScreen extends ConsumerStatefulWidget {
 
   /// Quién regala en un regalo nuevo.
   final String? initialGiverId;
+
+  /// El estado con el que empieza un regalo nuevo (el del carril desde el que
+  /// se añade en el tablero); sin él, «Idea».
+  final GiftStatus? initialStatus;
 
   /// Si un regalo nuevo empieza por elegir la persona (arriba del todo y sin
   /// marcar ninguna si hay varias). Con un regalo existente no se usa.
@@ -186,6 +206,10 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
 
   late String _recipientId;
   String _giverId = _none;
+
+  /// La persona elegida en la sección «Personas» del selector de quién regala;
+  /// se asigna al guardar. Sustituye a [_giverId] mientras está elegida.
+  String? _giverPersonId;
   String _occasionId = _none;
   GiftStatus _status = GiftStatus.idea;
   bool _surprise = false;
@@ -193,7 +217,51 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
   String _requestedBy = _other;
   bool _tried = false;
   bool _busy = false;
+
+  /// Si la persona ha escrito en «Tienda»: entonces el enlace ya no la rellena.
+  bool _storeTouched = false;
+
+  /// La tienda que rellenó el enlace y nadie ha tocado después; mientras siga
+  /// así, un enlace distinto la cambia. `null` si no la rellenó el enlace.
+  String? _autoStore;
   bool _saved = false;
+
+  /// Si el regalo dejó de estar autorizado en este móvil: el formulario se
+  /// retira y el editor se cierra solo.
+  bool _revoked = false;
+  bool _deleting = false;
+
+  /// Los diálogos con contenido de un regalo abiertos encima del editor
+  /// (borrar, regalo parecido), con el id del OTRO regalo que citan, si lo
+  /// hay: se cierran si la autorización es incierta o ese regalo deja de verse.
+  final Map<Object, String?> _dialogs = <Object, String?>{};
+
+  /// Si el editor ya se está cerrando (no se vuelve a decidir nada).
+  bool _closing = false;
+
+  /// Abre un diálogo con contenido de un regalo y lo apunta mientras dure.
+  Future<T> _trackedDialog<T>(
+    Future<T> Function() open, {
+    String? quotedGiftId,
+  }) async {
+    final token = Object();
+    _dialogs[token] = quotedGiftId;
+    try {
+      return await open();
+    } finally {
+      _dialogs.remove(token);
+    }
+  }
+
+  void _closeDialogs() {
+    final count = _dialogs.length;
+    _dialogs.clear();
+    final root = Navigator.of(context, rootNavigator: true);
+    for (var i = 0; i < count; i++) {
+      root.pop();
+    }
+  }
+
   Gift? _originalDraft;
 
   /// Cómo estaba el formulario al abrirse, para saber si hay cambios sin
@@ -206,6 +274,7 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
     _recipientId,
     _title.text.trim(),
     _giverId,
+    _giverPersonId ?? '',
     _occasionId,
     _status.name,
     _planned.text.trim(),
@@ -223,6 +292,61 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
 
   bool _isDirty() => _dirty;
 
+  /// Al escribir o pegar el enlace: si «Tienda» está vacía y nadie la ha
+  /// tocado, la rellena con la tienda que dice el sitio (sin red). Lo que haya
+  /// escrito la persona no se cambia nunca.
+  void _onUrlChanged(String text) {
+    final guess = storeFromUrl(text);
+    final current = _store.text;
+    final mine = _autoStore != null && current == _autoStore;
+    final free = !_storeTouched && current.trim().isEmpty;
+    if (!mine && !free) {
+      return;
+    }
+    final next = guess ?? '';
+    if (next == current) {
+      _autoStore = guess;
+      return;
+    }
+    _autoStore = guess;
+    _store.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: next.length),
+    );
+  }
+
+  /// El botón «Abrir» del campo del enlace: se funde al aparecer y solo
+  /// responde si el texto es un enlace `https` válido.
+  Widget _openLinkButton(AppLocalizations l10n) {
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: _url,
+      builder: (context, value, _) {
+        final valid = userLinkUri(value.text) != null;
+        return ExcludeFocus(
+          excluding: !valid,
+          child: IgnorePointer(
+            ignoring: !valid,
+            child: AnimatedOpacity(
+              opacity: valid ? 1 : 0,
+              duration: RegalosMotion.fade,
+              curve: Curves.easeOut,
+              child: LinkIconButton(
+                icon: tablerExternalLink,
+                label: l10n.giftLinkOpen,
+                iconSize: 20,
+                hitSize: 40,
+                color: RegalosTokens.of(context).text,
+                onTap: valid
+                    ? () => openGiftLink(context, ref, value.text)
+                    : null,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   bool get _dirty =>
       !_saved && _initialSignature != null && _signature() != _initialSignature;
 
@@ -234,6 +358,7 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
 
   /// Cierra el editor: baja la hoja o el diálogo, o avisa al panel.
   void _close([String? result]) {
+    _closing = true;
     if (widget.asPanel) {
       widget.onClose?.call(result);
     } else {
@@ -248,8 +373,11 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
   @override
   void initState() {
     super.initState();
+    _plannedFocus.addListener(() => _tidyPrice(_planned, _plannedFocus));
+    _actualFocus.addListener(() => _tidyPrice(_actual, _actualFocus));
     final g = widget.gift;
-    final people = ref.read(familyFullViewProvider).recipients;
+    final view = ref.read(familyFullViewProvider);
+    final people = view.recipients;
     // Eligiendo, solo valen las personas activas y, si hay varias, ninguna
     // viene marcada: el regalo no va a la primera por defecto.
     final active = [
@@ -285,8 +413,12 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
           break;
       }
     } else {
-      _giverId = widget.initialGiverId ?? _none;
+      final initialGiver = view.resolveGiver(widget.initialGiverId);
+      _giverId = initialGiver?.recipientId == _recipientId
+          ? _none
+          : widget.initialGiverId ?? _none;
       _occasionId = widget.initialOccasionId ?? _none;
+      _status = widget.initialStatus ?? GiftStatus.idea;
     }
   }
 
@@ -360,7 +492,28 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
   /// `true` si el importe escrito no vale.
   bool _badPrice(TextEditingController c) {
     final text = c.text.trim();
-    return text.isNotEmpty && parseCents(text) == null;
+    return text.isNotEmpty && _cents(c) == null;
+  }
+
+  /// El importe escrito en [c] en céntimos, con la coma y el punto valiendo
+  /// de decimal (el idioma solo decide qué es un millar), o `null` si no vale.
+  int? _cents(TextEditingController c) =>
+      parseCents(c.text, locale: Localizations.localeOf(context).languageCode);
+
+  /// Al salir de un campo de importe lo deja escrito como lo escribe el idioma
+  /// («12.5» pasa a «12,50» en es y ca; en en, a «12.50»).
+  void _tidyPrice(TextEditingController c, FocusNode focus) {
+    if (focus.hasFocus || !mounted) {
+      return;
+    }
+    final cents = c.text.trim().isEmpty ? null : _cents(c);
+    if (cents == null) {
+      return;
+    }
+    final tidy = _centsText(cents);
+    if (c.text != tidy) {
+      c.text = tidy;
+    }
   }
 
   Gift? _build() {
@@ -397,12 +550,8 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
       occasionId: _occasionId == _none ? null : _occasionId,
       status: _status,
       rawStatus: _status.name,
-      plannedCents: _planned.text.trim().isEmpty
-          ? null
-          : parseCents(_planned.text),
-      actualCents: _actual.text.trim().isEmpty
-          ? null
-          : parseCents(_actual.text),
+      plannedCents: _planned.text.trim().isEmpty ? null : _cents(_planned),
+      actualCents: _actual.text.trim().isEmpty ? null : _cents(_actual),
       store: _optional(_store),
       url: _optional(_url),
       note: _optional(_note),
@@ -468,50 +617,50 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
         final pair = pairs.first;
         final other = pair.first.id == gift.id ? pair.second : pair.first;
         final person = view.recipientsById[gift.recipientId]?.name ?? '';
-        final giver = giverNameFor(
-          l10n,
-          other.giverId == null ? null : view.giversById[other.giverId],
-        );
-        final keep = await showRegalosDialog<bool>(
-          context,
-          builder: (dialogContext) {
-            final dt = RegalosTokens.of(dialogContext);
-            return RegalosDialogSurface(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Semantics(
-                    header: true,
-                    child: Text(
-                      l10n.giftDuplicateTitle,
-                      style: dt.styles.screenTitleSmall,
+        final giver = giverNameFor(l10n, view.resolveGiver(other.giverId));
+        final keep = await _trackedDialog(
+          quotedGiftId: other.id,
+          () => showRegalosDialog<bool>(
+            context,
+            builder: (dialogContext) {
+              final dt = RegalosTokens.of(dialogContext);
+              return RegalosDialogSurface(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        l10n.giftDuplicateTitle,
+                        style: dt.styles.screenTitleSmall,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    l10n.giftDuplicateBody(other.title, person, giver),
-                    style: dt.styles.body,
-                  ),
-                  const SizedBox(height: 20),
-                  DialogButtonRow(
-                    cancelLabel: l10n.giftDuplicateReview,
-                    confirmLabel: l10n.giftDuplicateSave,
-                    cancel: OutlinedButton(
-                      style: regalosDialogCancelStyle(dt),
-                      onPressed: () => Navigator.of(dialogContext).pop(false),
-                      child: Text(l10n.giftDuplicateReview),
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.giftDuplicateBody(other.title, person, giver),
+                      style: dt.styles.body,
                     ),
-                    confirm: FilledButton(
-                      style: regalosDialogPrimaryStyle(dt),
-                      onPressed: () => Navigator.of(dialogContext).pop(true),
-                      child: Text(l10n.giftDuplicateSave),
+                    const SizedBox(height: 20),
+                    DialogButtonRow(
+                      cancelLabel: l10n.giftDuplicateReview,
+                      confirmLabel: l10n.giftDuplicateSave,
+                      cancel: OutlinedButton(
+                        style: regalosDialogCancelStyle(dt),
+                        onPressed: () => Navigator.of(dialogContext).pop(false),
+                        child: Text(l10n.giftDuplicateReview),
+                      ),
+                      confirm: FilledButton(
+                        style: regalosDialogPrimaryStyle(dt),
+                        onPressed: () => Navigator.of(dialogContext).pop(true),
+                        child: Text(l10n.giftDuplicateSave),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            );
-          },
+                  ],
+                ),
+              );
+            },
+          ),
         );
         if (keep != true) {
           return;
@@ -529,16 +678,22 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
       ref.read(deliveredArmsProvider).arm(gift.id);
     }
     try {
-      final saved = await ref
-          .read(familyControllerProvider.notifier)
-          .upsertGift(gift, original: _originalDraft);
-      if (mounted && !saved) {
-        // Otro móvil borró el regalo o a su persona mientras se editaba: no
-        // se ha guardado nada y no se dibuja el visto.
+      final controller = ref.read(familyControllerProvider.notifier);
+      final personId = _giverPersonId;
+      final result = personId == null
+          ? await controller.upsertGiftResult(gift, original: _originalDraft)
+          : await controller.upsertGiftWithGiverPerson(
+              gift,
+              personId,
+              original: _originalDraft,
+            );
+      if (mounted && result != GiftWriteResult.saved) {
+        // Otro móvil cambió algo mientras se editaba: no se ha guardado nada,
+        // el aviso dice por qué y no se dibuja el visto.
         setState(() => _busy = false);
         showRegalosSnackBar(
           context,
-          SnackBar(content: Text(l10n.giftNotSaved)),
+          SnackBar(content: Text(giftWriteResultText(l10n, result))),
         );
       } else if (mounted) {
         // Solo lo que hace la persona lleva háptica. El visto se dibuja
@@ -546,6 +701,24 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
         ref.read(hapticsProvider).light();
         setState(() => _saved = true);
         _close(gift.id);
+      }
+    } on GiverPersonNeedsPublicAdd catch (e) {
+      // El regalo pasó a ser secreto con la persona ya elegida: no se crea en
+      // silencio. El formulario se conserva; tras el paso explícito, la
+      // persona queda elegida y se guarda con «Guardar».
+      if (!mounted) {
+        return;
+      }
+      setState(() => _busy = false);
+      final person = ref
+          .read(familyFullViewProvider)
+          .allRecipientsById[e.personId];
+      if (person != null) {
+        // La persona sigue elegida: al guardar se resuelve su quién regala.
+        final added = await addPersonAsGiverExplicitly(context, ref, person);
+        if (added != null && mounted) {
+          setState(() => _giverPersonId = person.id);
+        }
       }
     } on ProtectedPersonException catch (e) {
       if (!mounted) {
@@ -575,6 +748,12 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
           context,
           SnackBar(content: Text(l10n.giftSaveError)),
         );
+      }
+    } finally {
+      // Acabado el guardado, con o sin rechazo, se vuelve a mirar si el
+      // regalo sigue autorizado (durante el guardado no se decidía nada).
+      if (mounted) {
+        _scheduleAuthorizationCheck();
       }
     }
   }
@@ -696,8 +875,16 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
   void _pickRecipient(String id) {
     setState(() {
       _recipientId = id;
+      final view = ref.read(familyFullViewProvider);
+      if (_giverId != widget.gift?.giverId &&
+          view.resolveGiver(_giverId)?.recipientId == id) {
+        _giverId = _none;
+      }
+      if (_giverPersonId == id) {
+        _giverPersonId = null;
+      }
       if (_occasionId != _none) {
-        for (final o in ref.read(familyFullViewProvider).occasions) {
+        for (final o in view.occasions) {
           if (o.id == _occasionId &&
               o.kind == OccasionKind.birthday &&
               o.recipientId != null &&
@@ -707,8 +894,47 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
         }
       }
     });
-    if (_choosing && _title.text.trim().isEmpty) {
-      _titleFocus.requestFocus();
+    // Sin pedir el foco para el título: con el dedo o el ratón abriría el
+    // teclado solo. Con Tab, `showAnchoredPicker` ya lleva el foco al campo
+    // siguiente.
+  }
+
+  /// Cambia quién regala con lo elegido en el selector: un quién regala, «Sin
+  /// asignar» o una persona de la sección «Personas». Elegir a una persona no
+  /// crea nada todavía (se asigna al guardar), salvo el paso explícito de un
+  /// regalo secreto, que se confirma aparte.
+  Future<void> _pickGiver(
+    String value,
+    String? currentId,
+    List<GiverPersonCandidate> candidates,
+  ) async {
+    if (!value.startsWith(_personPrefix)) {
+      if (value != currentId || _giverPersonId != null) {
+        setState(() {
+          _giverId = value;
+          _giverPersonId = null;
+        });
+      }
+      return;
+    }
+    final personId = value.substring(_personPrefix.length);
+    final candidate = candidates
+        .where((c) => c.person.id == personId)
+        .firstOrNull;
+    if (candidate == null) {
+      return;
+    }
+    if (!candidate.needsPublicAdd) {
+      setState(() => _giverPersonId = personId);
+      return;
+    }
+    final added = await addPersonAsGiverExplicitly(
+      context,
+      ref,
+      candidate.person,
+    );
+    if (added != null && mounted) {
+      setState(() => _giverPersonId = personId);
     }
   }
 
@@ -736,12 +962,14 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
     if (gift == null) {
       return;
     }
-    final ok = await showRegalosConfirm(
-      context,
-      title: l10n.confirmDeleteTitle(gift.title),
-      body: l10n.confirmDeleteBody,
-      confirmLabel: l10n.actionDelete,
-      cancelLabel: l10n.actionCancel,
+    final ok = await _trackedDialog(
+      () => showRegalosConfirm(
+        context,
+        title: l10n.confirmDeleteTitle(gift.title),
+        body: l10n.confirmDeleteBody,
+        confirmLabel: l10n.actionDelete,
+        cancelLabel: l10n.actionCancel,
+      ),
     );
     if (!ok || !mounted) {
       return;
@@ -773,9 +1001,26 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
     );
     ref.read(hapticsProvider).medium();
     ref.read(recentlyDeletedProvider.notifier).add(gift.id);
-    final hidden = await controller.deleteGiftWithUndo(gift.id);
-    if (mounted) {
-      _close();
+    _deleting = true;
+    var hidden = false;
+    try {
+      hidden = await controller.deleteGiftWithUndo(gift.id);
+      if (mounted) {
+        _close();
+      }
+    } on Object {
+      if (mounted) {
+        showRegalosSnackBar(context, SnackBar(content: Text(l10n.deleteError)));
+      }
+    } finally {
+      if (!hidden) {
+        // Falló o no borró nada: el regalo sigue ahí y se vuelve a mirar si
+        // sigue autorizado.
+        _deleting = false;
+        if (mounted) {
+          _scheduleAuthorizationCheck();
+        }
+      }
     }
     if (!hidden) {
       return;
@@ -785,17 +1030,148 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
       ..showSnackBar(undoNotice, snackBarAnimationStyle: style);
   }
 
+  void _scheduleAuthorizationCheck() {
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkAuthorization());
+  }
+
+  /// Si el regalo que se edita ya no está en la proyección autorizada de este
+  /// móvil (otro móvil lo movió a una persona protegida que es «Yo» aquí, por
+  /// ejemplo), el editor se cierra solo, sin guardar y retirando el
+  /// formulario, con un aviso. El regalo tiene que estar vivo en la vista
+  /// autorizada: una lápida en el común (el regalo pasó a un ámbito secreto)
+  /// tampoco vale. Mientras la proyección carga o falla, o se está guardando,
+  /// no se decide nada y los campos no se pintan.
+  void _checkAuthorization() {
+    if (!mounted || _revoked || _closing) {
+      return;
+    }
+    final projection = ref.read(authorizedProjectionProvider);
+    final uncertain = projection.isLoading || projection.hasError;
+    final view = ref.read(familyFullViewProvider);
+    // Un diálogo con contenido de un regalo no sigue abierto con la
+    // autorización incierta ni si el otro regalo que cita ya no se ve (también
+    // al crear un regalo nuevo).
+    if (_dialogs.isNotEmpty &&
+        (uncertain ||
+            _dialogs.values.any(
+              (id) => id != null && !view.allGifts.any((g) => g.id == id),
+            ))) {
+      _closeDialogs();
+    }
+    final gift = widget.gift;
+    if (gift == null || _saved || _busy || _deleting || uncertain) {
+      return;
+    }
+    // La misma regla que la lista: el regalo tiene que estar en la vista
+    // autorizada (un regalo vivo cuyo destinatario tiene lápida no está).
+    if (ref.read(familyStateProvider) == null ||
+        view.allGifts.any((g) => g.id == gift.id)) {
+      return;
+    }
+    _revokeAccess();
+  }
+
+  void _revokeAccess() {
+    final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final style = regalosSnackBarStyle(context);
+    final notice = regalosSnackBar(
+      context,
+      SnackBar(content: Text(l10n.giftNoLongerVisible)),
+      besideRail: SheetPane.anchorOf(context) != null,
+    );
+    for (final c in [
+      _title,
+      _planned,
+      _actual,
+      _store,
+      _url,
+      _note,
+      _size,
+      _requestNote,
+      _requestName,
+    ]) {
+      c.clear();
+    }
+    ref.read(hapticsProvider).warning();
+    setState(() => _revoked = true);
+    // Los diálogos con contenido del regalo se cierran con el editor.
+    _closing = true;
+    _closeDialogs();
+    if (widget.asPanel) {
+      widget.onClose?.call(null);
+    } else {
+      final route = ModalRoute.of(context);
+      if (route != null && route.isCurrent) {
+        Navigator.of(context).pop();
+      } else if (route != null && route.isActive) {
+        Navigator.of(context).removeRoute(route);
+      }
+    }
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(notice, snackBarAnimationStyle: style);
+  }
+
   @override
   Widget build(BuildContext context) {
+    ref.listen(familyStateProvider, (_, _) => _scheduleAuthorizationCheck());
+    ref.listen(
+      authorizedProjectionProvider,
+      (_, _) => _scheduleAuthorizationCheck(),
+    );
+    if (_revoked) {
+      return const SizedBox.expand();
+    }
     final l10n = AppLocalizations.of(context);
     final t = RegalosTokens.of(context);
     final view = ref.watch(familyFullViewProvider);
+    final projectionAsync = ref.watch(authorizedProjectionProvider);
+    final projection = projectionAsync.value;
+    // Con la autorización incierta (la proyección carga o falla, o se está
+    // guardando) un regalo que ya existe no pinta sus campos.
+    final uncertain =
+        widget.gift != null &&
+        (projectionAsync.isLoading ||
+            projectionAsync.hasError ||
+            (_busy && !_saved));
     final labels = OccasionLabels(l10n, view.recipientsById);
     final people = view.recipients;
-    final givers = [
-      for (final g in view.givers)
-        if (!g.archived || g.id == widget.gift?.giverId) g,
-    ];
+    final givers = view.selectableGiversFor(_recipientId);
+    // Las personas de la familia que aún no son quién regala. En un regalo
+    // secreto (o para una persona protegida) hay que añadirlas antes por un
+    // paso explícito.
+    final giftProtected =
+        (widget.gift != null &&
+            projection?.secretGiftIds.contains(widget.gift!.id) == true) ||
+        projection?.policies[_recipientId]?.hideOwnGifts == true;
+    final giverPeople = _recipientId.isEmpty
+        ? const <GiverPersonCandidate>[]
+        : personSectionOf(
+            view.giverPersonCandidatesFor(
+              _recipientId,
+              protected: giftProtected,
+            ),
+          );
+    // La persona elegida en «Personas» se resuelve con la vista de ahora: si
+    // entre tanto tiene un quién regala activo (se dio de alta en otro móvil o
+    // en el paso explícito), el campo muestra ese; si no, a la persona.
+    final chosenPerson = _giverPersonId;
+    final chosenGiver = chosenPerson == null
+        ? null
+        : view.giverForPerson(chosenPerson);
+    final chosenActive = chosenGiver != null && !chosenGiver.archived
+        ? (view.resolveGiver(chosenGiver.id)?.id ?? chosenGiver.id)
+        : null;
+    final chosenLabel = chosenPerson == null
+        ? null
+        : view.giverForPersonLabel(chosenPerson);
+    final selectedGiver = view.resolveGiver(_giverId);
+    final selectedIsAvailable = givers.any((g) => g.id == selectedGiver?.id);
+    final historicalGiver =
+        selectedIsAvailable || _giverId != widget.gift?.giverId
+        ? null
+        : selectedGiver;
     final occasions = [
       for (final o in view.occasions)
         if (!o.archived || o.id == widget.gift?.occasionId) o,
@@ -860,10 +1236,6 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
         OwnGiftRequestState.protectionRestricted;
     final occasionOptions = _occasionOptions(l10n, labels, occasions, t);
     const gap = SizedBox(height: 16);
-    final decimal = TextInputType.numberWithOptions(decimal: true);
-    final moneyFormatters = [
-      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,\s€]')),
-    ];
 
     final dialog = widget.asDialog;
     final panel = widget.asPanel;
@@ -940,7 +1312,11 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
           ],
           PickerField<String>(
             label: l10n.fieldGiver,
-            value: givers.any((g) => g.id == _giverId) ? _giverId : _none,
+            value: chosenPerson != null
+                ? (chosenActive ?? '$_personPrefix$chosenPerson')
+                : (selectedIsAvailable || historicalGiver != null
+                      ? selectedGiver!.id
+                      : _none),
             options: [
               PickerOption(
                 value: _none,
@@ -953,8 +1329,46 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
                   label: giverNameFor(l10n, g),
                   leading: GiverDot(colorIndex: g.colorIndex, size: 12),
                 ),
+              if (historicalGiver != null)
+                PickerOption(
+                  value: historicalGiver.id,
+                  label: giverNameFor(l10n, historicalGiver),
+                  leading: GiverDot(
+                    colorIndex: historicalGiver.colorIndex,
+                    size: 12,
+                  ),
+                  enabled: false,
+                ),
+              for (final c in giverPeople)
+                PickerOption(
+                  value: '$_personPrefix${c.person.id}',
+                  label: c.person.name,
+                  group: l10n.giverPeopleSection,
+                  hint: personCandidateHint(l10n, c),
+                  leading: PersonAvatar(
+                    name: c.person.name,
+                    colorIndex: c.person.colorIndex,
+                    size: 28,
+                  ),
+                ),
+              // La elegida sigue ahí aunque ya no sea una candidata.
+              if (chosenPerson != null &&
+                  chosenActive == null &&
+                  chosenLabel != null &&
+                  !giverPeople.any((c) => c.person.id == chosenPerson))
+                PickerOption(
+                  value: '$_personPrefix$chosenPerson',
+                  label: chosenLabel,
+                  group: l10n.giverPeopleSection,
+                  leading: PersonAvatar(
+                    name: chosenLabel,
+                    colorIndex:
+                        view.allRecipientsById[chosenPerson]?.colorIndex ?? 0,
+                    size: 28,
+                  ),
+                ),
             ],
-            onChanged: (v) => setState(() => _giverId = v),
+            onChanged: (v) => _pickGiver(v, selectedGiver?.id, giverPeople),
           ),
           gap,
           PickerField<String>(
@@ -1005,8 +1419,8 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
                 child: TextField(
                   controller: _planned,
                   focusNode: _plannedFocus,
-                  keyboardType: decimal,
-                  inputFormatters: moneyFormatters,
+                  keyboardType: moneyKeyboard,
+                  inputFormatters: moneyInputFormatters,
                   decoration: InputDecoration(
                     labelText: l10n.giftFieldPlanned,
                     suffixText: '€',
@@ -1022,8 +1436,8 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
                 child: TextField(
                   controller: _actual,
                   focusNode: _actualFocus,
-                  keyboardType: decimal,
-                  inputFormatters: moneyFormatters,
+                  keyboardType: moneyKeyboard,
+                  inputFormatters: moneyInputFormatters,
                   decoration: InputDecoration(
                     labelText: l10n.giftFieldActual,
                     suffixText: '€',
@@ -1040,6 +1454,12 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
           TextField(
             controller: _store,
             textCapitalization: TextCapitalization.sentences,
+            // Solo salta con lo que escribe la persona, no con el relleno del
+            // enlace: desde ahí, la tienda ya es suya.
+            onChanged: (_) {
+              _storeTouched = true;
+              _autoStore = null;
+            },
             decoration: InputDecoration(labelText: l10n.giftFieldStore),
           ),
           gap,
@@ -1047,7 +1467,15 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
             controller: _url,
             keyboardType: TextInputType.url,
             autocorrect: false,
-            decoration: InputDecoration(labelText: l10n.giftFieldUrl),
+            onChanged: _onUrlChanged,
+            decoration: InputDecoration(
+              labelText: l10n.giftFieldUrl,
+              suffixIcon: _openLinkButton(l10n),
+              suffixIconConstraints: const BoxConstraints(
+                minWidth: 48,
+                minHeight: 48,
+              ),
+            ),
           ),
           gap,
           TextField(
@@ -1146,10 +1574,10 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
             value: _surprise,
             onChanged: (v) => setState(() => _surprise = v),
           ),
-          // En el panel del tablero, «Borrar regalo» va en el pie (a la
-          // izquierda): al final de la lista se cortaba con el pie al
-          // desplazarse.
-          if (!_isNew && !panel) ...[
+          // En el panel del tablero y en el diálogo de escritorio, «Borrar
+          // regalo» va en el pie (a la izquierda, como botón de texto): al
+          // final de la lista se cortaba con el pie al desplazarse.
+          if (!_isNew && !panel && !dialog) ...[
             const SizedBox(height: 24),
             DangerButton(label: l10n.giftDelete, onPressed: _delete),
           ],
@@ -1189,22 +1617,9 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
         );
       },
     );
-    // En el panel del tablero los campos son más compactos (unos 40 de alto).
-    final body = panel
-        ? Theme(
-            data: Theme.of(context).copyWith(
-              inputDecorationTheme: Theme.of(context).inputDecorationTheme
-                  .copyWith(
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 9,
-                    ),
-                  ),
-            ),
-            child: bodyList,
-          )
-        : bodyList;
+    // Los campos del panel miden lo mismo que los de la hoja: 48 de alto, del
+    // tema.
+    final body = uncertain ? const SizedBox.expand() : bodyList;
     // Esc cierra el editor, como la «x» de la cabecera (la hoja no se cierra
     // tocando fuera: tiene datos sin guardar). Ya guardado o guardando, no. El
     // foco es de la tarjeta desde que se abre (en un regalo nuevo lo toma el
@@ -1272,22 +1687,25 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
                   decoration: BoxDecoration(
                     border: Border(top: BorderSide(color: t.separator)),
                   ),
-                  child: Row(
-                    children: [
-                      if (!_isNew)
-                        DangerButton(
-                          label: l10n.giftDelete,
-                          onPressed: _delete,
-                          compact: true,
+                  child: EditorFooterRow(
+                    start: _isNew
+                        ? null
+                        : DangerButton(
+                            label: l10n.giftDelete,
+                            onPressed: _delete,
+                            compact: true,
+                          ),
+                    end: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextButton(
+                          onPressed: _busy || _saved ? null : _close,
+                          child: Text(l10n.actionCancel),
                         ),
-                      const Spacer(),
-                      TextButton(
-                        onPressed: _busy || _saved ? null : _close,
-                        child: Text(l10n.actionCancel),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton(onPressed: onSave, child: saveChild),
-                    ],
+                        const SizedBox(width: 8),
+                        FilledButton(onPressed: onSave, child: saveChild),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -1307,16 +1725,25 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
                   decoration: BoxDecoration(
                     border: Border(top: BorderSide(color: t.separator)),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: _busy || _saved ? null : _close,
-                        child: Text(l10n.actionCancel),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton(onPressed: onSave, child: saveChild),
-                    ],
+                  child: EditorFooterRow(
+                    start: _isNew
+                        ? null
+                        : DangerButton(
+                            label: l10n.giftDelete,
+                            onPressed: _delete,
+                            compact: true,
+                          ),
+                    end: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextButton(
+                          onPressed: _busy || _saved ? null : _close,
+                          child: Text(l10n.actionCancel),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton(onPressed: onSave, child: saveChild),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -1446,7 +1873,7 @@ List<PickerOption<String>> _occasionOptions(
       group: group,
       leading: DecoratedBox(
         decoration: BoxDecoration(
-          color: t.isDark ? p.tintD : p.pastel,
+          color: p.surfaceOf(t.isDark),
           borderRadius: RegalosShape.chip,
         ),
         child: SizedBox.square(
@@ -1456,7 +1883,7 @@ List<PickerOption<String>> _occasionOptions(
               o.kind,
               customIcon: o.icon,
               size: 18,
-              color: t.isDark ? p.tintaD : p.tinta,
+              color: p.inkOf(t.isDark),
             ),
           ),
         ),

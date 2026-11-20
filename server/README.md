@@ -16,26 +16,37 @@ documents and signed declarations; it never decrypts or merges them. Renewal app
 | `src/recovery-store.ts` | Separate chunked capsule blobs, bounded lifetime metadata, terminal reservations and durable recovery quotas |
 | `src/recovery-locator-object.ts` | EU recoveryId → list discovery; fenced reservations and authoritative alarm reconciliation, without ciphertext or capability hashes |
 | `src/pin-guard.ts` | Persisted PIN guard state machine, called under the list lock; no in-memory secrets or counters |
-| `src/limiter-v2-object.ts` | EU synchronous SQLite IP counters |
+| `src/limiter-v2-object.ts` | EU synchronous SQLite creation counters per IP prefix |
+| `src/creation-budget-object.ts` | EU account-wide sliding creation budget, one fixed-name object |
+| `src/storage-ledger-object.ts` | EU global storage reservations and read-only occupancy RPC |
+| `src/list-storage-budget.ts` | Atomic byte accounting in the existing list state row |
 | `src/ip.ts` | Client key: the IPv4 address, or the /56 of an IPv6 address (expanded to 8 groups first) |
 | `src/limits.ts` | Every limit of the ADR |
 | `test/` | Vitest tests that run inside the Workers runtime |
 
 There is no `hono`: the router is a few `if`s, so the dependency list is only dev tools.
 
-The one-time post-deployment sweep for old retention metadata is documented in
-[`maintenance/README.md`](maintenance/README.md). It uses existing EU Durable
-Object RPCs through a separate unrouted operator Worker; it adds no sync API route.
+The separate unrouted operator Worker handles storage occupancy, selective
+purge and the one-time post-deployment sweep for old retention metadata.
+See [`maintenance/README.md`](maintenance/README.md) for the authenticated
+session and inventory procedure.
 
 ## Run it locally
 
 ```sh
 cd server
 pnpm install --frozen-lockfile
-pnpm exec wrangler dev --local --var LOCAL_DEV:true --port 8787   # http://127.0.0.1:8787
+pnpm exec wrangler dev --local --var LOCAL_DEV:true --port 8787 --local-upstream localhost:8787   # http://127.0.0.1:8787
 pnpm test       # workerd, no external network
 pnpm typecheck  # tsc --noEmit
 ```
+
+`--local-upstream localhost:8787` is required: the `custom_domain` route makes
+`wrangler dev` rewrite `request.url` to the production hostname, so without it
+the `LOCAL_DEV` hostname check below fails and every request returns 500. An
+Android emulator reaches it with `adb reverse tcp:8787 tcp:8787` and
+`http://localhost:8787` (`10.0.2.2` fails the same check). Add
+`--var ALLOWED_ORIGIN:<origin>` to allow a locally served web app.
 
 Local workerd does not implement `DurableObjectNamespace.jurisdiction("eu")`.
 The explicit `--var LOCAL_DEV:true` opt-in uses the plain local namespaces for
@@ -62,8 +73,8 @@ Stop it with Ctrl+C. If you started it from a script, find the PID of `workerd.e
 
 Nothing here deploys by itself, and no secret is needed: the Worker has no variables or tokens.
 
-1. `pnpm exec wrangler login` (a Cloudflare account on the free plan).
-2. A deployment applies the unchanged historical `v1`, `v2` and `v3-recovery` migrations, then **`v4-delete-v1`**, whose `deleted_classes = ["ListObject", "InviteObject", "LimiterObject"]` permanently deletes every v1 object and its stored data. Only the four v2 classes remain bound/exported. V2 namespaces and data are preserved. `RENEWAL_ENABLED` stays `false`. This repository change/dry run does not itself erase production data: that happens when this migration is deployed.
+1. `pnpm exec wrangler login` (the account is on Workers Paid).
+2. A deployment applies the unchanged historical `v1`, `v2` and `v3-recovery` migrations, then **`v4-delete-v1`**, whose `deleted_classes = ["ListObject", "InviteObject", "LimiterObject"]` permanently deletes every v1 object and its stored data. The four existing v2 classes remain bound/exported; `v5-creation-budget` adds the global creation counter and `v6-storage-ledger` adds the SQLite storage ledger. V2 namespaces and data are preserved. `RENEWAL_ENABLED` stays `false`. This repository change/dry run does not itself erase production data: that happens when this migration is deployed.
 3. The URL is `https://gift-huddle-sync.<account>.workers.dev`. That value goes into the app as `--dart-define=SYNC_HOST=...` (ADR 0002, `kSyncHost`).
 4. The custom-domain route `sync.gifthuddle.app` is configured in `wrangler.toml`; the retired trial hosts are no longer supported. `workers_dev = false` and `preview_urls = false` keep the alternate URLs closed. The exact browser origins are `https://gifthuddle.app` and `https://web.gifthuddle.app`; native clients send no Origin.
 5. Domain WAF rules must cover both `/v1/` and `/v2/`, including list PUTs. WAF rules do not apply to `workers.dev`.
@@ -126,7 +137,7 @@ only ever sees and stores `SHA-256(credential)` (`serviceCredentialVerifier`).
 | `POST I/reveal` | Bearer of the owner; `{reveal: PairingReveal.toJson()}` | `200 {expiresAt}` | `409 invalid_state` before the answer or a second reveal; `400`; `403`; `404` |
 | `POST I/approve` | Device Bearer of the owner; `If-Match: "N"`; `{package, role?, checkpoint?: {common, registry}}` (encrypted, opaque package; default role `device`; `checkpoint`: the two checkpoint hashes, B7) | `200 {version:N+1}` + `ETag`; registers the guest's verifier and immutable role; with `checkpoint`, copies the common and registry of version N for the guest | `400 role_mismatch` unless `answer.guest.k === "web"` iff role is `web`; `400` invalid role; `400 bad_checkpoint`; `409 checkpoint_mismatch` (the hashes are not those of version N); `409 invalid_state` before the reveal or twice; `409 credential_exists`; `409 generation_full` (64 credentials); `429 too_many_approvals` (8 per list in 24 h); `429 too_many_checkpoints` (8 live); `428` / `412`; `413` |
 | `DELETE I` | Bearer of the owner | `204` | `403`; `404` |
-| `GET J/offer` | none (the id comes from the QR) | `200 {offer, guestPerson, expiresAt}` (`guestPerson: null` when absent) | `404` unknown, expired, cancelled or owner revoked |
+| `GET J/offer` | none (the id comes from the QR); optional query `pending=204` | `200 {offer, guestPerson, expiresAt}` (`guestPerson: null` when absent); with `pending=204`, empty `204` when no offer is available now | `404` unknown, expired, cancelled or owner revoked, unless `pending=204` |
 | `POST J/answer` | `{answer: PairingAnswer.toJson(), serviceCredentialVerifier}` | `201 {expiresAt}` | `400 person_mismatch` if the guest record's `p` differs from the reserved person; `400` unknown `k` (only optional `"web"`); `409 already_answered`; `409 credential_exists` (device id or verifier already in the list); `401` revoked verifier; `400`; `413` |
 | `POST J/withdraw` | Guest Bearer matching the verifier registered by the answer; `{}` | `204`; atomically removes the unapproved invitation for both sides, its package/checkpoint and locator reservation; no credential registered | `404 not_found` before answer, wrong/missing credential, unknown/already gone (idempotent); `409 already_approved` if approval won, preserving its credential/package/checkpoint; normal invitation body/IP/invite limits |
 | `GET J/result` | Bearer of the guest (the credential behind the submitted verifier) | `202 {status:"pending", reveal}` (client-paced at 1-2 s; no Retry-After hint) until approved, then `200 {reveal, package, minVersion, syncId}`, repeatable until installation acknowledgement or the invitation expires | `404` wrong or missing credential, acknowledged or gone |
@@ -137,6 +148,16 @@ only ever sees and stores `SHA-256(credential)` (`serviceCredentialVerifier`).
 | `POST G/cancel` | Bearer of that web; `{version}` | `200 {version}` with the current version (0 if absent); removes only that pending version; absent/different pending is also `200` | `400`; `403 forbidden_role` |
 | `POST G/open` | No credential; `{proofs:[{version,guardToken,prueba}]}` (1–2 distinct versions) | `200 {version,b,failedSince,mustRotate}` from a matching current or pending version; resets consecutive failures and delivers/resets failedSince | Uniform `404 not_found` for absent guard, wrong token or retired list; `403 {error:"wrong_pin",left}`; tenth consecutive failure and subsequent attempts: `423 guard_suspended`; `429` + `Retry-After` before 2 s or over 30/min/IP; `400` malformed proofs; `413` body over 2 KiB |
 | `POST G/resume` | Active device Bearer from this list; no body required | `200`; clears suspension, consecutive failures and attempt delay; retains failedSince and sets mustRotate; keeps versions and secrets | `404` no guard; `401` credential from another list; `403 forbidden_role` web |
+
+`GET J/offer?pending=204` opts into an empty `204` instead of `404 not_found`
+when the locator is absent or the list has no live invitation. It means only
+"no offer available now": unknown, expired, cancelled and owner-revoked
+invitations are indistinguishable. An available offer still returns the same
+`200` body. Omit the parameter for the original contract (including apps
+1.0.1–1.0.3); values other than exactly `204` behave as if it were absent.
+This applies only to `GET J/offer`, with no new header or CORS preflight.
+Authentication and Origin errors (`401`/`403`), `429`, `5xx`, `Retry-After`,
+request quotas and `Cache-Control: no-store, no-transform` are unchanged.
 
 Common to every route: `401` for a missing, unknown or revoked credential (a
 revoked Bearer is also `401` on the public invitation routes); `404` unknown or
@@ -368,7 +389,7 @@ attempts cannot suspend the new one. Prepare rejects reuse of the current
 version's tokenHash with `409 invalid_state`. A device can resume a guard but cannot prepare
 or replace its secrets. Guard operations have no family write charge; authenticated
 ones still share the credential's request cap. The unauthenticated open route has
-its own persisted 30/min/IP quota in addition to IP_LIMITER and a streaming 2 KiB
+its own write-free 30/min/IP binding in addition to IP_LIMITER and a streaming 2 KiB
 body limit. Revocation deletes the corresponding guard in the credential
 transaction; deletion and inactivity retirement drop the entire guard table.
 Open validates proofs for live, absent and retired lists through the same path.
@@ -664,9 +685,9 @@ the app's own thresholds.
 | Slots | 64 per list, counting stored ones after the delta, checked before any record hash or write; each at most 131,584 bytes decoded (175,446 base64url characters): header with the longest ids, nonce, 128 KiB, tag and signature |
 | Registry | 64 records, 256 vouches and 64 revocations (counted before measuring), and 256 KiB of JSON: full caps weigh about 110 KB with 22-character ids and about 231 KB with 128-character ids |
 | Key packages | 512 entries, 256 KiB of JSON |
-| Bodies | Read before the credential is checked, counted while streaming: PUT and common PUT 5 MiB (common itself at most 2 MiB decoded); create (`If-Match: "0"`) 400 KiB on the wire and 256 KiB of JSON in the object; invitations 128 KiB (offer and answer 16 KiB, reveal 1 KiB, package 64 KiB); revoke 1 KiB; every guard route 2 KiB |
-| Per credential | 120 requests and 30 mutations per minute, kept in the object's `rate` table so a restart keeps the window (mutations saved on every hit; reads every 8 hits and when full, a restored read counter adds the 7 it may lack); 8 new record declarations in any 24 h after creation |
-| Per list | 60 mutations per minute, saved like the credential mutations (revocation is exempt, so another writer cannot block it); 30 public requests per minute and invitation; 16 new record declarations and 8 new credentials in any 24 h; 10 unapproved invitations; 16 sockets |
+| Bodies | Counted while streaming; large PUT, list recovery and invitation bodies are read outside the list lock between authorization and reauthentication, with a 60 s deadline: PUT and common PUT 5 MiB (common itself at most 2 MiB decoded); create (`If-Match: "0"`) 400 KiB on the wire and 256 KiB of JSON in the object; invitations 128 KiB (offer and answer 16 KiB, reveal 1 KiB, package 64 KiB); revoke 1 KiB; every guard route 2 KiB |
+| Per credential | 120 requests and 30 mutations per minute, kept only in memory (hibernation or a restart resets the minute window); 8 new record declarations in any 24 h after creation |
+| Per list | 60 mutations per minute, kept in memory (revocation is exempt, so another writer cannot block it); 30 public requests per minute and invitation; 16 new record declarations and 8 new credentials in any 24 h; 10 unapproved invitations; 16 sockets |
 | Per generation (syncId) | 512 distinct record declarations and 64 credentials ever, revoked included (`409 generation_full`); renewal offered from 384 and 48 |
 | Per IP | 120 v2 invitation requests per minute (`INVITE_IP_LIMITER` rate limit binding: no object and no row, so it costs nothing before the invitation is known; several families behind one NAT can pair at once); a separate 30 guard open requests per minute; 12 new v2 lists per hour (a phone alone deletes the list of a cancelled invitation and makes a new one); the coarse 200 requests per minute of `IP_LIMITER` in front of everything |
 
@@ -675,17 +696,20 @@ The quotas bound ADR 0004 finding 4 without reading signatures.
 Storage (one SQLite object per list): one state row (version, last access,
 credentials, tombstones, record hashes, quota stamps), the common envelope in rows of 1,000,000
 characters, one row each for registry and packages, one row per slot and one per
-invitation and one per web guard. Rows are rewritten only when their content changes. Request counters
-live in memory and in a small `rate` table (`WITHOUT ROWID`, one row per live counter, dropped
-with the list): mutation counters are written on every mutation, read counters every 8th
-read, so a quiet GET writes nothing (except the hourly last-access touch and its
-alarm). A normal PUT that changes the common document and one slot writes about 3 to
-4 rows; replacing all 64 slots writes 64. A full list holds about 15 MB (common
-2.8 MB, slots 11.2 MB as text, registry and packages). The free plan's 5 GB and
-100,000 rows written per day are per account, and its 10 ms of CPU per request cannot
-parse a body near the maximum: phones should send only the slots that changed (their
-own, plus removals). Quota stamps ride in the state row the PUT or approval rewrites
-anyway, so they add no rows. Retiring a list drops its content tables and rewrites
+invitation and one per web guard. Rows are rewritten only when their content changes.
+All per-minute request, mutation, invitation and ping counters are in memory;
+none creates a rate row or arms an alarm. Existing rate rows are removed at the
+next maintenance alarm. Unchanged GETs and pings write no SQL rows. Activity and
+last-access changes are persisted at most hourly; daily quotas remain in state.
+A normal PUT changing only common writes two SQL rows (one common chunk and state).
+The account is on Workers Paid ($5/month): 5 GB-month of SQLite storage and
+50 million SQLite rows written per month are included. At the 10 GiB storage
+ceiling, the worst-case storage cost is about $6.15/month ($5 + (10.7 GB - 5) ×
+$0.20); the 1,000,000-row daily budget is 30 million rows per month, within the
+included rows. Requests and CPU have no global cap; only the existing IP limits
+bound them, and a $7 account spend alert covers their variable cost. The 10 ms
+free-plan CPU limit does not apply: phones should still send only the slots that
+changed (their own, plus removals). Quota stamps ride in the state row the PUT or approval rewrites
 the state row in one transaction, with pending release rows until remote cleanup
 finishes; afterwards the marker and deadline remain until the 400-day expiry alarm.
 Nothing here meters or logs usage; check the account totals before
@@ -815,28 +839,28 @@ invitations create no persistent rows. Retired v1 requests use none of these bin
 ## Privacy
 
 - V1 storage is deleted by `v4-delete-v1`. V2 stores, per list: the SHA-256 of each service credential and of each revoked one (a rejection tombstone), device ids, the random syncId, the opaque common ciphertext, the **unencrypted signed registry** (public keys, person of each device, who vouches for whom, revocations), encrypted key packages, sealed fixed-size slots (their header shows person, writer, epoch, revision, policy and key id in clear), the version that wrote each slot, hashes of record declarations, the times of the new declarations and approvals of the last 24 h (quota stamps), and temporary pairing declarations (offer, answer, reveal, encrypted package) for at most 24 h. Per-device `lastRequest` is rounded up to an hour, including legacy exact values when the list next records activity. Renewal uses this upper bound, so its 72-hour absence requirement can be delayed by less than one hour but never shortened; renewal remains disabled in production. List-level `lastAccess` is rounded up to the hour on creation, writes, recovery operations and touches, including legacy exact timestamps on authenticated activity. After DELETE, revocation of the final active credential (phone or web), inactivity expiry or an invitation-only copy's fixed 24-hour deadline, content and credentials are erased; pending locator releases retry durably. The remaining `{"retired":true}` marker and separate deadline expire 400 days after retirement begins. Recovery locator retirement markers contain only `state`, `alarmAt` and `retiredUntil`: no `sid`, `reservationId` or `reservedAt`. They also expire 400 days after retirement; legacy markers are minimized when read. Old undated markers gain an alarm on first wake. New apps label invitation-only copies at creation; older clients and existing copies keep ordinary inactivity retention. Shared secret-gift slots survive writer revocation for the remaining authorized readers, until list deletion/expiry. That is metadata, never gift text, family keys, private device keys or surprise keys. The client IP (IPv4 or IPv6 /56) is used only as a rate-limiter key; v2 limiter rows expire with their window. Every v2 object (lists, invitation locators, recovery locators, limiters) is created in the EU jurisdiction; Cloudflare still terminates the request at its nearest edge, so this is not a claim that every network step stays in the EU.
-- The v2 `rate` table keeps, per live counter, only a key (`r:`/`w:` and a device id, `list`, or `i:` and an invitation id), the window start and a count; expired rows are dropped as others are written, and the table goes with the list.
+- Minute counters are ephemeral; they never persist device or invitation ids. The legacy limiter class and binding remain for creation quotas and migration compatibility.
 - No `console.*` calls exist; errors are generic (`{"error":"internal"}`) and nothing about bodies, `Authorization` or `X-Recovery-Cap` headers is recorded. Workers Logs (`observability`) is disabled in `wrangler.toml`. Do not turn on `wrangler tail` or Logpush for this Worker: request URLs contain list, invitation and recovery ids, and `X-Recovery-Cap` is a secret read capability.
 - PIN guards store per web and version only SHA-256(guardToken), SHA-256(prueba) and b, plus version/pending version, failures, nextAttemptAt and suspension in SQLite. No PIN, raw proof, raw guard token, browser vault, salt, a, A or vault key is stored or logged. Invitation reservations also hold owner id, offer digest, guestPerson and expiry for at most 24 h. Guards disappear on revocation, DELETE and inactivity retirement.
 - `ALLOWED_ORIGIN` is an exact comma-separated allowlist: `https://gifthuddle.app,https://web.gifthuddle.app`, never `null` or foreign origins; native requests without Origin remain valid. Admission and response headers use the same list, echo only the admitted origin and send `Vary: Origin`, including guard/open routes and upgrades. Preflight uses the route method map and an explicit header allowlist (If-Match added for v2), without touching quotas or objects. It never enables cookies. A paired browser has a restricted web credential; CORS grants no authentication or surprise keys.
 - Responses carry `Cache-Control: no-store`, ETag where applicable, and `X-Content-Type-Options: nosniff`. V2 WebSocket forwarding constructs a fresh header allowlist with only Upgrade, the computed verifier and optional fixed protocol; Authorization, Cookie, bearer protocols and arbitrary sensitive headers never reach its object.
 
-## Free plan figures that matter here
+## Workers Paid figures that matter here
 
 From the Cloudflare documentation (check them again before launch, they change):
 
-- Workers: 100,000 requests per day and 10 ms of CPU per request. A 2 MiB envelope is the worst case for CPU; real lists are a few KB.
-- Durable Objects: 100,000 requests per day (HTTP, RPC calls, alarms; WebSocket messages count 1 per 20). Sync costs 1 Worker request + 1 DO request, an invitation step 2 to 4. 13,000 GB-s per day of duration.
-- SQLite storage: 5 GB per account, 100,000 rows written and 5 million rows read per day. Deletes and each `setAlarm()` count as rows written. A `PUT` writes about 3 rows.
+- Requests and CPU: no global cap in this Worker; per-IP limits apply and additional usage is billed. The account has a $7 spend alert.
+- Durable Objects: HTTP, RPC calls and alarms count as requests, while WebSocket messages count 1 per 20. Sync costs 1 Worker request + 1 DO request, an invitation step 2 to 4.
+- SQLite storage: 5 GB-month per account is included, then $0.20 per GB-month; the 10 GiB payload ceiling costs about $6.15/month at full occupancy, including the $5 plan fee. 50 million rows written per month are included, then $1 per million; the 1,000,000-row daily budget uses at most 30 million per month. Deletes and each `setAlarm()` count as rows written. A `PUT` writes about 3 rows.
 - A row, string or blob is at most 2 MB, so the envelope text is split into rows of 1,000,000 characters.
-- At most 100 Durable Object classes per account (this uses 4).
+- At most 100 Durable Object classes per account (this uses 5).
 - Hibernating WebSockets cost no duration while idle. V2 wakes the object to revalidate the credential before `pong`.
 
-Over the quota the Worker returns errors; the paid plan (5 USD per month) lifts them.
+Variable request and CPU usage can exceed the included amounts and is billed; the account spend alert is set to $7.
 
 ## Known limits
 
-- Creating lists is capped at 12 per hour per IPv4 address or IPv6 /56, with at most 256 KiB each at first upload. A determined attacker with many addresses can still create lists: each one is a Durable Object with a SQLite database, a row with a 256 KiB envelope at most, and a 400-day alarm. They count against the free plan's 5 GB and 100,000 daily row writes. Watch the dashboard once the app is public.
+- Creation budgets and per-list byte limits below bound storage abuse; the global storage ledger reserves payload capacity. At the 10 GiB ceiling, storage is about $6.15/month and the $7 account spend alert covers variable request and CPU costs, which have no global cap. Existing lists retain their 400-day inactivity lifetime.
 - A first upload larger than 256 KiB is refused with `413`: the client must upload a small first version and grow it with a normal update.
 - The first person to `join` an invitation takes its single slot. The 6-digit verification code is what stops an interloper from being approved; a stranger with the link can only make the owner reject and create another invitation.
 - V2 list and recovery locator retirement markers expire after 400 days. While they exist they prevent identifier reuse; after erasure a fresh create/reservation may reuse the identifier. Pre-upgrade undated markers can only acquire an alarm when their object next wakes.
@@ -861,3 +885,301 @@ Both this operation and "Stop syncing" select a new local generation with
 secret scopes and overflow stay local, using the generation journal where
 recovery already manages storage. Pairing a phone/web or creating a new recovery
 code can explicitly activate synchronization again.
+
+## Storage and abuse budgets
+
+A list stores at most **1.5 MiB with one counted credential**, **4 MiB from the
+second**, and **1 MiB per credential from the third once it is seven days old**.
+Phones and webs count while active or revoked with unexpired 30-day slot grace.
+The first two counted credentials provide the immediate base; extras mature
+individually. Legacy undated credentials start aging on first load. Approval
+counts its new credential before testing the checkpoint's complete footprint.
+The 64-credential generation cap gives an allowance of at most 64.5 MiB; all
+existing individual resource caps still apply. The accounting includes UTF-8
+text, keys and fixed-width numeric values in common, slots, registry, packages,
+invitations, pairing checkpoints, guards, recovery blobs/history, renewal rows
+and pending release queues, plus the state metadata. Small quota counters and
+the accounting number itself are excluded; SQLite page and index overhead is
+not payload. Existing lists acquire a total on first load. Changes update that
+number in the same SQLite transaction and existing state row; subsequent writes
+track changed rows rather than summing all ciphertext again. Growth beyond the
+allowance returns **413 `too_large`**. Reductions and revocation remain possible
+for older lists over the allowance.
+
+New lists have three creation budgets: **12/hour and 12/day per IPv4 or IPv6 /56**,
+**24/hour and 24/day per IPv6 /48**, and **250/hour plus 1,500/day globally**, in sliding
+windows. The /48 is checked first; rejection never writes a /56 counter. IPv4
+uses its full address and only one counter call. The fixed-name
+`CREATION_BUDGET` object (`v2:new-lists`) is selected with `euNamespace()` just
+like every other namespace. A list PUT with `If-Match: "0"` passes the edge IP
+limit before the Worker reads up to 400 KiB of JSON with a 60-second deadline.
+The initial snapshot still has a 256 KiB limit after JSON normalization.
+The list object receives the parsed body only after that read succeeds.
+A body read that reaches the deadline returns `408 {"error":"bad_request"}`.
+The Durable Object applies its creation IP quotas before snapshot validation; only a fully
+validated creation reserves a global slot immediately before commit. The global
+counter keeps at most 300 rows, overwrites an expired row on acceptance, writes
+one row per accepted creation, writes nothing on rejection and has no alarm.
+Exhaustion returns **429 `rate_limited`**, with `Retry-After` until the next slot
+(up to 3600 seconds). Existing lists bypass the creation budgets.
+
+The fixed-name **`STORAGE_LEDGER` (`v2:storage`)**, selected through
+`euNamespace()`, caps accounted storage at **10 GiB**. Each list reports its
+absolute balance rounded up to **256 KiB blocks**, including its first block.
+Only block transitions call the ledger; its one balance row per list makes
+retries idempotent. A cached total is rebuilt from balances after eviction.
+Growth reserves remotely immediately before the validated local commit, with a
+durable reconciliation intention and alarm covering crashes, lost responses and
+failed commits. Shrinking, deletion, inactivity expiry, invitation-copy expiry
+and cleanup return blocks. Legacy lists enrol on first load even above the
+ceiling; subsequent growth returns **413 `too_large`**. SQLite/index overhead
+and small counters are outside the payload estimate. At full occupancy, 10 GiB
+(about 10.7 GB) costs approximately $6.15/month: $5 for Workers Paid plus
+(10.7 GB − 5 GB included) × $0.20/GB-month. The 1,000,000-row daily budget
+uses at most 30 million rows/month, within the included 50 million. Requests and
+CPU have no global cap; only per-IP limits apply, and the account has a $7 spend
+alert.
+Migration `v6-storage-ledger` adds the SQLite class; earlier migrations are unchanged.
+
+At the **10 GiB ceiling**, new lists cannot be created and no existing list can
+grow across a 256 KiB block boundary, including pairing invitations, approvals
+and checkpoints. Reads and edits that fit the reserved blocks continue. A
+pending ledger outage does not block reads, revocation or alarms; growth still
+requires a successful reservation. Reductions durably arm reconciliation before
+the local commit, including invitation/checkpoint expiry, revoked-slot expiry,
+release-queue cleanup, retirement and expiry discovered by the renewal destination
+probe. Every alarm scheduling path preserves an earlier pending reconciliation
+deadline; maintenance cannot replace it with a later expiry.
+
+#### Operator storage occupancy and selective purge
+
+The account holder runs these commands from `server/` after the sync Worker
+with the new RPCs is available. Use the same authenticated remote dev session
+and private file handling as the retention sweep. The maintenance Worker has
+no published route or trigger. On every path and method, it requires
+`Host: 127.0.0.1:8791` and rejects requests with any `Origin` header.
+See [maintenance/README.md](maintenance/README.md).
+
+```sh
+pnpm exec wrangler dev --config maintenance/wrangler.toml --remote --ip 127.0.0.1 --port 8791
+```
+
+From a second terminal in `server/`, query the EU ledger singleton's read-only
+`occupancy()` RPC. The result contains reserved bytes, ceiling and percentage.
+The Worker sets `alert: true` and the CLI warns on stderr at 50% or higher.
+This measures block reservations, which can include writes or releases awaiting
+reconciliation. It excludes SQLite and index overhead.
+
+```sh
+node maintenance/run-storage.mjs usage
+```
+
+At or above 50%, investigate the source of growth. Use selective purge only
+if you can identify an abuse window and have reviewed the candidates. An
+inactive single-credential list can belong to a real family. Purging it ends
+server sync. The tool excludes lists with any recovery record that has yet to
+be retired, including unpublished intentions and rotation candidates. The
+normal automatic inactivity period is 400 days.
+
+For inventory only, supply `CLOUDFLARE_API_TOKEN` via the usual secure mechanism
+with account-scoped Workers Scripts read access. Use the existing list and
+recovery namespace IDs. The listing token is separate from Wrangler's
+authenticated remote dev session.
+
+```sh
+node scripts/list-do-objects.mjs ACCOUNT_ID LISTS_NAMESPACE_ID RECOVERIES_NAMESPACE_ID /private/path/objects.json
+(umask 077; set -C; node maintenance/run-storage.mjs purge /private/path/objects.json 30 2026-11-20 2026-11-27 > /private/path/purge-plan.json)
+```
+
+The example previews lists with at least 30 days of inactivity and a creation
+date from November 20 inclusive to November 27 exclusive (UTC, at midnight).
+Choose the dates for the abuse window. Both the CLI and the Worker enforce the
+30-day minimum using the server's recorded authenticated activity. The preview
+skips lists with multiple credential records, including revoked ones, and lists
+with an open socket, an in-flight authenticated body, or an expired lifetime.
+The plan includes the version, creation time, last activity, `storedBytes`,
+`hasRecovery` (always `false`), and `pendingInvites` (the count of unexpired
+invitations awaiting approval).
+
+Use `purge --include-legacy` to preview a window starting before the
+2026-11-20 UTC release cutoff, and pass the flag again with `--apply` for
+the resulting plan. The option also allows consideration of lists that lack
+a recorded creation time. For lists with no reliable inferred date,
+`createdAt: null` means the entire possible creation range fits the window.
+To include them, use `1970-01-01` as the start and choose an end strictly after
+their last activity.
+
+Review the plan privately. Remove any candidate you cannot confirm and keep the
+criteria and remaining entries unchanged. Generate a fresh plan if you have
+one from before the added review fields. Apply using the explicit flag, then
+query occupancy again.
+
+```sh
+node maintenance/run-storage.mjs purge --apply /private/path/purge-plan.json
+node maintenance/run-storage.mjs usage
+```
+
+The list rechecks the date window, inactivity, credential count and the reviewed
+metadata under its lock, including recovery, recorded bytes and the count of
+pending invitations. Applying a stale plan skips changed or already retired
+lists. Retirement uses the same erasure, locator cleanup, 400-day `RETIRED`
+marker and ledger release as ordinary deletion. If a request fails, the tool
+stops. After resolving the failure, you can rerun the same plan. An alarm
+retries pending cleanup or ledger reconciliation. Stop Wrangler with Ctrl+C
+and remove the private inventory and plan when the run is complete.
+
+Every list also has **6,000 SQL rows written per UTC day**, measured with
+`cursor.rowsWritten` by the storage proxy and persisted inside `state` without
+another table. This includes index writes and the accounting write itself.
+Ordinary state saves include accounting in the same write. When exhausted,
+mutations receive **429 `rate_limited`**, with `Retry-After` until midnight UTC,
+capped at 3,600 seconds. Reads, WebSockets, DELETE, withdrawal, cleanup,
+revocation and expiry remain available. Guard open is subject to admission too.
+A transaction already admitted can finish beyond the threshold; the next
+mutation is refused. Rolled-back oversized writes, block-crossing probes and
+successful or failed previews are durably charged outside the reverted
+transaction, including the extra accounting row. Account-wide SQL costs also
+include other objects. Creation avoids probing/replaying its SQL by sizing its
+validated snapshot first. Measured SQL `rowsWritten` across all participating
+objects (cold schemas included for creation, warmed activity for routine sync):
+
+| Operation | Rows written |
+| --- | ---: |
+| Create a routine IPv4 list | 30 |
+| Normal common-changing PUT | 2 |
+| Unchanged GET | 0 |
+| WebSocket ping | 0 |
+| Exhausted admission or invalid Bearer rejection (no report due) | 0 |
+
+Additional UTC-day budgets charge **10,000 rows per IPv4 or /56**, **20,000 per
+/48**, and **1,000,000 globally for list mutations** after the actual transactions.
+There are no prepaid balances. The storage proxy adds application SQL rows,
+including rolled-back attempts, previews, block probes and replays, to pending
+reports in the existing `state` write. Pending amounts, cached counter status
+and its timestamp are durable across eviction and hibernation. There are at
+most **8 counter keys per list**, including the global key; adding a key to a
+full map first reports the oldest unused key's tail, then removes that key.
+
+A key reports when it accumulates **25 rows** (`V2_ROW_REPORT_BLOCK`), or when
+more than **10 minutes** have elapsed since its last report (checked on the next
+request or an alarm already needed for another reason, without a new tail alarm).
+A report adds the real amount, including any excess over
+the limit, and returns remaining rows and exhaustion. Each report writes **one
+counter row** after schema setup. Confirmations for the round share **one list
+state write**, charged only to the 6,000-row list budget, as is any write
+persisting accounting state; neither adds pending client or global rows;
+ordinary accumulation adds no extra row. IPv4 uses its client key and the global
+`STORAGE_LEDGER` (`v2:storage`); IPv6 also uses its /48 key. All use
+`euNamespace()`.
+
+| Per 25-row reporting round | Counter RPCs | Counter rows | List acknowledgement rows |
+| --- | ---: | ---: | ---: |
+| IPv4 | 2 | 2 | 1 |
+| IPv6 (/56 and /48) | 3 | 3 | 1 |
+
+Cold admission queries each applicable counter. Before a mutation, absent
+status or status older than **60 seconds** is refreshed with a read-only RPC
+(no table creation, row update or alarm), or by reporting the pending amount.
+Pending rows that reach the last known remainder are also reported immediately.
+An exhausted counter returns **429 `rate_limited`** until midnight UTC, capped
+at 3,600 seconds, with the same exemptions as the list budget. A large admitted
+mutation is charged in full; its excess survives restart and the next mutation
+is refused. Counter queries, early reports, key eviction and cold schemas are
+additional to the steady-state reporting table above.
+
+Pending tails survive UTC midnight and eviction. The next request or existing
+alarm reports them against each counter's current UTC day, refreshing yesterday's
+status. A list that keeps writing pays its pending application rows; one that
+stops loses at most **one tail of fewer than 25 rows per counter key**, once.
+Acknowledgements produce no further tail. Only a real reporting RPC failure
+arms a retry, at least 60 seconds ahead, preserving any earlier reconciliation
+alarm. Repeated requests keep an already valid earlier or equal alarm. Orphan
+first-creation attempt accounting expires after 400 days, and retirement erases
+it together with all other accounting. A list making one PUT each day needs at
+most one reporting round per day: two counter RPCs, two counter rows and one
+list acknowledgement row for IPv4 (three RPCs and four rows for IPv6), after
+counter schema setup. An idle tail creates no additional requests or rows. With
+successful counter RPCs, stale admission can exceed a counter by at most
+**one block (25 rows) plus one admitted mutation per list and key**. For N lists
+sharing a counter the bound is the sum of those per-list allowances; it is not
+a strict account-wide 1,000,000-row stop. A reporting outage keeps pending amounts
+durable and requires reporting before further admission; an interrupted or lost
+report response can conservatively charge the same pending rows again, rather
+than silently losing them.
+
+An attacker with many IPs can still exhaust the daily global write budget; it does not cap requests or CPU, whose variable cost is covered by the account's $7 spend alert.
+
+Public admission uses approximate, per-location Cloudflare `[[ratelimits]]`
+bindings; these write no Durable Object rows. Every period is 60 seconds:
+
+| Route | IPv4 or IPv6 /56 binding | Additional IPv4 or IPv6 /48 binding |
+|---|---|---|
+| Creation (`PUT` with `If-Match: "0"`) | `CREATE_IP_LIMITER`: 12/min | No second binding |
+| Invitations | `INVITE_IP_LIMITER`: 120/min | `INVITE_IP48_LIMITER`: 240/min |
+| Guard open | `GUARD_IP_LIMITER`: 30/min | `GUARD_IP48_LIMITER`: 60/min |
+| Public recovery | `RECOVERY_IP_LIMITER`: 30/min | `RECOVERY_IP48_LIMITER`: 60/min |
+
+`IP_LIMITER` remains 200/min per IPv4 or /56. Invitation polling, authenticated
+request limits and the WebSocket ping protocol keep their existing frequencies.
+The old `LimiterV2Object` remains bound and exported: creation still uses it.
+With `RENEWAL_ENABLED = "false"`, renewal requests never probe a destination.
+
+Snapshot/common PUTs keep the 5 MiB streaming limit: `kMaxEnvelopeBytes` is 2 MiB
+and `kV2MaxSlotsPerPut` is 10 in the clients. A full common, registry, packages
+and ten fixed-size sealed slots need about 4.85 MiB. The list authenticates under
+its lock before invoking a body-reader RPC capability. Only then does the Worker
+transfer a Request containing the stream and its content type/length, without
+Authorization or other client headers. This prevents RPC stream prefetch before
+authentication while keeping the existing wire protocol and body bounds. Role,
+guard rotation, credential frequency and daily rows are checked before opening
+the stream. The lock is released while reading, with a 60 s deadline, and all
+authorization is checked again under the lock before commit, so revocation can
+proceed during a slow upload. There are at most **2 body reads per credential**
+and **4 per list** in memory; excess requests receive **429 `rate_limited`** with
+`Retry-After: 1` before opening the stream. Slots are released on success,
+malformed JSON, timeout and reader failure. An absent list accepts a creation
+body only with `If-Match: "0"`; other PUTs return 428/412 before reading any byte.
+Authenticated list recovery bodies (up to about
+1.37 MB) and invitation bodies (128 KiB) use the same split. The 64-byte withdrawal
+body retains its existing check before locator discovery. A deadline returns
+408 `bad_request` (or `invalid_recovery`); recovery retries 408, but ordinary
+sync currently classifies it as a protocol error and needs a later sync attempt.
+
+Accepted limitations: one mobile operator's shared /48 can hit another user's quota; IPv4 is not grouped by /24; requests and CPU have no global cap, so per-IP limits do not prevent high aggregate usage and the account's $7 spend alert monitors variable cost; single-credential lists keep the 400-day lifetime (product decision, 2026-11-17).
+
+
+### False Bearers: 401 and 404 (finding 10)
+
+A syntactically valid but unknown Bearer receives **401** on authenticated routes
+of a live list (including GET, PUT, slots, common and WebSocket). A missing or
+malformed Bearer is rejected by the router with 401. For a nonexistent list,
+reads and WebSocket return **404**; creation PUT has its own 428/412 preconditions.
+A retired list returns 404 on reads and 410 on creation/common/renewal mutations.
+Consequently a stranger who already knows an exact syncId can distinguish a
+live list from a missing one; syncIds contain 128 random bits, making enumeration
+impractical. This distinction is unchanged.
+
+Public invitation offers use the invitation id and need no Bearer. Result,
+checkpoint and withdrawal use uniform 404 for a wrong guest credential or absent
+invitation. Guard open authenticates its proof tokens, with 404 for an unknown
+token or guard. Public recovery uses `X-Recovery-Cap`, independently of Bearer,
+and returns 404 for a wrong capability or missing recovery; malformed requests
+can return 400. Disabled renewal reservation returns 409 `renewal_disabled`
+before ordinary authentication. These responses are not an existence oracle
+without the corresponding high-entropy identifiers.
+
+### Decided: unshared lists keep 400 days (finding 8)
+
+**Decision (Daniel, 2026-11-17): keep `LIST_TTL_MS` at 400 days for every list.** Families may use the app only from one Christmas to the next, and 400 days covers a year with about five weeks of margin; abuse is bounded by the per-list caps, the creation budgets and the global 10 GiB ceiling instead. The proposal below is kept for reference and is not planned.
+
+
+Consider expiring a list with exactly one active credential and no active recovery
+capsule after 30–60 inactive days, instead of `LIST_TTL_MS` (400 days). This would
+release abandoned pairing attempts and abusive storage earlier. It would also
+remove the server copy for a legitimate phone returning after a long absence;
+local gifts would survive, but re-enabling sync and recovery expectations need a
+product decision. Do not apply it automatically to shared lists or recovery data.
+Implementation would require a conditional inactivity deadline in retention and
+alarm scheduling, reevaluation after approval/revocation and capsule changes,
+legacy-state handling, retention tests, and agreed client messaging. No shorter
+retention is implemented here.

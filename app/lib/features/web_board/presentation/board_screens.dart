@@ -9,12 +9,15 @@ import 'package:intl/intl.dart';
 import '../../../core/format/money.dart';
 import '../../../core/layout/pane_scope.dart';
 import '../../../core/sync/model.dart';
+import '../../../core/theme/occasion_theme.dart';
 import '../../../core/theme/regalos_motion.dart';
-import '../../../core/theme/regalos_shape.dart';
 import '../../../core/theme/regalos_tokens.dart';
 import '../../../core/widgets/desktop_add_gift_button.dart';
 import '../../../core/widgets/header_button.dart';
-import '../../../core/widgets/pointer_surface.dart';
+import '../../../core/widgets/person_avatar.dart';
+import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/picker_field.dart';
+import '../../../core/widgets/release_text_focus.dart';
 import '../../../core/widgets/stroke_icon.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../family/application/family_controller.dart';
@@ -26,8 +29,13 @@ import '../../family/presentation/occasion_sheet.dart';
 import '../../gifts/presentation/gift_editor_screen.dart';
 import '../../gifts/presentation/person_list_screen.dart';
 import '../../occasions/application/occasion_rows.dart';
-import '../../occasions/presentation/budget_screen.dart';
+import '../../occasions/presentation/budget_parts.dart';
+import '../../occasions/presentation/occasion_garland.dart';
+import '../../settings/application/appearance_provider.dart';
 import '../application/board_lanes.dart';
+import '../application/board_occasion_order.dart';
+import '../application/board_metrics.dart';
+import 'board_budget_view.dart';
 import 'board_lanes_view.dart';
 import 'board_occasion_strip.dart';
 import 'board_page.dart';
@@ -48,38 +56,157 @@ class BoardHomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final count = ref.watch(boardCountProvider);
-    final upcoming = ref.watch(upcomingOccasionsProvider);
+    final occasions = ref.watch(occasionsProvider);
+    final upcoming = boardOccasionOrder(occasions, clock.now());
+    final shown = upcoming.take(stripCount).toList();
+    // Las que muestra Ocasiones, con las que ya pasaron: si son más que las de
+    // la tira, «Ver todas» lleva a ellas.
+    final total = boardOccasionOrder(
+      occasions,
+      clock.now(),
+      includePassed: true,
+    ).length;
     final date = DateFormat.MMMMEEEEd(l10n.localeName).format(clock.now());
+    final people = ref.watch(recipientsProvider);
+    // La persona elegida en el filtro; si ya no existe (se archivó o se
+    // borró), se ven todas.
+    final filter = ref.watch(boardPersonFilterProvider);
+    final personId = people.any((p) => p.id == filter) ? filter : null;
     return BoardCoveredGuard(
       child: BoardPage(
         title: l10n.boardToday,
         subtitle: l10n.boardSubtitle(date, count.bought, count.total),
         actions: [
+          // El filtro por persona sube a la fila del título, junto a «Añadir
+          // regalo».
+          if (people.length > 1)
+            ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 200, maxWidth: 260),
+              child: _PersonFilter(
+                key: const ValueKey<String>('board-person-filter'),
+                people: people,
+                value: personId,
+                onChanged: (id) =>
+                    ref.read(boardPersonFilterProvider.notifier).choose(id),
+              ),
+            ),
           DesktopAddGiftButton(
             key: const ValueKey<String>('board-add-gift'),
             onPressed: () => openGiftEditor(context, chooseRecipient: true),
           ),
         ],
         body: BoardLanesView(
-          onAdd: () => openGiftEditor(context, chooseRecipient: true),
+          personId: personId,
+          onAdd: (lane) => openGiftEditor(
+            context,
+            chooseRecipient: true,
+            status: lane.status,
+          ),
         ),
         children: [
           BoardOccasionStrip(
-            occasions: [
-              for (final next in upcoming.take(stripCount)) next.occasion,
-            ],
+            occasions: shown,
             onOpen: (o) => context.go('/occasions/${o.id}'),
+            endAction: total > shown.length
+                ? _SeeAllButton(
+                    key: const ValueKey<String>('board-see-all'),
+                    count: total,
+                    onTap: () => context.go('/occasions'),
+                  )
+                : null,
           ),
-          BoardCaption(l10n.boardNowTitle),
+          const SizedBox(height: 12),
         ],
       ),
     );
   }
 }
 
-/// Ocasiones en el tablero: la tira con todas las ocasiones (y el
-/// presupuesto) y, debajo, el mismo tablero filtrado por la elegida, con su
-/// fecha editable.
+/// «Ver todas (N)» al final de la tira de «Hoy»: un botón de texto, no otra
+/// tarjeta, que lleva a Ocasiones.
+class _SeeAllButton extends StatelessWidget {
+  const _SeeAllButton({super.key, required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return TextButton(
+      onPressed: onTap,
+      style: TextButton.styleFrom(
+        minimumSize: const Size(44, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        tapTargetSize: MaterialTapTargetSize.padded,
+      ),
+      child: Text(l10n.boardSeeAll(count), maxLines: 1),
+    );
+  }
+}
+
+/// El selector de persona de «Hoy»: «Todas las personas» o una de la lista.
+class _PersonFilter extends StatelessWidget {
+  const _PersonFilter({
+    super.key,
+    required this.people,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final List<Recipient> people;
+
+  /// La persona elegida, o `null` si se ven todas.
+  final String? value;
+  final ValueChanged<String?> onChanged;
+
+  /// El valor de «Todas las personas» (el selector no admite `null`).
+  static const String _all = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    // Del alto de los botones de la cabecera (48), no de un campo de formulario
+    // (52).
+    return Theme(
+      data: theme.copyWith(
+        inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+          constraints: const BoxConstraints(
+            minHeight: DesktopAddGiftButton.height,
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 12,
+          ),
+        ),
+      ),
+      child: PickerField<String>(
+        label: l10n.boardPersonFilter,
+        value: value ?? _all,
+        options: [
+          PickerOption(value: _all, label: l10n.boardPersonFilterAll),
+          for (final p in people)
+            PickerOption(
+              value: p.id,
+              label: p.name,
+              leading: PersonAvatar(
+                name: p.name,
+                colorIndex: p.colorIndex,
+                size: 28,
+              ),
+            ),
+        ],
+        onChanged: (id) => onChanged(id == _all ? null : id),
+      ),
+    );
+  }
+}
+
+/// Ocasiones en el tablero: la tira con todas las ocasiones y, debajo, el mismo
+/// tablero filtrado por la elegida, con su fecha editable. Sin ninguna
+/// ocasión, su estado vacío. Con [kBudgetRowId] abre el presupuesto
+/// ([BoardBudgetScreen]), que tiene su entrada propia en la barra lateral.
 class BoardOccasionsScreen extends ConsumerWidget {
   /// Crea la pantalla; sin [selected] se elige la próxima ocasión.
   const BoardOccasionsScreen({super.key, this.selected});
@@ -89,22 +216,27 @@ class BoardOccasionsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (selected == kBudgetRowId) {
+      return const BoardBudgetScreen();
+    }
     final l10n = AppLocalizations.of(context);
-    final t = RegalosTokens.of(context);
     final occasions = ref.watch(occasionsProvider);
     final people = ref.watch(familyFullViewProvider).recipientsById;
     final now = clock.now();
     final byId = {for (final o in occasions) o.id: o};
-    final order = [
-      for (final id in occasionRowIds(occasions, now))
-        if (id != kBudgetRowId) byId[id]!,
-    ];
-    final chosenId = selected == kBudgetRowId
-        ? kBudgetRowId
-        : (byId.containsKey(selected)
-              ? selected!
-              : (nextOccasionRowId(occasions, now) ?? kBudgetRowId));
-    final occasion = byId[chosenId];
+    final order = boardOccasionOrder(occasions, now, includePassed: true);
+    final chosenId = byId.containsKey(selected)
+        ? selected
+        : (nextOccasionRowId(occasions, now) ?? order.firstOrNull?.id);
+    // El id de la URL vale aunque la ocasión esté archivada (se llega desde el
+    // presupuesto): solo se sustituye por la próxima si ya no existe.
+    final occasion =
+        ref
+            .watch(familyFullViewProvider)
+            .occasions
+            .where((o) => o.id == selected)
+            .firstOrNull ??
+        byId[chosenId];
     void open(String id) => context.go('/occasions/$id');
 
     Future<void> addOccasion() async {
@@ -120,27 +252,18 @@ class BoardOccasionsScreen extends ConsumerWidget {
         ? BoardLanesView(
             occasionId: occasion.id,
             subtitle: BoardRowSubtitle.perOccasion,
-            onAdd: () => openGiftEditor(
+            onAdd: (lane) => openGiftEditor(
               context,
               occasionId: occasion.id,
               chooseRecipient: true,
+              status: lane.status,
             ),
           )
-        // El presupuesto es una pantalla entera con su propio
-        // desplazamiento: llena el alto que queda.
-        : DecoratedBox(
-            decoration: BoxDecoration(
-              color: t.bg,
-              border: Border.all(color: t.separator),
-              borderRadius: RegalosShape.card,
-            ),
-            child: ClipRRect(
-              borderRadius: RegalosShape.card,
-              child: const PaneScope(
-                role: PaneRole.detail,
-                child: BudgetScreen(),
-              ),
-            ),
+        // Sin ninguna ocasión: el estado vacío de siempre.
+        : EmptyState(
+            icon: AppIcons.occasions,
+            title: l10n.emptyOccasionsTitle,
+            message: l10n.emptyOccasionsMessage,
           );
 
     return BoardCoveredGuard(
@@ -157,15 +280,12 @@ class BoardOccasionsScreen extends ConsumerWidget {
         ],
         body: body,
         children: [
-          BoardOccasionStrip(
-            occasions: order,
-            selectedId: chosenId,
-            onOpen: (o) => open(o.id),
-            trailing: _BudgetCard(
-              selected: chosenId == kBudgetRowId,
-              onTap: () => open(kBudgetRowId),
+          if (order.isNotEmpty)
+            BoardOccasionStrip(
+              occasions: order,
+              selectedId: occasion?.id,
+              onOpen: (o) => open(o.id),
             ),
-          ),
           if (occasion == null)
             const SizedBox(height: 16)
           else
@@ -179,73 +299,23 @@ class BoardOccasionsScreen extends ConsumerWidget {
   }
 }
 
-/// La tarjeta del presupuesto de la casa, al final de la tira de ocasiones.
-class _BudgetCard extends StatelessWidget {
-  const _BudgetCard({required this.selected, required this.onTap});
-
-  final bool selected;
-  final VoidCallback onTap;
+/// El presupuesto de la casa en el tablero (la entrada «Presupuesto» de la
+/// barra lateral): su cabecera y, debajo, la pantalla de siempre.
+class BoardBudgetScreen extends ConsumerWidget {
+  /// Crea la pantalla.
+  const BoardBudgetScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final t = RegalosTokens.of(context);
-    final reduce = RegalosMotion.of(context).reduce;
-    return Semantics(
-      container: true,
-      button: true,
-      selected: selected,
-      label: l10n.budgetCardTitle,
-      excludeSemantics: true,
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: reduce ? RegalosMotion.fade : RegalosSprings.snapDuration,
-        curve: reduce ? Curves.linear : RegalosCurves.snap,
-        decoration: BoxDecoration(
-          color: t.soft,
-          borderRadius: RegalosShape.card,
-          boxShadow: selected
-              ? [
-                  // La tinta, la de fuera (4), y encima el fondo (2): un aro de
-                  // 2 separado 2 de la tarjeta.
-                  BoxShadow(color: t.ink, spreadRadius: 4),
-                  BoxShadow(color: t.bg, spreadRadius: 2),
-                ]
-              : const <BoxShadow>[],
-        ),
-        child: PointerSurface(
-          strength: 1.6,
-          child: Material(
-            color: Colors.transparent,
-            borderRadius: RegalosShape.card,
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: onTap,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      l10n.budgetCardTitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: t.styles.label.copyWith(color: t.ink),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      l10n.budgetCardHint,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: t.styles.caption.copyWith(color: t.ink),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
+    return BoardCoveredGuard(
+      child: BoardPage(
+        title: l10n.budgetTitle,
+        subtitle: budgetSubtitleText(l10n, ref.watch(budgetProvider)),
+        // El presupuesto es una pantalla entera con su propio
+        // desplazamiento: llena el alto que queda, pegada a la izquierda y
+        // sin cabecera propia (la del tablero hace de título).
+        body: const BoardBudgetView(),
       ),
     );
   }
@@ -266,38 +336,46 @@ class _OccasionHeader extends ConsumerWidget {
       occasion.kind != OccasionKind.chineseNewYear &&
       occasion.kind != OccasionKind.birthday;
 
-  Future<void> _changeDate(BuildContext context, WidgetRef ref) async {
+  Future<void> _changeDate(
+    BuildContext context,
+    WidgetRef ref,
+    FocusNode focus,
+  ) async {
+    final controller = ref.read(familyControllerProvider.notifier);
     final now = clock.now();
     final current =
         nextDateOf(occasion, now) ??
         DateTime(occasion.year ?? now.year, occasion.month, occasion.day);
+    final first = DateTime(now.year - 1);
+    final last = DateTime(now.year + 10, 12, 31);
+    releaseTextFocus(to: focus);
     final picked = await showDatePicker(
       context: context,
       initialDate: current,
-      firstDate: DateTime(now.year - 1),
-      lastDate: DateTime(now.year + 10, 12, 31),
+      firstDate: current.isBefore(first) ? current : first,
+      lastDate: current.isAfter(last) ? current : last,
     );
     if (picked == null) {
       return;
     }
-    await ref
-        .read(familyControllerProvider.notifier)
-        .upsertOccasion(
-          Occasion(
-            id: occasion.id,
-            kind: occasion.kind,
-            rawKind: occasion.rawKind,
-            name: occasion.name,
-            month: picked.month,
-            day: picked.day,
-            year: occasion.recurring ? occasion.year : picked.year,
-            recurring: occasion.recurring,
-            recipientId: occasion.recipientId,
-            archived: occasion.archived,
-            color: occasion.color,
-            icon: occasion.icon,
-          ),
-        );
+    await controller.upsertOccasion(
+      Occasion(
+        id: occasion.id,
+        kind: occasion.kind,
+        rawKind: occasion.rawKind,
+        name: occasion.name,
+        month: picked.month,
+        day: picked.day,
+        year: occasion.recurring ? occasion.year : picked.year,
+        recurring: occasion.recurring,
+        recipientId: occasion.recipientId,
+        archived: occasion.archived,
+        color: occasion.color,
+        icon: occasion.icon,
+        budgetCents: occasion.budgetCents,
+      ),
+      original: occasion,
+    );
   }
 
   Future<void> _edit(BuildContext context, WidgetRef ref) async {
@@ -307,7 +385,9 @@ class _OccasionHeader extends ConsumerWidget {
       initialName: title,
     );
     if (result != null) {
-      await ref.read(familyControllerProvider.notifier).upsertOccasion(result);
+      await ref
+          .read(familyControllerProvider.notifier)
+          .upsertOccasion(result, original: occasion);
     }
   }
 
@@ -337,56 +417,116 @@ class _OccasionHeader extends ConsumerWidget {
         l10n.occasionGiftsBoughtShort(count.bought, count.total),
       if (cents > 0) formatCents(cents, l10n.localeName),
     ];
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Semantics(
-                  header: true,
-                  child: Text(title, style: t.styles.screenTitleSmall),
-                ),
-                const SizedBox(height: 4),
-                Text(parts.join(' · '), style: t.styles.meta),
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
+    // La guirnalda de la ficha bajo la cabecera, en la tinta de la ocasión
+    // (Navidad y Tió, Reyes y cumpleaños), que se dibuja pieza a pieza al
+    // abrirla; con los temas de ocasión apagados, no sale.
+    final themed = ref.watch(
+      appearanceProvider.select((a) => a.occasionThemes),
+    );
+    final occasionTheme = OccasionTheme.forOccasion(occasion);
+    final motif = themed ? GarlandMotif.forTheme(occasionTheme) : null;
+    final header = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (_dateEditable)
-                OutlinedButton(
-                  key: const ValueKey<String>('board-change-date'),
-                  onPressed: () => _changeDate(context, ref),
-                  child: Text(l10n.boardChangeDate),
-                ),
-              HeaderIconButton(
-                size: 48,
-                icon: AppIcons.edit,
-                label: l10n.occasionEdit,
-                onTap: () => _edit(context, ref),
+              Semantics(
+                header: true,
+                child: Text(title, style: t.styles.screenTitle),
               ),
-              DesktopAddGiftButton(
-                key: const ValueKey<String>('board-occasion-add-gift'),
-                onPressed: () => openGiftEditor(
-                  context,
-                  occasionId: occasion.id,
-                  chooseRecipient: true,
-                ),
-              ),
+              const SizedBox(height: 4),
+              Text(parts.join(' · '), style: t.styles.meta),
             ],
           ),
+        ),
+        const SizedBox(width: 16),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            if (_dateEditable)
+              _ChangeDateButton(
+                label: l10n.boardChangeDate,
+                onPressed: (focus) => _changeDate(context, ref, focus),
+              ),
+            HeaderIconButton(
+              size: 48,
+              icon: AppIcons.edit,
+              label: l10n.occasionEdit,
+              onTap: () => _edit(context, ref),
+            ),
+            DesktopAddGiftButton(
+              key: const ValueKey<String>('board-occasion-add-gift'),
+              onPressed: () => openGiftEditor(
+                context,
+                occasionId: occasion.id,
+                chooseRecipient: true,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          header,
+          if (motif != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: DrawnGarland(
+                key: ValueKey<String>('board-garland-${occasion.id}'),
+                motif: motif,
+                tokens: RegalosTokens.resolve(
+                  accent: t.accent,
+                  brightness: t.brightness,
+                  occasion: occasionTheme,
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
+}
+
+/// «Cambiar fecha»: con su propio foco, que se libera con él, para que al
+/// cerrar el calendario el foco vuelva al botón y Tab siga hacia «Editar».
+class _ChangeDateButton extends StatefulWidget {
+  const _ChangeDateButton({required this.label, required this.onPressed});
+
+  final String label;
+  final void Function(FocusNode focus) onPressed;
+
+  @override
+  State<_ChangeDateButton> createState() => _ChangeDateButtonState();
+}
+
+class _ChangeDateButtonState extends State<_ChangeDateButton> {
+  final FocusNode _focus = FocusNode(debugLabel: 'BoardChangeDate');
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => OutlinedButton(
+    key: const ValueKey<String>('board-change-date'),
+    focusNode: _focus,
+    // Del alto de «Añadir regalo» y de los botones de icono.
+    style: OutlinedButton.styleFrom(
+      minimumSize: const Size(44, DesktopAddGiftButton.height),
+    ),
+    onPressed: () => widget.onPressed(_focus),
+    child: Text(widget.label),
+  );
 }
 
 /// La lista de una persona dentro del tablero: la de siempre, con el diseño

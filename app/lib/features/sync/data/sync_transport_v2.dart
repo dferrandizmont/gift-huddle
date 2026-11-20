@@ -719,6 +719,7 @@ abstract interface class SyncV2Transport {
   Future<void> deleteInvite(V2Auth auth, String inviteId);
 
   /// `GET J/offer` (sin autenticación).
+  /// [allowNotYet] requests `pending=204`; both 204 and legacy 404 mean wait.
   Future<V2InviteOffer> getOffer(String inviteId, {bool allowNotYet = false});
 
   /// `POST J/answer {answer, serviceCredentialVerifier}` (sin autenticación).
@@ -1652,8 +1653,14 @@ class SyncV2Client implements SyncV2Transport {
     bool allowNotYet = false,
   }) async {
     _checkId(inviteId);
-    final r = await sendRequest('GET', _uri('/v2/invites/$inviteId/offer'));
-    if (r.status == 404 && allowNotYet) throw const V2OfferNotYetException();
+    final uri = _uri('/v2/invites/$inviteId/offer');
+    final r = await sendRequest(
+      'GET',
+      allowNotYet ? uri.replace(queryParameters: {'pending': '204'}) : uri,
+    );
+    if (allowNotYet && (r.status == 204 || r.status == 404)) {
+      throw const V2OfferNotYetException();
+    }
     if (r.status != 200) _inviteFail(r);
     final json = r.json();
     final person = json['guestPerson'];

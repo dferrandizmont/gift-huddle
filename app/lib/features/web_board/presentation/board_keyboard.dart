@@ -15,6 +15,12 @@ class _PageIntent extends Intent {
   final int delta;
 }
 
+class _MoveIntent extends Intent {
+  const _MoveIntent(this.delta);
+
+  final int delta;
+}
+
 class _OpenIntent extends Intent {
   const _OpenIntent();
 }
@@ -31,8 +37,9 @@ class _EscapeIntent extends Intent {
 /// (la guía de diseño de escritorio, L6): ↑ y ↓ recorren los
 /// regalos de la pantalla (los carriles de «Hoy» o la tabla de una persona; con
 /// el editor abierto, el editor sigue a la marca), Intro abre el marcado,
-/// Alt + ↑ y Alt + ↓ cambian de persona en la barra lateral, N abre «Nuevo
-/// regalo» y Esc cierra el editor (o quita la marca).
+/// Alt + ↑ y Alt + ↓ cambian de persona en la barra lateral, Ctrl o Cmd
+/// con ← y → pasan el regalo marcado al carril anterior o al siguiente, N abre
+/// «Nuevo regalo» y Esc cierra el editor (o quita la marca).
 ///
 /// Ninguno actúa mientras se escribe en un campo. ↑, ↓ e Intro tampoco actúan
 /// con el foco dentro del editor ni de un diálogo u hoja.
@@ -42,6 +49,8 @@ class BoardKeyboard extends StatelessWidget {
     super.key,
     required this.onStep,
     required this.onPage,
+    required this.onMove,
+    required this.moveEnabled,
     required this.onOpen,
     required this.onNew,
     required this.onEscape,
@@ -55,6 +64,13 @@ class BoardKeyboard extends StatelessWidget {
 
   /// Alt + ↑ (-1) y Alt + ↓ (1): la persona de al lado.
   final ValueChanged<int> onPage;
+
+  /// Ctrl o Cmd con ← (-1) y → (1): pasa el regalo marcado al carril de al
+  /// lado.
+  final ValueChanged<int> onMove;
+
+  /// Si hay un regalo marcado que mover de carril.
+  final bool Function() moveEnabled;
 
   /// Intro: abre el regalo marcado.
   final VoidCallback onOpen;
@@ -118,6 +134,16 @@ class BoardKeyboard extends StatelessWidget {
         SingleActivator(LogicalKeyboardKey.arrowDown, alt: true): _PageIntent(
           1,
         ),
+        SingleActivator(LogicalKeyboardKey.arrowLeft, control: true):
+            _MoveIntent(-1),
+        SingleActivator(LogicalKeyboardKey.arrowRight, control: true):
+            _MoveIntent(1),
+        SingleActivator(LogicalKeyboardKey.arrowLeft, meta: true): _MoveIntent(
+          -1,
+        ),
+        SingleActivator(LogicalKeyboardKey.arrowRight, meta: true): _MoveIntent(
+          1,
+        ),
         SingleActivator(LogicalKeyboardKey.enter): _OpenIntent(),
         SingleActivator(LogicalKeyboardKey.keyN): _NewIntent(),
         SingleActivator(LogicalKeyboardKey.escape): _EscapeIntent(),
@@ -131,6 +157,10 @@ class BoardKeyboard extends StatelessWidget {
           _PageIntent: _Guarded<_PageIntent>(
             enabled: (_) => !_typing() && _boardFocus(),
             onInvoke: (intent) => onPage(intent.delta),
+          ),
+          _MoveIntent: _Guarded<_MoveIntent>(
+            enabled: (_) => !_typing() && _boardFocus() && moveEnabled(),
+            onInvoke: (intent) => onMove(intent.delta),
           ),
           _OpenIntent: _Guarded<_OpenIntent>(
             enabled: (_) => !_typing() && _noControl() && openEnabled(),

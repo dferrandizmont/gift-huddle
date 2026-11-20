@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../lock/application/lock_controller.dart';
+import '../../review/application/review_providers.dart';
 import 'pin_verify_screen.dart';
 
 /// Pide a quien tiene el móvil que demuestre que es su dueño antes de algo
@@ -31,14 +32,17 @@ Future<bool> verifyOwner(
   if (!context.mounted) {
     return false;
   }
-  final verified = await Navigator.of(context, rootNavigator: true).push<bool>(
-    MaterialPageRoute<bool>(
-      builder: (_) => PinVerifyScreen(
-        title: title,
-        message: message,
-        onSubmit: lock.unlock,
-      ),
+  final route = MaterialPageRoute<bool>(
+    builder: (_) => PinVerifyScreen(
+      title: title,
+      message: message,
+      onSubmit: lock.unlock,
+      pinLength: state.pinLength,
     ),
   );
-  return verified ?? false;
+  final result = Navigator.of(context, rootNavigator: true).push(route);
+  if (isStoreReviewEnabled) {
+    ref.read(reviewVisibilityProvider).trackPinRoute(route);
+  }
+  return await result ?? false;
 }

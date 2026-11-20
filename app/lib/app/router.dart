@@ -9,6 +9,7 @@ import '../core/layout/pane_selection.dart';
 import '../core/layout/smooth_wheel.dart';
 import '../core/layout/window_class.dart';
 import '../core/motion/fading_branch_container.dart';
+import '../core/sync/model.dart' show Gift;
 import '../core/widgets/regalos_nav_bar.dart';
 import '../core/widgets/regalos_nav_rail.dart';
 import '../core/widgets/stroke_icon.dart';
@@ -30,15 +31,17 @@ import '../features/sync/presentation/join_invite_screen.dart';
 import '../features/tour/application/tour_state.dart';
 import '../features/tour/presentation/tour_screen.dart';
 import '../features/web_board/application/board_lanes.dart'
-    show boardGiftsProvider;
+    show BoardLane, boardGiftsProvider;
 import '../features/web_board/application/board_metrics.dart';
 import '../features/web_board/application/gift_editor_panel.dart';
 import '../features/web_board/application/web_board.dart';
 import '../features/web_board/presentation/board_editor_host.dart';
 import '../features/web_board/presentation/board_keyboard.dart';
+import '../features/web_board/presentation/board_lane_move.dart';
 import '../features/web_board/presentation/board_reparto.dart';
 import '../features/web_board/presentation/board_screens.dart';
 import '../features/web_board/presentation/board_settings_screen.dart';
+import '../features/web_board/presentation/web_budget_page.dart';
 import '../features/web_board/presentation/board_sidebar.dart';
 import '../features/web_device/application/web_app_provider.dart';
 import '../features/web_device/presentation/web_desktop_frame.dart';
@@ -103,7 +106,8 @@ abstract final class AppRoutes {
   static const family = '/family';
   static const occasions = '/occasions';
 
-  /// Una fila más de `/occasions/:id`, con [kBudgetRowId] como id.
+  /// Una fila más de `/occasions/:id`, con [kBudgetRowId] como id. En el
+  /// tablero de la web es la entrada «Presupuesto» de la barra lateral.
   static const budget = '/occasions/budget';
   static const settings = '/settings';
   static const appearance = '/settings/appearance';
@@ -282,19 +286,25 @@ GoRouter buildRouter({
                 routes: [
                   GoRoute(
                     path: ':id',
-                    pageBuilder: regalosPage(
-                      (context, state) => WebBoardGate(
-                        board: BoardOccasionsScreen(
-                          selected: state.pathParameters['id']!,
-                        ),
+                    pageBuilder: regalosPage((context, state) {
+                      final id = state.pathParameters['id']!;
+                      final gate = WebBoardGate(
+                        board: BoardOccasionsScreen(selected: id),
                         classic: OccasionsWorkspace(
-                          selected: state.pathParameters['id']!,
+                          selected: id,
                           fromPeople:
                               state.uri.queryParameters['from'] == 'people',
                         ),
-                      ),
-                      panes: true,
-                    ),
+                      );
+                      // En la web, el presupuesto tiene su propia entrada:
+                      // el tablero o, por debajo de 1280, su página.
+                      return id == kBudgetRowId
+                          ? WebBudgetGate(
+                              board: BoardOccasionsScreen(selected: id),
+                              classic: gate,
+                            )
+                          : gate;
+                    }, panes: true),
                   ),
                 ],
               ),
@@ -422,15 +432,21 @@ final routerProvider = Provider<GoRouter>((ref) {
             : AppRoutes.people;
       }
       final occasions = ref.read(occasionsProvider);
+      // En la web el presupuesto no es una fila de Ocasiones: tiene su propia
+      // entrada de navegación.
+      final rows = occasions.isEmpty
+          ? const <String>[]
+          : [
+              for (final id in occasionRowIds(occasions, clock.now()))
+                if (!ref.read(webAppProvider) || id != kBudgetRowId) id,
+            ];
       return panes.redirectPeople(location, [
             for (final person in ref.read(recipientsProvider)) person.id,
           ]) ??
           panes.redirectTab(
             PaneTab.occasions,
             location,
-            occasions.isEmpty
-                ? const <String>[]
-                : occasionRowIds(occasions, clock.now()),
+            rows,
             fallback: nextOccasionRowId(occasions, clock.now()),
           ) ??
           panes.redirectTab(
@@ -480,14 +496,52 @@ class AppShell extends ConsumerWidget {
     ref
         .read(paneSelectionProvider)
         .reportTwoPanes(window.usesTwoPanes && !board);
+    // En la web por debajo de 1280 con raíl, «Presupuesto» es un quinto destino entre Ocasiones y Ajustes. Sigue viviendo en la rama de
+    // Ocasiones (`/occasions/budget`): solo cambia cómo se ve y se elige. En
+    // el tablero lo trae la barra lateral, y fuera de la web no hay.
+    // En la barra inferior de la web (ancho de móvil) no hay quinto destino:
+    // Ocasiones lleva arriba una tarjeta de Presupuesto, y desde ahí el
+    // destino elegido sigue siendo Ocasiones.
+    final web = ref.watch(webAppProvider);
+    final budgetEntry = web && rail;
+    final onBudget =
+        budgetEntry &&
+        GoRouter.of(context).routerDelegate.currentConfiguration.uri.path ==
+            AppRoutes.budget;
     final destinations = [
       NavDestination(icon: AppIcons.people, label: l10n.navPeople),
       NavDestination(icon: AppIcons.family, label: l10n.navFamilyShort),
       NavDestination(icon: AppIcons.occasions, label: l10n.navOccasions),
+      if (budgetEntry)
+        NavDestination(icon: AppIcons.budget, label: l10n.budgetTitle),
       NavDestination(icon: AppIcons.settings, label: l10n.navSettings),
     ];
+    // El destino elegido, tal como se ve (con «Presupuesto» de por medio).
+    final selectedIndex = onBudget
+        ? 3
+        : (budgetEntry && shell.currentIndex == 3 ? 4 : shell.currentIndex);
     // Tocar el destino activo vuelve a su primera pantalla.
-    void onSelected(int i) {
+    void onSelected(int shown) {
+      var i = shown;
+      if (budgetEntry) {
+        FocusManager.instance.primaryFocus?.unfocus();
+        if (shown == 3) {
+          context.go(AppRoutes.budget);
+          return;
+        }
+        // «Ocasiones» abre siempre su lista, no el presupuesto que la rama
+        // recordara; `Ajustes` es la cuarta rama.
+        if (shown == 2) {
+          context.go(AppRoutes.occasions);
+          return;
+        }
+        i = shown == 4 ? 3 : shown;
+      }
+      if (web && !board && !budgetEntry && shown == 2) {
+        // Barra inferior de la web: «Ocasiones» abre siempre su lista.
+        context.go(AppRoutes.occasions);
+        return;
+      }
       if (board) {
         // El foco de la pantalla que se va no se lleva el filete a la nueva.
         FocusManager.instance.primaryFocus?.unfocus();
@@ -496,8 +550,21 @@ class AppShell extends ConsumerWidget {
           context.go(AppRoutes.people);
           return;
         }
+        // «Ocasiones» abre siempre el tablero de ocasiones: la rama podría
+        // recordar el presupuesto, que ahora tiene su propia entrada.
+        if (i == 2) {
+          context.go(AppRoutes.occasions);
+          return;
+        }
       }
       shell.goBranch(i, initialLocation: i == shell.currentIndex);
+    }
+
+    // «Presupuesto», entrada propia de la barra lateral del tablero: abre su
+    // pantalla (`/occasions/budget`).
+    void openBudget() {
+      FocusManager.instance.primaryFocus?.unfocus();
+      context.go(AppRoutes.budget);
     }
 
     // En el tablero el estado de guardado va al pie de la barra lateral.
@@ -514,7 +581,12 @@ class AppShell extends ConsumerWidget {
       child: WebDesktopFrame(
         child: Scaffold(
           body: board
-              ? _BoardFrame(shell: shell, onSelected: onSelected, child: area)
+              ? _BoardFrame(
+                  shell: shell,
+                  onSelected: onSelected,
+                  onBudget: openBudget,
+                  child: area,
+                )
               : Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -523,7 +595,7 @@ class AppShell extends ConsumerWidget {
                     if (rail)
                       RegalosNavRail(
                         semanticLabel: l10n.navMainLabel,
-                        selectedIndex: shell.currentIndex,
+                        selectedIndex: selectedIndex,
                         destinations: destinations,
                         onSelected: onSelected,
                         // El estado de guardado de la web, abajo del raíl.
@@ -538,7 +610,7 @@ class AppShell extends ConsumerWidget {
               ? null
               : RegalosNavBar(
                   semanticLabel: l10n.navMainLabel,
-                  selectedIndex: shell.currentIndex,
+                  selectedIndex: selectedIndex,
                   destinations: destinations,
                   onSelected: onSelected,
                 ),
@@ -555,11 +627,13 @@ class _BoardFrame extends ConsumerWidget {
   const _BoardFrame({
     required this.shell,
     required this.onSelected,
+    required this.onBudget,
     required this.child,
   });
 
   final StatefulNavigationShell shell;
   final ValueChanged<int> onSelected;
+  final VoidCallback onBudget;
 
   /// El contenido (sin `Expanded`: lo coloca el marco del editor).
   final Widget child;
@@ -609,6 +683,43 @@ class _BoardFrame extends ConsumerWidget {
     }
   }
 
+  /// Ctrl o Cmd con ← y →: el regalo marcado pasa al carril anterior o al
+  /// siguiente (no sigue más allá del primero y del último).
+  void _moveGift(BuildContext context, WidgetRef ref, int delta) {
+    final gift = _markedGift(ref);
+    final lane = gift == null ? null : BoardLane.of(gift.status);
+    if (gift == null || lane == null || !_onLanes(context)) {
+      return;
+    }
+    final to = (lane.index + delta).clamp(0, BoardLane.values.length - 1);
+    if (to == lane.index) {
+      return;
+    }
+    moveGiftToLane(context, ref, gift, BoardLane.values[to], reveal: true);
+  }
+
+  /// Si la pantalla enseña los carriles: «Hoy» o el tablero de una ocasión (no
+  /// la tabla de una persona).
+  bool _onLanes(BuildContext context) {
+    final segments = _location(context).pathSegments;
+    if (segments.isEmpty ||
+        (segments.length == 1 && segments.first == 'people')) {
+      return true;
+    }
+    return segments.first == 'occasions' &&
+        segments.length >= 2 &&
+        segments[1] != kBudgetRowId;
+  }
+
+  /// El regalo marcado con el teclado, si está en un carril del tablero.
+  Gift? _markedGift(WidgetRef ref) {
+    final id = ref.read(boardGiftCursorProvider).current;
+    if (id == null) {
+      return null;
+    }
+    return ref.read(boardGiftsProvider).where((g) => g.id == id).firstOrNull;
+  }
+
   /// N: un regalo nuevo para la persona o la ocasión de la pantalla.
   void _newGift(BuildContext context) {
     final segments = _location(context).pathSegments;
@@ -637,6 +748,15 @@ class _BoardFrame extends ConsumerWidget {
     return BoardKeyboard(
       onStep: (delta) => _stepGift(context, ref, delta),
       onPage: (delta) => _stepPage(context, ref, delta),
+      onMove: (delta) => _moveGift(context, ref, delta),
+      // Solo donde hay carriles (el tablero «Hoy» y el de una ocasión) y con
+      // un regalo marcado que no esté entregado.
+      moveEnabled: () {
+        final gift = _markedGift(ref);
+        return gift != null &&
+            BoardLane.of(gift.status) != null &&
+            _onLanes(context);
+      },
       onOpen: () => _openGift(context, ref, cursor.current),
       onNew: () => _newGift(context),
       // Esc cierra el editor aunque el foco no esté dentro de él; sin editor,
@@ -649,7 +769,7 @@ class _BoardFrame extends ConsumerWidget {
         children: [
           PaneScope(
             role: PaneRole.list,
-            child: BoardSidebar(onSection: onSelected),
+            child: BoardSidebar(onSection: onSelected, onBudget: onBudget),
           ),
           Expanded(
             child: BoardEditorHost(sidebar: sidebar, child: child),

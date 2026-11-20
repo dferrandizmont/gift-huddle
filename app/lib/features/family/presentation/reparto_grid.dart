@@ -134,6 +134,12 @@ class RepartoBoardMode extends InheritedWidget {
 /// crece con el ancho: celdas de hasta 120 × 56, nombres entre 180 y 280 y
 /// 1400 de ancho como máximo, centrada. Si ni con eso caben las celdas de 68,
 /// valen las medidas de `wide`.
+///
+/// Con `wide` o `desktop`, además, el tope de la celda sube con el ancho del
+/// sitio, sin saltos ([wideCellMaxFor]): de 96 a 120 entre 520 y 760 dp y de
+/// 120 a su tope (de 168 a 210 según cuántos regalan) entre 760 y 1286 dp. Cuando la celda pasa de 120 de ancho, todo
+/// lo que la rodea crece en proporción ([scale], hasta 1,4): alto de la
+/// celda, cifra, marca, barra, avatar, nombres, cabecera, totales y leyenda.
 class RepartoLayout {
   /// Calcula las medidas.
   factory RepartoLayout({
@@ -148,6 +154,11 @@ class RepartoLayout {
     const gap = 3.0;
     final n = math.max(columns, 1);
     final factor = scaler.scale(1).clamp(1.0, 1.25);
+    // Cuánto crece todo cuando la celda pasa de 120 de ancho (1 en el móvil).
+    double growth(double cell) =>
+        math.min(math.max(cell / desktopCellWidth, 1.0), maxScale);
+    // La columna de nombres crece menos que la celda.
+    double leftCap(double base, double s) => base * (1 + (s - 1) * 0.4);
     if (board) {
       // El tablero de la web de escritorio: alineada a la izquierda, con los
       // nombres a 220 y celdas de `clamp(…, 120, 280)` que crecen con el
@@ -184,21 +195,26 @@ class RepartoLayout {
     if (desktop) {
       final roomy = (avail - desktopLeftMin) / n;
       if (roomy >= 68 + gap) {
-        final slot = math.min(desktopCellWidth + gap, roomy);
+        final cellMax = math.max(desktopCellWidth, wideCellMaxFor(width, n));
+        final slot = math.min(cellMax + gap, roomy);
+        final s = growth(slot - gap);
         final left = (avail - slot * n)
-            .clamp(desktopLeftMin, desktopLeftMax)
+            .clamp(desktopLeftMin, leftCap(desktopLeftMax, s))
             .toDouble();
-        final cellH = desktopCellHeight * factor;
+        final cellH = desktopCellHeight * s * factor;
+        // Alineada a la izquierda, con el margen de siempre: lo que sobra
+        // queda a la derecha.
         return RepartoLayout._(
           compact: false,
-          pad: (width - left - slot * n) / 2,
+          pad: pad,
           gap: gap,
           slot: slot,
           leftWidth: left,
           cellHeight: cellH,
-          rowHeight: cellH + 8,
-          headerHeight: 58.0 * factor,
+          rowHeight: cellH + 8 * s,
+          headerHeight: 58.0 * (1 + (s - 1) * 0.5) * factor,
           width: width,
+          scale: s,
         );
       }
     }
@@ -206,11 +222,12 @@ class RepartoLayout {
       // El hueco de cada columna si los nombres se quedan en su mínimo.
       final roomy = (avail - wideLeftMin) / n;
       if (roomy >= 68 + gap) {
-        final slot = math.min(wideCellWidth + gap, roomy);
+        final slot = math.min(wideCellMaxFor(width, n) + gap, roomy);
+        final s = growth(slot - gap);
         final left = (avail - slot * n)
-            .clamp(wideLeftMin, wideLeftMax)
+            .clamp(wideLeftMin, leftCap(wideLeftMax, s))
             .toDouble();
-        final cellH = wideCellHeight * factor;
+        final cellH = wideCellHeight * s * factor;
         return RepartoLayout._(
           compact: false,
           pad: (width - left - slot * n) / 2,
@@ -218,9 +235,10 @@ class RepartoLayout {
           slot: slot,
           leftWidth: left,
           cellHeight: cellH,
-          rowHeight: cellH + 8,
-          headerHeight: 58.0 * factor,
+          rowHeight: cellH + 8 * s,
+          headerHeight: 58.0 * (1 + (s - 1) * 0.5) * factor,
           width: width,
+          scale: s,
         );
       }
       if (roomy >= 44 + gap) {
@@ -271,12 +289,41 @@ class RepartoLayout {
     required this.rowHeight,
     required this.headerHeight,
     required this.width,
+    this.scale = 1,
     this.verticalNames = false,
     this.nameLines = const <int>[],
   });
 
-  /// Ancho máximo de una celda en una ventana ancha.
+  /// Ancho máximo de una celda en una ventana ancha de 520 dp (el más
+  /// estrecho que se da).
   static const double wideCellWidth = 96;
+
+  /// Cuánto puede crecer todo lo que rodea a la celda (la celda más grande
+  /// es 1,4 veces la de 120).
+  static const double maxScale = 1.4;
+
+  /// El ancho máximo de una celda en un sitio de [width] dp con [columns]
+  /// columnas: 96 hasta 520, 120 a 760 y, desde 1286, 210 (hasta tres
+  /// columnas), 184 (cuatro) o 190 (más); sin saltos entre medias.
+  static double wideCellMaxFor(double width, [int columns = 5]) {
+    final mid =
+        ((width - RegalosGridWidths.gridRampStart) /
+                (RegalosGridWidths.gridRampMid -
+                    RegalosGridWidths.gridRampStart))
+            .clamp(0.0, 1.0);
+    final big =
+        ((width - RegalosGridWidths.gridRampMid) /
+                (RegalosGridWidths.gridRampEnd - RegalosGridWidths.gridRampMid))
+            .clamp(0.0, 1.0);
+    final top = columns <= 3
+        ? RegalosGridWidths.cellMaxFew
+        : columns == 4
+        ? RegalosGridWidths.cellMaxFour
+        : RegalosGridWidths.cellMaxMany;
+    return wideCellWidth +
+        (desktopCellWidth - wideCellWidth) * mid +
+        (top - desktopCellWidth) * big;
+  }
 
   /// Alto de una celda en una ventana ancha (sin el modo compacto).
   static const double wideCellHeight = 52;
@@ -320,6 +367,7 @@ class RepartoLayout {
     rowHeight: rowHeight,
     headerHeight: headerHeight,
     width: outer,
+    scale: scale,
   );
 
   /// Modo compacto: nombres de quienes regalan inclinados. En el móvil, con
@@ -350,6 +398,31 @@ class RepartoLayout {
   /// Ancho total.
   final double width;
 
+  /// Cuánto crece todo lo que rodea a la celda cuando esta pasa de 120 de
+  /// ancho en una ventana ancha: de 1 (el móvil y las celdas de hasta 120) a
+  /// 1,4.
+  final double scale;
+
+  /// Cuánto crece el texto secundario (nombres, cabecera, totales, leyenda):
+  /// la mitad que las cifras de las celdas (hasta 1,2), para que no se vea
+  /// desproporcionado.
+  double get textScale => 1 + (scale - 1) * 0.5;
+
+  /// Lado del avatar de la fila: crece como los nombres.
+  double get avatarSize => 22 * textScale;
+
+  /// Tamaño de la cifra de una celda.
+  double get numberSize => (compact ? 16.0 : 17.0) * scale;
+
+  /// Tamaño de la marca de «todo comprado».
+  double get checkSize => 13 * scale;
+
+  /// Tamaño del «+» de una celda vacía.
+  double get plusSize => 14 * scale;
+
+  /// Alto de la barra de comprados.
+  double get barHeight => 4 * scale;
+
   /// Con letra grande, los nombres de quienes regalan van girados a la
   /// vertical (de abajo arriba), hasta en dos líneas, y la cabecera es tan
   /// alta como el más largo (`fitGiverNames`).
@@ -371,9 +444,26 @@ class RepartoLayout {
         rowHeight: rowHeight,
         headerHeight: height,
         width: width,
+        scale: scale,
         verticalNames: true,
         nameLines: lines,
       );
+
+  /// Esta misma medida con la cabecera a [height] (nombres en horizontal).
+  RepartoLayout _withHeaderHeight(double height) => RepartoLayout._(
+    compact: compact,
+    pad: pad,
+    gap: gap,
+    slot: slot,
+    leftWidth: leftWidth,
+    cellHeight: cellHeight,
+    rowHeight: rowHeight,
+    headerHeight: height,
+    width: width,
+    scale: scale,
+    verticalNames: verticalNames,
+    nameLines: nameLines,
+  );
 
   /// Ancho de la celda.
   double get cellWidth => slot - gap;
@@ -593,11 +683,9 @@ class _RepartoGridState extends State<RepartoGrid> {
         board: RepartoBoardMode.of(context),
       );
       final l10n = AppLocalizations.of(context);
-      final names = [
-        for (final g in widget.givers) giverDisplayName(l10n, g.name),
-      ];
+      final names = [for (final g in widget.givers) giverNameFor(l10n, g)];
       var labelStyle = DefaultTextStyle.of(context).style
-          .merge(_giverLabelStyle(RegalosTokens.of(context)));
+          .merge(_giverLabelStyle(RegalosTokens.of(context), base.textScale));
       if (MediaQuery.boldTextOf(context)) {
         labelStyle = labelStyle.merge(
           const TextStyle(fontWeight: FontWeight.bold),
@@ -734,13 +822,19 @@ bool _sameNames(List<String> a, List<String> b) {
 
 const double _rotation = -58 * math.pi / 180;
 
+/// [style] con el tamaño de letra multiplicado por [scale] (1 no lo toca).
+TextStyle _scaled(TextStyle style, double scale) => scale == 1
+    ? style
+    : style.copyWith(fontSize: (style.fontSize ?? 14) * scale);
+
 /// El estilo de la cabecera de quien regala.
-TextStyle _giverLabelStyle(RegalosTokens t) => t.styles.caption.copyWith(
-  fontSize: 12,
-  fontWeight: FontWeight.w600,
-  color: t.text,
-  height: 1.2,
-);
+TextStyle _giverLabelStyle(RegalosTokens t, [double scale = 1]) =>
+    t.styles.caption.copyWith(
+      fontSize: 12 * scale,
+      fontWeight: FontWeight.w600,
+      color: t.text,
+      height: 1.2,
+    );
 
 /// Punto de color (10) y aire (5) bajo el nombre vertical.
 const double _verticalDotSpace = 15;
@@ -759,10 +853,22 @@ class _VerticalFit {
   final List<int> lines;
 }
 
+/// Lo medido para una columna: la cabecera en vertical (`null` si no hace
+/// falta) y, si no, el alto del texto de los nombres en horizontal.
+class _FitResult {
+  const _FitResult(this.vertical, this.horizontalTextHeight);
+
+  final _VerticalFit? vertical;
+
+  /// Alto de la línea o líneas más altas de los nombres en horizontal; solo se
+  /// mide si no hay vertical y la columna no es compacta.
+  final double horizontalTextHeight;
+}
+
 /// Medidas ya hechas: la cabecera se calcula en el `SliverLayoutBuilder` y se
 /// repetiría al desplazar. Clave: columna, nombres, estilo, escala, idioma y
 /// dirección. `null` si con esas medidas no hace falta la vertical.
-final Map<Object, _VerticalFit?> _fitCache = <Object, _VerticalFit?>{};
+final Map<Object, _FitResult> _fitCache = <Object, _FitResult>{};
 
 /// Cuántas veces se ha medido de verdad (los aciertos de caché no cuentan).
 @visibleForTesting
@@ -798,11 +904,9 @@ RepartoLayout fitGiverNames({
     locale,
     direction,
   );
-  final _VerticalFit? fit;
-  if (_fitCache.containsKey(key)) {
-    fit = _fitCache[key];
-  } else {
-    fit = _measureVertical(
+  var result = _fitCache[key];
+  if (result == null) {
+    final vertical = _measureVertical(
       layout: layout,
       names: names,
       style: style,
@@ -810,14 +914,79 @@ RepartoLayout fitGiverNames({
       direction: direction,
       locale: locale,
     );
+    result = _FitResult(
+      vertical,
+      vertical == null && !layout.compact
+          ? _horizontalTextHeight(
+              layout: layout,
+              names: names,
+              style: style,
+              scaler: scaler,
+              direction: direction,
+              locale: locale,
+            )
+          : 0,
+    );
     if (_fitCache.length >= 32) {
       _fitCache.remove(_fitCache.keys.first);
     }
-    _fitCache[key] = fit;
+    _fitCache[key] = result;
   }
-  return fit == null
-      ? layout
-      : layout._withVerticalNames(fit.height, fit.lines);
+  final fit = result.vertical;
+  if (fit != null) {
+    return layout._withVerticalNames(fit.height, fit.lines);
+  }
+  if (result.horizontalTextHeight == 0) {
+    return layout;
+  }
+  // Punto (10), su aire, el texto de los nombres y los 6 que le quita la
+  // cabecera a su alto: con letra grande un nombre pasa a dos líneas y la
+  // cabecera crece lo que haga falta en vez de quedarse con el alto normal.
+  final needed =
+      10 + 4 * layout.textScale + result.horizontalTextHeight + 6 + 1;
+  return needed > layout.headerHeight
+      ? layout._withHeaderHeight(needed)
+      : layout;
+}
+
+/// El alto del nombre más alto en horizontal, medido como lo pinta
+/// [FittedGiverName]: al ancho de la columna, con el tamaño que elige y hasta
+/// dos líneas (una con «…» si ni rebajándolo caben sus palabras).
+double _horizontalTextHeight({
+  required RepartoLayout layout,
+  required List<String> names,
+  required TextStyle style,
+  required TextScaler scaler,
+  required TextDirection direction,
+  Locale? locale,
+}) {
+  var tallest = 0.0;
+  final base = style.fontSize ?? 12;
+  // Sin recortar: [FittedGiverName] mide y pinta el nombre tal cual.
+  for (final name in names) {
+    final factor = FittedGiverName.factorFor(
+      name: name,
+      effective: style,
+      scaler: scaler,
+      direction: direction,
+      locale: locale,
+      maxWidth: layout.slot,
+    );
+    final painter = TextPainter(
+      text: TextSpan(
+        text: name,
+        style: factor == null ? style : style.copyWith(fontSize: base * factor),
+      ),
+      textDirection: direction,
+      textScaler: scaler,
+      locale: locale,
+      textAlign: TextAlign.center,
+      maxLines: factor == null ? 1 : 2,
+    )..layout(maxWidth: layout.slot);
+    tallest = math.max(tallest, painter.height);
+    painter.dispose();
+  }
+  return tallest;
 }
 
 _VerticalFit? _measureVertical({
@@ -926,7 +1095,7 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final t = RegalosTokens.of(context);
-    final labelStyle = _giverLabelStyle(t);
+    final labelStyle = _giverLabelStyle(t, layout.textScale);
     return DecoratedBox(
       decoration: BoxDecoration(
         color: t.bg,
@@ -944,12 +1113,16 @@ class _Header extends StatelessWidget {
             SizedBox(
               width: layout.leftWidth,
               child: Padding(
-                padding: const EdgeInsets.only(bottom: 2),
+                // Con la rejilla grande, «Recibe» baja hasta la línea base de
+                // los nombres de quienes regalan.
+                padding: EdgeInsets.only(bottom: layout.scale > 1 ? 0 : 2),
                 child: RepartoBlock(
                   index: 2,
                   child: FitText(
                     l10n.familyRecipientHeader,
-                    style: t.styles.caption.copyWith(fontSize: 13),
+                    style: t.styles.caption.copyWith(
+                      fontSize: 13 * layout.textScale,
+                    ),
                   ),
                 ),
               ),
@@ -965,7 +1138,7 @@ class _Header extends StatelessWidget {
                   child: _GiverHeader(
                     layout: layout,
                     giver: givers[i],
-                    name: giverDisplayName(l10n, givers[i].name),
+                    name: giverNameFor(l10n, givers[i]),
                     style: labelStyle,
                     lines: layout.verticalNames ? layout.nameLines[i] : 1,
                     // Espacio que queda hasta el borde para el nombre inclinado.
@@ -1043,7 +1216,7 @@ class _GiverHeader extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             GiverDot(colorIndex: giver.colorIndex, size: 10),
-            const SizedBox(height: 4),
+            SizedBox(height: 4 * layout.textScale),
             FittedGiverName(name: name, style: style),
           ],
         ),
@@ -1216,12 +1389,14 @@ class FittedGiverName extends StatelessWidget {
 /// ocupan todo el ancho: a su lado no caben ni sus palabras más largas.
 class _LeftCell extends StatelessWidget {
   const _LeftCell({
+    required this.gap,
     required this.large,
     required this.avatar,
     required this.name,
     required this.extras,
   });
 
+  final double gap;
   final bool large;
   final Widget avatar;
   final Widget name;
@@ -1236,7 +1411,7 @@ class _LeftCell extends StatelessWidget {
           Row(
             children: [
               avatar,
-              const SizedBox(width: 7),
+              SizedBox(width: gap),
               Expanded(child: name),
             ],
           ),
@@ -1247,7 +1422,7 @@ class _LeftCell extends StatelessWidget {
     return Row(
       children: [
         avatar,
-        const SizedBox(width: 7),
+        SizedBox(width: gap),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1322,7 +1497,7 @@ class _RecipientRow extends StatelessWidget {
         recipient.name,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
-        style: repartoGridNameStyle(t),
+        style: _scaled(repartoGridNameStyle(t), layout.textScale),
       ),
     );
     return Padding(
@@ -1348,6 +1523,7 @@ class _RecipientRow extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.only(right: 6),
                   child: _LeftCell(
+                    gap: 7 * layout.textScale,
                     large: isLargeText(context),
                     avatar: _PersonTap(
                       label: openLabel,
@@ -1358,6 +1534,7 @@ class _RecipientRow extends StatelessWidget {
                         child: RepartoAvatar(
                           name: recipient.name,
                           colorIndex: recipient.colorIndex,
+                          size: layout.avatarSize,
                         ),
                       ),
                     ),
@@ -1396,7 +1573,7 @@ class _RecipientRow extends StatelessWidget {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: t.styles.caption.copyWith(
-                              fontSize: 11,
+                              fontSize: 11 * layout.textScale,
                               height: 1.2,
                             ),
                           ),
@@ -1407,6 +1584,7 @@ class _RecipientRow extends StatelessWidget {
                           anchor: repartoUnassignedAnchor(recipient.id),
                           text: l10n.familyNoGiverCount(unassignedCount),
                           color: colors.ink,
+                          fontSize: 11 * layout.textScale,
                           onOpen: (from) =>
                               onOpenCell(recipient, null, from, t.surface),
                         ),
@@ -1702,6 +1880,7 @@ class _UnassignedLink extends StatelessWidget {
     required this.anchor,
     required this.text,
     required this.color,
+    required this.fontSize,
     required this.onOpen,
   });
 
@@ -1709,6 +1888,7 @@ class _UnassignedLink extends StatelessWidget {
   final String anchor;
   final String text;
   final Color color;
+  final double fontSize;
   final void Function(Rect from) onOpen;
 
   @override
@@ -1735,7 +1915,7 @@ class _UnassignedLink extends StatelessWidget {
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
               style: t.styles.caption.copyWith(
-                fontSize: 11,
+                fontSize: fontSize,
                 height: 1.2,
                 fontWeight: FontWeight.w600,
                 color: color,
@@ -1857,7 +2037,7 @@ class _RepartoCellState extends State<_RepartoCell> {
   }
 
   String _semantics(AppLocalizations l10n) {
-    final giverName = giverDisplayName(l10n, widget.giver.name);
+    final giverName = giverNameFor(l10n, widget.giver);
     final personName = widget.recipient.name;
     final s = widget.stats;
     if (s.count == 0) {
@@ -1974,7 +2154,7 @@ class _CellFace extends StatelessWidget {
     final colors = repartoPersonColors(t, recipient.colorIndex);
     final kind = stats.kind;
     final numberStyle = TextStyle(
-      fontSize: layout.compact ? 16 : 17,
+      fontSize: layout.numberSize,
       height: 1,
       fontWeight: FontWeight.w700,
       color: kind == RepartoCellKind.allBought ? colors.ink : t.text,
@@ -1988,7 +2168,11 @@ class _CellFace extends StatelessWidget {
         radius: RegalosShape.cardRadius,
         strokeWidth: 1.2,
         child: Center(
-          child: StrokeIcon(AppIcons.plus, size: 14, color: t.ideaStroke),
+          child: StrokeIcon(
+            AppIcons.plus,
+            size: layout.plusSize,
+            color: t.ideaStroke,
+          ),
         ),
       ),
       _ => DecoratedBox(
@@ -2031,17 +2215,21 @@ class _CellFace extends StatelessWidget {
                 ),
               ),
             ),
-            SizedBox(height: kind == RepartoCellKind.allBought ? 3 : 5),
+            SizedBox(
+              height:
+                  (kind == RepartoCellKind.allBought ? 3 : 5) * layout.scale,
+            ),
             if (kind == RepartoCellKind.allBought)
               StrokeIcon(
                 AppIcons.check,
-                size: 13,
+                size: layout.checkSize,
                 color: colors.ink,
-                strokeWidth: 2.25,
+                strokeWidth: 2.25 * layout.textScale,
               )
             else
               _ProgressBar(
                 width: layout.barWidth,
+                height: layout.barHeight,
                 fraction: stats.count == 0 ? 0 : stats.bought / stats.count,
                 color: colors.ink,
                 track: t.track,
@@ -2064,7 +2252,11 @@ class _CellFace extends StatelessWidget {
           ),
         ),
         if (duplicate)
-          const Positioned(top: -5, right: -5, child: _DuplicateMark()),
+          Positioned(
+            top: -5,
+            right: -5,
+            child: _DuplicateMark(scale: layout.textScale),
+          ),
       ],
     );
   }
@@ -2073,12 +2265,14 @@ class _CellFace extends StatelessWidget {
 class _ProgressBar extends StatelessWidget {
   const _ProgressBar({
     required this.width,
+    required this.height,
     required this.fraction,
     required this.color,
     required this.track,
   });
 
   final double width;
+  final double height;
   final double fraction;
   final Color color;
   final Color track;
@@ -2088,9 +2282,9 @@ class _ProgressBar extends StatelessWidget {
     final motion = RegalosMotion.of(context);
     return SizedBox(
       width: width,
-      height: 4,
+      height: height,
       child: ClipRRect(
-        borderRadius: const BorderRadius.all(Radius.circular(2)),
+        borderRadius: BorderRadius.all(Radius.circular(height / 2)),
         child: ColoredBox(
           color: track,
           child: Align(
@@ -2114,7 +2308,10 @@ class _ProgressBar extends StatelessWidget {
 
 /// La marca de posible duplicado en la esquina de la celda.
 class _DuplicateMark extends StatelessWidget {
-  const _DuplicateMark();
+  const _DuplicateMark({this.scale = 1});
+
+  /// Cuánto crece (1 en el móvil).
+  final double scale;
 
   @override
   Widget build(BuildContext context) {
@@ -2123,18 +2320,18 @@ class _DuplicateMark extends StatelessWidget {
     return ExcludeSemantics(
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: t.isDark ? warn.pastelD : warn.pastel,
+          color: warn.fillOf(t.isDark),
           borderRadius: const BorderRadius.all(Radius.circular(4)),
           border: Border.all(color: t.bg, width: 2),
         ),
         child: SizedBox.square(
-          dimension: 16,
+          dimension: 16 * scale,
           child: Center(
             child: Text(
               '!',
               textScaler: TextScaler.noScaling,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 11 * scale,
                 height: 1,
                 fontWeight: FontWeight.w800,
                 color: t.isDark ? warn.onFill : warn.tinta,
@@ -2207,8 +2404,11 @@ class _Footer extends StatelessWidget {
                         children: [
                           Text(
                             l10n.familyTotalRow,
-                            style: t.styles.metaStrong.copyWith(
-                              fontWeight: FontWeight.w700,
+                            style: _scaled(
+                              t.styles.metaStrong.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                              layout.textScale,
                             ),
                           ),
                           // Un importe no se corta con «…»: con letra grande
@@ -2221,7 +2421,9 @@ class _Footer extends StatelessWidget {
                                   ? formatCents(cents, l10n.localeName)
                                   : l10n.familyNoPrice,
                               maxLines: 1,
-                              style: t.styles.caption.copyWith(fontSize: 11),
+                              style: t.styles.caption.copyWith(
+                                fontSize: 11 * layout.textScale,
+                              ),
                             ),
                           ),
                         ],
@@ -2233,7 +2435,7 @@ class _Footer extends StatelessWidget {
                       width: layout.slot,
                       child: Semantics(
                         label:
-                            '${giverDisplayName(l10n, g.name)}: ${l10n.giftCount(perGiver[g.id]!)}',
+                            '${giverNameFor(l10n, g)}: ${l10n.giftCount(perGiver[g.id]!)}',
                         excludeSemantics: true,
                         child: Center(
                           child: Padding(
@@ -2250,7 +2452,10 @@ class _Footer extends StatelessWidget {
                                 textScaler: MediaQuery.textScalerOf(context)
                                     .clamp(maxScaleFactor: 1.2),
                                 style: t.styles.metaStrong.copyWith(
-                                  fontSize: 15,
+                                  fontSize: math.min(
+                                    15 * layout.textScale,
+                                    layout.numberSize,
+                                  ),
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
@@ -2268,7 +2473,7 @@ class _Footer extends StatelessWidget {
             onOpenPerson: onOpenPerson,
             onInclude: onInclude,
           ),
-          const _Legend(),
+          _Legend(scale: layout.textScale),
         ],
       ),
     );
@@ -2278,7 +2483,10 @@ class _Footer extends StatelessWidget {
 /// La leyenda de los tres estados de una celda: Nada, Por comprar y Todo
 /// comprado.
 class _Legend extends StatelessWidget {
-  const _Legend();
+  const _Legend({this.scale = 1});
+
+  /// Cuánto crece (1 en el móvil).
+  final double scale;
 
   @override
   Widget build(BuildContext context) {
@@ -2289,55 +2497,60 @@ class _Legend extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         mark,
-        const SizedBox(width: 6),
-        Text(text, style: t.styles.caption.copyWith(fontSize: 12)),
+        SizedBox(width: 6 * scale),
+        Text(text, style: t.styles.caption.copyWith(fontSize: 12 * scale)),
       ],
     );
+    final markWidth = 16 * scale;
+    final markHeight = 12 * scale;
+    // El móvil, con su 3 de siempre; con las marcas más grandes, el radio
+    // pequeño del diseño.
+    final markRadius = scale > 1 ? RegalosShape.tinyRadius : 3.0;
     return Padding(
-      padding: const EdgeInsets.only(top: 14),
+      padding: EdgeInsets.only(top: 14 * scale),
       child: Wrap(
-        spacing: 16,
-        runSpacing: 6,
+        spacing: 16 * scale,
+        runSpacing: 6 * scale,
         children: [
           item(
             DashedBox(
               color: t.outline,
-              radius: 3,
+              radius: markRadius,
               strokeWidth: 1,
-              child: const SizedBox(width: 16, height: 12),
+              child: SizedBox(width: markWidth, height: markHeight),
             ),
             l10n.familyLegendNothing,
           ),
           item(
             Container(
-              width: 16,
-              height: 12,
+              width: markWidth,
+              height: markHeight,
               decoration: BoxDecoration(
                 color: t.bg,
                 border: Border.all(color: t.chipBorder),
-                borderRadius: const BorderRadius.all(Radius.circular(3)),
+                borderRadius: BorderRadius.all(Radius.circular(markRadius)),
               ),
             ),
             l10n.familyLegendToBuy,
           ),
           item(
             Container(
-              width: 16,
-              height: 12,
+              width: markWidth,
+              height: markHeight,
               decoration: BoxDecoration(
                 color: accent.fill,
-                borderRadius: const BorderRadius.all(Radius.circular(3)),
+                borderRadius: BorderRadius.all(Radius.circular(markRadius)),
               ),
             ),
             l10n.familyLegendAllBought,
           ),
           item(
             Container(
-              width: 16,
-              height: 12,
+              width: markWidth,
+              height: markHeight,
               decoration: BoxDecoration(
                 color: t.surface,
-                borderRadius: const BorderRadius.all(Radius.circular(3)),
+                borderRadius: BorderRadius.all(Radius.circular(markRadius)),
               ),
             ),
             l10n.familyLegendExcluded,

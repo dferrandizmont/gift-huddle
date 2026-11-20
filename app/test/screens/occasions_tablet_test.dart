@@ -127,6 +127,7 @@ void main() {
 
   tabletScreenTest('Presupuesto va en la columna', (tester, phone, size) async {
     await seedSample(tester, phone);
+    await setBudgets(tester, phone, {'seed-santa': 15000, 'seed-kings': 30000});
     await pumpRegalos(tester, phone);
     await _openOccasions(tester);
     await tester.tap(_row('Presupuesto de la casa'));

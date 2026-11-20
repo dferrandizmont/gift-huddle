@@ -482,7 +482,7 @@ void main() {
                   )
                   .decoration
               as BoxDecoration;
-      expect(deco.color, t.fill);
+      expect(deco.color, t.selection);
       expect(deco.borderRadius, RegalosShape.chip);
       await _go(tester, 'Reparto');
       expect(tester.takeException(), isNull);
@@ -507,7 +507,7 @@ void main() {
             matching: find.byType(AnimatedContainer),
           ),
         );
-        return (box.decoration! as BoxDecoration).color == t.fill;
+        return (box.decoration! as BoxDecoration).color == t.selection;
       }
 
       expect(lit('Personas'), isTrue);

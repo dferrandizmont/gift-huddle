@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../motion/regalos_page_transitions.dart';
 import 'accent_palette.dart';
+import 'app_scrollbar.dart';
 import 'app_typography.dart';
 import 'occasion_theme.dart';
 import 'regalos_shape.dart';
@@ -31,11 +32,11 @@ ThemeData buildTheme(
   final scheme =
       ColorScheme.fromSeed(seedColor: p.tinta, brightness: brightness).copyWith(
         primary: t.ink,
-        onPrimary: dark ? p.onFill : Colors.white,
+        onPrimary: dark ? kVeilBackground : Colors.white,
         primaryContainer: t.fill,
         onPrimaryContainer: t.onFill,
         secondary: t.ink,
-        onSecondary: dark ? p.onFill : Colors.white,
+        onSecondary: dark ? kVeilBackground : Colors.white,
         secondaryContainer: t.fill,
         onSecondaryContainer: t.onFill,
         tertiaryContainer: t.soft,
@@ -72,21 +73,8 @@ ThemeData buildTheme(
     // fuera): las manchas de Material por defecto sobrarían.
     hoverColor: Colors.transparent,
     focusColor: Colors.transparent,
-    // Barra de desplazamiento fina, sin flechas. El pulgar usa el borde de
-    // control (`outline`): el del filete (`separator`) apenas se veía en
-    // oscuro (1,4:1). Al pasar el ratón se oscurece (claro) o se aclara
-    // (oscuro) un tercio hacia el texto.
-    scrollbarTheme: ScrollbarThemeData(
-      thickness: const WidgetStatePropertyAll<double>(6),
-      radius: const Radius.circular(3),
-      thumbColor: WidgetStateProperty.resolveWith<Color>(
-        (states) => states.contains(WidgetState.hovered)
-            ? Color.lerp(t.outline, t.text, 0.35)!
-            : t.outline,
-      ),
-      crossAxisMargin: 2,
-      mainAxisMargin: 2,
-    ),
+    // Barra de desplazamiento fina, de tinta suave (ver `AppScrollbar`).
+    scrollbarTheme: AppScrollbar.theme(t),
     // Android: la pantalla nueva llega con muelle y la de debajo se aparta.
     // iOS: la nativa, que trae el gesto de volver deslizando.
     pageTransitionsTheme: const PageTransitionsTheme(
@@ -115,10 +103,13 @@ ThemeData buildTheme(
       highlightElevation: dark ? 0 : 6,
       shape: const RoundedRectangleBorder(borderRadius: RegalosShape.fab),
     ),
+    // Los botones miden 48 también en escritorio: sin `standard`, la densidad
+    // compacta de Windows, macOS y Linux les quita 8 y se quedan en 40.
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: t.fill,
         foregroundColor: t.onFill,
+        visualDensity: VisualDensity.standard,
         minimumSize: const Size(44, 48),
         shape: const RoundedRectangleBorder(borderRadius: RegalosShape.button),
         textStyle: t.styles.label.copyWith(
@@ -138,7 +129,9 @@ ThemeData buildTheme(
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: t.ink,
+        foregroundColor: t.text,
+        backgroundColor: t.field,
+        visualDensity: VisualDensity.standard,
         minimumSize: const Size(44, 44),
         // Sin esto, Material 3 le da forma de píldora.
         shape: const RoundedRectangleBorder(borderRadius: RegalosShape.button),
@@ -148,13 +141,18 @@ ThemeData buildTheme(
     ),
     chipTheme: ChipThemeData(
       backgroundColor: Colors.transparent,
-      selectedColor: t.fill,
+      selectedColor: t.selection,
       side: BorderSide(color: t.chipBorder),
       labelStyle: t.styles.metaStrong,
       shape: const RoundedRectangleBorder(borderRadius: RegalosShape.chip),
     ),
     inputDecorationTheme: InputDecorationTheme(
+      // 14 de relleno y 52 de alto mínimo (la línea de un campo mide 22 y la de
+      // un selector, 24): todos igual en el móvil, la tableta y la web.
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      constraints: const BoxConstraints(minHeight: 52),
+      filled: true,
+      fillColor: t.field,
       labelStyle: t.styles.body.copyWith(color: t.textSecondary),
       floatingLabelStyle: t.styles.metaStrong.copyWith(color: t.ink),
       helperStyle: t.styles.meta,
@@ -169,7 +167,7 @@ ThemeData buildTheme(
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: RegalosShape.field,
-        borderSide: BorderSide(color: t.ink, width: 2),
+        borderSide: BorderSide(color: t.ink, width: 1.5),
       ),
     ),
     // La hoja es un escalón por encima del fondo y lleva un filo de 1 px
@@ -187,10 +185,23 @@ ThemeData buildTheme(
         ),
       ),
     ),
-    // Los avisos flotan sobre la barra inferior, con esquinas de 8.
-    snackBarTheme: const SnackBarThemeData(
+    // Los avisos flotan sobre la barra inferior, con esquinas de 8. En oscuro
+    // son del escalón del desplegable, con su filete y la acción en la tinta
+    // del acento; en claro, el aviso oscuro con el texto del fondo y la acción
+    // en el pastel (9:1 o más), sin el gris azulado de Material.
+    snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: RegalosShape.card),
+      backgroundColor: dark ? t.popover : t.text,
+      contentTextStyle: t.styles.body.copyWith(color: dark ? t.text : t.bg),
+      actionTextColor: dark ? t.ink : p.pastel,
+      disabledActionTextColor: dark ? t.textSecondary : t.chipBorder,
+      // Igual en los dos temas: el cambio de tema se anima con un muelle que
+      // pasa de 1, y una elevación que varía se interpolaría a un valor negativo.
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: RegalosShape.card,
+        side: dark ? BorderSide(color: t.separator) : BorderSide.none,
+      ),
     ),
     dialogTheme: DialogThemeData(
       backgroundColor: t.sheet,
@@ -203,9 +214,46 @@ ThemeData buildTheme(
       titleTextStyle: t.styles.screenTitleSmall,
       contentTextStyle: t.styles.body,
     ),
-    // El calendario es otro diálogo: 8 también (Material 3 le pone 28).
-    datePickerTheme: const DatePickerThemeData(
+    // Los desplegables de Material (menús) en el escalón más alto.
+    popupMenuTheme: PopupMenuThemeData(
+      color: t.popover,
+      surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
+        borderRadius: RegalosShape.card,
+        side: BorderSide(color: t.separator),
+      ),
+    ),
+    // El calendario es otro diálogo: 8 también (Material 3 le pone 28).
+    // Fondo de hoja, el día elegido en la selección y el texto en tinta.
+    datePickerTheme: DatePickerThemeData(
+      backgroundColor: t.sheet,
+      surfaceTintColor: Colors.transparent,
+      headerBackgroundColor: t.sheet,
+      headerForegroundColor: t.text,
+      dayForegroundColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected) ? t.ink : t.text,
+      ),
+      dayBackgroundColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected) ? t.selection : null,
+      ),
+      dayOverlayColor: const WidgetStatePropertyAll(Colors.transparent),
+      // Sin círculos: el día elegido es un recuadro de esquina 6, como los chips.
+      dayShape: const WidgetStatePropertyAll(
+        RoundedRectangleBorder(borderRadius: RegalosShape.chip),
+      ),
+      todayForegroundColor: WidgetStatePropertyAll(t.ink),
+      todayBorder: BorderSide(color: t.ink),
+      yearForegroundColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected) ? t.ink : t.text,
+      ),
+      yearBackgroundColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected) ? t.selection : null,
+      ),
+      weekdayStyle: t.styles.meta,
+      dayStyle: t.styles.body,
+      cancelButtonStyle: TextButton.styleFrom(foregroundColor: t.ink),
+      confirmButtonStyle: TextButton.styleFrom(foregroundColor: t.ink),
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.all(
           Radius.circular(RegalosShape.dialogRadius),
         ),
@@ -214,7 +262,7 @@ ThemeData buildTheme(
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: t.bg,
       surfaceTintColor: Colors.transparent,
-      indicatorColor: t.fill,
+      indicatorColor: t.selection,
       height: RegalosSizes.navBarHeight,
       elevation: 0,
     ),

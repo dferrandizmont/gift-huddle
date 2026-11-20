@@ -76,6 +76,8 @@ void main() {
         'layout-grid': tablerLayoutGrid,
         'list': tablerList,
         'alert-triangle': tablerAlertTriangle,
+        'link': tablerLink,
+        'external-link': tablerExternalLink,
       };
       expect(builders.keys.toSet(), kTablerIconData.keys.toSet());
       for (final e in builders.entries) {

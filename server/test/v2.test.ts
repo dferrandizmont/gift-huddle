@@ -1,3 +1,4 @@
+import { ListStorageBudget } from "../src/list-storage-budget";
 import { describe, expect, it, vi } from "vitest";
 import { env, exports } from "cloudflare:workers";
 import { runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
@@ -20,7 +21,6 @@ import {
   V2_INVITE_REQUESTS_PER_INVITE,
   V2_INVITE_REQUESTS_PER_IP,
   V2_NEW_LISTS_PER_HOUR,
-  V2_RATE_PERSIST_EVERY,
 } from "../src/limits";
 import { canonicalJson, slotIds, validateSnapshot } from "../src/v2-contract";
 import { b64u, call, envelope, json, newList, rand, randomIp } from "./helpers";
@@ -74,10 +74,14 @@ const listStub = (syncId: string) => {
 };
 /** Puts slot rows straight into storage, as an old server or a long-gone writer left them. */
 const plant = (id: { syncId: string }, rows: [personId: string, deviceId: string][], ver = 1) =>
-  runInDurableObject(listStub(id.syncId), (_o, s) => {
+  runInDurableObject(listStub(id.syncId), (o, s) => {
+    (o as unknown as { budget: unknown }).budget = new ListStorageBudget(s.storage);
     for (const [personId, deviceId] of rows) {
       s.storage.sql.exec("INSERT INTO slot (person, device, ver, data) VALUES (?, ?, ?, ?)", personId, deviceId, ver, sealed(personId, deviceId));
     }
+    const m = JSON.parse(s.storage.sql.exec<{ data: string }>("SELECT data FROM state").one().data);
+    delete m.storedBytes;
+    s.storage.sql.exec("UPDATE state SET data = ?", JSON.stringify(m));
   });
 /** Every text the list object stores, in every table. */
 const everythingStored = (syncId: string) =>
@@ -115,7 +119,7 @@ const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 type State = {
   lastAccess: number;
-  credentials: { deviceId: string; verifier: string | null; revoked: boolean; records: number[]; approvedBy?: string }[];
+  credentials: { deviceId: string; verifier: string | null; revoked: boolean; records: number[]; approvedBy?: string; createdAt?: number; slotsExpireAt?: number }[];
   knownRecords: string[];
   recordTimes: number[];
   approvals: number[];
@@ -134,6 +138,9 @@ const editState = (id: Setup, edit: (m: State) => void) =>
 /** The server only erases a list from its last live credential: the others are marked revoked. */
 const lastPhone = (id: Setup) => editState(id, (m) => {
   for (const a of m.credentials) if (a.deviceId !== id.deviceId) a.revoked = true;
+});
+const byteCapacity = (id: Setup, count: number) => editState(id, (m) => {
+  while (m.credentials.length < count) m.credentials.push({ deviceId: `capacity${m.credentials.length}`, verifier: b64u(rand(32)), revoked: false, records: [], createdAt: Date.now() - 8 * DAY });
 });
 const capacity = (credentials: number, records: number, renew: boolean, slots = 0) => ({
   credentials: { used: credentials, warn: 48, max: 64 },
@@ -383,6 +390,92 @@ describe("web credentials and common-only writes", () => {
     }
     expect((await put(id, snapshot(), 57)).status).toBe(429);
     expect((await call("PUT", `${id.path}/common`, { key: id.key, headers: { "If-Match": '"57"' }, body: { common: "CCCC" } })).status).toBe(429);
+  });
+});
+
+describe("public offer pending opt-in", () => {
+  it.each(["", "?pending=204", "?pending=200", "?pending=0204", "?pending="])("preserves offer and absence semantics for %s", async (query) => {
+    const pending = query === "?pending=204";
+    const checkAbsent = async (path: string) => {
+      const response = await call("GET", `${path}/offer${query}`);
+      expect(response.status).toBe(pending ? 204 : 404);
+      expect(response.headers.get("Cache-Control")).toBe("no-store, no-transform");
+      if (pending) {
+        expect(response.body).toBeNull();
+        expect(await response.text()).toBe("");
+        expect(response.headers.get("Content-Type")).toBeNull();
+      } else expect(await json(response)).toEqual({ error: "not_found" });
+    };
+    // No locator at all.
+    await checkAbsent(`/v2/invites/${b64u(rand(16))}`);
+    const id = await setup();
+    const i = await invite(id);
+    const original = await json(await call("GET", `${i.publicPath}/offer`));
+    const available = await call("GET", `${i.publicPath}/offer${query}`);
+    expect(available.status).toBe(200);
+    expect(await json(available)).toEqual(original);
+    expect((await call("DELETE", i.privatePath, { key: id.key })).status).toBe(204);
+    // Cancellation retains a routing stub: the list, not the locator, says absent.
+    const ns = env.INVITES_V2.jurisdiction("eu");
+    expect(await ns.get(ns.idFromName(i.inviteId)).locate()).toBe(id.syncId);
+    await checkAbsent(i.publicPath);
+    // The opt-in does not change any other public invitation route.
+    expect((await call("GET", `${i.publicPath}/result${query}`)).status).toBe(404);
+  });
+
+  it.each(["", "?pending=204"])("preserves revoked-Bearer and Origin errors for %s", async (query) => {
+    const id = await setup();
+    const nora = await pair(id);
+    const i = await invite(id, "leo");
+    expect((await call("POST", `${id.path}/revoke`, { key: id.key, body: { deviceId: "nora" } })).status).toBe(200);
+    const unauthorized = await call("GET", `${i.publicPath}/offer${query}`, { key: nora.guestKey });
+    expect(unauthorized.status).toBe(401);
+    expect(await json(unauthorized)).toEqual({ error: "unauthorized" });
+    const forbidden = await call("GET", `${i.publicPath}/offer${query}`, { headers: { Origin: "https://untrusted.example" } });
+    expect(forbidden.status).toBe(403);
+    expect(await json(forbidden)).toEqual({ error: "forbidden" });
+  });
+
+  it("keeps the same invitation budget across both query forms and does not count absent offers", async () => {
+    const id = await setup();
+    const i = await invite(id);
+    expect((await call("DELETE", i.privatePath, { key: id.key })).status).toBe(204);
+    for (let n = 0; n <= V2_INVITE_REQUESTS_PER_INVITE; n++) {
+      expect((await call("GET", `${i.publicPath}/offer?pending=204`)).status).toBe(204);
+    }
+    const offer = { v: 2, host: { d: id.deviceId }, c: b64u(rand(32)) };
+    expect((await call("POST", `${id.path}/invites`, { key: id.key, body: { inviteId: i.inviteId, offer } })).status).toBe(201);
+    for (let n = 0; n < V2_INVITE_REQUESTS_PER_INVITE; n++) {
+      expect((await call("GET", `${i.publicPath}/offer${n % 2 ? "?pending=204" : ""}`)).status).toBe(200);
+    }
+    for (const query of ["", "?pending=204"]) {
+      const response = await call("GET", `${i.publicPath}/offer${query}`);
+      expect(response.status).toBe(429);
+      expect(await json(response)).toEqual({ error: "rate_limited" });
+      expect(response.headers.get("Retry-After")).toBeTruthy();
+    }
+  });
+
+  it.each(["IP_LIMITER", "INVITE_IP_LIMITER", "INVITE_IP48_LIMITER"] as const)("preserves %s admission and Retry-After with pending=204", async (binding) => {
+    const limits = {
+      IP_LIMITER: { limit: vi.fn(async () => ({ success: binding !== "IP_LIMITER" })) },
+      INVITE_IP_LIMITER: { limit: vi.fn(async () => ({ success: binding !== "INVITE_IP_LIMITER" })) },
+      INVITE_IP48_LIMITER: { limit: vi.fn(async () => ({ success: binding !== "INVITE_IP48_LIMITER" })) },
+    };
+    const fake = { ...env, ...limits } as Env;
+    const response = await worker.fetch(new Request(`https://sync.test/v2/invites/${b64u(rand(16))}/offer?pending=204`), fake);
+    expect(response.status).toBe(429);
+    expect(await json(response)).toEqual({ error: "rate_limited" });
+    expect(response.headers.get("Retry-After")).toBe("60");
+    expect(limits[binding].limit).toHaveBeenCalledOnce();
+  });
+
+  it("preserves discovery failures as 500 with pending=204", async () => {
+    const ns = { jurisdiction: () => { throw new Error("unavailable"); } };
+    const fake = { ...env, INVITES_V2: ns } as unknown as Env;
+    const response = await worker.fetch(new Request(`https://sync.test/v2/invites/${b64u(rand(16))}/offer?pending=204`), fake);
+    expect(response.status).toBe(500);
+    expect(await json(response)).toEqual({ error: "internal" });
   });
 });
 
@@ -691,7 +784,7 @@ describe("pending release queue", () => {
     } finally {
       await restore();
     }
-  });
+  }, 20_000);
 
   it("leaves a retired list with only the bare marker once persistent failures expire", async () => {
     const id = await setup();
@@ -996,7 +1089,9 @@ describe("persistent PIN guards", () => {
     expect((await call("POST", path, { rawBody: JSON.stringify({ pad: "x".repeat(2048) }) })).status).toBe(413);
     const body = { proofs: [(await guardMaterial()).proof] };
     const ip = randomIp();
-    for (let n = 0; n < 30; n++) expect((await call("POST", path, { ip, body })).status).toBe(404);
+    expect((await call("POST", path, { ip, body })).status).toBe(404);
+    // Fill the real edge binding without slow list RPCs crossing a UTC minute.
+    for (let n = 1; n < 30; n++) expect((await env.GUARD_IP_LIMITER.limit({ key: ip })).success).toBe(true);
     const limited = await call("POST", path, { ip, body });
     expect(limited.status).toBe(429); expect(Number(limited.headers.get("Retry-After"))).toBeGreaterThan(0);
     expect((await call("GET", id.path, { key: id.key, ip })).status).toBe(200);
@@ -1151,6 +1246,7 @@ describe("v2 snapshots with v1 retired", () => {
 
   it("checks the 64-slot cap, counting stored slots, before writing anything", async () => {
     const id = await setup();
+    await byteCapacity(id, 12);
     // 65 entries are refused even when malformed: the count comes first.
     expect(validateSnapshot(snapshot(Array.from({ length: 65 }, () => "not a slot")))).toBe(413);
     // 63 slots of writers that are gone, which nobody may remove (B2), and one of Aritz.
@@ -1171,6 +1267,7 @@ describe("v2 snapshots with v1 retired", () => {
 
   it("caps the slots of one writer at 32; above it a writer may still replace and remove", async () => {
     const id = await setup();
+    await byteCapacity(id, 7);
     await plant(id, Array.from({ length: 31 }, (_, n) => [`person${n}`, "aritz"] as [string, string]));
     expect((await put(id, snapshot([slot(31)]), 1)).status).toBe(200);
     const over = await put(id, snapshot([slot(32)]), 2);
@@ -1619,22 +1716,13 @@ describe("v2 privacy retention", () => {
     } finally { vi.useRealTimers(); }
   });
 
-  it("privacy: expires persisted rate windows by alarm without another request", async () => {
+  it("keeps minute counters in memory without rate rows or short alarms", async () => {
     const id = await setup();
-    const now = Date.now();
-    vi.useFakeTimers({ toFake: ["Date"] });
-    try {
-      vi.setSystemTime(now + 61_000);
-      expect((await put(id, snapshot(), 1)).status).toBe(200);
-      const stub = listStub(id.syncId);
-      const count = () => runInDurableObject(stub, (_o, s) => s.storage.sql.exec<{ n: number }>("SELECT COUNT(*) AS n FROM rate").one().n);
-      expect(await count()).toBeGreaterThan(0);
-      const deadline = await runInDurableObject(stub, (_o, s) => s.storage.getAlarm());
-      expect(deadline).toBeLessThanOrEqual(now + 121_000);
-      vi.setSystemTime(now + 121_000);
-      await runDurableObjectAlarm(stub);
-      expect(await count()).toBe(0);
-    } finally { vi.useRealTimers(); }
+    expect((await put(id, snapshot(), 1)).status).toBe(200);
+    await runInDurableObject(listStub(id.syncId), async (_o, state) => {
+      expect(state.storage.sql.exec("SELECT 1 FROM sqlite_master WHERE name = 'rate'").toArray()).toEqual([]);
+      expect(await state.storage.getAlarm()).toBeGreaterThan(Date.now() + HOUR);
+    });
   });
 
   it("privacy: dates legacy revoked slots on first wake without extending the grace", async () => {
@@ -1861,55 +1949,32 @@ describe("v2 jurisdiction, quotas and HTTP boundary", () => {
     const fresh = newList();
     const create = (body: unknown) => call("PUT", `/v2/lists/${b64u(rand(16))}`, { key: fresh.key, ip: fresh.ip, headers: { "If-Match": '"0"' }, body });
     expect((await create({ ...creation("aritz"), deviceId: "aritz", common: "A".repeat(300000) })).status).toBe(413);
-    for (let n = 0; n < V2_NEW_LISTS_PER_HOUR; n++) expect((await create({ ...creation("aritz"), deviceId: "aritz" })).status).toBe(201);
+    // The rejected oversized creation already spent one IP attempt.
+    for (let n = 0; n < V2_NEW_LISTS_PER_HOUR - 1; n++) expect((await create({ ...creation("aritz"), deviceId: "aritz" })).status).toBe(201);
     expect((await create({ ...creation("aritz"), deviceId: "aritz" })).status).toBe(429);
   });
 
-  it("attack (finding 16): a restarted list object keeps the per-credential window", async () => {
+  it("resets minute counters after a restart without persisting any row", async () => {
     const id = await setup();
     for (let n = 0; n < V2_CREDENTIAL_REQUESTS; n++) expect((await call("GET", id.path, { key: id.key })).status).toBe(200);
     expect((await call("GET", id.path, { key: id.key })).status).toBe(429);
-    // A new instance on the same storage (what a restart gives) still refuses.
     await runInDurableObject(listStub(id.syncId), async (instance, state) => {
       const fresh = new ListV2Object(state, env) as unknown as { hit(key: string, max: number): Promise<boolean> };
-      expect(await fresh.hit("r:aritz", V2_CREDENTIAL_REQUESTS)).toBe(false);
+      expect(await fresh.hit("r:aritz", V2_CREDENTIAL_REQUESTS)).toBe(true);
       (instance as unknown as { rate: Map<string, unknown> }).rate.clear();
+      expect(state.storage.sql.exec("SELECT 1 FROM sqlite_master WHERE name = 'rate'").toArray()).toEqual([]);
     });
-    const again = await call("GET", id.path, { key: id.key });
-    expect(again.status).toBe(429);
-    expect(again.headers.get("Retry-After")).toBeTruthy();
-    // Bounded cost: one row per counter, and a quiet credential writes none.
-    const rows = await runInDurableObject(listStub(id.syncId), (_o, state) =>
-      state.storage.sql.exec<{ key: string }>("SELECT key FROM rate").toArray().map((r) => r.key));
-    expect(rows).toEqual(["r:aritz"]);
-    const quiet = await setup();
-    expect((await call("GET", quiet.path, { key: quiet.key })).status).toBe(200);
-    expect(await runInDurableObject(listStub(quiet.syncId), (_o, state) =>
-      state.storage.sql.exec("SELECT 1 FROM sqlite_master WHERE name = 'rate'").toArray().length)).toBe(0);
+    expect((await call("GET", id.path, { key: id.key })).status).toBe(200);
   }, 20_000);
 
-  it("attack (finding 16): counters restored mid-window lose no writes and assume the missed reads", async () => {
+  it("retains mutation limits in memory and resets them on restart", async () => {
     const id = await setup();
-    const forget = () => runInDurableObject(listStub(id.syncId), (instance) => {
+    for (let v = 1; v <= 30; v++) expect((await put(id, snapshot(), v)).status).toBe(200);
+    expect((await put(id, snapshot(), 31)).status).toBe(429);
+    await runInDurableObject(listStub(id.syncId), (instance) => {
       (instance as unknown as { rate: Map<string, unknown> }).rate.clear();
     });
-    // Reads: 20 hits, saved at 16; a restart counts 16 + 7.
-    for (let n = 0; n < 20; n++) expect((await call("GET", id.path, { key: id.key })).status).toBe(200);
-    await forget();
-    const left = V2_CREDENTIAL_REQUESTS - (16 + V2_RATE_PERSIST_EVERY - 1);
-    for (let n = 0; n < left; n++) expect((await call("GET", id.path, { key: id.key })).status).toBe(200);
-    expect((await call("GET", id.path, { key: id.key })).status).toBe(429);
-    // Writes are saved on every hit: a restart after 10 leaves exactly 20.
-    const w = await setup();
-    for (let v = 1; v <= 10; v++) expect((await put(w, snapshot(), v)).status).toBe(200);
-    await runInDurableObject(listStub(w.syncId), (instance) => {
-      (instance as unknown as { rate: Map<string, unknown> }).rate.clear();
-    });
-    for (let v = 11; v <= 30; v++) expect((await put(w, snapshot(), v)).status).toBe(200);
-    expect((await put(w, snapshot(), 31)).status).toBe(429);
-    const table = await runInDurableObject(listStub(w.syncId), (_o, state) =>
-      state.storage.sql.exec<{ sql: string }>("SELECT sql FROM sqlite_master WHERE name = 'rate'").one().sql);
-    expect(table).toContain("WITHOUT ROWID");
+    expect((await put(id, snapshot(), 31)).status).toBe(200);
   }, 30_000);
 
   it("DELETE is refused with 409 while another credential is live (server guard)", async () => {
@@ -1943,62 +2008,36 @@ describe("v2 jurisdiction, quotas and HTTP boundary", () => {
 
   it("finding 16: the per-IP ceiling on v2 invitation routes still holds", async () => {
     const ip = randomIp();
-    const invites = [];
-    for (let n = 0; n < Math.ceil(V2_INVITE_REQUESTS_PER_IP / V2_INVITE_REQUESTS_PER_INVITE); n++) invites.push(await invite(await setup()));
-    for (let n = 0; n < V2_INVITE_REQUESTS_PER_IP; n++) {
-      const i = invites[Math.floor(n / V2_INVITE_REQUESTS_PER_INVITE)]!;
-      expect((await call("GET", `${i.publicPath}/offer`, { ip })).status).toBe(200);
-    }
     const fresh = await invite(await setup());
+    // The real edge binding has UTC minute windows. Fill it directly so this
+    // admission test is independent of the duration of 120 list-object RPCs.
+    for (let n = 0; n < V2_INVITE_REQUESTS_PER_IP - 1; n++) expect((await env.INVITE_IP_LIMITER.limit({ key: ip })).success).toBe(true);
+    expect((await call("GET", `${fresh.publicPath}/offer`, { ip })).status).toBe(200);
     const refused = await call("GET", `${fresh.publicPath}/offer`, { ip });
     expect(refused.status).toBe(429);
     expect(refused.headers.get("Retry-After")).toBeTruthy();
   }, 20_000);
 
-  it("reads at most 400 KiB of a create and 5 MiB of any other PUT before any object sees it (finding 10)", async () => {
-    const touched: string[] = [];
-    const untouchable = (name: string) => ({
-      jurisdiction: () => {
-        touched.push(name);
-        throw new Error(`${name} used`);
-      },
-    });
-    const fake = { ...env, LISTS_V2: untouchable("list"), INVITES_V2: untouchable("invite"), LIMITER_V2: untouchable("limiter") } as unknown as Env;
-    const send = (syncId: string, match: string, body: string, key = b64u(rand(32))) =>
-      worker.fetch(
-        new Request(`https://sync.test/v2/lists/${syncId}`, {
-          method: "PUT",
-          headers: { Authorization: `Bearer ${key}`, "If-Match": match, "Content-Type": "application/json", "CF-Connecting-IP": randomIp() },
-          body,
-        }),
-        fake,
-      );
-    // A stranger with any credential: a create over 400 KiB, an update over 5 MiB.
-    const create = JSON.stringify({ ...creation("aritz"), deviceId: "aritz", common: "A".repeat(V2_MAX_CREATE_BODY_BYTES) });
-    expect((await send(b64u(rand(16)), '"0"', create)).status).toBe(413);
-    const update = JSON.stringify({ ...snapshot(), common: "A".repeat(V2_MAX_BODY_BYTES) });
-    expect((await send(b64u(rand(16)), '"7"', update)).status).toBe(413);
-    // The same create without Content-Length is cut while streaming.
-    const streamed = new Request(`https://sync.test/v2/lists/${b64u(rand(16))}`, {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${b64u(rand(32))}`, "If-Match": '"0"', "Content-Type": "application/json", "CF-Connecting-IP": randomIp() },
-      body: new ReadableStream({
-        start(c) {
-          const all = new TextEncoder().encode(create);
-          for (let at = 0; at < all.length; at += 65536) c.enqueue(all.slice(at, at + 65536));
-          c.close();
-        },
-      }),
-      duplex: "half",
-    } as RequestInit);
-    expect(streamed.headers.get("Content-Length")).toBeNull();
-    expect((await worker.fetch(streamed, fake)).status).toBe(413);
-    expect(touched).toEqual([]);
+  it("authenticates a large PUT before consuming its body", async () => {
+    const id = await setup();
+    for (const suffix of ["", "/common"]) {
+      const pull = vi.fn(() => { throw new Error("Unauthenticated body consumed"); });
+      const body = new ReadableStream<Uint8Array>({ pull }, { highWaterMark: 0 });
+      const response = await worker.fetch(new Request(`https://sync.test${id.path}${suffix}`, {
+        method: "PUT", headers: { Authorization: `Bearer ${b64u(rand(32))}`, "If-Match": '\"1\"', "Content-Type": "application/json" }, body,
+      }), env);
+      expect(response.status).toBe(401);
+      expect(pull).not.toHaveBeenCalled();
+    }
+    expect((await put(id, { ...snapshot(), common: "A".repeat(V2_MAX_BODY_BYTES) }, 1)).status).toBe(413);
+    const fresh = newList();
+    expect((await call("PUT", `/v2/lists/${fresh.syncId}`, { key: fresh.key, headers: { "If-Match": '\"0\"' }, body: { ...creation("aritz"), deviceId: "aritz", common: "A".repeat(V2_MAX_CREATE_BODY_BYTES) } })).status).toBe(413);
   });
 
   it("accepts the largest real PUT: full common, registry and packages and 10 full own slots", async () => {
     const long = (c: string, n = 0) => `${c}${n}`.padEnd(128, c);
     const id = await setup(long("d"));
+    await byteCapacity(id, 5);
     const slots = Array.from({ length: V2_MAX_SLOTS_PER_PUT }, (_, n) => ({
       personId: long("p", n),
       deviceId: long("d"),
@@ -2622,8 +2661,20 @@ describe("B7: pairing checkpoint", () => {
     s.storage.sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'checkpoint'").toArray().length
       ? s.storage.sql.exec<{ n: number }>("SELECT COUNT(*) AS n FROM checkpoint").one().n : 0);
 
+  it("counts the second credential before checking its approval checkpoint against the byte limit", async () => {
+    const id = await setup();
+    expect((await put(id, { ...snapshot(), common: "A".repeat(900000) }, 1)).status).toBe(200);
+    const i = await answered(id), before = await current(id);
+    expect((await approveWith(id, i, before.version, before.claim)).status).toBe(200);
+    const stored = await runInDurableObject(listStub(id.syncId), (_o, s) => JSON.parse(s.storage.sql.exec<{ data: string }>("SELECT data FROM state").one().data));
+    expect(stored.storedBytes).toBeGreaterThan(1.5 * 1048576);
+    expect(stored.storedBytes).toBeLessThan(4 * 1048576);
+    expect(stored.credentials).toHaveLength(2);
+  });
+
   it("copies the approved common and registry at the host's If-Match and serves them, unchanged, only to the guest", async () => {
     const id = await setup();
+    await byteCapacity(id, 5);
     const big = { ...snapshot(), common: b64u(new Uint8Array(1_500_000).fill(7)) };
     expect((await put(id, big, 1)).status).toBe(200);
     const i = await answered(id);
@@ -2826,5 +2877,30 @@ describe("privacy second batch", () => {
     });
     await call("GET", id.path, { key: id.key });
     expect((await read()) % HOUR).toBe(0);
+  });
+});
+
+
+describe("credential-scaled list storage", () => {
+  it("keeps a three-phone family with twelve full sealed slots and a large common", async () => {
+    const id = await setup();
+    const nora = await pair(id, "nora", 1);
+    await pair(id, "leo", 2);
+    const common = "A".repeat(200000);
+    expect((await put(id, { ...snapshot(Array.from({ length: 6 }, (_, n) => slot(n))), common }, 3)).status).toBe(200);
+    expect((await put(id, { ...snapshot(Array.from({ length: 6 }, (_, n) => slot(n, "nora"))), common }, 4, nora.guestKey)).status).toBe(200);
+    expect((await json<{ slots: unknown[] }>(await call("GET", id.path, { key: id.key }))).slots).toHaveLength(12);
+  });
+  it("allows revocation and shrinking an over-budget list without losing its common", async () => {
+    const id = await setup();
+    await pair(id, "nora", 1);
+    expect((await call("PUT", `${id.path}/common`, { key: id.key, headers: { "If-Match": '\"2\"' }, body: { common: "A".repeat(2 * 1048576) } })).status).toBe(200);
+    expect((await call("POST", `${id.path}/revoke`, { key: id.key, body: { deviceId: "nora" } })).status).toBe(200);
+    expect((await call("PUT", `${id.path}/common`, { key: id.key, headers: { "If-Match": '\"4\"' }, body: { common: "A".repeat(2 * 1048576 - 400) } })).status).toBe(200);
+    // A revoked second phone still grants 4 MiB throughout its slot grace.
+    await editState(id, (m) => { m.credentials[1]!.slotsExpireAt = Date.now() - 1; });
+    const denied = await call("PUT", `${id.path}/common`, { key: id.key, headers: { "If-Match": '\"5\"' }, body: { common: "A".repeat(2 * 1048576) } });
+    expect(denied.status).toBe(413); expect(await json(denied)).toEqual({ error: "too_large" });
+    expect((await call("GET", id.path, { key: id.key })).headers.get("ETag")).toBe('"5"');
   });
 });

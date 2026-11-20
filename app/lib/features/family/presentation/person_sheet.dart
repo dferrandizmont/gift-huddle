@@ -11,6 +11,7 @@ import '../../../core/sync/model.dart';
 import '../../../core/theme/accent_palette.dart';
 import '../../../core/theme/regalos_tokens.dart';
 import '../../../core/widgets/person_avatar.dart';
+import '../../../core/widgets/release_text_focus.dart';
 import '../../../core/widgets/sheet_frame.dart';
 import '../../../core/widgets/stroke_icon.dart';
 import '../../../l10n/app_localizations.dart';
@@ -44,6 +45,9 @@ class _PersonSheet extends StatefulWidget {
 class _PersonSheetState extends State<_PersonSheet> {
   late final TextEditingController _name;
   late final TextEditingController _relation;
+
+  /// El botón de la fecha: al cerrar el calendario el foco vuelve aquí.
+  final FocusNode _dateFocus = FocusNode(debugLabel: 'PersonBirthday');
   late int _color;
   int? _month;
   int? _day;
@@ -68,6 +72,7 @@ class _PersonSheetState extends State<_PersonSheet> {
   void dispose() {
     _name.dispose();
     _relation.dispose();
+    _dateFocus.dispose();
     super.dispose();
   }
 
@@ -76,6 +81,7 @@ class _PersonSheetState extends State<_PersonSheet> {
     final initial = _month != null && _day != null
         ? DateTime(_year ?? now.year, _month!, _day!)
         : now;
+    releaseTextFocus(to: _dateFocus);
     final picked = await showDatePicker(
       context: context,
       initialDate: initial.isAfter(now) ? now : initial,
@@ -170,6 +176,7 @@ class _PersonSheetState extends State<_PersonSheet> {
           children: [
             Expanded(
               child: OutlinedButton(
+                focusNode: _dateFocus,
                 onPressed: _pickDate,
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(44, 48),
@@ -289,14 +296,12 @@ class ColorChoice extends StatelessWidget {
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: t.isDark
-                            ? personPalette(i).pastelD
-                            : personPalette(i).pastel,
+                        // El pastel tal cual también en oscuro: velado no se
+                        // distinguiría un color de otro.
+                        color: personPalette(i).pastel,
                         border: Border.all(
                           color: i == selected
-                              ? (t.isDark
-                                    ? personPalette(i).tintaD
-                                    : personPalette(i).tinta)
+                              ? (t.isDark ? t.text : personPalette(i).tinta)
                               : (t.isDark
                                     ? Colors.transparent
                                     : personPalette(i).swatchBorder),
@@ -314,9 +319,7 @@ class ColorChoice extends StatelessWidget {
                                   AppIcons.check,
                                   size: 20,
                                   strokeWidth: 2.6,
-                                  color: t.isDark
-                                      ? personPalette(i).onFill
-                                      : personPalette(i).tinta,
+                                  color: personPalette(i).tinta,
                                 ),
                               )
                             : const SizedBox(key: ValueKey('free')),

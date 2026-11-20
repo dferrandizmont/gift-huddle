@@ -5,7 +5,7 @@ import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/sync/device_keys.dart' show kSyncIdPattern;
+import '../../../core/sync/device_keys.dart' show DeviceKeys, kSyncIdPattern;
 import '../../../core/sync/device_registry.dart';
 import '../../../core/sync/access_policy.dart';
 import '../../../core/sync/envelope.dart';
@@ -631,6 +631,27 @@ class FamilyStore {
           throw const FamilyStoreException('registro de móviles dañado');
         }
       });
+
+  /// Loads the signed registry anchored to this device and this list.
+  Future<({RegistryView view, DeviceKeys keys})?> readVerifiedRegistry(
+    FamilyDoc doc,
+  ) async {
+    final v2 = await readSyncV2();
+    if (v2 == null || v2.listId != doc.listId) return null;
+    final keys = await _deviceKeys.read();
+    if (keys == null) return null;
+    final signing = keys.publicKeys.signing;
+    final registry = await readRegistry(
+      anchor: RegistryAnchor(deviceId: v2.deviceId, signingKey: signing),
+    );
+    if (registry == null) return null;
+    final view = await registry.viewFor(
+      me: v2.deviceId,
+      mySigningKey: signing,
+      livePeople: livePeopleOf(doc),
+    );
+    return (view: view, keys: keys);
+  }
 
   /// Guarda los slots de sorpresas (ya verificados) que tiene este móvil.
   Future<void> saveSlots(SlotSet slots) => _inGeneration(

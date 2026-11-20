@@ -2,6 +2,8 @@ import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/sync/model.dart';
+import '../../sync/application/sync_controller.dart'
+    show localRegistryViewProvider;
 import '../domain/next_occasion.dart';
 import 'family_controller.dart';
 import 'protection_providers.dart';
@@ -12,13 +14,35 @@ export 'protection_providers.dart';
 final familyStateProvider = Provider<FamilyState?>((ref) {
   final current = ref.watch(familyControllerProvider).value;
   if (current == null) return null;
+  final registry = ref.watch(localRegistryViewProvider);
   return FamilyState(
     doc: ref.watch(projectedFamilyDocProvider),
     identity: current.identity,
     hiddenGiftIds: current.hiddenGiftIds,
+    otherDevicePeople: registry.hasValue
+        ? otherMobilePeople(registry.value)
+        : current.otherDevicePeople,
     authorized: true,
   );
 });
+
+/// The People choices for a visible gift, including whether a protected
+/// assignment needs a separate public add. For draft gifts use
+/// [FamilyView.giverPersonCandidatesFor] with the protection status of both
+/// the original gift, if any, and the selected recipient.
+final giftGiverPersonCandidatesProvider =
+    Provider.family<List<GiverPersonCandidate>, String>((ref, giftId) {
+      final view = ref.watch(familyFullViewProvider);
+      final gift = view.allGifts.where((g) => g.id == giftId).firstOrNull;
+      if (gift == null) return const [];
+      final projection = ref.watch(authorizedProjectionProvider).value;
+      return view.giverPersonCandidatesFor(
+        gift.recipientId,
+        protected:
+            (projection?.secretGiftIds.contains(giftId) ?? false) ||
+            projection?.policies[gift.recipientId]?.hideOwnGifts == true,
+      );
+    });
 
 /// El año de la lista que se está viendo, o `null` para todos los años.
 class YearFilter extends Notifier<int?> {
@@ -62,6 +86,17 @@ final recipientsProvider = Provider<List<Recipient>>(
 final giversProvider = Provider<List<Giver>>(
   (ref) => ref.watch(familyViewProvider).givers,
 );
+
+/// People choices for an existing gift in the authorized view. The recipient
+/// is resolved again whenever sync moves the gift.
+final giftGiverPeopleProvider = Provider.family<List<Recipient>, String>((
+  ref,
+  giftId,
+) {
+  final view = ref.watch(familyFullViewProvider);
+  final gift = view.allGifts.where((g) => g.id == giftId).firstOrNull;
+  return gift == null ? const [] : view.giverPeopleFor(gift.recipientId);
+});
 
 /// Las ocasiones (sin archivadas), por nombre.
 final occasionsProvider = Provider<List<Occasion>>(

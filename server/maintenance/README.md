@@ -1,11 +1,43 @@
-# One-time retention sweep (operator only)
+# Operator maintenance
+
+Storage occupancy and selective purge use this same private session and are
+documented in [the server README](../README.md#operator-storage-occupancy-and-selective-purge).
+
+## Shared maintenance rules
+
+Every route, including `GET /storage-occupancy` and `POST /apply-retention`,
+requires the exact `Host: 127.0.0.1:8791` and rejects any `Origin` header.
+Run the CLI against the configured loopback address and port.
+
+Selective purge requires at least 30 days of inactivity. Windows starting
+before the 2026-11-20 UTC release cutoff, including `1970-01-01`, require
+`--include-legacy` at preview and again at apply. The flag allows lists
+without a recorded creation timestamp to be considered. The CLI previews
+by default and requires `--apply` to retire any reviewed candidates.
+Lists with any recovery record that has yet to be retired are excluded.
+Each plan shows `storedBytes`, `hasRecovery` (always `false`), and
+`pendingInvites` (the count of unexpired invitations awaiting approval).
+The list rechecks these fields and recovery eligibility under its lock before
+retirement. Generate a fresh preview for plans made before these fields were
+added.
+
+The 30-day minimum can retire a family's server-side list when they use one
+mobile and open the app only on special dates. Their local data is not deleted,
+but that server list is removed and sync ends. Prefer purge windows of 120 days
+or more unless storage occupancy is above 50% and a shorter window is needed.
+
+`wrangler dev --remote` may rewrite the `Host` header sent to the maintenance
+Worker. If the exact loopback `Host` check then returns 403, document the issue;
+do not relax the host control.
+
+## One-time retention sweep
 
 Run **once after deploying the sync Worker with `applyRetention()`**. Nothing
 here has been run against production. No application route, cron, new Durable
 Object namespace or migration is added. Do not publish a maintenance route.
 
-`wrangler.toml` binds only the two existing classes in `gift-huddle-sync`.
-Both namespaces are selected with `.jurisdiction("eu")` before `idFromString`;
+`wrangler.toml` binds only existing classes in `gift-huddle-sync`.
+The sweep's two namespaces are selected with `.jurisdiction("eu")` before `idFromString`;
 these are **Durable Object IDs from the API**, not sync IDs/recovery IDs and not
 names to pass to `idFromName`. Wrong namespace/jurisdiction IDs are rejected by
 the platform. The maintenance HTTP handler belongs only to this separate

@@ -225,8 +225,8 @@ class _DemoChip extends StatelessWidget {
       duration: RegalosMotion.fade,
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: selected ? t.fill : null,
-        border: Border.all(color: selected ? t.fill : t.chipBorder),
+        color: selected ? t.selection : null,
+        border: Border.all(color: selected ? t.selectionBorder : t.chipBorder),
         borderRadius: RegalosShape.chip,
       ),
       // El texto cambia de color a la vez que el fondo, no antes.
@@ -234,9 +234,7 @@ class _DemoChip extends StatelessWidget {
         duration: RegalosMotion.fade,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: t.styles.metaStrong.copyWith(
-          color: selected ? t.onFill : t.text,
-        ),
+        style: t.styles.metaStrong.copyWith(color: selected ? t.ink : t.text),
         child: Text(label),
       ),
     );

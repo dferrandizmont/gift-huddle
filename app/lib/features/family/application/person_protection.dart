@@ -1,5 +1,13 @@
 part of 'family_controller.dart';
 
+/// People represented by another active mobile in the verified registry.
+Set<String> otherMobilePeople(RegistryView? view) => Set.unmodifiable({
+  if (view != null)
+    for (final id in view.members)
+      if (id != view.me && view.member(id)!.kind == DeviceKind.mobile)
+        if (view.member(id)!.personId case final String person) person,
+});
+
 class _ProtectionContext {
   const _ProtectionContext(this.view, this.keys, this.slots, this.keyring);
   final RegistryView view;
@@ -81,7 +89,13 @@ extension PersonProtectionActions on FamilyController {
     if (saved == null) return;
     _adopt(saved.identity, saved.key, saved.doc);
     _protectionState = AsyncData(
-      FamilyState(doc: saved.doc, identity: saved.identity),
+      FamilyState(
+        doc: saved.doc,
+        identity: saved.identity,
+        otherDevicePeople: otherMobilePeople(
+          (await _store.readVerifiedRegistry(saved.doc))?.view,
+        ),
+      ),
     );
   }
 
@@ -90,25 +104,11 @@ extension PersonProtectionActions on FamilyController {
 
   Future<_ProtectionContext?> _protectionContext(FamilyDoc doc) async {
     if (!_store.supportsSecretScopes) return null;
-    final v2 = await _store.readSyncV2();
-    if (v2 == null) return null;
-    final keys = await _protectionRef.read(deviceKeysStoreProvider).read();
-    if (keys == null) return null;
-    final registry = await _store.readRegistry(
-      anchor: RegistryAnchor(
-        deviceId: v2.deviceId,
-        signingKey: keys.publicKeys.signing,
-      ),
-    );
+    final registry = await _store.readVerifiedRegistry(doc);
     if (registry == null) return null;
-    final view = await registry.viewFor(
-      me: v2.deviceId,
-      mySigningKey: keys.publicKeys.signing,
-      livePeople: livePeopleOf(doc),
-    );
     return _ProtectionContext(
-      view,
-      keys,
+      registry.view,
+      registry.keys,
       await _store.readSlots(),
       await _protectionRef
           .read(deviceKeysStoreProvider)
@@ -119,6 +119,7 @@ extension PersonProtectionActions on FamilyController {
   Future<FamilyView> _authorizedView(
     FamilyDoc doc, {
     FamilyDoc? policySource,
+    bool includePending = false,
   }) async {
     final effectiveDoc = policySource == null
         ? doc
@@ -134,19 +135,121 @@ extension PersonProtectionActions on FamilyController {
     if (ctx == null) {
       return FamilyView.fromDoc(FamilyState._safeStateDoc(effectiveDoc));
     }
+    return (await _projectAuthorized(
+      effectiveDoc,
+      ctx,
+      includePending: includePending,
+    )).view;
+  }
+
+  Future<AuthorizedProjection> _projectAuthorized(
+    FamilyDoc doc,
+    _ProtectionContext ctx, {
+    bool includePending = false,
+  }) async {
     final local = <String, FamilyDoc>{};
     for (final person in ctx.keyring.people) {
       if (!ctx.view.selfEntitled(person)) continue;
-      final scope = await _store.readScope(person);
+      var scope = await _store.readScope(person);
+      if (includePending) {
+        final pending = await _store.readOverflow(person);
+        if (pending.isNotEmpty) {
+          final pendingDoc = _recordsDoc(doc.listId, pending);
+          scope = scope?.merge(pendingDoc) ?? pendingDoc;
+        }
+      }
       if (scope != null) local[person] = scope;
     }
-    return (await projectAuthorized(
-      common: effectiveDoc,
+    return projectAuthorized(
+      common: doc,
       slots: ctx.slots,
       keyring: ctx.keyring,
       view: ctx.view,
       localScopes: local,
-    )).view;
+    );
+  }
+
+  // Persist the common and authorized scope edits together so recovery can
+  // replay them after an interrupted delete. For scopes without a current
+  // sealing key, the local edits can be sealed when sync receives that key.
+  Future<bool> _saveProtectedCascade(
+    FamilyDoc before,
+    FamilyDoc after,
+    FamilyDoc Function(FamilyDoc, HlcClock) changeGifts,
+  ) async {
+    final ctx = await _protectionContext(before);
+    if (ctx == null) return false;
+    var slots = ctx.slots;
+    final scopes = <String, Map<String, Object?>>{};
+    for (final person in ctx.keyring.people) {
+      final opened = await openScope(
+        personId: person,
+        slots: ctx.slots,
+        keyring: ctx.keyring,
+        view: ctx.view,
+      );
+      if (opened == null) continue;
+      final scope = (await _store.readScope(person) ?? opened.doc).merge(
+        opened.doc,
+      );
+      final pending = await _store.readOverflow(person);
+      final withPending = scope.merge(_recordsDoc(before.listId, pending));
+      final clock = HlcClock(
+        node: ctx.view.me,
+        last: _store.latestStoredStamp(withPending),
+      );
+      var changed = changeGifts(scope, clock);
+      final changedPending = changeGifts(withPending, clock);
+      if (identical(changed, scope) && identical(changedPending, withPending)) {
+        continue;
+      }
+      final remaining = [
+        for (final record in pending)
+          if (changedPending.record(Collections.gifts, record.id)
+              case final SyncRecord updated when !updated.isDeleted)
+            updated,
+      ];
+      if (opened.unreadableWriters.isEmpty) {
+        try {
+          final published = await publishScope(
+            slots: slots,
+            opened: opened,
+            view: ctx.view,
+            writerKeys: ctx.keys,
+            keyring: ctx.keyring,
+            policy: opened.effective(publishedPolicy(before, person)),
+            doc: changed,
+            nowMillis: DateTime.now().millisecondsSinceEpoch,
+          );
+          final (next, rejected) = await slots.merge([
+            published.slot,
+          ], view: ctx.view);
+          if (rejected == 0) {
+            slots = next;
+            changed = published.scope;
+          }
+        } on SlotPublishBlockedException {
+          // Keep the authorized local edit until the scope can be sealed.
+        }
+      }
+      scopes[person] = {
+        'scope': changed.toJson(),
+        'overflow': _recordsDoc(before.listId, remaining).toJson(),
+      };
+    }
+    if (scopes.isEmpty) return false;
+    final first = scopes.entries.first;
+    scopes.remove(first.key);
+    await _store.saveProtectionOperation({
+      'list': after.listId,
+      'person': first.key,
+      ...first.value,
+      'common': after.toJson(),
+      'slots': slots.toJson(),
+      if (scopes.isNotEmpty) 'additionalScopes': scopes,
+    });
+    await _store.recoverProtectionOperation();
+    return true;
   }
 
   /// Publishes only a request. It never creates keys or moves gifts. A phone
@@ -393,15 +496,16 @@ extension PersonProtectionActions on FamilyController {
     return reason;
   }
 
-  Future<bool> _upsertProtectedAware(
+  Future<_GiftWriteOutcome> _upsertProtectedAware(
     FamilyState current,
     _ProtectionContext ctx,
     Gift gift,
     Map<String, Object?> fields,
     Gift? original, {
     Set<String> confirmed = const {},
+    String? giverPersonId,
   }) async {
-    final doc = current.doc;
+    var doc = current.doc;
     final previous = doc.record(Collections.gifts, gift.id);
     String? source;
     SyncRecord? secret;
@@ -414,16 +518,25 @@ extension PersonProtectionActions on FamilyController {
         view: ctx.view,
       );
       final local = await _store.readScope(person);
-      final record = local == null
-          ? scope?.doc.record(Collections.gifts, gift.id)
-          : scope?.doc.merge(local).record(Collections.gifts, gift.id);
+      final record = await _localSecretRecord(
+        doc.listId,
+        person,
+        gift.id,
+        scope,
+        local,
+      );
       if (record != null) {
         source = person;
         secret = record;
         break;
       }
     }
-    if (secret?.isDeleted == true) return false;
+    if ((secret ?? previous)?.isDeleted == true) {
+      return (result: GiftWriteResult.giftDeleted, savedId: null);
+    }
+    if (secret == null && original != null && previous == null) {
+      return (result: GiftWriteResult.giftUnavailable, savedId: null);
+    }
     // An editor that did not change recipientId must preserve a remote move.
     // Authorization follows the record being written, never the stale form.
     final person =
@@ -431,15 +544,28 @@ extension PersonProtectionActions on FamilyController {
         secret?['recipientId'] as String? ??
         previous?['recipientId'] as String? ??
         gift.recipientId;
-    if (_isDeletedRecord(doc, Collections.recipients, person)) return false;
+    if (_isDeletedRecord(doc, Collections.recipients, person)) {
+      return (result: GiftWriteResult.recipientUnavailable, savedId: null);
+    }
     final previousPerson = previous?['recipientId'];
-    for (final involved in {
+    final blocked = {
       person,
       ?source,
       if (previousPerson is String) previousPerson,
-    }) {
-      if (!ctx.blocked(doc, involved)) continue;
+    }.where((involved) => ctx.blocked(doc, involved)).toList();
+    for (final involved in blocked) {
       ctx.requireKey(involved);
+    }
+    final (result, prepared) = _prepareGiftGiver(
+      doc,
+      person,
+      fields,
+      previous: secret ?? previous,
+      giverPersonId: giverPersonId,
+      protected: source != null || blocked.isNotEmpty,
+    );
+    if (result != GiftWriteResult.saved) return (result: result, savedId: null);
+    for (final involved in blocked) {
       if (!confirmed.contains(involved) &&
           ctx.slots.authenticatedPolicy(involved, ctx.view)?.hideOwnGifts !=
               true) {
@@ -456,9 +582,11 @@ extension PersonProtectionActions on FamilyController {
           fields,
           original,
           confirmed: {...confirmed, involved},
+          giverPersonId: giverPersonId,
         );
       }
     }
+    doc = prepared;
     if (source != null && source != person) {
       return _relocateProtectedGift(
         current,
@@ -483,8 +611,12 @@ extension PersonProtectionActions on FamilyController {
       );
     }
     if (!ctx.blocked(doc, person)) {
-      if (previous?.isDeleted == true) return false;
-      if (original != null && previous == null) return false;
+      if (previous?.isDeleted == true) {
+        return (result: GiftWriteResult.giftDeleted, savedId: null);
+      }
+      if (original != null && previous == null) {
+        return (result: GiftWriteResult.giftUnavailable, savedId: null);
+      }
       final next = addPublicGift(
         common: doc,
         clock: _clock!,
@@ -494,10 +626,11 @@ extension PersonProtectionActions on FamilyController {
         giftId: gift.id,
         fields: fields,
       );
-      if (identical(next, doc)) return true;
-      await _store.saveDoc(next);
-      _protectionState = AsyncData(current.copyWith(doc: next));
-      return true;
+      if (!identical(next, current.doc)) {
+        await _store.saveDoc(next);
+        _protectionState = AsyncData(current.copyWith(doc: next));
+      }
+      return (result: GiftWriteResult.saved, savedId: gift.id);
     }
     ctx.requireKey(person);
     final opened = await ctx.open(person);
@@ -508,13 +641,13 @@ extension PersonProtectionActions on FamilyController {
     if (secret == null &&
         previous?.isDeleted == true &&
         pendingRecord == null) {
-      return false;
+      return (result: GiftWriteResult.giftDeleted, savedId: null);
     }
     if (original != null &&
         secret == null &&
         previous == null &&
         pendingRecord == null) {
-      return false;
+      return (result: GiftWriteResult.giftUnavailable, savedId: null);
     }
     final beforeEdit = scope;
     final secretClock = HlcClock(
@@ -578,16 +711,17 @@ extension PersonProtectionActions on FamilyController {
       pending.where((r) => r.id != gift.id).toList(),
     );
     if (reason != null) {
+      // Una entrega guardada solo en local no pide valoración.
       throw ProtectedPersonException(
         person,
         reason: reason,
         savedLocally: true,
       );
     }
-    return true;
+    return (result: GiftWriteResult.saved, savedId: gift.id);
   }
 
-  Future<bool> _relocateProtectedGift(
+  Future<_GiftWriteOutcome> _relocateProtectedGift(
     FamilyState current,
     _ProtectionContext ctx,
     String source,
@@ -607,7 +741,9 @@ extension PersonProtectionActions on FamilyController {
         sourcePending.where((r) => r.id == record.id),
       ),
     );
-    if (scope.record(Collections.gifts, record.id)!.isDeleted) return false;
+    if (scope.record(Collections.gifts, record.id)!.isDeleted) {
+      return (result: GiftWriteResult.giftDeleted, savedId: null);
+    }
     final clock = HlcClock(
       node: ctx.view.me,
       last: _store.latestStoredStamp(scope),
@@ -684,7 +820,7 @@ extension PersonProtectionActions on FamilyController {
       final stamp = common.maxStamp;
       if (stamp != null) _clock!.receive(stamp);
     }
-    await _saveProtected(
+    final reason = await _saveProtected(
       ctx,
       source,
       common,
@@ -701,7 +837,9 @@ extension PersonProtectionActions on FamilyController {
         savedLocally: true,
       );
     }
-    return true;
+    // Keep a local move successful without using it to request a review
+    // when there is no capacity to publish the source scope.
+    return (result: GiftWriteResult.saved, savedId: reason == null ? id : null);
   }
 
   /// Capacity leftovers stay local; retry never falls back to the common.
@@ -758,14 +896,14 @@ extension PersonProtectionActions on FamilyController {
       );
       if (opened == null) continue;
       final local = await _store.readScope(person);
-      final record = (local == null ? opened.doc : opened.doc.merge(local))
-          .record(Collections.gifts, id);
+      final record = await _localSecretRecord(
+        current.doc.listId,
+        person,
+        id,
+        opened,
+        local,
+      );
       if (record != null && !record.isDeleted) return record;
-      if (record?.isDeleted == true) continue;
-      final pending = (await _store.readOverflow(person))
-          .where((r) => r.id == id && !r.isDeleted)
-          .firstOrNull;
-      if (pending != null) return pending;
     }
     final public = current.doc.record(Collections.gifts, id);
     final person = public?['recipientId'];
@@ -777,6 +915,21 @@ extension PersonProtectionActions on FamilyController {
       return public;
     }
     return null;
+  }
+
+  Future<SyncRecord?> _localSecretRecord(
+    String listId,
+    String person,
+    String giftId,
+    OpenedScope? opened,
+    FamilyDoc? local,
+  ) async {
+    var scope = opened?.doc ?? FamilyDoc.empty(listId);
+    if (local != null) scope = scope.merge(local);
+    final pending = (await _store.readOverflow(person))
+        .where((r) => r.id == giftId);
+    if (pending.isNotEmpty) scope = scope.merge(_recordsDoc(listId, pending));
+    return scope.record(Collections.gifts, giftId);
   }
 
   Future<bool> _deleteSecretGift(String id) =>
@@ -836,6 +989,13 @@ extension PersonProtectionActions on FamilyController {
     final current = await _requireFamily();
     var ctx = await _protectionContext(current.doc);
     if (ctx == null) return false;
+    final otherPeople = otherMobilePeople(ctx.view);
+    if (otherPeople.length != current.otherDevicePeople.length ||
+        !otherPeople.containsAll(current.otherDevicePeople)) {
+      _protectionState = AsyncData(
+        current.copyWith(otherDevicePeople: otherPeople),
+      );
+    }
     for (final person in {
       ...publishedPolicies(current.doc).keys,
       ...ctx.keyring.people,

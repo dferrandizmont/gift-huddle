@@ -1106,11 +1106,7 @@ void main() {
     }
 
     Future<void> openFromWelcome(WidgetTester tester) async {
-      final button = find.text('Recuperar con fichero');
-      await tester.ensureVisible(button);
-      await tester.pump();
-      await tester.tap(button);
-      await settle(tester);
+      await tapWelcomeChoice(tester, 'Recuperar con fichero');
     }
 
     fileTest('la bienvenida lo ofrece junto al código de palabras', (
@@ -1118,12 +1114,15 @@ void main() {
       phone,
     ) async {
       await pumpRegalos(tester, phone);
+      expect(find.text('Restaurar una copia'), findsOneWidget);
+      await openWelcomeSheet(tester, 'Recuperar con fichero');
       expect(find.text('Tengo un código de recuperación'), findsOneWidget);
       expect(find.text('Recuperar con fichero'), findsOneWidget);
-      await openFromWelcome(tester);
+      await tester.tap(find.text('Recuperar con fichero'));
+      await settle(tester);
       expect(find.text('Recuperar con un fichero'), findsOneWidget);
       await tapLabel(tester, 'Atrás');
-      expect(find.text('Recuperar con fichero'), findsOneWidget);
+      expect(find.text('Restaurar una copia'), findsOneWidget);
     });
 
     fileTest('el fichero abierto pide confirmación y recupera como las '

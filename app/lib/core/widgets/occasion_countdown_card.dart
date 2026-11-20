@@ -38,11 +38,11 @@ class OccasionCountdownCard extends StatelessWidget {
 
   final int days;
 
-  /// La versión compacta de la columna «Resumen» de escritorio: 112 de alto,
-  /// cifra de 44, y la fecha y los regalos comprados en una sola línea.
+  /// La versión compacta de la columna «Resumen» de escritorio: 112 de alto
+  /// como mínimo (crece con la letra grande), cifra de 44, y la fecha y los regalos comprados en una sola línea.
   final bool compact;
 
-  /// El alto fijo de la tarjeta [compact].
+  /// El alto mínimo de la tarjeta [compact].
   static const double compactHeight = 112;
 
   /// Para medir dónde está el número (el vuelo hasta el detalle de la ocasión
@@ -97,8 +97,14 @@ class OccasionCountdownCard extends StatelessWidget {
   static TextStyle _dateStyle(RegalosTokens t) =>
       t.styles.meta.copyWith(fontSize: 13.5, height: 1.3, color: t.text);
 
+  /// El color del texto secundario de la tarjeta («1 de 2 regalos comprados»):
+  /// la tinta, opaca. Con la tinta al 80 % sobre el pastel bajaba a 3,76:1
+  /// (lavanda) y 3,32:1 (salvia); opaca llega a 4,5:1 en los dos temas (lo
+  /// mide `theme_test` con el color efectivo).
+  static Color metaColorOf(RegalosTokens t) => t.ink;
+
   static TextStyle _metaStyle(RegalosTokens t) =>
-      _dateStyle(t).copyWith(color: t.ink.withValues(alpha: 0.8));
+      _dateStyle(t).copyWith(color: metaColorOf(t));
 
   static TextStyle _numberStyle(RegalosTokens t, {bool compact = false}) => t
       .styles
@@ -167,8 +173,10 @@ class OccasionCountdownCard extends StatelessWidget {
       label: '$days $unit. $title. $date. $meta',
       excludeSemantics: true,
       child: Container(
-        height: compact ? compactHeight : height,
-        constraints: BoxConstraints(minHeight: compact ? 0 : minHeight),
+        height: compact ? null : height,
+        constraints: BoxConstraints(
+          minHeight: compact ? compactHeight : minHeight,
+        ),
         padding: EdgeInsets.symmetric(
           horizontal: _padH,
           vertical: compact ? 12 : _padV,
@@ -202,7 +210,7 @@ class OccasionCountdownCard extends StatelessWidget {
                     StrokeIcon(
                       icon!,
                       size: iconSize,
-                      color: t.ink.withValues(alpha: 0.62),
+                      color: t.ink.withValues(alpha: t.isDark ? 0.85 : 0.62),
                       strokeWidth: 1.5,
                     ),
                   ),
@@ -265,7 +273,7 @@ class OccasionCountdownCard extends StatelessWidget {
   }
 }
 
-/// Una ocasión en una fila de [rowHeight] (la columna «Resumen» y la fila de
+/// Una ocasión en una fila de [rowHeight] como mínimo (la columna «Resumen» y la fila de
 /// encima de la lista de Personas en escritorio): un cuadro pastel de 40 con
 /// los días, el título y, debajo, la fecha y los regalos comprados.
 ///
@@ -299,7 +307,7 @@ class OccasionSummaryRow extends StatelessWidget {
   final OccasionTheme? occasion;
   final VoidCallback? onTap;
 
-  /// El alto de la fila.
+  /// El alto mínimo de la fila.
   static const double rowHeight = 56;
 
   /// El alto del cuadro de los días.
@@ -321,13 +329,15 @@ class OccasionSummaryRow extends StatelessWidget {
       label: '$days $unit. $title. $date. $meta',
       excludeSemantics: true,
       onTap: onTap,
-      child: SizedBox(
-        height: rowHeight,
+      // 56 de alto como mínimo: con letra grande la fila crece en vez de
+      // desbordar.
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: rowHeight),
         child: InkWell(
           onTap: onTap,
           borderRadius: RegalosShape.card,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: Row(
               children: [
                 DecoratedBox(
@@ -364,6 +374,7 @@ class OccasionSummaryRow extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [

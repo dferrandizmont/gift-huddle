@@ -41,6 +41,11 @@ Future<void> _openWithN(WidgetTester tester, FakePhone phone) async {
   expect(_editor, findsOneWidget);
 }
 
+/// El primer campo de texto del editor (el título), y no el buscador de
+/// regalos que la lista de Personas lleva debajo del diálogo.
+Finder get _firstField =>
+    find.descendant(of: _editor, matching: find.byType(TextField)).first;
+
 /// Las escalas de los `Transform` por encima del editor.
 List<double> _scales(WidgetTester tester) => [
   for (final t in tester.widgetList<Transform>(
@@ -98,7 +103,7 @@ void main() {
       '«Cancelar» lo cierra y no guarda nada',
       (tester, phone) async {
         await _openWithN(tester, phone);
-        await tester.enterText(find.byType(TextField).first, 'Cometa');
+        await tester.enterText(_firstField, 'Cometa');
         await tester.tap(_cancel);
         await settle(tester);
         expect(_editor, findsNothing);
@@ -112,12 +117,36 @@ void main() {
       '«Guardar» guarda el regalo y cierra el diálogo',
       (tester, phone) async {
         await _openWithN(tester, phone);
-        await tester.enterText(find.byType(TextField).first, 'Cometa');
+        await tester.enterText(_firstField, 'Cometa');
         await tester.tap(_save);
         await settle(tester);
         expect(_editor, findsNothing);
         expect(find.text('Cometa'), findsWidgets);
         expect(tester.takeException(), isNull);
+      },
+      size: const Size(1536, 864),
+      overrides: _webOn,
+    );
+
+    screenTest(
+      'un precio negativo pegado no se guarda',
+      (tester, phone) async {
+        await _openWithN(tester, phone);
+        await tester.enterText(_firstField, 'Cometa');
+        final price = find.byWidgetPredicate(
+          (w) => w is TextField && w.decoration?.labelText == 'Previsto',
+        );
+        await tester.ensureVisible(price);
+        await tester.enterText(price, '-12,');
+        await tester.tap(_save);
+        await settle(tester);
+        expect(_editor, findsOneWidget);
+        expect(tester.widget<TextField>(price).controller!.text, '-12,');
+        expect(
+          find.text('Escribe un importe, por ejemplo 12,50.'),
+          findsOneWidget,
+        );
+        expect(find.text('Cometa'), findsOneWidget);
       },
       size: const Size(1536, 864),
       overrides: _webOn,

@@ -126,6 +126,21 @@ Future<void> pumpRegalos(WidgetTester tester, FakePhone phone) async {
 FamilyController familyOf(FakePhone phone) =>
     phone.container.read(familyControllerProvider.notifier);
 
+/// Pone el presupuesto de varias ocasiones por id, en céntimos (`null` lo
+/// quita). La muestra no trae ninguno.
+Future<void> setBudgets(
+  WidgetTester tester,
+  FakePhone phone,
+  Map<String, int?> budgets,
+) async {
+  await tester.runAsync(() async {
+    for (final entry in budgets.entries) {
+      await familyOf(phone).setOccasionBudget(entry.key, entry.value);
+    }
+  });
+  await tester.pump();
+}
+
 Future<FamilyState> familyState(WidgetTester tester, FakePhone phone) async =>
     (await tester.runAsync(
       () => phone.container.read(familyControllerProvider.future),
@@ -375,6 +390,32 @@ Future<void> bareFamily(WidgetTester tester, FakePhone phone) =>
 /// Pulsa un texto y deja acabar lo que provoque.
 Future<void> tapText(WidgetTester tester, String text) async {
   await tester.tap(find.text(text).first);
+  await settle(tester);
+}
+
+/// Los textos que abren una hoja de la bienvenida: cada opción vive tras
+/// «Unirme a una familia» o «Restaurar una copia».
+const _joinChoices = ['Escanear el QR', 'Unirme con un enlace'];
+
+/// En la bienvenida, abre la hoja que contiene [choice] y la elige: la opción
+/// cierra la hoja y abre su pantalla.
+Future<void> tapWelcomeChoice(WidgetTester tester, String choice) async {
+  await openWelcomeSheet(tester, choice);
+  await tester.tap(find.text(choice).last);
+  await settle(tester);
+}
+
+/// En la bienvenida, abre la hoja que contiene [choice] sin elegir nada.
+Future<void> openWelcomeSheet(WidgetTester tester, String choice) async {
+  final opener = find.widgetWithText(
+    OutlinedButton,
+    _joinChoices.contains(choice)
+        ? 'Unirme a una familia'
+        : 'Restaurar una copia',
+  );
+  await tester.ensureVisible(opener);
+  await tester.pump();
+  await tester.tap(opener);
   await settle(tester);
 }
 

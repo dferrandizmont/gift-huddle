@@ -308,19 +308,12 @@ class _FamilyScreenState extends ConsumerState<FamilyScreen> {
     }
 
     // 3. Origen: la celda (o la fila) de cada regalo que se ve ahora.
-    final visibleGivers = {for (final g in view.givers) g.id};
-    final knownGivers = {
-      for (final g in (view.allGivers.isEmpty ? view.givers : view.allGivers))
-        g.id,
-    };
     String? gridAnchor(Gift g) {
-      final giverId = g.giverId;
-      if (giverId == null || !knownGivers.contains(giverId)) {
-        return repartoUnassignedAnchor(g.recipientId);
-      }
-      return visibleGivers.contains(giverId)
-          ? repartoCellAnchor(g.recipientId, giverId)
-          : null;
+      final giverId = view.repartoGiverId(g);
+      if (giverId == null) return null;
+      return giverId == FamilyGrid.unassignedGiverId
+          ? repartoUnassignedAnchor(g.recipientId)
+          : repartoCellAnchor(g.recipientId, giverId);
     }
 
     final sources = <Gift, Rect>{};
@@ -555,7 +548,9 @@ class _FamilyScreenState extends ConsumerState<FamilyScreen> {
     final duplicateCells = <String>{
       for (final pair in duplicates)
         for (final g in [pair.first, pair.second])
-          if (shownIds.contains(g.id)) '${g.giverId ?? ''}|${pair.recipientId}',
+          if (shownIds.contains(g.id))
+            if (shown.repartoGiverId(g) case final id?)
+              '$id|${pair.recipientId}',
     };
 
     // Las ocasiones de los regalos de cada celda, solo en «Todas»: no se
@@ -929,22 +924,10 @@ class _FamilyScreenState extends ConsumerState<FamilyScreen> {
     FamilyView shown,
     FamilyGrid grid,
   ) {
-    final visible = {for (final g in shown.givers) g.id};
-    final known = {
-      for (final g in shown.allGivers.isEmpty ? shown.givers : shown.allGivers)
-        g.id,
-    };
     final lists = <String, List<Gift>>{};
     for (final gift in shown.gifts) {
-      final giverId = gift.giverId;
-      final String? row;
-      if (giverId == null || !known.contains(giverId)) {
-        row = null;
-      } else if (visible.contains(giverId)) {
-        row = giverId;
-      } else {
-        continue;
-      }
+      final row = shown.repartoGiverId(gift);
+      if (row == null) continue;
       lists
           .putIfAbsent(repartoCellKey(gift.recipientId, row), () => <Gift>[])
           .add(gift);
@@ -981,24 +964,11 @@ class _FamilyScreenState extends ConsumerState<FamilyScreen> {
       for (final g in groups)
         for (final id in g.ids) id: g,
     };
-    final visible = {for (final g in view.givers) g.id};
-    final known = {
-      for (final g in view.allGivers.isEmpty ? view.givers : view.allGivers)
-        g.id,
-    };
     final cells = <String, Set<OccasionGroup>>{};
     for (final gift in view.gifts) {
       final group = byOccasion[gift.occasionId];
-      if (group == null) {
-        continue;
-      }
-      final giverId = gift.giverId;
-      final String row;
-      if (giverId == null || !known.contains(giverId)) {
-        row = '';
-      } else if (visible.contains(giverId)) {
-        row = giverId;
-      } else {
+      final row = view.repartoGiverId(gift);
+      if (group == null || row == null) {
         continue;
       }
       cells
@@ -1127,9 +1097,9 @@ class _DuplicateBanner extends StatelessWidget {
     // Mantequilla como la maqueta: un aviso, no una alarma. Claro: fondo
     // pastel y texto en su tinta oscura; oscuro: el par oscuro del acento.
     final warn = AccentId.butter.palette;
-    final fill = t.isDark ? warn.tintD : warn.pastel;
-    final ink = t.isDark ? warn.tintaD : warn.onFill;
-    final action = t.isDark ? warn.tintaD : warn.tinta;
+    final fill = warn.surfaceOf(t.isDark);
+    final ink = warn.inkOf(t.isDark);
+    final action = warn.inkOf(t.isDark);
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       padding: const EdgeInsets.only(left: 12),

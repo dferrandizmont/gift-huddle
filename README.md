@@ -38,18 +38,18 @@ Android 8 or later is in closed testing on Google Play. The iPhone version (iOS 
 ## Screenshots
 
 <p>
-  <a href="docs/readme/en/01-reparto.png"><img src="docs/readme/en/01-reparto.png" width="19%" alt="Who gives what as a grid, with a possible duplicate notice"></a>
-  <a href="docs/readme/en/02-personas.png"><img src="docs/readme/en/02-personas.png" width="19%" alt="People, with the next occasion at the top"></a>
-  <a href="docs/readme/en/03-lista.png"><img src="docs/readme/en/03-lista.png" width="19%" alt="Aritz's gift list by occasion"></a>
-  <a href="docs/readme/en/04-ocasiones.png"><img src="docs/readme/en/04-ocasiones.png" width="19%" alt="Occasions: holidays and birthdays with the days left"></a>
-  <a href="docs/readme/en/05-ocasion.png"><img src="docs/readme/en/05-ocasion.png" width="19%" alt="Christmas: countdown and what is still to buy"></a>
+  <a href="docs/readme/en/01-navidad.png"><img src="docs/readme/en/01-navidad.png" width="19%" alt="Christmas: countdown and what is still to wrap or arrive, person by person"></a>
+  <a href="docs/readme/en/02-reparto.png"><img src="docs/readme/en/02-reparto.png" width="19%" alt="Who gives what as a grid, with a possible duplicate notice"></a>
+  <a href="docs/readme/en/03-bloqueo.png"><img src="docs/readme/en/03-bloqueo.png" width="19%" alt="The lock screen asking for the PIN"></a>
+  <a href="docs/readme/en/04-personas.png"><img src="docs/readme/en/04-personas.png" width="19%" alt="People, with the upcoming occasions at the top"></a>
+  <a href="docs/readme/en/05-lista.png"><img src="docs/readme/en/05-lista.png" width="19%" alt="Aritz's gift list by occasion, with the household budget"></a>
 </p>
 
 <details>
 <summary>More screenshots</summary>
 
 <p>
-  <a href="docs/readme/en/06-oscuro.png"><img src="docs/readme/en/06-oscuro.png" width="19%" alt="The same list in the dark theme"></a>
+  <a href="docs/readme/en/06-oscuro.png"><img src="docs/readme/en/06-oscuro.png" width="19%" alt="Aritz's gift list in the dark theme"></a>
 </p>
 
 </details>
@@ -83,7 +83,7 @@ There are no accounts or ads, and the developer uses no analytics or crash repor
 
 ## What's new
 
-Version 1.0.3 (17 November 2026) opens a recovery file straight from the Files app, also when the app is already open, and shows "Save to a file" on the 24 words screen without scrolling. Version 1.0.2 (16 November 2026) lets you save the recovery code as a file, optionally protected with a password, makes connecting the web version work again and faster, and keeps the QR scanner from staying black. Version 1.0.0 (16 November 2026) is the first one in the stores. It brings the list of gifts for each person, the Who gives what grid, occasions with a countdown, secret gifts, sharing between phones and the web version, the recovery code, and light and dark themes. See [CHANGELOG.md](CHANGELOG.md) for the details.
+Version 1.0.4 (20 November 2026) brings a clearer design with new pastel colours in dark mode, a budget for each occasion, upcoming occasions listed soonest first, gift links that open with one tap, and any person in the family as the one who gives a gift. Version 1.0.3 (17 November 2026) opens a recovery file straight from the Files app, also when the app is already open, and shows "Save to a file" on the 24 words screen without scrolling. Version 1.0.2 (16 November 2026) lets you save the recovery code as a file, optionally protected with a password, makes connecting the web version work again and faster, and keeps the QR scanner from staying black. Version 1.0.0 (16 November 2026) is the first one in the stores. It brings the list of gifts for each person, the Who gives what grid, occasions with a countdown, secret gifts, sharing between phones and the web version, the recovery code, and light and dark themes. See [CHANGELOG.md](CHANGELOG.md) for the details.
 
 ## Contributing
 

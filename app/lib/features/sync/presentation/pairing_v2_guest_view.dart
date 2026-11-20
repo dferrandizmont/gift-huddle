@@ -353,7 +353,7 @@ class _PersonRow extends StatelessWidget {
       child: TweenAnimationBuilder<Color?>(
         tween: ColorTween(
           begin: Colors.transparent,
-          end: selected ? t.soft : Colors.transparent,
+          end: selected ? t.selection : Colors.transparent,
         ),
         duration: tint,
         builder: (context, color, child) => Material(

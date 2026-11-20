@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
@@ -29,7 +30,6 @@ import '../../../core/widgets/header_button.dart';
 import '../../../core/widgets/pane_list_row.dart';
 import '../../../core/widgets/pointer_surface.dart';
 import '../../../core/widgets/screen_header.dart';
-import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/settings_row.dart';
 import '../../../core/widgets/stroke_icon.dart';
 import '../../../l10n/app_localizations.dart';
@@ -38,12 +38,15 @@ import '../../family/application/family_providers.dart';
 import '../../family/application/gift_logic.dart';
 import '../../family/application/remote_change.dart';
 import '../../family/domain/next_occasion.dart';
+import '../../family/domain/occasion_order.dart';
 import '../../family/presentation/family_texts.dart';
 import '../../family/presentation/occasion_sheet.dart';
 import '../../family/presentation/secret_blocks.dart';
 import '../../settings/application/appearance_provider.dart';
 import '../../gifts/presentation/add_gift_button.dart';
 import '../../gifts/presentation/gift_editor_screen.dart';
+import '../../web_board/presentation/web_budget_card.dart';
+import '../../web_device/application/web_app_provider.dart';
 import '../application/occasion_rows.dart';
 import 'budget_screen.dart';
 import 'occasion_detail_screen.dart';
@@ -77,12 +80,27 @@ class OccasionsWorkspace extends ConsumerWidget {
     final panes = WindowClass.of(context).usesTwoPanes && occasions.isNotEmpty;
     final selection = ref.read(paneSelectionProvider);
     final now = clock.now();
-    final ids = occasionRowIds(occasions, now);
+    // En la web el presupuesto no es una fila de esta lista: tiene su propia
+    // entrada de navegación.
+    final web = ref.watch(webAppProvider);
+    final ids = [
+      for (final id in occasionRowIds(occasions, now))
+        if (!web || id != kBudgetRowId) id,
+    ];
     final String? shown;
     if (panes) {
       final id = selected;
       final last = selection.lastOf(PaneTab.occasions);
-      shown = id != null && ids.contains(id)
+      // El id explícito vale aunque la ocasión esté archivada (se llega desde
+      // el presupuesto): solo se sustituye si ya no existe.
+      final known =
+          id != null &&
+          (ids.contains(id) ||
+              ref
+                  .watch(familyFullViewProvider)
+                  .occasions
+                  .any((o) => o.id == id));
+      shown = known
           ? id
           : (last != null && ids.contains(last)
                 ? last
@@ -90,7 +108,7 @@ class OccasionsWorkspace extends ConsumerWidget {
     } else {
       shown = selected;
     }
-    final index = shown == null ? 0 : ids.indexOf(shown);
+    final index = shown == null ? 0 : math.max(0, ids.indexOf(shown));
 
     void step(int delta) {
       final current = shown == null ? -1 : ids.indexOf(shown);
@@ -207,53 +225,22 @@ class _OccasionsScreenState extends ConsumerState<OccasionsScreen> {
       ref.watch(familyFullViewProvider).recipientsById,
     );
     final now = clock.now();
-    final ordered = occasionsByNextDate(occasions, now);
+    final ordered = occasionsByDaysLeft(occasions, now, includePassed: true);
 
     final addButton = HeaderIconButton(
       icon: AppIcons.plus,
       label: l10n.occasionNew,
       onTap: () => _add(context, ref),
     );
-    final celebrations = [
-      for (final o in ordered)
-        if (o.kind != OccasionKind.birthday) o,
-    ];
-    final birthdays = [
-      for (final o in ordered)
-        if (o.kind == OccasionKind.birthday) o,
-    ];
-
     // Los bloques entran de arriba abajo una sola vez por visita (§1.6): la
-    // fila del presupuesto, y luego cada cabecera de grupo y cada ocasión,
-    // con la clave de su id. Las ocasiones viven en `AnimatedRows`: una que se
+    // fila del presupuesto (índice 0) y luego cada ocasión, con la clave de su
+    // id. Las ocasiones viven en `AnimatedRows`: una que se
     // crea se despliega, una que se borra se pliega y una que cambia de fecha
     // se desliza hasta su nuevo puesto (`MoveSlide`).
-    var order = 0;
+    var order = 1;
     var slot = 0;
-    List<AnimatedRowItem> group(
-      String id,
-      String title,
-      List<Occasion> list, {
-      required bool first,
-    }) => [
-      AnimatedRowItem(
-        id: 'group-$id',
-        child: MoveSlide(
-          slot: slot++,
-          child: RepaintBoundary(
-            child: StaggerItem(
-              index: order++,
-              child: SectionHeader(
-                title: title,
-                trailing: '${list.length}',
-                bordered: false,
-                padding: EdgeInsets.fromLTRB(16, first ? 14 : 12, 16, 8),
-              ),
-            ),
-          ),
-        ),
-      ),
-      for (final o in list)
+    final rows = <AnimatedRowItem>[
+      for (final o in ordered)
         AnimatedRowItem(
           id: o.id,
           // Al cambiar de puesto (su fecha cambió), la fila viaja y, si el
@@ -310,6 +297,17 @@ class _OccasionsScreenState extends ConsumerState<OccasionsScreen> {
       context.go('/occasions/budget');
     }
 
+    // En la web: a ancho de móvil (barra inferior) una tarjeta de Presupuesto
+    // arriba del todo; con raíl, nada (tiene su propio destino). La nativa
+    // lleva la fila de siempre.
+    final web = ref.watch(webAppProvider);
+    final webCard = web && !WindowClass.of(context).usesRail;
+    final budgetCard = webCard
+        ? Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: WebBudgetCard(onTap: openBudget),
+          )
+        : null;
     final budgetRow = SettingsRow(
       title: l10n.budgetCardTitle,
       hint: l10n.budgetCardHint,
@@ -318,6 +316,17 @@ class _OccasionsScreenState extends ConsumerState<OccasionsScreen> {
       bordered: !panes,
       selected: panes && selectedId == kBudgetRowId,
       onTap: openBudget,
+    );
+    final nativeBudgetRow = DecoratedBox(
+      decoration: BoxDecoration(
+        border: panes ? null : Border(top: BorderSide(color: t.separator)),
+      ),
+      child: panes
+          ? Padding(
+              padding: const EdgeInsets.symmetric(horizontal: kPaneRowInset),
+              child: SelectionRow(id: kBudgetRowId, child: budgetRow),
+            )
+          : budgetRow,
     );
 
     // En tablet, una columna de 640 centrada en el panel: la lista lleva el
@@ -346,10 +355,30 @@ class _OccasionsScreenState extends ConsumerState<OccasionsScreen> {
                   child: StateSwitcher(
                     stateKey: occasions.isEmpty ? 'empty' : 'list',
                     child: occasions.isEmpty
-                        ? EmptyState(
-                            icon: AppIcons.occasions,
-                            title: l10n.emptyOccasionsTitle,
-                            message: l10n.emptyOccasionsMessage,
+                        ? Column(
+                            children: [
+                              ?budgetCard,
+                              if (!web)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: ContentWidth(
+                                    maxWidth: RegalosLayout.listColumn,
+                                    child: SelectionScope(
+                                      selectedId: panes ? selectedId : null,
+                                      fill: t.selection,
+                                      border: t.ink,
+                                      child: nativeBudgetRow,
+                                    ),
+                                  ),
+                                ),
+                              Expanded(
+                                child: EmptyState(
+                                  icon: AppIcons.occasions,
+                                  title: l10n.emptyOccasionsTitle,
+                                  message: l10n.emptyOccasionsMessage,
+                                ),
+                              ),
+                            ],
                           )
                         : ContentListView(
                             maxWidth: RegalosLayout.listColumn,
@@ -358,7 +387,9 @@ class _OccasionsScreenState extends ConsumerState<OccasionsScreen> {
                             ),
                             padding: EdgeInsets.only(
                               top: 8,
-                              bottom: addGiftButtonClearance(context),
+                              bottom:
+                                  addGiftButtonClearance(context) +
+                                  MediaQuery.paddingOf(context).bottom,
                             ),
                             children: [
                               // El recuadro de la fila elegida viaja por detrás
@@ -370,7 +401,7 @@ class _OccasionsScreenState extends ConsumerState<OccasionsScreen> {
                                 // el ratón) y su borde: el tono apagado se perdía
                                 // sobre la banda de la lista.
                                 fill: selectionPalette == null
-                                    ? t.soft
+                                    ? t.selection
                                     : (t.isDark
                                           ? selectionPalette.tintaD.withValues(
                                               alpha: 0.12,
@@ -385,51 +416,16 @@ class _OccasionsScreenState extends ConsumerState<OccasionsScreen> {
                                   crossAxisAlignment:
                                       CrossAxisAlignment.stretch,
                                   children: [
-                                    StaggerItem(
-                                      index: order++,
-                                      child: DecoratedBox(
-                                        decoration: BoxDecoration(
-                                          border: panes
-                                              ? null
-                                              : Border(
-                                                  top: BorderSide(
-                                                    color: t.separator,
-                                                  ),
-                                                ),
-                                        ),
-                                        child: panes
-                                            ? Padding(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: kPaneRowInset,
-                                                    ),
-                                                child: SelectionRow(
-                                                  id: kBudgetRowId,
-                                                  child: budgetRow,
-                                                ),
-                                              )
-                                            : budgetRow,
+                                    if (budgetCard != null)
+                                      StaggerItem(index: 0, child: budgetCard)
+                                    else if (!web)
+                                      StaggerItem(
+                                        index: 0,
+                                        child: nativeBudgetRow,
                                       ),
-                                    ),
-                                    AnimatedRows(
-                                      quiet: fromRemote,
-                                      rows: [
-                                        if (celebrations.isNotEmpty)
-                                          ...group(
-                                            'celebrations',
-                                            l10n.occasionsGroupCelebrations,
-                                            celebrations,
-                                            first: true,
-                                          ),
-                                        if (birthdays.isNotEmpty)
-                                          ...group(
-                                            'birthdays',
-                                            l10n.occasionsGroupBirthdays,
-                                            birthdays,
-                                            first: celebrations.isEmpty,
-                                          ),
-                                      ],
-                                    ),
+                                    // El hueco que dejaba la cabecera del primer grupo.
+                                    SizedBox(height: panes ? 4 : 12),
+                                    AnimatedRows(quiet: fromRemote, rows: rows),
                                     // Regalos en secreto que este móvil no ve:
                                     // el bloque fijo, sin cifras.
                                     Padding(

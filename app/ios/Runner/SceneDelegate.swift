@@ -9,6 +9,7 @@ class SceneDelegate: FlutterSceneDelegate {
     willConnectTo session: UISceneSession,
     options connectionOptions: UIScene.ConnectionOptions
   ) {
+    // Flutter forwards each scene event to app_links exactly once.
     super.scene(scene, willConnectTo: session, options: connectionOptions)
     deliver(connectionOptions.urlContexts)
   }

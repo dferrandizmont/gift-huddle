@@ -388,9 +388,11 @@ class _AccentSwatchState extends State<_AccentSwatch>
     final reduce = RegalosMotion.of(context).reduce;
     final p = widget.accent.palette;
     final name = widget.accent.label(AppLocalizations.of(context));
-    final fill = t.isDark ? p.pastelD : p.pastel;
-    final ink = t.isDark ? p.tintaD : p.tinta;
-    final onFill = t.isDark ? p.onFill : p.tinta;
+    // La muestra lleva el pastel tal cual en los dos temas (velado no se
+    // distinguiría un color de otro) y su tinta encima.
+    final fill = p.pastel;
+    final ink = t.isDark ? t.text : p.tinta;
+    final onFill = p.tinta;
 
     return Semantics(
       container: true,

@@ -306,7 +306,7 @@ void main() {
       (tester, phone, size) async {
         _CountingScanner.created = 0;
         await pumpRegalos(tester, phone);
-        await tapText(tester, 'Escanear el QR');
+        await tapWelcomeChoice(tester, 'Escanear el QR');
         expect(tester.takeException(), isNull);
         final expanded = WindowClass.fromSize(size) == WindowClass.expanded;
         final camera = tester.getRect(find.byType(_CountingScanner));
@@ -369,7 +369,7 @@ void main() {
       (tester, phone, size) async {
         _CountingScanner.created = 0;
         await pumpRegalos(tester, phone);
-        await tapText(tester, 'Escanear el QR');
+        await tapWelcomeChoice(tester, 'Escanear el QR');
         expect(_CountingScanner.created, 1);
         await tester.enterText(
           find.widgetWithText(TextField, 'Nombre de este móvil'),
@@ -420,7 +420,7 @@ void main() {
       'en el móvil la cámara ocupa lo que queda bajo el nombre, como siempre',
       (tester, phone) async {
         await pumpRegalos(tester, phone);
-        await tapText(tester, 'Escanear el QR');
+        await tapWelcomeChoice(tester, 'Escanear el QR');
         final camera = tester.getRect(find.byType(_CountingScanner));
         final field = tester.getRect(
           find.widgetWithText(TextField, 'Nombre de este móvil'),
@@ -448,9 +448,7 @@ void main() {
     size,
   ) async {
     await pumpRegalos(tester, phone);
-    await tester.ensureVisible(find.text('Unirme con un enlace'));
-    await tester.pump();
-    await tapText(tester, 'Unirme con un enlace');
+    await tapWelcomeChoice(tester, 'Unirme con un enlace');
     expect(tester.takeException(), isNull);
     final column = columnOf(size, RegalosLayout.onboardingColumn);
     final ask = tester.getRect(
@@ -479,9 +477,7 @@ void main() {
     phone,
   ) async {
     await pumpRegalos(tester, phone);
-    await tester.ensureVisible(find.text('Unirme con un enlace'));
-    await tester.pump();
-    await tapText(tester, 'Unirme con un enlace');
+    await tapWelcomeChoice(tester, 'Unirme con un enlace');
     final ask = tester.getRect(
       find.widgetWithText(FilledButton, 'Pedir entrada'),
     );

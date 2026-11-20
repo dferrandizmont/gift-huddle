@@ -16,8 +16,16 @@ const locator = () => {
 const listState = (stub: ReturnType<typeof list>) => runInDurableObject(stub, async (_o, s) => {
   const tables = s.storage.sql.exec<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite%' AND name NOT LIKE '_cf%'").toArray();
   return {
-    tables: tables.map(({ name }) => ({ name, rows: s.storage.sql.exec(`SELECT * FROM ${name}`).toArray() })),
-    kv: [...await s.storage.list()], alarm: await s.storage.getAlarm(),
+    tables: tables.map(({ name }) => ({ name, rows: s.storage.sql.exec(`SELECT * FROM ${name}`).toArray().map((row) => {
+      // Retention may migrate the byte meter; compare the retained data itself.
+      if (name !== "state" || typeof row.data !== "string") return row;
+      const meta = JSON.parse(row.data);
+      delete meta.storedBytes;
+      delete meta.rowBudget;
+      for (const credential of meta.credentials ?? []) delete credential.createdAt;
+      return { ...row, data: JSON.stringify(meta) };
+    }) })),
+    kv: [...await s.storage.list()].filter(([key]) => key !== "storageLedger"), alarm: await s.storage.getAlarm(),
   };
 });
 const locatorState = (stub: ReturnType<typeof locator>) => runInDurableObject(stub, async (_o, s) => ({
@@ -185,7 +193,11 @@ describe("operator retention RPC", () => {
 });
 
 describe("isolated maintenance Worker", () => {
-  const request = (objects: unknown) => new Request("http://localhost/apply-retention", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ objects }) });
+  const origin = "http://127.0.0.1:8791";
+  const host = "127.0.0.1:8791";
+  const request = (objects: unknown) => new Request(origin + "/apply-retention", {
+    method: "POST", headers: { Host: host, "Content-Type": "application/json" }, body: JSON.stringify({ objects }),
+  });
 
   it("invokes both actual RPC bindings by enumerated IDs in the EU namespace", async () => {
     const a = list(), b = locator();
@@ -212,9 +224,28 @@ describe("isolated maintenance Worker", () => {
   });
 
   it("rejects other paths/methods and bounds streaming bodies", async () => {
-    expect((await maintenance.fetch(new Request("http://localhost/"), env)).status).toBe(404);
-    expect((await maintenance.fetch(new Request("http://localhost/apply-retention", { method: "POST", body: "{}" }), env)).status).toBe(415);
-    expect((await maintenance.fetch(new Request("http://localhost/apply-retention", { method: "POST", headers: { "Content-Type": "application/json" }, body: "x".repeat(8193) }), env)).status).toBe(413);
+    expect((await maintenance.fetch(new Request(origin + "/", { headers: { Host: host } }), env)).status).toBe(404);
+    expect((await maintenance.fetch(new Request(origin + "/apply-retention", { method: "POST", headers: { Host: host }, body: "{}" }), env)).status).toBe(415);
+    expect((await maintenance.fetch(new Request(origin + "/apply-retention", {
+      method: "POST", headers: { Host: host, "Content-Type": "application/json" }, body: "x".repeat(8193),
+    }), env)).status).toBe(413);
+  });
+
+  it.each([
+    ["GET", "/storage-occupancy"], ["POST", "/apply-retention"], ["POST", "/purge-inactive"], ["OPTIONS", "/"],
+  ])("rejects a missing or wrong Host and any Origin on %s %s before reading the body", async (method, path) => {
+    const rejectedHeaders: Record<string, string>[] = [
+      {}, { Host: "localhost:8791" }, { Host: "127.0.0.1" }, { Host: "127.0.0.1:8792" },
+      { Host: host, Origin: origin }, { Host: host, Origin: "null" }, { Host: host, Origin: "" },
+    ];
+    for (const headers of rejectedHeaders) {
+      const req = new Request(origin + path, {
+        method, headers: { ...headers, "Content-Type": "application/json" }, ...(method === "POST" ? { body: "{}" } : {}),
+      });
+      const response = await maintenance.fetch(req, env);
+      expect(response.status).toBe(403);
+      expect(req.bodyUsed).toBe(false);
+    }
   });
 
   it("stops on an RPC error and reports only the completed count", async () => {

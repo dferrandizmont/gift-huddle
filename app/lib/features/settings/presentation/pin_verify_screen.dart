@@ -20,6 +20,7 @@ class PinVerifyScreen extends StatefulWidget {
     required this.title,
     required this.message,
     required this.onSubmit,
+    this.pinLength,
   });
 
   /// Título («Quitar el PIN»).
@@ -30,6 +31,9 @@ class PinVerifyScreen extends StatefulWidget {
 
   /// Comprueba el PIN escrito.
   final Future<PinCheck> Function(String pin) onSubmit;
+
+  /// Longitud guardada del PIN; `null` con un registro antiguo.
+  final int? pinLength;
 
   @override
   State<PinVerifyScreen> createState() => _PinVerifyScreenState();
@@ -87,6 +91,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final t = RegalosTokens.of(context);
+    final length = widget.pinLength ?? kPinMaxLength;
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(onPressed: () => Navigator.of(context).pop(false)),
@@ -111,7 +116,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
-              PinDisplay(key: _display, count: _pin.length),
+              PinDisplay(key: _display, count: _pin.length, total: length),
               const SizedBox(height: 14),
               ConstrainedBox(
                 // Mínimo, no fijo: el mensaje puede saltar de línea.
@@ -136,7 +141,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
               PinPad(
                 enabled: !_busy,
                 onDigit: (d) {
-                  if (_pin.length < kPinMaxLength) {
+                  if (_pin.length < length) {
                     setState(() {
                       _pin += d;
                       _error = null;

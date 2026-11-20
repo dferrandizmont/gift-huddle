@@ -33,7 +33,7 @@ class StatusChip extends StatelessWidget {
     final textStyle = selected
         ? t.styles.metaStrong.copyWith(
             fontWeight: FontWeight.w600,
-            color: t.onFill,
+            color: t.ink,
           )
         : t.styles.metaStrong;
 
@@ -41,8 +41,8 @@ class StatusChip extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 32),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: selected ? t.fill : null,
-        border: Border.all(color: selected ? t.fill : t.chipBorder),
+        color: selected ? t.selection : null,
+        border: Border.all(color: selected ? t.selectionBorder : t.chipBorder),
         borderRadius: RegalosShape.chip,
       ),
       child: Row(
@@ -51,7 +51,7 @@ class StatusChip extends StatelessWidget {
           StatusGlyph(
             status: status,
             size: 16,
-            stroke: selected ? t.onFill : null,
+            stroke: selected ? t.ink : null,
           ),
           const SizedBox(width: 6),
           Flexible(child: Text(name, style: textStyle)),

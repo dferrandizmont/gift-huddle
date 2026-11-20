@@ -156,13 +156,6 @@ abstract final class SettingsIcons {
     'M19 12h.01',
   ]);
 
-  /// Un enlace que se abre fuera de la app (Tabler `external-link`).
-  static final StrokeIconBuilder externalLink = svgIcon(const [
-    'M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6',
-    'M11 13l9 -9',
-    'M15 4h5v5',
-  ]);
-
   /// Un correo (Tabler `mail`).
   static final StrokeIconBuilder mail = svgIcon(const [
     'M3 7a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-10',

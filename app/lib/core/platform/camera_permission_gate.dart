@@ -21,6 +21,9 @@ enum CameraPermissionOutcome {
   /// solo se puede dar desde los ajustes de la app.
   permanentlyDenied,
 
+  /// Restringida por Tiempo de uso o gestión del dispositivo.
+  restricted,
+
   /// La petición se interrumpió sin respuesta (otro diálogo, la actividad se
   /// recreó…).
   cancelled,
@@ -44,6 +47,9 @@ enum CameraPermissionState {
   /// Denegado para siempre: solo desde los ajustes de la app.
   permanentlyDenied,
 
+  /// Restringida por Tiempo de uso o gestión del dispositivo.
+  restricted,
+
   /// No llegó respuesta (o se interrumpió) y el permiso no está dado: se
   /// puede reintentar.
   failed,
@@ -56,6 +62,9 @@ enum CameraIssue {
 
   /// Denegado para siempre; hay que ir a los ajustes.
   permanentlyDenied,
+
+  /// Restringida por Tiempo de uso o gestión del dispositivo.
+  restricted,
 
   /// No llegó respuesta; «Reintentar» vuelve a preguntar.
   failed,
@@ -94,6 +103,7 @@ class CameraPermissionGate {
   CameraIssue? get issue => switch (_state) {
     CameraPermissionState.denied => CameraIssue.denied,
     CameraPermissionState.permanentlyDenied => CameraIssue.permanentlyDenied,
+    CameraPermissionState.restricted => CameraIssue.restricted,
     CameraPermissionState.failed => CameraIssue.failed,
     _ => null,
   };
@@ -152,6 +162,8 @@ class CameraPermissionGate {
         _set(CameraPermissionState.denied);
       case CameraPermissionOutcome.permanentlyDenied:
         _set(CameraPermissionState.permanentlyDenied);
+      case CameraPermissionOutcome.restricted:
+        _set(CameraPermissionState.restricted);
       case CameraPermissionOutcome.cancelled:
         await _recheck(attempt, otherwise: CameraPermissionState.failed);
     }

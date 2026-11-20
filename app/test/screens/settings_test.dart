@@ -426,6 +426,35 @@ void main() {
     expect(find.bySemanticsLabel('Personas. 3'), findsOneWidget);
   }, size: tall);
 
+  screenTest('Archivo cuenta y elimina la fila de un alias archivado', (
+    tester,
+    phone,
+  ) async {
+    await seedSample(tester, phone);
+    await tester.runAsync(() async {
+      final controller = familyOf(phone);
+      await controller.linkGiver('us', 'leo');
+      await controller.linkGiver('pere', 'leo');
+      await controller.archiveGiver('pere');
+    });
+    await pumpRegalos(tester, phone);
+    await openSettings(tester);
+    expect(find.bySemanticsLabel('Archivo. 1'), findsOneWidget);
+    await tapText(tester, 'Archivo');
+    expect(find.text('Recuperar'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel('Eliminar Leo'));
+    await settle(tester);
+    expect(find.textContaining('Libro de cuentos'), findsOneWidget);
+    await tester.tap(find.text('Eliminar').last);
+    await settle(tester);
+    final state = await familyState(tester, phone);
+    expect(state.fullView.giverForPerson('leo')?.id, 'us');
+    expect(state.fullView.giversByOriginalId['pere'], isNull);
+    final gifts = {for (final gift in state.fullView.allGifts) gift.id: gift};
+    expect(gifts['g10']?.giverId, isNull);
+    expect(gifts['g1']?.giverId, 'us');
+  }, size: tall);
+
   screenTest('Archivo vacío lo dice', (tester, phone) async {
     await seedSample(tester, phone);
     await pumpRegalos(tester, phone);

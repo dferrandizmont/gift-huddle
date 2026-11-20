@@ -138,7 +138,7 @@ class _ElasticIndicatorState extends State<ElasticIndicator>
       animation: _controller,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: t.fill,
+          color: t.selection,
           borderRadius: RegalosShape.chip,
         ),
       ),

@@ -85,6 +85,27 @@ class DevicePersonException implements Exception {
       '${owner == DevicePersonOwner.thisDevice ? 'este móvil' : 'otro móvil'}';
 }
 
+/// A protected gift can use this person after a separate public giver add.
+class GiverPersonNeedsPublicAdd implements Exception {
+  const GiverPersonNeedsPublicAdd(this.personId);
+
+  final String personId;
+}
+
+/// The outcome of writing a gift assignment. A protected gift that needs a
+/// separate public add throws [GiverPersonNeedsPublicAdd].
+enum GiftWriteResult {
+  saved,
+  giftDeleted,
+  giftUnavailable,
+  recipientUnavailable,
+  invalidPair,
+  giverUnavailable,
+  giverArchived,
+  giverPersonUnavailable,
+  giverPersonArchived,
+}
+
 /// Lo que cambió al mezclar un documento recibido.
 class ImportSummary {
   /// Crea el resumen.

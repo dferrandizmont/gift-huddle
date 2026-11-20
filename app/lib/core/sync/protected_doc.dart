@@ -889,14 +889,16 @@ class SecretBlock {
 /// abrir.
 class AuthorizedProjection {
   /// Crea la proyección.
-  const AuthorizedProjection({
-    required this.view,
+  AuthorizedProjection({
     required this.secretGiftIds,
     required this.lockedBlocks,
     required this.openedScopes,
     required this.policies,
     required this.doc,
-  });
+    this._year,
+    this._includeArchived = false,
+    Set<String> hiddenGiftIds = const {},
+  }) : _hiddenGiftIds = Set.unmodifiable(hiddenGiftIds);
 
   /// Authorized records only; also suitable as the input to readable exports.
   final FamilyDoc doc;
@@ -906,7 +908,15 @@ class AuthorizedProjection {
   ///
   /// Para exportar o compartir algo legible se usa siempre el documento
   /// común, nunca esta vista: lo secreto no sale del bloque secreto.
-  final FamilyView view;
+  late final FamilyView view = FamilyView.fromDoc(
+    doc,
+    year: _year,
+    includeArchived: _includeArchived,
+    hiddenGiftIds: _hiddenGiftIds,
+  );
+  final int? _year;
+  final bool _includeArchived;
+  final Set<String> _hiddenGiftIds;
 
   /// Regalos de [view] que vienen del bloque secreto.
   final Set<String> secretGiftIds;
@@ -1012,12 +1022,9 @@ Future<AuthorizedProjection> projectAuthorized({
   );
   return AuthorizedProjection(
     doc: merged,
-    view: FamilyView.fromDoc(
-      merged,
-      year: year,
-      includeArchived: includeArchived,
-      hiddenGiftIds: hiddenGiftIds,
-    ),
+    year: year,
+    includeArchived: includeArchived,
+    hiddenGiftIds: hiddenGiftIds,
     secretGiftIds: Set.unmodifiable(secretIds),
     lockedBlocks: List.unmodifiable(locked),
     openedScopes: Map.unmodifiable(opened),

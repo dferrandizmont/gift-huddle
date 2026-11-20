@@ -134,6 +134,22 @@ const _dataAlertTriangle = <String>[
 ];
 final StrokeIconBuilder tablerAlertTriangle = svgIcon(_dataAlertTriangle);
 
+/// `link` de Tabler.
+const _dataLink = <String>[
+  'M9 15l6 -6',
+  'M11 6l.463 -.536a5 5 0 0 1 7.071 7.072l-.534 .464',
+  'M13 18l-.397 .534a5.068 5.068 0 0 1 -7.127 0a4.972 4.972 0 0 1 0 -7.071l.524 -.463',
+];
+final StrokeIconBuilder tablerLink = svgIcon(_dataLink);
+
+/// `external-link` de Tabler.
+const _dataExternalLink = <String>[
+  'M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6',
+  'M11 13l9 -9',
+  'M15 4h5v5',
+];
+final StrokeIconBuilder tablerExternalLink = svgIcon(_dataExternalLink);
+
 /// Los datos de trazo de cada icono, por su nombre en Tabler (para pruebas).
 const Map<String, List<String>> kTablerIconData = {
   'gift': _dataGift,
@@ -150,4 +166,6 @@ const Map<String, List<String>> kTablerIconData = {
   'layout-grid': _dataLayoutGrid,
   'list': _dataList,
   'alert-triangle': _dataAlertTriangle,
+  'link': _dataLink,
+  'external-link': _dataExternalLink,
 };

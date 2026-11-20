@@ -15,6 +15,7 @@ import '../../../core/layout/large_text.dart';
 import '../../../core/layout/pane_scope.dart';
 import '../../../core/layout/window_class.dart';
 import '../../../core/sync/model.dart';
+import '../../../core/sync/protected_doc.dart' show ProtectedPersonException;
 import '../../../core/theme/occasion_theme.dart';
 import '../../../core/theme/regalos_motion.dart';
 import '../../../core/theme/regalos_shape.dart';
@@ -24,6 +25,7 @@ import '../../../core/widgets/fit_text.dart';
 import '../../../core/widgets/gift_status_l10n.dart';
 import '../../../core/widgets/gift_status_map.dart';
 import '../../../core/widgets/occasion_icons.dart';
+import '../../../core/widgets/regalos_snack_bar.dart';
 import '../../../core/widgets/settings_icons.dart';
 import '../../../core/widgets/status_checkbox.dart';
 import '../../../core/widgets/stroke_icon.dart';
@@ -34,6 +36,7 @@ import '../application/family_providers.dart';
 import '../application/self_recipient_provider.dart';
 import '../domain/next_occasion.dart';
 import 'family_texts.dart';
+import 'giver_person_flow.dart';
 import 'giver_picker.dart';
 import 'reparto_flight.dart';
 import 'reparto_fold.dart';
@@ -241,7 +244,9 @@ class _RepartoOccasionViewState extends ConsumerState<RepartoOccasionView>
   }
 
   void _pick(Gift gift, String? giverId) {
-    if (giverId == gift.giverId) {
+    final view = ref.read(familyViewProvider);
+    if (giverId == view.resolveGiver(gift.giverId)?.id &&
+        view.giversByOriginalId[gift.giverId]?.archived != true) {
       setState(() => _openId = null);
       return;
     }
@@ -265,6 +270,33 @@ class _RepartoOccasionViewState extends ConsumerState<RepartoOccasionView>
     );
   }
 
+  /// Asigna una persona de la familia como quién regala, al momento. En un
+  /// regalo secreto pasa antes por el paso explícito.
+  Future<void> _pickPerson(Gift gift, GiverPersonCandidate candidate) async {
+    flush();
+    final result = await assignGiftToPerson(
+      context,
+      ref,
+      gift: gift,
+      candidate: candidate,
+    );
+    if (!mounted || result == null) {
+      return;
+    }
+    final saved = result == GiftWriteResult.saved;
+    setState(() => _openId = null);
+    if (!saved) {
+      showRegalosSnackBar(
+        context,
+        SnackBar(
+          content: Text(
+            giftWriteResultText(AppLocalizations.of(context), result),
+          ),
+        ),
+      );
+    }
+  }
+
   /// Termina ya lo que esté a medias (un segundo toque, otra pestaña).
   void flush() {
     if (_pending == null) {
@@ -278,24 +310,32 @@ class _RepartoOccasionViewState extends ConsumerState<RepartoOccasionView>
     _apply();
   }
 
-  void _apply() {
+  Future<void> _apply() async {
     final pending = _pending;
     if (pending == null) {
       return;
     }
     _pending = null;
-    final gift = ref
-        .read(familyViewProvider)
-        .gifts
-        .where((g) => g.id == pending.giftId)
-        .firstOrNull;
-    if (gift != null) {
-      ref
-          .read(familyControllerProvider.notifier)
-          .upsertGift(giftWithGiver(gift, pending.giverId));
-    }
+    final result = await ref
+        .read(familyControllerProvider.notifier)
+        .setGiftGiver(pending.giftId, pending.giverId)
+        .onError<ProtectedPersonException>(
+          (error, _) => error.savedLocally
+              ? GiftWriteResult.saved
+              : GiftWriteResult.giftUnavailable,
+        );
     if (mounted) {
       setState(() {});
+      if (result != GiftWriteResult.saved) {
+        showRegalosSnackBar(
+          context,
+          SnackBar(
+            content: Text(
+              giftWriteResultText(AppLocalizations.of(context), result),
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -358,10 +398,6 @@ class _RepartoOccasionViewState extends ConsumerState<RepartoOccasionView>
     for (final g in gifts) {
       byRecipient.putIfAbsent(g.recipientId, () => <Gift>[]).add(g);
     }
-    final knownGivers = {
-      for (final g in (view.allGivers.isEmpty ? view.givers : view.allGivers))
-        g.id: g,
-    };
     // Las tarjetas: quien sale del reparto (o vuelve) las pliega (o las
     // despliega) como a las filas de la rejilla. Sin regalos no hay tarjetas.
     if (gifts.isEmpty) {
@@ -526,12 +562,12 @@ class _RepartoOccasionViewState extends ConsumerState<RepartoOccasionView>
                               occasionTitle: title,
                               gifts: cards[i].item.gifts,
                               view: view,
-                              knownGivers: knownGivers,
                               stage: widget.stage,
                               openId: _openId,
                               pending: _pending,
                               onToggle: _toggle,
                               onPick: _pick,
+                              onPickPerson: _pickPerson,
                               onOpenPerson: widget.onOpenPerson,
                             ),
                           ),
@@ -609,7 +645,7 @@ class _Tabs extends StatefulWidget {
 
 class _TabsState extends State<_Tabs> {
   static const double _gap = 22;
-  static const double _height = 44;
+  static const double _height = 56;
   final ScrollController _scroll = ScrollController();
 
   @override
@@ -1204,12 +1240,12 @@ class _RecipientCard extends StatelessWidget {
     required this.occasionTitle,
     required this.gifts,
     required this.view,
-    required this.knownGivers,
     required this.stage,
     required this.openId,
     required this.pending,
     required this.onToggle,
     required this.onPick,
+    required this.onPickPerson,
     required this.onOpenPerson,
   });
 
@@ -1222,12 +1258,12 @@ class _RecipientCard extends StatelessWidget {
   final String occasionTitle;
   final List<Gift> gifts;
   final FamilyView view;
-  final Map<String, Giver> knownGivers;
   final RepartoStage stage;
   final String? openId;
   final ({String giftId, String? giverId})? pending;
   final ValueChanged<String> onToggle;
   final void Function(Gift gift, String? giverId) onPick;
+  final void Function(Gift gift, GiverPersonCandidate candidate) onPickPerson;
   final void Function(Recipient recipient, Rect from) onOpenPerson;
 
   @override
@@ -1391,7 +1427,6 @@ class _RecipientCard extends StatelessWidget {
               key: ValueKey<String>(g.id),
               gift: g,
               view: view,
-              knownGivers: knownGivers,
               stage: stage,
               open: openId == g.id,
               pickedGiverId: pending != null && pending!.giftId == g.id
@@ -1399,6 +1434,7 @@ class _RecipientCard extends StatelessWidget {
                   : null,
               onToggle: () => onToggle(g.id),
               onPick: (id) => onPick(g, id),
+              onPickPerson: (c) => onPickPerson(g, c),
             ),
         ],
       ),
@@ -1554,22 +1590,21 @@ class _NotGivingBlock extends StatelessWidget {
 
 /// Un regalo: su casilla, su título, el chip de quién lo regala y, desplegada
 /// debajo, la fila para cambiarlo.
-class _GiftRow extends StatelessWidget {
+class _GiftRow extends ConsumerWidget {
   const _GiftRow({
     super.key,
     required this.gift,
     required this.view,
-    required this.knownGivers,
     required this.stage,
     required this.open,
     required this.pickedGiverId,
     required this.onToggle,
     required this.onPick,
+    required this.onPickPerson,
   });
 
   final Gift gift;
   final FamilyView view;
-  final Map<String, Giver> knownGivers;
   final RepartoStage stage;
   final bool open;
 
@@ -1577,15 +1612,18 @@ class _GiftRow extends StatelessWidget {
   final (String?, bool)? pickedGiverId;
   final VoidCallback onToggle;
   final ValueChanged<String?> onPick;
+  final ValueChanged<GiverPersonCandidate> onPickPerson;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final t = RegalosTokens.of(context);
     final motion = RegalosMotion.of(context);
     final price = giftPriceText(l10n, gift) ?? l10n.familyNoPrice;
-    final giver = gift.giverId == null ? null : knownGivers[gift.giverId];
-    final selectedId = pickedGiverId != null ? pickedGiverId!.$1 : gift.giverId;
+    final giver = view.resolveGiver(
+      pickedGiverId == null ? gift.giverId : pickedGiverId!.$1,
+    );
+    final selectedId = giver?.id;
     return DecoratedBox(
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: t.separator)),
@@ -1615,9 +1653,12 @@ class _GiftRow extends StatelessWidget {
                         onTap: () => openGiftEditor(context, gift: gift),
                         child: Row(
                           children: [
-                            StatusGlyph(
+                            StatusHoverTip(
                               status: gift.status.visualStatus,
-                              size: 22,
+                              child: StatusGlyph(
+                                status: gift.status.visualStatus,
+                                size: 22,
+                              ),
                             ),
                             const SizedBox(width: 10),
                             Expanded(
@@ -1651,14 +1692,7 @@ class _GiftRow extends StatelessWidget {
                         ),
                       ),
                     ),
-                    chip: GiverChip(
-                      giver: selectedId == gift.giverId
-                          ? giver
-                          : (selectedId == null
-                                ? null
-                                : knownGivers[selectedId]),
-                      onTap: onToggle,
-                    ),
+                    chip: GiverChip(giver: giver, onTap: onToggle),
                   ),
                 ),
               ),
@@ -1681,9 +1715,13 @@ class _GiftRow extends StatelessWidget {
                 ? Padding(
                     padding: const EdgeInsets.fromLTRB(44, 2, 12, 12),
                     child: GiverPicker(
-                      givers: view.givers,
+                      givers: view.selectableGiversFor(gift.recipientId),
                       selectedId: selectedId,
                       onPick: onPick,
+                      people: personSectionOf(
+                        ref.watch(giftGiverPersonCandidatesProvider(gift.id)),
+                      ),
+                      onPickPerson: onPickPerson,
                     ),
                   )
                 : const SizedBox(width: double.infinity),

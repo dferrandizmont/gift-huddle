@@ -38,18 +38,18 @@ Android 8 o posterior és en prova tancada a Google Play. La versió per a iPhon
 ## Captures
 
 <p>
-  <a href="docs/readme/ca/01-reparto.png"><img src="docs/readme/ca/01-reparto.png" width="19%" alt="Repartiment en graella, amb un avís de possible duplicat"></a>
-  <a href="docs/readme/ca/02-personas.png"><img src="docs/readme/ca/02-personas.png" width="19%" alt="Persones, amb la propera ocasió a dalt"></a>
-  <a href="docs/readme/ca/03-lista.png"><img src="docs/readme/ca/03-lista.png" width="19%" alt="Llista de regals de l'Aritz per ocasió"></a>
-  <a href="docs/readme/ca/04-ocasiones.png"><img src="docs/readme/ca/04-ocasiones.png" width="19%" alt="Ocasions: festes i aniversaris amb els dies que falten"></a>
-  <a href="docs/readme/ca/05-ocasion.png"><img src="docs/readme/ca/05-ocasion.png" width="19%" alt="Nadal: compte enrere i el que queda per comprar"></a>
+  <a href="docs/readme/ca/01-navidad.png"><img src="docs/readme/ca/01-navidad.png" width="19%" alt="Nadal: compte enrere i el que queda per embolicar o per arribar, persona per persona"></a>
+  <a href="docs/readme/ca/02-reparto.png"><img src="docs/readme/ca/02-reparto.png" width="19%" alt="Repartiment en graella, amb un avís de possible duplicat"></a>
+  <a href="docs/readme/ca/03-bloqueo.png"><img src="docs/readme/ca/03-bloqueo.png" width="19%" alt="Pantalla de bloqueig que demana el PIN"></a>
+  <a href="docs/readme/ca/04-personas.png"><img src="docs/readme/ca/04-personas.png" width="19%" alt="Persones, amb les properes ocasions a dalt"></a>
+  <a href="docs/readme/ca/05-lista.png"><img src="docs/readme/ca/05-lista.png" width="19%" alt="Llista de regals de l'Aritz per ocasió, amb el pressupost de la casa"></a>
 </p>
 
 <details>
 <summary>Més captures</summary>
 
 <p>
-  <a href="docs/readme/ca/06-oscuro.png"><img src="docs/readme/ca/06-oscuro.png" width="19%" alt="La mateixa llista en el tema fosc"></a>
+  <a href="docs/readme/ca/06-oscuro.png"><img src="docs/readme/ca/06-oscuro.png" width="19%" alt="La llista de l'Aritz en el tema fosc"></a>
 </p>
 
 </details>
@@ -83,7 +83,7 @@ No hi ha comptes ni publicitat, i el desenvolupador no fa servir analítica ni i
 
 ## Novetats
 
-La versió 1.0.3 (17 de novembre de 2026) obre un fitxer de recuperació directament des d'Arxius, també amb l'app ja oberta, i mostra «Desa en un fitxer» a la pantalla de les 24 paraules sense haver de baixar. La versió 1.0.2 (16 de novembre de 2026) permet desar el codi de recuperació en un fitxer, amb contrasenya si vols, fa que connectar la versió web torni a funcionar i vagi més de pressa, i evita que l'escàner QR es quedi en negre. La versió 1.0.0 (16 de novembre de 2026) és la primera a les botigues. Porta la llista de regals de cada persona, el repartiment en graella, les ocasions amb compte enrere, els regals secrets, compartir entre mòbils i amb la versió web, el codi de recuperació i els temes clar i fosc. Els detalls, a [CHANGELOG.md](CHANGELOG.md).
+La versió 1.0.4 (20 de novembre de 2026) porta un disseny més clar amb nous tons pastel en mode fosc, pressupost per ocasió, les ocasions més properes primer, enllaços de regal que s'obren amb un toc i qualsevol persona de la família com a qui regala. La versió 1.0.3 (17 de novembre de 2026) obre un fitxer de recuperació directament des d'Arxius, també amb l'app ja oberta, i mostra «Desa en un fitxer» a la pantalla de les 24 paraules sense haver de baixar. La versió 1.0.2 (16 de novembre de 2026) permet desar el codi de recuperació en un fitxer, amb contrasenya si vols, fa que connectar la versió web torni a funcionar i vagi més de pressa, i evita que l'escàner QR es quedi en negre. La versió 1.0.0 (16 de novembre de 2026) és la primera a les botigues. Porta la llista de regals de cada persona, el repartiment en graella, les ocasions amb compte enrere, els regals secrets, compartir entre mòbils i amb la versió web, el codi de recuperació i els temes clar i fosc. Els detalls, a [CHANGELOG.md](CHANGELOG.md).
 
 ## Contribuir
 

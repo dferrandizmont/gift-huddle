@@ -73,3 +73,61 @@ new_sqlite_classes = ["RecoveryLocatorObject"]
 [[migrations]]
 tag = "v4-delete-v1"
 deleted_classes = ["ListObject", "InviteObject", "LimiterObject"]
+
+[[durable_objects.bindings]]
+name = "CREATION_BUDGET"
+class_name = "CreationBudgetObject"
+
+[[migrations]]
+tag = "v5-creation-budget"
+new_sqlite_classes = ["CreationBudgetObject"]
+
+[[ratelimits]]
+name = "INVITE_IP48_LIMITER"
+namespace_id = "1003"
+  [ratelimits.simple]
+  limit = 240
+  period = 60
+
+[[ratelimits]]
+name = "GUARD_IP_LIMITER"
+namespace_id = "1004"
+  [ratelimits.simple]
+  limit = 30
+  period = 60
+
+[[ratelimits]]
+name = "GUARD_IP48_LIMITER"
+namespace_id = "1005"
+  [ratelimits.simple]
+  limit = 60
+  period = 60
+
+[[ratelimits]]
+name = "RECOVERY_IP_LIMITER"
+namespace_id = "1006"
+  [ratelimits.simple]
+  limit = 30
+  period = 60
+
+[[ratelimits]]
+name = "RECOVERY_IP48_LIMITER"
+namespace_id = "1007"
+  [ratelimits.simple]
+  limit = 60
+  period = 60
+
+[[ratelimits]]
+name = "CREATE_IP_LIMITER"
+namespace_id = "1008"
+  [ratelimits.simple]
+  limit = 12
+  period = 60
+
+[[durable_objects.bindings]]
+name = "STORAGE_LEDGER"
+class_name = "StorageLedgerObject"
+
+[[migrations]]
+tag = "v6-storage-ledger"
+new_sqlite_classes = ["StorageLedgerObject"]

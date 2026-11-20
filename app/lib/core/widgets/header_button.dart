@@ -16,6 +16,8 @@ class HeaderIconButton extends StatelessWidget {
   });
 
   /// Lado de la zona que responde: 44 en el móvil, 48 en el tablero de la web.
+  /// Con 48 el botón se dibuja de 48 (como «Añadir regalo» y «Cambiar fecha»,
+  /// sus vecinos en la cabecera); con 44 o menos, de 40.
   final double size;
 
   final StrokeIconBuilder icon;
@@ -49,7 +51,7 @@ class HeaderIconButton extends StatelessWidget {
               child: InkWell(
                 onTap: onTap,
                 child: SizedBox.square(
-                  dimension: 40,
+                  dimension: size >= 48 ? 48 : 40,
                   child: Center(
                     child: StrokeIcon(
                       icon,

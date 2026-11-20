@@ -973,6 +973,14 @@
   "@giftFieldUrl": {
     "description": "Campo del enlace al regalo."
   },
+  "giftLinkOpen": "Abrir enlace",
+  "@giftLinkOpen": {
+    "description": "Botón y ayuda que abren en el navegador el enlace de un regalo."
+  },
+  "giftLinkCopied": "No se ha podido abrir el navegador. Enlace copiado.",
+  "@giftLinkCopied": {
+    "description": "Aviso cuando el enlace de un regalo no se puede abrir: se copia al portapapeles."
+  },
   "giftFieldNote": "Nota",
   "@giftFieldNote": {
     "description": "Campo de nota."
@@ -1212,7 +1220,7 @@
   "@budgetCardTitle": {
     "description": "Fila de Ocasiones que abre el presupuesto."
   },
-  "budgetCardHint": "Previsto, gastado y lo que queda",
+  "budgetCardHint": "Presupuesto, gastado y lo que queda",
   "@budgetCardHint": {
     "description": "Descripción de la fila del presupuesto."
   },
@@ -1277,9 +1285,13 @@
   "@budgetTitle": {
     "description": "Título de la pantalla del presupuesto."
   },
-  "budgetSubtitle": "Solo lo que paga la casa",
+  "budgetSubtitle": "Lo pones tú en cada ocasión. Gastado suma el precio real de lo que paga la casa; si algo ya está comprado y no tiene precio real, cuenta el previsto.",
   "@budgetSubtitle": {
-    "description": "Subtítulo del presupuesto."
+    "description": "Subtítulo del presupuesto cuando ninguna ocasión tiene presupuesto."
+  },
+  "budgetSubtitleBudgeted": "Lo pones tú en cada ocasión. Las tres cifras solo incluyen ocasiones con presupuesto. «Gastado» suma los precios reales de lo que paga la casa. Si algo ya está comprado y no tiene precio real, cuenta el previsto.",
+  "@budgetSubtitleBudgeted": {
+    "description": "Subtítulo del presupuesto cuando alguna ocasión tiene presupuesto: las tres cifras solo cuentan esas."
   },
   "budgetPlanned": "Previsto",
   "@budgetPlanned": {
@@ -1312,6 +1324,100 @@
   "budgetEmpty": "Todavía no hay regalos que pague la casa. Marca «Paga la casa» en quien regala y pon un precio previsto.",
   "@budgetEmpty": {
     "description": "Estado vacío del presupuesto."
+  },
+  "occasionBudgetField": "Presupuesto (opcional)",
+  "@occasionBudgetField": {
+    "description": "Campo opcional del editor de ocasión."
+  },
+  "occasionBudgetHint": "Lo que queréis gastar en esta ocasión. Déjalo vacío si no hay.",
+  "@occasionBudgetHint": {
+    "description": "Ayuda bajo el campo de presupuesto del editor de ocasión."
+  },
+  "budgetFigure": "Presupuesto",
+  "@budgetFigure": {
+    "description": "Cifra grande del presupuesto: lo que la familia ha puesto de presupuesto."
+  },
+  "budgetNone": "Sin presupuesto",
+  "@budgetNone": {
+    "description": "Ocasión o total sin presupuesto puesto."
+  },
+  "budgetSetAction": "Poner presupuesto",
+  "@budgetSetAction": {
+    "description": "Botón para poner el presupuesto de una ocasión."
+  },
+  "budgetEditAction": "Cambiar presupuesto",
+  "@budgetEditAction": {
+    "description": "Etiqueta del botón de editar el presupuesto."
+  },
+  "budgetSetFor": "Poner presupuesto a {name}",
+  "@budgetSetFor": {
+    "description": "Etiqueta accesible del botón de poner el presupuesto de una ocasión.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "budgetEditFor": "Cambiar el presupuesto de {name}",
+  "@budgetEditFor": {
+    "description": "Etiqueta accesible del botón de cambiar el presupuesto de una ocasión.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "budgetLeftIfBought": "Si compras lo que falta, te quedarán {amount}",
+  "@budgetLeftIfBought": {
+    "description": "Línea bajo las cifras: lo que quedaría si se compra lo que falta.",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "budgetSpentOutside": "Además, la casa ha gastado {amount} fuera de las ocasiones con presupuesto.",
+  "@budgetSpentOutside": {
+    "description": "Línea bajo las cifras de Presupuesto: lo gastado en ocasiones sin presupuesto y en regalos sin ocasión, que las tres cifras no cuentan.",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "budgetOverIfBought": "Si compras lo que falta, te pasarás {amount}",
+  "@budgetOverIfBought": {
+    "description": "Línea bajo las cifras: lo que se pasaría si se compra lo que falta.",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "budgetSheetTitle": "Presupuesto de {name}",
+  "@budgetSheetTitle": {
+    "description": "Título de la hoja del importe del presupuesto de una ocasión.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "budgetSheetHint": "Déjalo vacío para quitar el presupuesto.",
+  "@budgetSheetHint": {
+    "description": "Ayuda de la hoja del presupuesto."
+  },
+  "budgetOpenGifts": "Ver regalos",
+  "@budgetOpenGifts": {
+    "description": "Pista accesible de las tarjetas del presupuesto: al pulsarlas se abren sus regalos."
+  },
+  "budgetArchivedTag": "Archivada · no suma",
+  "@budgetArchivedTag": {
+    "description": "Marca de una ocasión archivada en la lista del presupuesto: sus cifras se ven en su fila pero no suman en el total."
+  },
+  "budgetCreateOccasion": "Crear ocasión",
+  "@budgetCreateOccasion": {
+    "description": "Botón del presupuesto cuando no hay ninguna ocasión activa: abre el editor de ocasión."
   },
   "settingsGivers": "Quién regala",
   "@settingsGivers": {
@@ -1461,7 +1567,7 @@
   "@shareSendError": {
     "description": "Error al enviar cambios."
   },
-  "showQrIntro": "En el otro móvil abre Gift Huddle, toca «Escanear el QR» y apunta la cámara a este código.",
+  "showQrIntro": "En el otro móvil abre Gift Huddle, toca «Unirme a una familia», luego «Escanear el QR» y apunta la cámara a este código.",
   "@showQrIntro": {
     "description": "Explicación de la pantalla del QR."
   },
@@ -2507,7 +2613,7 @@
   "@deleteError": {
     "description": "Aviso cuando falla el guardado al eliminar."
   },
-  "giftNotSaved": "No se ha guardado: este regalo ya no existe, lo ha borrado otro móvil.",
+  "giftNotSaved": "No se ha guardado: este regalo ya no está disponible en este móvil.",
   "@giftNotSaved": {
     "description": "Aviso del editor de regalos cuando el regalo o su persona se eliminaron en otro móvil."
   },
@@ -4064,7 +4170,7 @@
       }
     }
   },
-  "protectionIntro": "Con esto activo, el móvil de {name} no muestra ningún regalo para {name}, ni cuántos hay. El resto de la familia los sigue viendo.",
+  "protectionIntro": "Con los regalos en secreto activados, el móvil de {name} no muestra ningún regalo para {name}, ni cuántos hay. El resto de la familia los sigue viendo.",
   "@protectionIntro": {
     "description": "Explicación de la protección de una persona.",
     "placeholders": {
@@ -4412,9 +4518,52 @@
   "@boardLaneEmpty": {
     "description": "Carril del tablero sin regalos."
   },
+  "boardMoveTo": "Mover a {lane}",
+  "@boardMoveTo": {
+    "description": "Acción de accesibilidad de una fila del tablero: pasar el regalo al carril indicado.",
+    "placeholders": {
+      "lane": {
+        "type": "String"
+      }
+    }
+  },
+  "boardLaneAdd": "Añadir regalo en {lane}",
+  "@boardLaneAdd": {
+    "description": "El «+» de la cabecera de un carril del tablero (ayuda y lector de pantalla).",
+    "placeholders": {
+      "lane": {
+        "type": "String"
+      }
+    }
+  },
+  "boardGiftMoved": "{item}: {lane}",
+  "@boardGiftMoved": {
+    "description": "Aviso (y anuncio para lectores de pantalla) tras pasar un regalo a otro carril del tablero, arrastrándolo o con el teclado.",
+    "placeholders": {
+      "item": {
+        "type": "String"
+      },
+      "lane": {
+        "type": "String"
+      }
+    }
+  },
   "boardOccasionsHint": "Elige una ocasión para ver su tablero.",
   "@boardOccasionsHint": {
     "description": "Frase bajo el título de Ocasiones en la web de escritorio."
+  },
+  "boardSeeAll": "Ver todas ({count})",
+  "@boardSeeAll": {
+    "description": "Enlace al final de la tira de ocasiones de Hoy, a la pantalla Ocasiones, con cuántas ocasiones hay en total.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "boardBudgetEmptyTitle": "Nada previsto todavía",
+  "@boardBudgetEmptyTitle": {
+    "description": "Título del estado vacío del presupuesto en la web de escritorio."
   },
   "boardChangeDate": "Cambiar fecha",
   "@boardChangeDate": {
@@ -4447,6 +4596,18 @@
   "boardSearchNone": "Ningún regalo coincide",
   "@boardSearchNone": {
     "description": "Resultado vacío de la búsqueda de regalos de la barra lateral."
+  },
+  "boardPersonFilter": "Persona",
+  "@boardPersonFilter": {
+    "description": "Etiqueta del selector que filtra por persona los carriles de «Hoy» en la web."
+  },
+  "boardPersonFilterAll": "Todas las personas",
+  "@boardPersonFilterAll": {
+    "description": "Opción del selector de persona de «Hoy» que enseña los regalos de todos."
+  },
+  "searchClear": "Borrar la búsqueda",
+  "@searchClear": {
+    "description": "Etiqueta accesible del botón que vacía un campo de búsqueda."
   },
   "boardColStatus": "Estado",
   "@boardColStatus": {
@@ -5523,5 +5684,292 @@
   },
   "@recoveryFileProblemStorageBody": {
     "description": "Conserva el fichero y pide reintentar sin asumir que el móvil esté vacío."
+  },
+  "cameraRestricted": "La cámara está restringida en este dispositivo (por ejemplo, con Tiempo de uso). Puedes permitirla en Ajustes > Tiempo de uso > Restricciones de contenido y privacidad.",
+  "obJoinFamily": "Unirme a una familia",
+  "@obJoinFamily": {
+    "description": "Botón de la bienvenida y título de su hoja: unirse a la lista de otro móvil."
+  },
+  "obJoinFamilyHint": "Elige cómo conectarte con el móvil que ya tiene la lista.",
+  "@obJoinFamilyHint": {
+    "description": "Frase bajo el título de la hoja «Unirme a una familia»."
+  },
+  "obJoinQrHint": "Está contigo: escanea su código.",
+  "@obJoinQrHint": {
+    "description": "Frase de la opción del QR en la hoja «Unirme a una familia»."
+  },
+  "obJoinLinkHint": "Está lejos: pega el enlace que te envió.",
+  "@obJoinLinkHint": {
+    "description": "Frase de la opción del enlace en la hoja «Unirme a una familia»."
+  },
+  "obRestoreBackup": "Restaurar una copia",
+  "@obRestoreBackup": {
+    "description": "Botón de la bienvenida y título de su hoja: recuperar la lista desde una copia."
+  },
+  "obRestoreBackupHint": "Elige con qué recuperas la lista.",
+  "@obRestoreBackupHint": {
+    "description": "Frase bajo el título de la hoja «Restaurar una copia»."
+  },
+  "obRestoreCodeHint": "Escribe las 24 palabras que guardaste.",
+  "@obRestoreCodeHint": {
+    "description": "Frase de la opción del código de recuperación en la hoja «Restaurar una copia»."
+  },
+  "obRestoreFileHint": "Abre el fichero de recuperación que guardaste.",
+  "@obRestoreFileHint": {
+    "description": "Frase de la opción del fichero en la hoja «Restaurar una copia»."
+  },
+  "giverPeopleSection": "Personas",
+  "@giverPeopleSection": {
+    "description": "Cabecera de la sección del selector de quién regala con las personas de la familia que aún no son quién regala."
+  },
+  "giverPeopleHintAdd": "Antes se añade como quién regala",
+  "@giverPeopleHintAdd": {
+    "description": "Frase bajo una persona del selector de quién regala en un regalo secreto: hay que añadirla antes como quién regala."
+  },
+  "giverPeopleHintRecover": "Se recupera como quién regala",
+  "@giverPeopleHintRecover": {
+    "description": "Frase bajo una persona del selector cuya entrada de quién regala estaba archivada."
+  },
+  "giverPersonAddTitle": "¿Añadir a {name} como quién regala?",
+  "@giverPersonAddTitle": {
+    "description": "Título del paso previo en un regalo secreto.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "giverPersonAddBody": "Este regalo es una sorpresa. Para no delatarla, primero hay que añadir a {name} como quién regala para toda la familia, y se verá en todos los móviles sin relación con este regalo. Después podrás elegir a {name} aquí.",
+  "@giverPersonAddBody": {
+    "description": "Texto del paso previo: explica por qué hay que añadir a la persona como quién regala antes de elegirla en un regalo secreto.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "giverPersonAddConfirm": "Añadir a {name} como quién regala",
+  "@giverPersonAddConfirm": {
+    "description": "Botón del paso previo: añade a la persona como quién regala para toda la familia.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "giverPersonAddFailed": "No se ha podido añadir a {name} como quién regala.",
+  "@giverPersonAddFailed": {
+    "description": "Aviso cuando falla el alta de una persona como quién regala.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "giftNoLongerVisible": "Este regalo ya no se puede ver en este móvil.",
+  "@giftNoLongerVisible": {
+    "description": "Aviso cuando el editor se cierra solo porque el regalo ya no está autorizado en este móvil (otro móvil lo movió a una persona protegida, por ejemplo)."
+  },
+  "deleteGiverRows": "{count, plural, =1{Se elimina {names}.} other{Se eliminan estos {count} registros: {names}.}}",
+  "@deleteGiverRows": {
+    "description": "Primera frase del diálogo de eliminar a quien regala: nombra lo que se elimina.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "deleteGiverGiftTitles": "{more, plural, =0{Afecta a: {titles}.} other{Afecta a: {titles} y {more} más.}}",
+  "@deleteGiverGiftTitles": {
+    "description": "Títulos de los regalos que se quedan sin quién regala; más indica cuántos no caben en la lista.",
+    "placeholders": {
+      "titles": {
+        "type": "String"
+      },
+      "more": {
+        "type": "int"
+      }
+    }
+  },
+  "deleteGiverLinkedNote": "{name} sigue en Personas: solo se elimina como quién regala.",
+  "@deleteGiverLinkedNote": {
+    "description": "Consecuencia de eliminar a quien regala si está enlazado a una persona.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "deleteImpactChanged": "Ha cambiado mientras tenías el aviso abierto. Esto es lo que se eliminaría ahora:",
+  "@deleteImpactChanged": {
+    "description": "Primera frase del diálogo de eliminar cuando lo que se elimina cambió (otro móvil) y se pide confirmar de nuevo."
+  },
+  "deletePersonLinkedGiver": "Su nombre seguirá apareciendo en los regalos que dio, como quién regala.",
+  "@deletePersonLinkedGiver": {
+    "description": "Consecuencia de eliminar a una persona que también es quién regala en algunos regalos."
+  },
+  "devicePersonBlockedThisTitle": "Este móvil es de {name}",
+  "@devicePersonBlockedThisTitle": {
+    "description": "Título del aviso al intentar eliminar o archivar a la persona de este móvil.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "devicePersonBlockedThisBody": "{name} es la persona de este móvil, así que no se puede eliminar ni archivar desde aquí. Para hacerlo, elige antes a otra persona en «Este móvil es de», en Ajustes.",
+  "@devicePersonBlockedThisBody": {
+    "description": "Texto del aviso al intentar eliminar o archivar a la persona de este móvil.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "devicePersonBlockedOtherTitle": "{name} tiene su propio móvil",
+  "@devicePersonBlockedOtherTitle": {
+    "description": "Título del aviso al intentar eliminar o archivar a la persona dueña de otro móvil de la familia.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "devicePersonBlockedOtherBody": "{name} tiene su propio móvil en la familia, así que no se puede eliminar ni archivar desde aquí.",
+  "@devicePersonBlockedOtherBody": {
+    "description": "Texto del aviso al intentar eliminar o archivar a la persona dueña de otro móvil de la familia.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "giverLinkedLine": "Enlazado a una persona: su nombre y color se cambian en Personas.",
+  "@giverLinkedLine": {
+    "description": "Línea bajo quién regala en Ajustes cuando está enlazado a una persona."
+  },
+  "giverLinkedNameHint": "El nombre y el color son los de {name}. Cámbialos en Personas.",
+  "@giverLinkedNameHint": {
+    "description": "Frase bajo el nombre (no editable) de quién regala enlazado a una persona.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "giverLinkLabel": "Enlazar con una persona",
+  "@giverLinkLabel": {
+    "description": "Fila de la hoja de quién regala y título de la hoja que elige la persona."
+  },
+  "giverLinkHint": "Su nombre y color pasarán a ser los de la persona.",
+  "@giverLinkHint": {
+    "description": "Frase bajo la fila de enlazar quién regala con una persona."
+  },
+  "giverLinkExistingHint": "Ya es quién regala: se unirán en una columna",
+  "@giverLinkExistingHint": {
+    "description": "Frase bajo una persona de la hoja de enlazar que ya tiene su propio quién regala."
+  },
+  "giverLinkConfirmTitle": "¿Enlazar con {name}?",
+  "@giverLinkConfirmTitle": {
+    "description": "Título de la confirmación de enlazar quién regala con una persona.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "giverLinkConfirmBody": "«{giver}» pasará a llamarse {name}, con su color, y seguirá los cambios de {name} en Personas. Sus regalos se mantienen.",
+  "@giverLinkConfirmBody": {
+    "description": "Texto de la confirmación de enlazar quién regala con una persona.",
+    "placeholders": {
+      "giver": {
+        "type": "String"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "giverLinkConfirm": "Enlazar",
+  "@giverLinkConfirm": {
+    "description": "Botón que confirma enlazar quién regala con una persona."
+  },
+  "giverUnlinkLabel": "Desenlazar de la persona",
+  "@giverUnlinkLabel": {
+    "description": "Fila de la hoja de quién regala enlazado a una persona."
+  },
+  "giverUnlinkConfirmTitle": "¿Desenlazar de {name}?",
+  "@giverUnlinkConfirmTitle": {
+    "description": "Título de la confirmación de desenlazar quién regala.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "giverUnlinkConfirmBody": "Seguirá como quién regala con el nombre y el color de ahora, pero ya no cambiará con {name}. Sus regalos se mantienen.",
+  "@giverUnlinkConfirmBody": {
+    "description": "Texto de la confirmación de desenlazar quién regala.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "giverUnlinkConfirm": "Desenlazar",
+  "@giverUnlinkConfirm": {
+    "description": "Botón que confirma desenlazar quién regala."
+  },
+  "giverLinkError": "No se ha podido cambiar el enlace. Inténtalo de nuevo.",
+  "@giverLinkError": {
+    "description": "Aviso cuando falla enlazar o desenlazar quién regala."
+  },
+  "giftWriteGiftUnavailable": "No se ha guardado: este regalo ya no está disponible en este móvil.",
+  "@giftWriteGiftUnavailable": {
+    "description": "Aviso cuando un cambio de un regalo se rechaza porque el regalo no está a la vista."
+  },
+  "giftWriteRecipientGone": "No se ha guardado: la persona a la que va el regalo ya no existe.",
+  "@giftWriteRecipientGone": {
+    "description": "Aviso cuando se rechaza un cambio porque la persona que recibe el regalo ya no existe."
+  },
+  "giftWriteInvalidPair": "No se ha guardado: quien regala no puede ser quien recibe el regalo.",
+  "@giftWriteInvalidPair": {
+    "description": "Aviso cuando quien regala y quien recibe serían la misma persona."
+  },
+  "giftWriteGiverGone": "No se ha guardado: quien regala ya no existe.",
+  "@giftWriteGiverGone": {
+    "description": "Aviso cuando quien regala se eliminó mientras tanto."
+  },
+  "giftWriteGiverArchived": "No se ha guardado: quien regala está archivado.",
+  "@giftWriteGiverArchived": {
+    "description": "Aviso cuando quien regala se archivó mientras tanto."
+  },
+  "giftWritePersonGone": "No se ha guardado: esa persona ya no existe.",
+  "@giftWritePersonGone": {
+    "description": "Aviso cuando la persona elegida como quien regala se eliminó mientras tanto."
+  },
+  "giftWritePersonArchived": "No se ha guardado: esa persona está archivada.",
+  "@giftWritePersonArchived": {
+    "description": "Aviso cuando la persona elegida como quien regala se archivó mientras tanto."
+  },
+  "giverUnlinkStale": "Ya no estaba enlazado a {name}.",
+  "@giverUnlinkStale": {
+    "description": "Aviso al desenlazar quién regala cuando otro móvil ya lo había cambiado.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "deleteImpactUnavailable": "No se ha podido comprobar qué se elimina. Vuelve a abrir el aviso.",
+  "@deleteImpactUnavailable": {
+    "description": "Aviso cuando el diálogo de eliminar se cierra porque no se pudo recalcular lo que se elimina."
+  },
+  "deleteImpactChecking": "Comprobando lo que se elimina…",
+  "@deleteImpactChecking": {
+    "description": "Texto del diálogo de eliminar mientras se recalcula lo que se elimina: no enseña títulos ni recuentos."
   }
 }

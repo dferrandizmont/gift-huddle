@@ -484,13 +484,16 @@ describe("renewal control", () => {
     try {
       accepted.push((await step(id, "reserve", { participants: ["aritz"], newDeviceId: "aritz-initial", newSigningKey: key(), targetCommitment: key(), inventoryCommitment: key() })).c);
       for (let revision = 2; revision <= 280; revision++) {
-        now += 61000; const previousTargetSyncId = id.targetSyncId; id = { ...id, targetSyncId: b64u(rand(16)) };
+        // Fresh destinations prepay rows too; keep this history fixture within
+        // the daily global budget while still exercising all 280 log entries.
+        if (revision % 100 === 0) now += 86400000;
+        now += 62000; const previousTargetSyncId = id.targetSyncId; id = { ...id, targetSyncId: b64u(rand(16)) };
         accepted.push((await step(id, "replace", { revision, previousTargetSyncId, participants: ["aritz"], newDeviceId: `aritz-${revision}`, newSigningKey: key(), targetCommitment: key(), inventoryCommitment: key() })).c);
       }
       const tip = await get(id); const head = tip.renewal!.head;
       const first = await json<{ commands: RenewalCommand[]; next: number; height: number }>(await call("GET", `${id.path}/renewal/log/${id.operationId}/${head}/0`, { key: id.key }));
       expect(first.commands).toHaveLength(256); expect(first.next).toBe(256); expect(first.height).toBe(280);
-      now += 61000; await step(id, "ready", { destinationVersion: 1 });
+      now += 62000; await step(id, "ready", { destinationVersion: 1 });
       const second = await json<{ commands: RenewalCommand[]; next: null; height: number }>(await call("GET", `${id.path}/renewal/log/${id.operationId}/${head}/${first.next}`, { key: id.key }));
       expect(second.next).toBeNull(); expect(second.height).toBe(280);
       const paged = [...first.commands, ...second.commands]; expect(paged).toEqual(accepted);
@@ -510,7 +513,7 @@ describe("renewal control", () => {
       await step(id, "reserve", { participants, newDeviceId: "aritz-initial", newSigningKey: key(), targetCommitment: key(), inventoryCommitment: key() });
       let rejected = false;
       for (let revision = 2; revision < 200; revision++) {
-        now += 61000;
+        now += 62000;
         const before = await get(id); const old = id.targetSyncId;
         const target = { ...id, targetSyncId: b64u(rand(16)) };
         const c = await command(target, before.version, "replace", { revision, previousTargetSyncId: old,
@@ -523,7 +526,7 @@ describe("renewal control", () => {
       const full = await get(nora);
       expect(full.renewal!.logBytes).toBeGreaterThan(256 * 1024);
       expect(full.renewal!.height).toBeLessThan(1024); // bytes, rather than count, stopped the attacker
-      now += 61000;
+      now += 62000;
       expect((await revoke(nora, "aritz")).status).toBe(200);
       const target = { ...nora, targetSyncId: b64u(rand(16)) };
       const recovered = await step(target, "recover", { revision: full.renewal!.revision + 1,
@@ -532,7 +535,7 @@ describe("renewal control", () => {
       await step(target, "ack", { newDeviceId: recovered.c.newDeviceId, newSigningKey: recovered.c.newSigningKey, destinationVersion: 2, receipt: key() });
       now += 74 * 3600000;
       for (const participantDeviceId of participants.filter((p) => p !== "nora")) {
-        now += 61000; await step(target, "exclude", { participantDeviceId, loss: true, receipt: key() });
+        now += 62000; await step(target, "exclude", { participantDeviceId, loss: true, receipt: key() });
       }
       const stored = await runInDurableObject(stub(nora), (_o, s) => s.storage.sql.exec<{ data: string }>("SELECT data FROM resource WHERE name = 'renewal'").one().data);
       expect(new TextEncoder().encode(stored).length).toBeLessThan(256 * 1024);
@@ -1020,4 +1023,18 @@ describe("renewal control", () => {
     expect(canonicalJson(state)).toContain(id.targetSyncId);
     expect((await send(id, { ...c, participants: Array.from({ length: 65 }, (_, i) => `device${i}`) })).status).toBe(400);
   });
+});
+
+it("does not probe any renewal destination when renewal is disabled", async () => {
+  const id = await setup();
+  const probe = vi.spyOn(ListV2Object.prototype, "renewalDestination");
+  try {
+    for (const action of ["reserve", "replace", "recover"] as const) {
+      const c = await command(id, 1, action, { revision: action === "reserve" ? 1 : 2, participants: ["aritz"], previousTargetSyncId: b64u(rand(16)), newDeviceId: "aritz-new", newSigningKey: key(), targetCommitment: key(), inventoryCommitment: key() });
+      await routeV2(new Request(`https://sync.test${id.path}/renewal`, {
+        method: "PUT", headers: { Authorization: `Bearer ${key()}`, "If-Match": '"1"', "Content-Type": "application/json" }, body: JSON.stringify(c),
+      }), { ...env, RENEWAL_ENABLED: "false" });
+    }
+    expect(probe).not.toHaveBeenCalled();
+  } finally { probe.mockRestore(); }
 });

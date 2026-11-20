@@ -61,6 +61,32 @@ void _expectUntouched(
 void main() {
   const tall = Size(390, 1500);
 
+  screenTest('el regalo rechaza dos importes en el precio previsto y real', (
+    tester,
+    phone,
+  ) async {
+    await _openEditor(tester, phone);
+    final planned = find.widgetWithText(TextField, 'Previsto');
+    final actual = find.widgetWithText(TextField, 'Real');
+    final before = await _record(tester, phone);
+    await tester.enterText(planned, '12 € 50 €');
+    await tester.enterText(actual, '12 € 50 €');
+    await tapText(tester, 'Guardar');
+    expect(find.text('Editar regalo'), findsOneWidget);
+    expect(
+      find.text('Escribe un importe, por ejemplo 12,50.'),
+      findsNWidgets(2),
+    );
+    _expectUntouched(before, await _record(tester, phone));
+
+    await tester.enterText(planned, '1.250,00 €');
+    await tester.enterText(actual, '€ 12');
+    await tapText(tester, 'Guardar');
+    final saved = await _record(tester, phone);
+    expect(saved['plannedCents'], 125000);
+    expect(saved['actualCents'], 1200);
+  }, size: tall);
+
   screenTest('guardar conserva la edición local y otros campos remotos', (
     tester,
     phone,

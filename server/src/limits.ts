@@ -74,7 +74,7 @@ export const V2_MAX_PACKAGE_BYTES_PER_WRITER = 64 * 1024;
  */
 export const V2_MAX_SLOTS_PER_PUT = 10;
 /**
- * Whole PUT body, read by the router before any credential is checked (finding 10).
+ * Whole PUT body, streamed to the list and read only after authentication.
  * Worst real case: the largest common envelope (MAX_ENVELOPE_CHARS, 2.67 MiB),
  * registry and packages at their caps (256 KiB each), 10 own slots of 175,446
  * characters (1.67 MiB) and the JSON around them: about 4.85 MiB. 5 MiB covers it
@@ -84,7 +84,7 @@ export const V2_MAX_SLOTS_PER_PUT = 10;
 export const V2_MAX_BODY_BYTES = 5 * 1024 * 1024;
 /**
  * `PUT` with `If-Match: "0"` (create): the object refuses more than
- * MAX_FIRST_UPLOAD_BYTES of JSON, so the router stops reading at 400 KiB.
+ * MAX_FIRST_UPLOAD_BYTES of JSON, so the body reader stops at 400 KiB.
  */
 export const V2_MAX_CREATE_BODY_BYTES = 400 * 1024;
 export const V2_MAX_INVITE_BODY_BYTES = 128 * 1024;
@@ -108,16 +108,11 @@ export const V2_MAX_PACKAGE_BYTES = 64 * 1024;
  * (MAX_ENVELOPE_BYTES) and one registry (V2_MAX_REGISTRY_BYTES).
  */
 export const V2_MAX_CHECKPOINTS = 8;
-/**
- * Requests per minute and credential. Counted in memory and written to the list's
- * SQLite every V2_RATE_PERSIST_EVERY hits (and when full), so a restarted object
- * keeps its windows (finding 16) at a bounded cost: at most max/8 + 1 row writes
- * per window and counter, and at most 7 uncounted hits per restart.
- */
+/** Requests per minute and credential, kept only in memory. */
 export const V2_CREDENTIAL_REQUESTS = 120;
 /** Mutations per minute and credential. */
 export const V2_CREDENTIAL_WRITES = 30;
-export const V2_RATE_PERSIST_EVERY = 8;
+
 /**
  * v2 invitation routes per minute and client (IPv4 or IPv6 /56). Since the app's
  * 1.0.2 a pairing screen polls every 1-2 s: the web asks for its offer at that
@@ -137,6 +132,32 @@ export const V2_INVITE_REQUESTS_PER_INVITE = 30;
  * and several phones of a household share the address.
  */
 export const V2_NEW_LISTS_PER_HOUR = 12;
+export const V2_NEW_LISTS_PER_HOUR_48 = 24;
+export const V2_NEW_LISTS_PER_DAY = 12;
+export const V2_NEW_LISTS_PER_DAY_48 = 24;
+// At the 10 GiB ceiling, storage is about $6.15/month ($5 + (10.7 GB - 5) × $0.20); 30M daily-budgeted rows/month are within the included 50M. Requests and CPU have no global cap (only per-IP limits); the account has a $7 spend alert.
+export const V2_GLOBAL_STORAGE_CEILING_BYTES = 10 * 1024 ** 3;
+export const V2_STORAGE_BLOCK_BYTES = 256 * 1024;
+export const V2_LIST_ROWS_PER_DAY = 6000;
+export const V2_CLIENT_ROWS_PER_DAY = 10_000;
+export const V2_CLIENT_ROWS_PER_DAY_48 = 20_000;
+export const V2_GLOBAL_LIST_ROWS_PER_DAY = 1_000_000;
+export const V2_ROW_REPORT_BLOCK = 25;
+export const V2_ROW_STATUS_MS = 60_000;
+export const V2_ROW_REPORT_MS = 10 * 60_000;
+export const V2_ROW_REPORT_KEYS = 8;
+export const V2_CREDENTIAL_CAP_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+export const V2_GLOBAL_NEW_LISTS_PER_DAY = 1500;
+export const V2_GLOBAL_NEW_LISTS_PER_HOUR = 250;
+export const V2_LIST_BASE_BYTES = 1.5 * 1024 * 1024;
+export const V2_LIST_BYTES_PER_EXTRA_CREDENTIAL = 1024 * 1024;
+/** Existing resource caps remain authoritative; 64 active credentials allow 64.5 MiB. */
+export const v2ListByteLimit = (credentials: { revoked: boolean; slotsExpireAt?: number; createdAt?: number }[], now = Date.now()) => {
+  const counted = credentials.filter((c) => !c.revoked || (c.slotsExpireAt ?? 0) > now);
+  if (counted.length < 2) return V2_LIST_BASE_BYTES;
+  const mature = counted.slice(2).filter((c) => c.createdAt !== undefined && now - c.createdAt >= V2_CREDENTIAL_CAP_AGE_MS).length;
+  return Math.min(64.5 * 1024 * 1024, 4 * 1024 * 1024 + mature * V2_LIST_BYTES_PER_EXTRA_CREDENTIAL);
+};
 
 // Daily quotas (ADR 0004, "Cupos, generaciones y renovación"): sliding 24 h windows
 // kept as timestamps inside the single state row, so they cost no extra rows.
@@ -203,3 +224,9 @@ export const RECOVERY_CLAIMS_PER_DAY = 8;
 export const RECOVERY_CLAIMS_PER_DEVICE_DAY = 2;
 export const RECOVERY_MAX_IDS_PER_DEVICE = 32;
 export const RECOVERY_RESERVATION_MS = 24 * 60 * 60 * 1000;
+/**
+ * Deadline to read a request body outside the list lock. Generous on purpose:
+ * the lock is not held while reading, and a 2 MiB body over a 1 Mbps mobile
+ * uplink already takes about 17 s.
+ */
+export const V2_BODY_READ_DEADLINE_MS = 60_000;

@@ -3,9 +3,12 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { listObjects } from "./list-do-objects.mjs";
 import { inventoryObjects, run } from "../maintenance/run-retention.mjs";
+import { run as runStorage } from "../maintenance/run-storage.mjs";
 
 const account = "a".repeat(32), namespace = "b".repeat(32);
 const id = (n) => n.toString(16).padStart(64, "0");
+const DAY_MS = 86_400_000;
+const candidate = { id: id(1), createdAt: 1000, lastActivity: 2000, version: 1, storedBytes: 1024, hasRecovery: false, pendingInvites: 1 };
 const inventory = (ids = [id(1)]) => ({
   version: 1, scriptName: "gift-huddle-sync", jurisdiction: "eu", accountId: account,
   namespaces: {
@@ -21,8 +24,8 @@ test("maintenance config keeps all published entry points closed and binds only 
   assert.match(config, /^routes = \[\]$/m);
   assert.match(config, /^ip = "127\.0\.0\.1"$/m);
   assert.doesNotMatch(config, /^\[{1,2}(?:triggers|migrations)|^crons\s*=/m);
-  assert.equal([...config.matchAll(/^script_name = "gift-huddle-sync"$/gm)].length, 2);
-  assert.deepEqual([...config.matchAll(/^class_name = "([^"]+)"$/gm)].map((m) => m[1]), ["ListV2Object", "RecoveryLocatorObject"]);
+  assert.equal([...config.matchAll(/^script_name = "gift-huddle-sync"$/gm)].length, 3);
+  assert.deepEqual([...config.matchAll(/^class_name = "([^"]+)"$/gm)].map((m) => m[1]), ["ListV2Object", "RecoveryLocatorObject", "StorageLedgerObject"]);
 });
 
 test("API listing follows cursors.after, deduplicates and includes objects without stored data", async () => {
@@ -102,4 +105,101 @@ test("empty and already completed inventories report completion without RPC", as
   const messages = [];
   await run([], 0, async () => assert.fail("no objects to wake"), undefined, (message) => messages.push(message));
   assert.deepEqual(messages, ["Completed 0/0"]);
+});
+
+test("storage usage checks loopback and warns at exactly 50 percent", async () => {
+  const result = { reservedBytes: 1, ceilingBytes: 2, percent: 50, alert: true };
+  const messages = [], warnings = [];
+  await runStorage(["usage"], {
+    fetcher: async (url, options) => {
+      assert.equal(url, "http://127.0.0.1:8791/storage-occupancy");
+      assert.equal(options.redirect, "error");
+      return Response.json(result);
+    },
+    log: (message) => messages.push(JSON.parse(message)),
+    warn: (message) => warnings.push(message),
+  });
+  assert.deepEqual(messages, [result]);
+  assert.deepEqual(warnings, ["Storage ledger at 50.00% of its ceiling"]);
+});
+
+test("purge defaults to preview and applies only the reviewed candidates with --apply", async () => {
+  let plan;
+  await runStorage(["purge", "inventory.json", "30", "2026-11-20", "2026-11-27"], {
+    read: async () => JSON.stringify(inventory([id(1), id(3)])),
+    fetcher: async (url, options) => {
+      assert.equal(url, "http://127.0.0.1:8791/purge-inactive");
+      const body = JSON.parse(options.body);
+      assert.equal(body.apply, undefined);
+      assert.deepEqual(body.objects, [{ id: id(1) }, { id: id(3) }]);
+      assert.equal(body.criteria.createdFrom, Date.parse("2026-11-20"));
+      assert.equal(body.criteria.createdBefore, Date.parse("2026-11-27"));
+      assert.equal(body.criteria.includeLegacy, undefined);
+      return Response.json({ candidates: [candidate] });
+    },
+    log: (message) => { plan = JSON.parse(message); },
+  });
+  assert.equal(plan.version, 2);
+  assert.deepEqual(plan.candidates, [candidate]);
+  await runStorage(["purge", "--apply", "plan.json"], {
+    read: async () => JSON.stringify(plan),
+    fetcher: async (_url, options) => {
+      const { id: candidateId, ...expected } = candidate;
+      assert.deepEqual(JSON.parse(options.body), {
+        apply: true, criteria: plan.criteria, objects: [{ id: candidateId, expected }],
+      });
+      return Response.json({ purged: 1 });
+    },
+    log: (message) => assert.deepEqual(JSON.parse(message), { purged: 1, reviewed: 1 }),
+  });
+});
+
+test("purge rejects invalid configuration before contacting maintenance", async () => {
+  const options = { read: async () => JSON.stringify(inventory()), fetcher: async () => assert.fail("unexpected RPC") };
+  await assert.rejects(runStorage(["purge", "inventory", "29", "2026-11-20", "2026-11-27"], options), /minimum 30 days/);
+  await assert.rejects(runStorage(["purge", "inventory", "30", "2026-02-30", "2026-11-20"], options), /Invalid UTC date/);
+  await assert.rejects(runStorage(["purge", "--apply", "inventory"], options), /Invalid purge plan/);
+});
+
+test("historical purge windows need explicit --include-legacy for preview and apply", async () => {
+  const options = { read: async () => JSON.stringify(inventory()), fetcher: async () => assert.fail("unexpected RPC") };
+  for (const date of ["1970-01-01", "2026-11-19"]) {
+    await assert.rejects(runStorage(["purge", "inventory.json", "30", date, "2026-11-20"], options), /requires --include-legacy/);
+  }
+  let plan;
+  await runStorage(["purge", "--include-legacy", "inventory.json", "30", "1970-01-01", "2026-11-20"], {
+    ...options,
+    fetcher: async (_url, { body }) => {
+      const { criteria } = JSON.parse(body);
+      assert.equal(criteria.createdFrom, 0);
+      assert.equal(criteria.includeLegacy, true);
+      return Response.json({ candidates: [{ ...candidate, createdAt: null }] });
+    },
+    log: (message) => { plan = JSON.parse(message); },
+  });
+  const read = async () => JSON.stringify(plan);
+  await assert.rejects(runStorage(["purge", "--apply", "plan.json"], { ...options, read }), /requires --include-legacy/);
+  await runStorage(["purge", "--include-legacy", "--apply", "plan.json"], {
+    read, fetcher: async (_url, { body }) => {
+      const request = JSON.parse(body);
+      assert.equal(request.apply, true);
+      assert.deepEqual(request.criteria, plan.criteria);
+      assert.equal(request.objects[0].expected.createdAt, null);
+      return Response.json({ purged: 1 });
+    },
+    log: (message) => assert.deepEqual(JSON.parse(message), { purged: 1, reviewed: 1 }),
+  });
+});
+
+test("apply rejects a short inactivity cutoff and plans missing or falsifying review fields", async () => {
+  const criteria = { createdFrom: Date.parse("2026-11-20"), createdBefore: Date.parse("2026-11-27"), inactiveBefore: Date.now() - 30 * DAY_MS };
+  const plan = { version: 2, criteria, candidates: [candidate] };
+  const apply = (data) => runStorage(["purge", "--apply", "plan.json"], {
+    read: async () => JSON.stringify(data), fetcher: async () => assert.fail("unexpected RPC"),
+  });
+  await assert.rejects(apply({ ...plan, version: 1 }), /Invalid purge plan/);
+  await assert.rejects(apply({ ...plan, criteria: { ...criteria, inactiveBefore: Date.now() - 29 * DAY_MS } }), /minimum 30 days/);
+  for (const change of [{ storedBytes: undefined }, { hasRecovery: true }, { pendingInvites: -1 }]) {
+    await assert.rejects(apply({ ...plan, candidates: [{ ...candidate, ...change }] }), /Invalid or duplicate purge candidate/);
+  }
 });

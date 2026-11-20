@@ -111,6 +111,11 @@ class RegalosMotion {
   /// Si el sistema pide reducir el movimiento.
   final bool reduce;
 
+  /// La salida de un desplegable anclado (`showAnchoredPicker`): un fundido
+  /// más corto que [fade], porque la elección ya está hecha y no hay nada que
+  /// seguir con la vista.
+  static const Duration popoverExit = Duration(milliseconds: 100);
+
   /// [normal], o el fundido de 150 ms.
   Duration duration(Duration normal) => reduce ? fade : normal;
 

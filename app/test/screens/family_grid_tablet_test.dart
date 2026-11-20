@@ -18,8 +18,13 @@ import 'family_grid_test.dart' show expectNoRoundShapes, openFamily;
 
 // Tanda T7 del plan de tablet (la guía de diseño para tablet, §6): la
 // rejilla de Reparto en una ventana ancha. Un solo panel, celdas de hasta
-// 96 × 52 (120 × 56 desde 840 dp, tanda W2b del escritorio), nombres entre 160 y 220, la rejilla centrada y las hojas de 560
-// centradas en el área de contenido. Por debajo de 600 dp, lo de siempre.
+// 96 × 52 (120 × 56 desde 840 dp, tanda W2b del escritorio), nombres entre 160
+// y 220, la rejilla centrada y las hojas de 560 centradas en el área de
+// contenido. Con más ancho el tope de la celda crece sin saltos (111 a 672, 116
+// a 720, 187 a 1152 y 210 desde 1286 con tres columnas; 184 con cuatro y 190 con
+// más) y con él todo lo de alrededor (`scale`, hasta 1,4; el texto, hasta 1,2):
+// el iPad de 13 pulgadas en horizontal llena el ancho, alineada a la izquierda. Por debajo
+// de 600 dp, lo de siempre.
 
 /// Ancho del raíl: el área de contenido empieza ahí.
 const double kRail = 80;
@@ -87,28 +92,88 @@ void main() {
           wide: true,
         );
 
-    test('con tres que regalan las celdas miden 96 × 52, los nombres 220 y '
-        'la rejilla queda centrada', () {
-      // 720 y 1200 son el área de contenido de 800 y de 1280 (sin el raíl);
-      // 672 y 1152, los anchos útiles del plan.
-      for (final width in [672.0, 720.0, 1152.0, 1200.0]) {
+    /// La rejilla de una ventana con dos paneles (desde 840 dp): la del iPad de
+    /// 13 pulgadas en horizontal (1286 dp de contenido) y la del Android de
+    /// 1280 (1200).
+    RepartoLayout desk(double width, int columns, {double scale = 1}) =>
+        RepartoLayout(
+          width: width,
+          columns: columns,
+          scaler: TextScaler.linear(scale),
+          wide: true,
+          desktop: true,
+        );
+
+    test('en una ventana media con tres que regalan, la celda crece de 96 a '
+        '116 según el ancho, con 52 de alto y los nombres a 220, centrada', () {
+      // 720 es el área de contenido de 800; 672, el ancho útil del plan.
+      final expectedWidth = {672.0: 111.2, 720.0: 116.0};
+      for (final width in [672.0, 720.0]) {
         final l = wide(width, 3);
         expect(l.compact, isFalse, reason: '$width');
-        expect(l.cellWidth, 96, reason: '$width');
+        expect(l.cellWidth, closeTo(expectedWidth[width]!, 0.01));
+        expect(l.scale, 1, reason: '$width');
         expect(l.cellHeight, 52, reason: '$width');
         expect(l.leftWidth, 220, reason: '$width');
         expect(l.rowHeight, 60);
         // Mismo margen a los dos lados.
         expect(
           l.pad,
-          closeTo((width - 220 - 3 * 99) / 2, 0.001),
+          closeTo((width - 220 - 3 * (l.cellWidth + 3)) / 2, 0.001),
           reason: '$width',
         );
       }
     });
 
+    test(
+      'en una ventana de dos paneles la celda llega a 210 × 78 a 1286 dp con '
+      'tres que regalan, alineada a la izquierda y con los nombres a 325',
+      () {
+        // Tres que regalan: 120 a 760, 187 a 1152 y 210 desde 1286.
+        final small = desk(760, 3);
+        expect(small.cellWidth, 120);
+        expect(small.cellHeight, 56);
+        expect(small.scale, 1);
+        expect(small.textScale, 1);
+        expect(small.leftWidth, 280);
+
+        final mid = desk(1152, 3);
+        expect(mid.cellWidth, closeTo(187.07, 0.01));
+        // La escala se queda en su tope (1,4); los nombres, al 116 %.
+        expect(mid.scale, closeTo(1.4, 0.0001));
+        expect(mid.cellHeight, closeTo(78.4, 0.01));
+        expect(mid.leftWidth, closeTo(324.8, 0.01));
+        expect(mid.pad, 16);
+
+        for (final width in [1286.0, 1366.0, 1400.0]) {
+          final l = desk(width, 3);
+          expect(l.compact, isFalse, reason: '$width');
+          expect(l.cellWidth, 210, reason: '$width');
+          expect(l.cellHeight, closeTo(78.4, 0.001), reason: '$width');
+          expect(l.scale, closeTo(1.4, 0.0001), reason: '$width');
+          expect(l.textScale, closeTo(1.2, 0.0001), reason: '$width');
+          // 280 × (1 + 0,4 × 0,4): la columna de nombres crece poco.
+          expect(l.leftWidth, closeTo(324.8, 0.001), reason: '$width');
+          expect(l.rowHeight, closeTo(78.4 + 8 * 1.4, 0.001));
+          expect(l.avatarSize, closeTo(26.4, 0.001));
+          expect(l.numberSize, closeTo(23.8, 0.001));
+          // La barra de comprados crece con la celda (28 en 68).
+          expect(l.barWidth, closeTo(210 * 28 / 68, 0.001));
+          // A la izquierda, con el margen de siempre; lo que sobra, a la
+          // derecha.
+          expect(l.pad, 16, reason: '$width');
+        }
+        // Con cuatro que regalan las celdas llegan a 184 y la rejilla ocupa más
+        // del 80 % del ancho de 1286.
+        final four = desk(1286, 4);
+        expect(four.cellWidth, 184);
+        final used = four.leftWidth + four.slot * 4;
+        expect(used / 1286, greaterThan(0.8));
+      },
+    );
+
     test('con seis: a 720 las celdas se estrechan sin compactar y los nombres '
-        'se quedan en 160; a 1200 siguen en 96 con los nombres a 220', () {
+        'se quedan en 160; a 1286 miden 176 y los nombres 180', () {
       final portrait = wide(720, 6);
       expect(portrait.compact, isFalse);
       expect(portrait.cellWidth, closeTo(85, 0.01));
@@ -116,16 +181,22 @@ void main() {
       expect(portrait.leftWidth, closeTo(160, 0.001));
       expect(portrait.pad, closeTo(16, 0.001));
 
-      final landscape = wide(1200, 6);
+      final landscape = desk(1286, 6);
       expect(landscape.compact, isFalse);
-      expect(landscape.cellWidth, 96);
-      expect(landscape.cellHeight, 52);
-      expect(landscape.leftWidth, 220);
-      expect(landscape.pad, closeTo((1200 - 220 - 6 * 99) / 2, 0.001));
+      // 190 de tope, pero solo caben 176 con los nombres a 180: llena el ancho.
+      expect(landscape.cellWidth, closeTo((1254 - 180) / 6 - 3, 0.001));
+      expect(landscape.cellHeight, closeTo(78.4, 0.001));
+      expect(landscape.leftWidth, closeTo(180, 0.001));
+      expect(landscape.pad, closeTo(16, 0.001));
+
+      final mid = desk(1152, 6);
+      expect(mid.cellWidth, closeTo((1120 - 180) / 6 - 3, 0.01));
+      expect(mid.leftWidth, closeTo(180, 0.001));
     });
 
     test('con nueve: a 720 entra el modo compacto (las de 68 no caben), con '
-        'celdas de más de 44; a 1200 caben las de 96 sin compactar', () {
+        'celdas de más de 44; a 1152 y a 1286 caben sin compactar, con las '
+        'celdas de 120 como mucho', () {
       final portrait = wide(720, 9);
       expect(portrait.compact, isTrue);
       expect(portrait.cellWidth, greaterThan(44));
@@ -134,11 +205,37 @@ void main() {
       expect(portrait.leftWidth, 160);
       expect(portrait.headerHeight, 88);
 
-      final landscape = wide(1200, 9);
+      final mid = desk(1152, 9);
+      expect(mid.compact, isFalse);
+      expect(mid.cellWidth, closeTo((1120 - 180) / 9 - 3, 0.01));
+      expect(mid.scale, 1);
+      expect(mid.cellHeight, 56);
+      expect(mid.leftWidth, closeTo(180, 0.001));
+      expect(mid.pad, closeTo(16, 0.001));
+
+      final landscape = desk(1286, 9);
       expect(landscape.compact, isFalse);
-      expect(landscape.cellWidth, 96);
-      expect(landscape.leftWidth, 220);
-      expect(landscape.pad, closeTo((1200 - 220 - 9 * 99) / 2, 0.001));
+      expect(landscape.cellWidth, closeTo((1254 - 180) / 9 - 3, 0.01));
+      expect(landscape.scale, 1);
+      expect(landscape.leftWidth, closeTo(180, 0.001));
+    });
+
+    test('la celda crece sin saltos con el ancho (tres que regalan)', () {
+      var previous = desk(760, 3);
+      for (var width = 780.0; width <= 1400; width += 20) {
+        final l = desk(width, 3);
+        expect(l.cellWidth, greaterThanOrEqualTo(previous.cellWidth));
+        expect(l.cellWidth - previous.cellWidth, lessThanOrEqualTo(3.6));
+        expect(l.cellHeight - previous.cellHeight, lessThanOrEqualTo(2.5));
+        expect(l.scale - previous.scale, lessThanOrEqualTo(0.03));
+        previous = l;
+      }
+      // Y al pasar de la ventana media a la de dos paneles (760 de contenido)
+      // no hay salto.
+      final before = wide(759, 3);
+      final after = desk(760, 3);
+      expect((after.cellWidth - before.cellWidth).abs(), lessThan(0.5));
+      expect((after.cellHeight - before.cellHeight).abs(), lessThan(4.1));
     });
 
     test('a 800 dp caben siete que regalan sin compactar, y ocho ya no', () {
@@ -158,10 +255,26 @@ void main() {
           expect(l.pad, greaterThanOrEqualTo(16 - 0.001), reason: reason);
           // Lo que sobra se reparte igual a los dos lados.
           expect(l.pad * 2 + used, closeTo(width, 0.001), reason: reason);
-          expect(l.cellWidth, lessThanOrEqualTo(96), reason: reason);
+          expect(
+            l.cellWidth,
+            lessThanOrEqualTo(
+              RepartoLayout.wideCellMaxFor(width, columns) + 0.001,
+            ),
+            reason: reason,
+          );
+          expect(l.cellWidth, lessThanOrEqualTo(210), reason: reason);
           expect(l.cellWidth, greaterThan(0), reason: reason);
-          expect(l.cellHeight, lessThanOrEqualTo(52), reason: reason);
-          expect(l.leftWidth, lessThanOrEqualTo(220 + 0.001), reason: reason);
+          expect(l.scale, inInclusiveRange(1, 1.4), reason: reason);
+          expect(
+            l.cellHeight,
+            lessThanOrEqualTo(52 * l.scale + 0.001),
+            reason: reason,
+          );
+          expect(
+            l.leftWidth,
+            lessThanOrEqualTo(220 * (1 + (l.scale - 1) * 0.4) + 0.001),
+            reason: reason,
+          );
           if (!l.compact) {
             expect(
               l.leftWidth,
@@ -236,15 +349,17 @@ void main() {
     expect(find.byWidgetPredicate(_isHorizontalScroll), findsNothing);
 
     // Tres personas y seis que regalan: a 800 las celdas miden 85 × 52 y a
-    // 1280 (dos paneles), 120 × 56.
+    // 1280 (dos paneles, 1200 de contenido), 161,67 × 75,45: caben los nombres
+    // a 180 y la rejilla llena el ancho ((1168 - 180) / 6 - 3); el alto crece
+    // con la celda (56 × 161,67 / 120). La rejilla va a la izquierda, con el margen de siempre.
     final expected = size == kTabletPortrait
         ? const Size(85, 52)
-        : const Size(120, 56);
+        : const Size(161.67, 56 * 161.67 / 120);
     for (final person in _people) {
       for (final giver in _givers) {
         final cell = tester.getRect(cellOf(person, giver));
         expect(cell.width, closeTo(expected.width, 0.01));
-        expect(cell.height, expected.height);
+        expect(cell.height, closeTo(expected.height, 0.02));
         expect(cell.left, greaterThanOrEqualTo(kRail));
         expect(cell.right, lessThanOrEqualTo(size.width));
       }
@@ -263,12 +378,20 @@ void main() {
     for (var i = 1; i < cells.length; i++) {
       expect(cells[i].left - cells[i - 1].right, closeTo(3, 0.01));
     }
-    // La columna de nombres, entre 160 y 220 (entre 180 y 280 en dos paneles).
+    // La columna de nombres, entre 160 y 220 (entre 180 y 280, por la
+    // escala de la celda, en dos paneles).
     final names =
         cells.first.left -
         tester.getRect(anchorOf(repartoAvatarAnchor('aritz'))).left;
     expect(names, greaterThanOrEqualTo(size == kTabletPortrait ? 160 : 180));
-    expect(names, lessThanOrEqualTo(size == kTabletPortrait ? 222 : 282));
+    expect(names, lessThanOrEqualTo(size == kTabletPortrait ? 222 : 320));
+    // Las celdas llenan el ancho: la rejilla, todo el contenido menos 2 × 16.
+    if (size != kTabletPortrait) {
+      final grid =
+          cells.last.right -
+          tester.getRect(anchorOf(repartoAvatarAnchor('aritz'))).left;
+      expect(grid, greaterThan((size.width - kRail) * 0.9));
+    }
     // Sin modo compacto: los nombres de quienes regalan van rectos.
     expect(tilted(tester, 'Yayos de Terrassa'), isFalse);
     // Los chips de ocasión: en una sola columna (800), centrados como la
@@ -362,7 +485,7 @@ void main() {
     await openFamily(tester);
     expect(
       tester.getRect(cellOf('aritz', 'us')).height,
-      size == kTabletPortrait ? 52 : 56,
+      closeTo(size == kTabletPortrait ? 52 : 56 * 161.67 / 120, 0.02),
     );
     await tester.tap(cellOf('aritz', 'us'));
     await tester.pump();
@@ -604,7 +727,7 @@ void main() {
     final rotated = windowSize(tester);
     expect(
       tester.getRect(cellOf('aritz', 'us')).width,
-      closeTo(rotated == kTabletPortrait ? 85 : 120, 0.01),
+      closeTo(rotated == kTabletPortrait ? 85 : 161.67, 0.01),
     );
     expect(find.byKey(kRepartoFlightKey), findsNothing);
     expect(tester.takeException(), isNull);

@@ -352,9 +352,102 @@ void main() {
     expect(find.textContaining('Cumpleaños de Nora'), findsOneWidget);
   });
 
+  group('los dos botones de la bienvenida', () {
+    final join = find.widgetWithText(OutlinedButton, 'Unirme a una familia');
+    final restore = find.widgetWithText(OutlinedButton, 'Restaurar una copia');
+
+    screenTest('van lado a lado, de medio ancho y de 48 de alto como mínimo', (
+      tester,
+      phone,
+    ) async {
+      await pumpRegalos(tester, phone);
+      // Las cuatro opciones sueltas de antes ya no cuelgan de la bienvenida.
+      for (final gone in [
+        'Escanear el QR',
+        'Unirme con un enlace',
+        'Tengo un código de recuperación',
+        'Recuperar con fichero',
+      ]) {
+        expect(find.text(gone), findsNothing, reason: gone);
+      }
+      await tester.ensureVisible(join);
+      await tester.pump();
+      final a = tester.getRect(join);
+      final b = tester.getRect(restore);
+      expect(a.top, b.top);
+      expect(a.width, b.width);
+      expect(a.right, lessThan(b.left));
+      expect(a.height, greaterThanOrEqualTo(48));
+      expect(b.height, greaterThanOrEqualTo(48));
+      expect(a.left, 20);
+      expect(b.right, 390 - 20);
+    });
+
+    screenTest('con letra grande se apilan y no desbordan', (
+      tester,
+      phone,
+    ) async {
+      await pumpRegalos(tester, phone);
+      await tester.ensureVisible(join);
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      final a = tester.getRect(join);
+      final b = tester.getRect(restore);
+      expect(a.left, b.left);
+      expect(a.width, b.width);
+      expect(a.bottom, lessThan(b.top));
+      expect(a.height, greaterThanOrEqualTo(48));
+    }, textScale: 2);
+
+    screenTest(
+      'en 320 de ancho no desbordan',
+      (tester, phone) async {
+        await pumpRegalos(tester, phone);
+        await tester.ensureVisible(join);
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        final a = tester.getRect(join);
+        final b = tester.getRect(restore);
+        expect(a.left, greaterThanOrEqualTo(0));
+        expect(b.right, lessThanOrEqualTo(320));
+        expect(a.height, greaterThanOrEqualTo(48));
+      },
+      size: const Size(320, 640),
+      textScale: 1.3,
+    );
+
+    screenTest('«Unirme a una familia» ofrece el QR y el enlace', (
+      tester,
+      phone,
+    ) async {
+      await pumpRegalos(tester, phone);
+      await openWelcomeSheet(tester, 'Escanear el QR');
+      expect(find.text('Escanear el QR'), findsOneWidget);
+      expect(find.text('Unirme con un enlace'), findsOneWidget);
+      expect(find.text('Tengo un código de recuperación'), findsNothing);
+      expect(find.bySemanticsLabel(RegExp('^Escanear el QR')), findsOneWidget);
+      // Un toque fuera la cierra sin ir a ninguna parte.
+      await tester.tapAt(const Offset(195, 40));
+      await settle(tester);
+      expect(find.text('Unirme con un enlace'), findsNothing);
+      expect(find.text('Unirme a una familia'), findsOneWidget);
+    });
+
+    screenTest('«Restaurar una copia» ofrece el código y el fichero', (
+      tester,
+      phone,
+    ) async {
+      await pumpRegalos(tester, phone);
+      await openWelcomeSheet(tester, 'Recuperar con fichero');
+      expect(find.text('Tengo un código de recuperación'), findsOneWidget);
+      expect(find.text('Recuperar con fichero'), findsOneWidget);
+      expect(find.text('Escanear el QR'), findsNothing);
+    });
+  });
+
   screenTest('«Escanear el QR» sale de la bienvenida', (tester, phone) async {
     await pumpRegalos(tester, phone);
-    await tapText(tester, 'Escanear el QR');
+    await tapWelcomeChoice(tester, 'Escanear el QR');
     expect(
       find.text('Apunta la cámara al código QR del otro móvil.'),
       findsOneWidget,
@@ -366,9 +459,7 @@ void main() {
     (tester, phone) async {
       final semantics = tester.ensureSemantics();
       await pumpRegalos(tester, phone);
-      await tester.ensureVisible(find.text('Unirme con un enlace'));
-      await tester.pump();
-      await tapText(tester, 'Unirme con un enlace');
+      await tapWelcomeChoice(tester, 'Unirme con un enlace');
       expect(
         find.text(
           'Pega el enlace que te enviaron. Quien te invitó tendrá que aceptar '

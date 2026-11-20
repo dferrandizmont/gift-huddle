@@ -73,6 +73,7 @@ class EraseAll {
   /// las claves de la familia, las claves del móvil y de sorpresas, el PIN y
   /// la configuración del bloqueo, las preferencias y los ficheros `.regalos`
   /// exportados. Al acabar no hay familia y la app vuelve al primer uso.
+  /// El historial de peticiones de valoración se conserva en el dispositivo.
   ///
   /// Primero la lista y sus claves, que es lo que importa. Todo se intenta
   /// entero aunque un paso falle (el almacén seguro o el disco pueden
@@ -161,10 +162,8 @@ class EraseAll {
     }
   }
 
-  /// Quita todas las preferencias. La marca de instalación no está aquí: es
-  /// el fichero [kInstallMarkerFileName], que este borrado no toca. Sin ella,
-  /// el siguiente arranque en iPhone se tomaría por el primero tras instalar
-  /// y vaciaría el llavero.
+  /// Quita las preferencias. La marca de instalación vive en el fichero
+  /// [kInstallMarkerFileName] y evita que iPhone vuelva a vaciar el llavero.
   Future<void> _erasePreferences() async {
     final prefs = _ref.read(sharedPreferencesProvider);
     for (final key in prefs.getKeys().toList()) {

@@ -7,10 +7,11 @@ import '../theme/regalos_shape.dart';
 import '../theme/regalos_tokens.dart';
 import 'stroke_icon.dart';
 
-/// Píldora de filtro de las maquetas: 34 px de alto y zona táctil de 44.
+/// Filtro de la ficha «A + Actual»: 36 de alto, radio 6 y zona táctil de 44.
 ///
-/// Activa se rellena con el acento y pasa a negrita; además lleva un visto
-/// delante, así que el estado no depende solo del color.
+/// Activo lleva el fondo de la selección (lavanda velada), su borde y el texto
+/// en tinta y negrita; además, un visto delante, así que el estado no depende
+/// solo del color. Sin activar, el fondo de los campos y el borde de control.
 ///
 /// Al activarse (§2.6 de la guía de movimiento) el relleno cambia
 /// con `snap` y el color del texto con `soft`; el visto entra con el ancho del
@@ -47,7 +48,7 @@ class FilterPill extends StatelessWidget {
   /// Reparto), sin visto ni punto.
   final bool solid;
 
-  /// Radio de las esquinas; por defecto el de los chips (8).
+  /// Radio de las esquinas; por defecto el de los chips (6).
   final double? radius;
 
   /// Si el toque vibra con un clic. Las pastillas que solo abren una hoja (el
@@ -57,8 +58,9 @@ class FilterPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RegalosTokens.of(context);
-    final fillColor = t.fill;
-    final color = selected ? t.onFill : t.text;
+    final fillColor = solid ? t.fill : t.selection;
+    final edgeColor = solid ? t.fill : t.selectionBorder;
+    final color = selected ? (solid ? t.onFill : t.ink) : t.text;
     final motion = RegalosMotion.of(context);
     final borderRadius = radius == null
         ? RegalosShape.chip
@@ -110,11 +112,11 @@ class FilterPill extends StatelessWidget {
     final pill = AnimatedContainer(
       duration: motion.duration(RegalosSprings.snapDuration),
       curve: motion.curve(RegalosCurves.snap),
-      constraints: const BoxConstraints(minHeight: 34),
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 4),
+      constraints: const BoxConstraints(minHeight: 36),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: selected ? fillColor : fillColor.withValues(alpha: 0),
-        border: Border.all(color: selected ? fillColor : t.chipBorder),
+        color: selected ? fillColor : t.field,
+        border: Border.all(color: selected ? edgeColor : t.chipBorder),
         borderRadius: borderRadius,
       ),
       child: Row(
@@ -157,11 +159,18 @@ class FilterPill extends StatelessWidget {
       label: semanticLabel ?? label,
       onTap: tap,
       excludeSemantics: true,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
-        child: Center(
-          widthFactor: 1,
-          child: InkWell(onTap: tap, borderRadius: borderRadius, child: pill),
+      // La zona de toque es la de 44 por 44 entera, no solo el dibujo de 36: el
+      // margen de fuera también activa el filtro; encima del dibujo, la tinta.
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: tap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
+          child: Center(
+            widthFactor: 1,
+            heightFactor: 1,
+            child: InkWell(onTap: tap, borderRadius: borderRadius, child: pill),
+          ),
         ),
       ),
     );

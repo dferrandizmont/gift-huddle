@@ -2,6 +2,7 @@ package com.dferrandizmont.regalos
 
 import android.Manifest
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -12,6 +13,8 @@ import android.os.Looper
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.provider.Settings
+import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
@@ -219,6 +222,7 @@ class MainActivity : FlutterFragmentActivity() {
             setRecentsScreenshotEnabled(false)
         }
         super.onCreate(savedInstanceState)
+        disableFocusHighlight(window.decorView)
         orphanPickerKind = savedInstanceState?.getString(PICKER_KIND)
         // Al recrear la actividad el intent es el mismo: no se vuelve a importar.
         if (savedInstanceState == null) {
@@ -266,6 +270,31 @@ class MainActivity : FlutterFragmentActivity() {
             window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
         }
         super.onResume()
+        // Antes de que la ventana pinte y reparta el foco (si el foco llega
+        // antes, el resalte ya queda calculado), y otra vez por si la vista de
+        // Flutter aún no estaba.
+        disableFocusHighlight(window.decorView)
+        window.decorView.post { disableFocusHighlight(window.decorView) }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        disableFocusHighlight(window.decorView)
+    }
+
+    /**
+     * Quita el resalte de foco que Android pinta por defecto (Android 8+) sobre
+     * la vista con foco cuando llega una tecla (teclado físico, o Gboard con
+     * borrar o intro). La FlutterView ocupa toda la pantalla: sin esto, una
+     * sola tecla dejaba un velo gris translúcido sobre toda la app, hasta que
+     * se salía y se volvía. El foco con teclado de verdad (botones, campos y
+     * desplegables) lo pinta Flutter por su cuenta (`FocusRingOverlay`).
+     */
+    private fun disableFocusHighlight(view: View) {
+        view.setDefaultFocusHighlightEnabled(false)
+        if (view is ViewGroup) {
+            for (i in 0 until view.childCount) disableFocusHighlight(view.getChildAt(i))
+        }
     }
 
     override fun onDestroy() {
@@ -295,6 +324,7 @@ class MainActivity : FlutterFragmentActivity() {
                 }
                 "deviceModel" -> result.success(deviceModelName())
                 "openUrl" -> result.success(openInBrowser(call.arguments as? String))
+                "openUserUrl" -> result.success(openUserLink(call.arguments as? String))
                 // El permiso de camara se pide aqui, una sola vez, antes de
                 // crear el lector: el lector de QR lo volvia a pedir al volver
                 // del dialogo (no marca que ya lo esta pidiendo).
@@ -563,6 +593,35 @@ class MainActivity : FlutterFragmentActivity() {
             }
             true
         } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Abre un enlace de regalo. Vuelve a validar la autoridad antes de que
+     * Android interprete la URL y excluye el dominio de los App Links.
+     */
+    private fun openUserLink(url: String?): Boolean {
+        if (url == null || url.length > 2048) return false
+        val unsafeCharacters = Regex("""[\\\p{Z}\p{Cf}\u0000-\u001f\u007f-\u009f]""")
+        if (unsafeCharacters.containsMatchIn(url)) return false
+        val shape = Regex(
+            """https://(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+""" +
+                """(?:[A-Za-z]{2,63}|[Xx][Nn]--[A-Za-z0-9-]{0,58}[A-Za-z0-9])(?:[/?#].*)?"""
+        )
+        if (!shape.matches(url)) return false
+        val uri = Uri.parse(url)
+        if (uri.scheme != "https") return false
+        val host = uri.host?.lowercase() ?: return false
+        if (host == "gifthuddle.app" || host.endsWith(".gifthuddle.app")) return false
+        return try {
+            startActivity(
+                Intent(Intent.ACTION_VIEW, uri).addCategory(Intent.CATEGORY_BROWSABLE)
+            )
+            true
+        } catch (e: ActivityNotFoundException) {
+            false
+        } catch (e: SecurityException) {
             false
         }
     }

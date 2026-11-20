@@ -89,11 +89,11 @@ class _RegalosSwitchState extends State<RegalosSwitch>
     final t = RegalosTokens.of(context);
     final value = widget.value;
     final onChanged = widget.onChanged;
-    // En oscuro encendido es un interruptor pleno (pista de relleno vivo y
-    // pieza oscura); en claro, pista suave con borde y pieza de tinta.
-    final onThumb = t.isDark ? t.onFill : t.ink;
+    // Encendido: pista del pastel (velado en oscuro) con borde y pieza de
+    // tinta (el pastel en oscuro).
+    final onThumb = t.ink;
     final onTrack = t.isDark ? t.fill : t.soft;
-    final onEdge = t.isDark ? t.fill : t.ink;
+    final onEdge = t.ink;
 
     return Semantics(
       container: true,

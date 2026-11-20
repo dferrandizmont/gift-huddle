@@ -38,7 +38,7 @@ class MemoryFileStore implements ListableFileStore {
   /// [writeDelay] hace que guardar tarde, como el disco de verdad.
   MemoryFileStore({this.writeDelay = Duration.zero});
 
-  final Duration writeDelay;
+  Duration writeDelay;
   final Map<String, Uint8List> files = {};
   @override
   Future<List<String>> listNames() async => files.keys.toList();

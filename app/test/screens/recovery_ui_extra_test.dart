@@ -10,6 +10,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/app/router.dart';
 import 'package:regalos/core/widgets/settings_row.dart';
+import 'package:regalos/features/lock/presentation/pin_pad.dart';
+import 'package:regalos/features/recovery/presentation/recovery_restore_screen.dart';
 import 'package:regalos/features/recovery/presentation/transferred_gate.dart';
 import 'package:regalos/features/sync/application/recovery_providers.dart';
 
@@ -56,6 +58,13 @@ Future<void> real(WidgetTester tester) async {
   await spin(tester, 4);
 }
 
+/// Los campos de las 24 palabras: solo los de la pantalla de recuperar, no el
+/// buscador de la app que queda tapada debajo de la puerta.
+Finder get _words => find.descendant(
+  of: find.byType(RecoveryRestoreScreen),
+  matching: find.byType(TextField),
+);
+
 void main() {
   group('lista traspasada: salidas', () {
     recoveryTest(
@@ -67,11 +76,11 @@ void main() {
         await tester.pump();
         await spin(tester, 6);
         expect(find.text('Recuperar la lista'), findsNWidgets(2));
-        expect(find.byType(TextField), findsNWidgets(24));
+        expect(_words, findsNWidgets(24));
         // Atrás vuelve a la pantalla de solo lectura.
         await tester.tap(find.bySemanticsLabel('Atrás'));
         await settle(tester);
-        expect(find.byType(TextField), findsNothing);
+        expect(_words, findsNothing);
         expect(
           find.descendant(
             of: find.byType(TransferredScreen),
@@ -116,7 +125,7 @@ void main() {
         await tester.tap(resume);
         await settle(tester);
         // Se ve el estado real, no el formulario.
-        expect(find.byType(TextField), findsNothing);
+        expect(_words, findsNothing);
       },
       initial: _pendingNotClaimed,
     );
@@ -221,7 +230,24 @@ void main() {
         findsOneWidget,
       );
       expect(fake.calls, isNot(contains('take')));
+      // El PIN guardado tiene cuatro dígitos: tanto el dibujo como la
+      // etiqueta usan esa longitud antes de mostrar las palabras.
+      expect(
+        tester
+            .widget<Row>(
+              find.descendant(
+                of: find.byType(PinDots),
+                matching: find.byType(Row),
+              ),
+            )
+            .children,
+        hasLength(4),
+      );
+      expect(find.bySemanticsLabel('PIN: 0 de 4 dígitos'), findsOneWidget);
       await typePin(tester, '1234');
+      expect(find.bySemanticsLabel('PIN: 4 de 4 dígitos'), findsOneWidget);
+      await typePin(tester, '5');
+      expect(find.bySemanticsLabel('PIN: 4 de 4 dígitos'), findsOneWidget);
       await tester.tap(find.text('Continuar'));
       await real(tester);
       await settle(tester);
@@ -477,10 +503,10 @@ void main() {
         );
         await tester.tap(find.text('Recuperar con mi código'));
         await settle(tester);
-        expect(find.byType(TextField), findsNWidgets(24));
+        expect(_words, findsNWidgets(24));
         await tester.binding.handlePopRoute();
         await settle(tester);
-        expect(find.byType(TextField), findsNothing);
+        expect(_words, findsNothing);
         expect(exits, isEmpty);
         // Ya en la pantalla de solo lectura, atrás sale de la app.
         await tester.binding.handlePopRoute();

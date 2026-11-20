@@ -253,8 +253,8 @@ class _NavItem extends StatelessWidget {
                   height: RegalosNavBar.pillHeight,
                   decoration: BoxDecoration(
                     color: motion.reduce && selected
-                        ? t.fill
-                        : t.fill.withValues(alpha: 0),
+                        ? t.selection
+                        : t.selection.withValues(alpha: 0),
                     borderRadius: RegalosShape.chip,
                   ),
                   alignment: Alignment.center,

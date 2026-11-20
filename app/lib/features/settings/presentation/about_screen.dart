@@ -13,6 +13,7 @@ import '../../../core/widgets/screen_header.dart';
 import '../../../core/widgets/settings_icons.dart';
 import '../../../core/widgets/settings_row.dart';
 import '../../../core/widgets/stroke_icon.dart';
+import '../../../core/widgets/tabler_icons.dart';
 import '../../../l10n/app_localizations.dart';
 import 'settings_column.dart';
 
@@ -96,7 +97,7 @@ class AboutScreen extends ConsumerWidget {
             hint: l10n.aboutPrivacyPolicyHint,
             // Sale de la app: una flecha hacia fuera, no la de «entrar».
             trailing: StrokeIcon(
-              SettingsIcons.externalLink,
+              tablerExternalLink,
               color: t.textSecondary,
               strokeWidth: 1.9,
             ),
@@ -112,7 +113,7 @@ class AboutScreen extends ConsumerWidget {
           hint: l10n.aboutSupportHint,
           // Sale de la app, hacia el correo.
           trailing: StrokeIcon(
-            SettingsIcons.externalLink,
+            tablerExternalLink,
             color: t.textSecondary,
             strokeWidth: 1.9,
           ),

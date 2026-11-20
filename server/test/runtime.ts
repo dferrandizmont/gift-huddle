@@ -14,3 +14,19 @@ Object.defineProperty(prototype, "jurisdiction", {
     return this;
   },
 });
+
+// Production has one account-wide budget. Each test starts with its own empty
+// creation window; identities alone cannot isolate a fixed-name singleton.
+import { beforeEach } from "vitest";
+import { runInDurableObject } from "cloudflare:test";
+beforeEach(async () => {
+  const ns = env.CREATION_BUDGET;
+  await runInDurableObject(ns.get(ns.idFromName("v2:new-lists")), (_o, state) => {
+    if (state.storage.sql.exec("SELECT 1 FROM sqlite_master WHERE name = 'creation'").toArray().length) state.storage.sql.exec("DROP TABLE creation");
+  });
+});
+
+beforeEach(async () => {
+  const ns = env.STORAGE_LEDGER;
+  await runInDurableObject(ns.get(ns.idFromName("v2:storage")), async (o, state) => { await state.storage.deleteAll(); (o as unknown as { total?: number }).total = undefined; });
+});

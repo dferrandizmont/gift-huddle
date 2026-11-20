@@ -29,6 +29,7 @@ import '../../family/domain/delete_impact.dart';
 import '../../family/domain/family_errors.dart';
 import '../../family/domain/next_occasion.dart';
 import '../../family/presentation/family_texts.dart';
+import '../../family/presentation/giver_person_flow.dart';
 import '../../family/presentation/giver_sheet.dart';
 import '../../family/presentation/occasion_sheet.dart';
 import '../../family/presentation/person_sheet.dart';
@@ -463,24 +464,33 @@ ManageList managePeopleEntries(BuildContext context, WidgetRef ref) {
               shortDayMonth(p.birthMonth!, p.birthDay!, l10n.localeName),
           ].join(' · '),
           onEdit: () => edit(p),
-          onToggleArchive: () =>
-              controller.archiveRecipient(p.id, archived: !p.archived),
-          onDelete: () {
-            final impact = DeleteImpact.ofRecipient(
-              ref.read(familyFullViewProvider),
-              p.id,
-            );
-            _confirmDelete(
+          onToggleArchive: () async {
+            try {
+              await controller.archiveRecipient(p.id, archived: !p.archived);
+            } on DevicePersonException catch (error) {
+              if (context.mounted) {
+                await _showDevicePersonBlocked(context, ref, error);
+              }
+            }
+          },
+          onDelete: () async {
+            final impact = await controller.recipientDeleteImpact(p.id);
+            if (!context.mounted) return;
+            await _confirmImpactDelete(
               context,
               ref,
               id: p.id,
               title: l10n.deletePersonTitle(p.name),
-              body: [
+              impact: impact,
+              refresh: () => controller.recipientDeleteImpact(p.id),
+              body: (impact) => [
                 l10n.deletePersonGifts(impact.gifts),
                 if (impact.hasBirthday) l10n.deleteBirthdayToo,
                 if (impact.hasRequests) l10n.deleteRequestedByToo,
+                if (impact.hasLinkedGiver) l10n.deletePersonLinkedGiver,
               ],
-              delete: () => controller.deleteRecipient(p.id),
+              delete: (impact) =>
+                  controller.deleteRecipient(p.id, expectedImpact: impact),
             );
           },
         ),
@@ -520,7 +530,7 @@ ManageList manageGiversEntries(BuildContext context, WidgetRef ref) {
     final result = await showGiverSheet(
       context,
       initial: giver,
-      defaultColorIndex: full.givers.length,
+      defaultColorIndex: full.allGivers.length,
     );
     if (result != null) {
       await controller.upsertGiver(result);
@@ -530,12 +540,13 @@ ManageList manageGiversEntries(BuildContext context, WidgetRef ref) {
   return (
     onAdd: () => edit(null),
     entries: [
-      for (final g in full.givers)
+      for (final g in full.allGivers)
         ManageEntry(
           id: g.id,
           title: giverNameFor(l10n, g),
           archived: g.archived,
           tag: g.householdPays ? l10n.giverHouseholdPays : null,
+          subtitle: g.recipientId == null ? '' : l10n.giverLinkedLine,
           leading: SizedBox.square(
             dimension: 40,
             child: Center(child: GiverDot(colorIndex: g.colorIndex, size: 14)),
@@ -543,21 +554,19 @@ ManageList manageGiversEntries(BuildContext context, WidgetRef ref) {
           onEdit: () => edit(g),
           onToggleArchive: () =>
               controller.archiveGiver(g.id, archived: !g.archived),
-          onDelete: () {
-            final impact = DeleteImpact.ofGiver(
-              ref.read(familyFullViewProvider),
-              g.id,
-            );
-            _confirmDelete(
+          onDelete: () async {
+            final impact = await controller.giverAliasDeleteImpact(g.id);
+            if (!context.mounted) return;
+            await _confirmImpactDelete(
               context,
               ref,
               id: g.id,
               title: l10n.deletePersonTitle(giverNameFor(l10n, g)),
-              body: [
-                l10n.deleteGiverGifts(impact.gifts),
-                if (impact.paysFromHousehold) l10n.deleteGiverBudget,
-              ],
-              delete: () => controller.deleteGiver(g.id),
+              impact: impact,
+              refresh: () => controller.giverAliasDeleteImpact(g.id),
+              body: (impact) => _giverDeleteBody(l10n, impact),
+              delete: (impact) =>
+                  controller.deleteGiverAlias(g.id, expectedImpact: impact),
             );
           },
         ),
@@ -600,7 +609,7 @@ ManageList manageOccasionsEntries(BuildContext context, WidgetRef ref) {
       initialName: occasion == null ? null : labels.of(occasion),
     );
     if (result != null) {
-      await controller.upsertOccasion(result);
+      await controller.upsertOccasion(result, original: occasion);
     }
   }
 
@@ -637,6 +646,241 @@ ManageList manageOccasionsEntries(BuildContext context, WidgetRef ref) {
         ),
     ],
   );
+}
+
+/// Lo que se espera a que se recalcule lo que se elimina con el aviso abierto.
+const Duration _impactRefreshLimit = Duration(seconds: 2);
+
+/// Cuántos títulos de regalos caben en el diálogo de eliminar a quien regala.
+const int _shownGiftTitles = 5;
+
+/// Lo que dice el diálogo de eliminar a quien regala: qué registros se
+/// eliminan (si son varios), cuántos regalos se quedan sin quién regala y
+/// cuáles, y que la persona enlazada sigue en Personas.
+List<String> _giverDeleteBody(AppLocalizations l10n, DeleteImpact impact) {
+  final rows = [
+    for (final alias in impact.affectedAliases)
+      '«${giverNameFor(l10n, alias)}»',
+  ];
+  final titles = [for (final gift in impact.affectedGifts) '«${gift.title}»'];
+  final linked = impact.affectedAliases
+      .where((alias) => alias.recipientId != null)
+      .firstOrNull;
+  return [
+    if (rows.length > 1) l10n.deleteGiverRows(rows.length, rows.join(', ')),
+    l10n.deleteGiverGifts(impact.gifts),
+    if (titles.isNotEmpty)
+      l10n.deleteGiverGiftTitles(
+        titles.take(_shownGiftTitles).join(', '),
+        titles.length > _shownGiftTitles ? titles.length - _shownGiftTitles : 0,
+      ),
+    if (linked != null && impact.linkedPersonExists)
+      l10n.deleteGiverLinkedNote(linked.name),
+    if (impact.paysFromHousehold) l10n.deleteGiverBudget,
+  ];
+}
+
+/// Avisa de que una persona con móvil propio no se puede eliminar ni archivar
+/// desde aquí.
+Future<void> _showDevicePersonBlocked(
+  BuildContext context,
+  WidgetRef ref,
+  DevicePersonException error,
+) {
+  final l10n = AppLocalizations.of(context);
+  final name =
+      ref
+          .read(familyFullViewProvider)
+          .allRecipientsById[error.recipientId]
+          ?.name ??
+      '';
+  final thisDevice = error.owner == DevicePersonOwner.thisDevice;
+  return showRegalosNotice(
+    context,
+    title: thisDevice
+        ? l10n.devicePersonBlockedThisTitle(name)
+        : l10n.devicePersonBlockedOtherTitle(name),
+    body: thisDevice
+        ? l10n.devicePersonBlockedThisBody(name)
+        : l10n.devicePersonBlockedOtherBody(name),
+    okLabel: l10n.actionUnderstood,
+  );
+}
+
+/// Como [_confirmDelete], pero comprobando contra el [impact] que se enseñó:
+/// si cuando se confirma lo que se elimina ha cambiado (otro móvil), el
+/// diálogo se vuelve a abrir con lo nuevo y pide confirmar de nuevo. Si la
+/// persona resulta ser la de un móvil de la familia, lo explica. Con el
+/// diálogo abierto, si cambia lo que se ve (otro móvil, o este móvil pierde la
+/// autorización sobre algún regalo), se cierra y vuelve a abrirse con lo de
+/// ahora: nunca queda a la vista contenido que ya no se puede ver.
+Future<void> _confirmImpactDelete(
+  BuildContext context,
+  WidgetRef ref, {
+  required String id,
+  required String title,
+  required DeleteImpact impact,
+  required Future<DeleteImpact> Function() refresh,
+  required List<String> Function(DeleteImpact impact) body,
+  required Future<void> Function(DeleteImpact impact) delete,
+}) async {
+  final l10n = AppLocalizations.of(context);
+  final haptics = ref.read(hapticsProvider);
+  var current = impact;
+  var changed = false;
+  // Cada cambio que llega cuenta una generación: solo vale el recálculo de la
+  // más reciente, aunque el diálogo se haya reabierto entre tanto.
+  var generation = 0;
+  while (true) {
+    var open = true;
+    var failed = false;
+    // `null` es «comprobando»: el diálogo no enseña títulos ni recuentos.
+    final shown = ValueNotifier<({DeleteImpact? impact, bool changed})>((
+      impact: current,
+      changed: changed,
+    ));
+    var lastShown = current;
+    final subscription = ref.listenManual(familyFullViewProvider, (_, _) async {
+      final mine = ++generation;
+      shown.value = (impact: null, changed: shown.value.changed);
+      try {
+        final latest = await refresh().timeout(_impactRefreshLimit);
+        if (!open || failed || mine != generation) {
+          return;
+        }
+        final differs = !latest.matches(lastShown);
+        lastShown = latest;
+        shown.value = (impact: latest, changed: shown.value.changed || differs);
+      } on Object {
+        // No se pudo recalcular (falla o tarda): el aviso no se queda con
+        // títulos y recuentos que quizá ya no se pueden ver.
+        if (open && !failed && mine == generation && context.mounted) {
+          failed = true;
+          Navigator.of(context, rootNavigator: true).pop();
+        }
+      }
+    });
+    // «Eliminar» devuelve el impacto que se estaba enseñando; cancelar, `null`.
+    final confirmed = await showRegalosDialog<DeleteImpact>(
+      context,
+      avoidKeyboard: false,
+      builder: (dialogContext) =>
+          _ImpactDialog(title: title, shown: shown, body: body, l10n: l10n),
+    );
+    open = false;
+    subscription.close();
+    shown.dispose();
+    if (failed) {
+      if (context.mounted) {
+        showRegalosSnackBar(
+          context,
+          SnackBar(content: Text(l10n.deleteImpactUnavailable)),
+        );
+      }
+      return;
+    }
+    if (confirmed == null || !context.mounted) {
+      return;
+    }
+    // Se borra con el impacto que el usuario vio: si ha cambiado aunque sea
+    // un instante antes, el controlador lanza `DeleteImpactChanged`.
+    current = confirmed;
+    haptics.medium();
+    final deleted = ref.read(recentlyDeletedProvider.notifier)..add(id);
+    try {
+      await delete(current);
+      return;
+    } on DeleteImpactChanged catch (error) {
+      deleted.clear(id);
+      current = error.current;
+      changed = true;
+    } on DevicePersonException catch (error) {
+      deleted.clear(id);
+      if (context.mounted) {
+        await _showDevicePersonBlocked(context, ref, error);
+      }
+      return;
+    } on Object {
+      deleted.clear(id);
+      if (context.mounted) {
+        showRegalosSnackBar(context, SnackBar(content: Text(l10n.deleteError)));
+      }
+      return;
+    }
+    if (!context.mounted) {
+      return;
+    }
+  }
+}
+
+/// El diálogo de [_confirmImpactDelete]: enseña lo que se elimina mientras se
+/// sabe; con un cambio en marcha no enseña nada («Comprobando…») y no deja
+/// confirmar hasta tener el resultado más reciente.
+class _ImpactDialog extends StatelessWidget {
+  const _ImpactDialog({
+    required this.title,
+    required this.shown,
+    required this.body,
+    required this.l10n,
+  });
+
+  final String title;
+  final ValueNotifier<({DeleteImpact? impact, bool changed})> shown;
+  final List<String> Function(DeleteImpact impact) body;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RegalosTokens.of(context);
+    return RegalosDialogSurface(
+      scrollable: true,
+      child: ValueListenableBuilder(
+        valueListenable: shown,
+        builder: (context, state, _) {
+          final impact = state.impact;
+          final text = impact == null
+              ? l10n.deleteImpactChecking
+              : [
+                  if (state.changed) l10n.deleteImpactChanged,
+                  ...body(impact).where((part) => part.isNotEmpty),
+                  l10n.deleteIrreversible,
+                ].join(' ');
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Semantics(
+                header: true,
+                child: Text(title, style: t.styles.screenTitleSmall),
+              ),
+              const SizedBox(height: 8),
+              Semantics(
+                liveRegion: true,
+                child: Text(text, style: t.styles.body),
+              ),
+              const SizedBox(height: 20),
+              DialogButtonRow(
+                cancelLabel: l10n.actionCancel,
+                confirmLabel: l10n.actionEliminate,
+                cancel: OutlinedButton(
+                  style: regalosDialogCancelStyle(t),
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(l10n.actionCancel),
+                ),
+                confirm: FilledButton(
+                  style: regalosDialogDangerStyle(t),
+                  onPressed: impact == null
+                      ? null
+                      : () => Navigator.of(context).pop(impact),
+                  child: Text(l10n.actionEliminate),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
 }
 
 /// Pregunta antes de eliminar y, si se confirma, apunta la fila como borrada

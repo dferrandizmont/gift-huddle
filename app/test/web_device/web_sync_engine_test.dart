@@ -85,6 +85,33 @@ void main() {
   });
   tearDown(() => h.close());
 
+  test('a remote sync repairs linked giver copies only once', () async {
+    final stale = h.phone.doc.set(h.phone.clock, Collections.givers, 'giver', {
+      'name': 'Nora',
+      'colorIndex': 9,
+      'householdPays': true,
+      'archived': false,
+      Giver.recipientIdField: 'aritz',
+    });
+    await h.publish(doc: stale);
+    final before = h.worker.versionOf(kV2Sync)!;
+    expect(await h.queue.entries(), isEmpty);
+
+    await h.engine.sync();
+    final repaired = (await h.remote()).record(Collections.givers, 'giver')!;
+    expect(repaired['name'], 'Aritz');
+    expect(repaired['colorIndex'], isNot(9));
+    expect(
+      repaired.field('householdPays'),
+      stale.record(Collections.givers, 'giver')!.field('householdPays'),
+    );
+    expect(h.worker.versionOf(kV2Sync), before + 1);
+
+    await h.engine.sync();
+    expect(h.worker.versionOf(kV2Sync), before + 1);
+    expect(await h.queue.entries(), isEmpty);
+  });
+
   test('a live socket gets only one backup read per 60 idle seconds', () async {
     await _withFakeTimers((time) async {
       final notices = StreamController<SyncEvent>();

@@ -5,6 +5,8 @@ import '../../../core/sync/access_policy.dart';
 import '../../../core/sync/device_registry.dart';
 import '../../../core/sync/envelope.dart';
 import '../../../core/sync/family_doc.dart';
+import '../../../core/sync/hlc.dart';
+import '../../../core/sync/model.dart';
 import '../../../core/sync/pairing_v2.dart';
 import '../../../core/sync/protected_doc.dart';
 import '../../family/data/device_keys_store.dart';
@@ -43,7 +45,13 @@ class StoredSyncV2Local
   Future<FamilyDoc> common() async => (await store.load())!.doc;
   @override
   Future<void> mergeCommon(FamilyDoc remote, {required String fromNode}) async {
-    await store.saveDoc((await common()).merge(remote));
+    final merged = (await common()).merge(remote);
+    await store.saveDoc(
+      reconcileGiverCopies(
+        merged,
+        HlcClock(node: node, last: store.latestStoredStamp(merged)),
+      ),
+    );
   }
 
   @override

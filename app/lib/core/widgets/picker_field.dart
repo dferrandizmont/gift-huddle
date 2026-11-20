@@ -8,74 +8,68 @@ import '../motion/pop_in.dart';
 import '../motion/sheet_motion.dart';
 import '../motion/stagger.dart';
 import '../motion/value_switcher.dart';
+import '../theme/regalos_motion.dart';
 import '../theme/regalos_shape.dart';
 import '../theme/regalos_tokens.dart';
+import 'anchored_picker.dart';
+import 'picker_option.dart';
+import 'release_text_focus.dart';
 import 'section_header.dart';
 import 'stroke_icon.dart';
 
-/// Una opción de [PickerField] y de [showPickerSheet].
-@immutable
-class PickerOption<T> {
-  const PickerOption({
-    required this.value,
-    required this.label,
-    this.leading,
-    this.group,
-    this.hint,
-    this.enabled = true,
-  });
-
-  /// El valor que se devuelve al elegirla.
-  final T value;
-
-  /// El texto que se ve y que lee el lector de pantalla.
-  final String label;
-
-  /// Lo que va delante del texto (punto, icono, inicial). Es decorativo: el
-  /// texto siempre va al lado. Debe caber en 28 x 28.
-  final Widget? leading;
-
-  /// Cabecera de sección bajo la que se muestra. Las opciones seguidas con el
-  /// mismo grupo comparten cabecera; sin grupo no hay cabecera.
-  final String? group;
-
-  /// Una frase bajo el texto (por qué no se puede elegir, por ejemplo).
-  final String? hint;
-
-  /// Si se puede elegir. Deshabilitada se ve apagada, no se toca y el lector
-  /// de pantalla la lee como no disponible.
-  final bool enabled;
-}
+export 'picker_option.dart';
 
 const double _rowHeight = 52;
 const double _headerHeight = 40;
 
-/// Abre una hoja inferior para elegir una de [options] y devuelve su valor, o
-/// `null` si se cierra sin elegir. Crece hasta el 75 % de la pantalla y
-/// después se desplaza.
+/// Abre el selector para elegir una de [options] y devuelve su valor, o `null`
+/// si se cierra sin elegir.
+///
+/// Con [anchor] (el contexto del campo que lo abre) y una ventana de
+/// escritorio con ratón ([usesAnchoredPicker]) es un desplegable anclado a
+/// ese campo ([showAnchoredPicker]); si no, una hoja inferior que crece hasta
+/// el 75 % de la pantalla y después se desplaza.
 Future<T?> showPickerSheet<T>(
   BuildContext context, {
   required String title,
   required List<PickerOption<T>> options,
   T? selected,
-}) => showRegalosSheet<T>(
-  context,
-  isScrollControlled: true,
-  useSafeArea: true,
-  constraints: BoxConstraints(
-    maxHeight: MediaQuery.sizeOf(context).height * 0.75,
-  ),
-  builder: (_) =>
-      _PickerSheet<T>(title: title, options: options, selected: selected),
-);
+  BuildContext? anchor,
+  FocusNode? returnFocusTo,
+}) {
+  // Sin esto, al cerrarse el selector el foco vuelve al campo de texto que
+  // lo tenía (el nombre) y el teclado se abre solo.
+  releaseTextFocus(to: returnFocusTo);
+  if (anchor != null && anchor.mounted && usesAnchoredPicker(anchor)) {
+    return showAnchoredPicker<T>(
+      anchor,
+      label: title,
+      options: options,
+      selected: selected,
+      returnFocusTo: returnFocusTo,
+    );
+  }
+  return showRegalosSheet<T>(
+    context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    constraints: BoxConstraints(
+      maxHeight: MediaQuery.sizeOf(context).height * 0.75,
+    ),
+    builder: (_) =>
+        _PickerSheet<T>(title: title, options: options, selected: selected),
+  );
+}
 
 /// Lo que se espera tras elegir para que se vea la opción antes de que la hoja
 /// se vaya. La única pausa que permite la guía de movimiento.
 const Duration _pickPause = Duration(milliseconds: 120);
 
-/// Campo de formulario que enseña el valor elegido y, al tocarlo, abre una
-/// hoja inferior con las opciones (sustituye al desplegable de Material).
-class PickerField<T> extends StatelessWidget {
+/// Campo de formulario que enseña el valor elegido y, al tocarlo, abre las
+/// opciones (sustituye al desplegable de Material): una hoja inferior en el
+/// móvil y, en una ventana de escritorio con ratón, un desplegable anclado al
+/// propio campo (`showAnchoredPicker`).
+class PickerField<T> extends StatefulWidget {
   const PickerField({
     super.key,
     required this.label,
@@ -94,42 +88,84 @@ class PickerField<T> extends StatelessWidget {
   final ValueChanged<T> onChanged;
   final String? sheetTitle;
 
+  @override
+  State<PickerField<T>> createState() => _PickerFieldState<T>();
+}
+
+class _PickerFieldState<T> extends State<PickerField<T>> {
+  /// El foco del campo: al cerrar el desplegable vuelve aquí.
+  final FocusNode _focus = FocusNode(debugLabel: 'PickerField');
+
+  /// Si su desplegable está abierto: el campo se ve con el borde de foco y la
+  /// flecha girada.
+  bool _opened = false;
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
   PickerOption<T>? get _current {
-    for (final o in options) {
-      if (o.value == value) return o;
+    for (final o in widget.options) {
+      if (o.value == widget.value) return o;
     }
     return null;
   }
 
-  Future<void> _open(BuildContext context) async {
-    final picked = await showPickerSheet<T>(
-      context,
-      title: sheetTitle ?? label,
-      options: options,
-      selected: value,
-    );
-    if (picked != null) onChanged(picked);
+  Future<void> _open() async {
+    final anchored = usesAnchoredPicker(context);
+    if (anchored) setState(() => _opened = true);
+    final T? picked;
+    try {
+      picked = await showPickerSheet<T>(
+        context,
+        title: widget.sheetTitle ?? widget.label,
+        options: widget.options,
+        selected: widget.value,
+        anchor: context,
+        returnFocusTo: _focus,
+      );
+    } finally {
+      if (mounted && _opened) setState(() => _opened = false);
+    }
+    // El campo pudo desmontarse mientras estaba abierto (otro diseño al
+    // cambiar la ventana): entonces no hay a quién entregar.
+    if (picked != null && mounted) widget.onChanged(picked);
   }
 
   @override
   Widget build(BuildContext context) {
     final t = RegalosTokens.of(context);
+    final label = widget.label;
     final current = _current;
     return Semantics(
       button: true,
       label: current == null ? label : '$label, ${current.label}',
       excludeSemantics: true,
-      onTap: () => _open(context),
+      onTap: _open,
       child: Material(
         type: MaterialType.transparency,
         child: InkWell(
+          focusNode: _focus,
           borderRadius: RegalosShape.field,
-          onTap: () => _open(context),
+          onTap: _open,
           child: InputDecorator(
             isEmpty: current == null,
-            decoration: InputDecoration(labelText: label),
+            isFocused: _opened,
+            decoration: InputDecoration(
+              labelText: label,
+              // Con un adorno delante (el avatar mide 28, más que la línea de
+              // texto, 24), menos relleno y una fila de 28: el selector mide
+              // lo mismo que un campo, 52.
+              contentPadding: current?.leading == null
+                  ? null
+                  : const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            ),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 24),
+              constraints: BoxConstraints(
+                minHeight: current?.leading == null ? 24 : 28,
+              ),
               child: Row(
                 children: [
                   Expanded(
@@ -156,11 +192,18 @@ class PickerField<T> extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  StrokeIcon(
-                    AppIcons.chevronDown,
-                    size: 20,
-                    color: t.text,
-                    strokeWidth: 1.75,
+                  // Con el desplegable abierto la flecha mira arriba (150 ms; con
+                  // «Reducir movimiento», lineal).
+                  AnimatedRotation(
+                    turns: _opened ? 0.5 : 0,
+                    duration: RegalosMotion.fade,
+                    curve: RegalosMotion.of(context).curve(RegalosCurves.fold),
+                    child: StrokeIcon(
+                      AppIcons.chevronDown,
+                      size: 20,
+                      color: t.text,
+                      strokeWidth: 1.75,
+                    ),
                   ),
                 ],
               ),
@@ -346,7 +389,7 @@ class _PickerRow<T> extends StatelessWidget {
       excludeSemantics: true,
       onTap: enabled ? onTap : null,
       child: Material(
-        color: selected ? t.soft : Colors.transparent,
+        color: selected ? t.selection : Colors.transparent,
         // El fondo se tiñe del pastel en 120 ms al elegir.
         animationDuration: _pickPause,
         child: InkWell(

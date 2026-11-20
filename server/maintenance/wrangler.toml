@@ -13,7 +13,7 @@ port = 8791
 enabled = false
 
 # External classes: no migrations, new namespaces, routes or scheduled triggers.
-# Jurisdiction is selected explicitly on both namespaces in worker.ts.
+# Jurisdiction is selected explicitly on all namespaces in worker.ts.
 [[durable_objects.bindings]]
 name = "LISTS_V2"
 class_name = "ListV2Object"
@@ -22,4 +22,9 @@ script_name = "gift-huddle-sync"
 [[durable_objects.bindings]]
 name = "RECOVERIES_V2"
 class_name = "RecoveryLocatorObject"
+script_name = "gift-huddle-sync"
+
+[[durable_objects.bindings]]
+name = "STORAGE_LEDGER"
+class_name = "StorageLedgerObject"
 script_name = "gift-huddle-sync"

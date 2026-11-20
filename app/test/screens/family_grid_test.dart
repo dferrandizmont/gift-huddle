@@ -182,6 +182,38 @@ void main() {
     expect(find.bySemanticsLabel('Tío Pere: 1 regalo'), findsOneWidget);
   }, size: const Size(390, 1500));
 
+  screenTest('dos alias de Nora abren una sola celda con todos sus regalos', (
+    tester,
+    phone,
+  ) async {
+    await seedSample(tester, phone);
+    await tester.runAsync(() async {
+      final c = familyOf(phone);
+      await c.linkGiver('us', 'nora');
+      await c.linkGiver('marta', 'nora');
+    });
+    await pumpRegalos(tester, phone);
+    await openFamily(tester, all: false);
+    await tester.tap(find.text('Todas'));
+    await settle(tester);
+
+    final cell = find.bySemanticsLabel(RegExp(r'^Nora para Aritz: 3 regalos'));
+    expect(cell, findsOneWidget);
+    await tester.tap(cell);
+    await settle(tester);
+    final sheet = find.byKey(kRepartoSheetKey);
+    for (final title in [
+      'Pijama de astronautas, talla 8',
+      'Libro de dinosaurios con solapas',
+      'Estación de bomberos de bloques',
+    ]) {
+      expect(
+        find.descendant(of: sheet, matching: find.text(title)),
+        findsOneWidget,
+      );
+    }
+  }, size: const Size(390, 1500));
+
   screenTest(
     'la rejilla no se rompe con el texto al 130 %',
     (tester, phone) async {

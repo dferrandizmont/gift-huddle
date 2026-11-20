@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/regalos_motion.dart';
+import '../../../core/theme/regalos_shape.dart';
 import '../../../core/theme/regalos_tokens.dart';
 import '../../../core/widgets/stroke_icon.dart';
 import '../../../core/widgets/tabler_icons.dart';
@@ -55,9 +56,14 @@ class RepartoViewToggle extends StatelessWidget {
             height: buttonHeight,
             decoration: BoxDecoration(
               color: motion.reduce && selected
-                  ? t.fill
-                  : t.fill.withValues(alpha: 0),
-              borderRadius: const BorderRadius.all(Radius.circular(6)),
+                  ? t.selection
+                  : t.selection.withValues(alpha: 0),
+              border: Border.all(
+                color: motion.reduce && selected
+                    ? t.selectionEdge
+                    : t.selectionEdge.withValues(alpha: 0),
+              ),
+              borderRadius: RegalosShape.chip,
             ),
             alignment: Alignment.center,
             child: StrokeIcon(
@@ -96,10 +102,9 @@ class RepartoViewToggle extends StatelessWidget {
                     child: DecoratedBox(
                       key: const ValueKey<String>('repartoViewIndicator'),
                       decoration: BoxDecoration(
-                        color: t.fill,
-                        borderRadius: const BorderRadius.all(
-                          Radius.circular(6),
-                        ),
+                        color: t.selection,
+                        border: Border.all(color: t.selectionEdge),
+                        borderRadius: RegalosShape.chip,
                       ),
                       child: const SizedBox(
                         width: buttonWidth,

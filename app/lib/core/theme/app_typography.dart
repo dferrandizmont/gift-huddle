@@ -11,26 +11,42 @@ const String kAppFontFamily = 'Inter';
 
 const List<FontFeature> _tabular = [FontFeature.tabularFigures()];
 
-/// Estilos de texto del diseño «Tareas» (tamaños, interlineados y pesos de las
-/// maquetas). Todos usan cifras tabulares y escalan con el tamaño del sistema.
+/// Estilos de texto del diseño «A + Actual» (tamaños, interlineados y pesos de
+/// la ficha). Todos usan cifras tabulares y escalan con el tamaño del sistema;
+/// los títulos grandes se aprietan un 2 %.
 @immutable
 class RegalosTextStyles {
   RegalosTextStyles({required Color text, required Color secondary})
-    : screenTitle = _s(24, 30, FontWeight.w700, text),
-      screenTitleSmall = _s(22, 28, FontWeight.w700, text),
-      sectionTitle = _s(14, 20, FontWeight.w700, text),
+    : boardTitle = _s(32, 38, FontWeight.w700, text, tight: 0.02),
+      screenTitle = _s(28, 34, FontWeight.w700, text, tight: 0.02),
+      screenTitleSmall = _s(20, 26, FontWeight.w600, text, tight: 0.01),
+      sectionTitle = _s(15, 20, FontWeight.w600, text),
       rowTitle = _s(16, 22, FontWeight.w500, text),
       rowTitleCompact = _s(15, 20, FontWeight.w500, text),
       body = _s(15, 20, FontWeight.w400, text),
       label = _s(14, 20, FontWeight.w600, text),
       meta = _s(13, 18, FontWeight.w400, secondary),
       metaStrong = _s(13, 18, FontWeight.w500, text),
-      caption = _s(13, 16, FontWeight.w400, secondary),
+      caption = _s(12, 16, FontWeight.w500, secondary),
       navLabel = _s(13, 16, FontWeight.w500, secondary),
       stat = _s(20, 22, FontWeight.w700, text),
-      countdownTitle = _s(15, 20, FontWeight.w600, text);
+      statLarge = _s(24, 28, FontWeight.w700, text),
+      amount = _s(15, 20, FontWeight.w700, text),
+      status = _s(13, 18, FontWeight.w600, text),
+      countdownTitle = _s(15, 20, FontWeight.w600, text),
+      price = _s(14, 20, FontWeight.w500, text),
+      tableTitle = _s(14, 20, FontWeight.w500, text),
+      boardSubtitle = _s(14, 20, FontWeight.w400, secondary),
+      cardTitle = _s(13, 18, FontWeight.w500, text),
+      fieldText = _s(16, 22, FontWeight.w400, text);
 
+  /// El título de una pantalla del tablero de la web («Hoy»): 32/38.
+  final TextStyle boardTitle;
+
+  /// El título de una pantalla del móvil («Personas», «Leo»): 28/34.
   final TextStyle screenTitle;
+
+  /// El título de una hoja o un diálogo («Editar regalo»): 20/26.
   final TextStyle screenTitleSmall;
   final TextStyle sectionTitle;
   final TextStyle rowTitle;
@@ -42,7 +58,34 @@ class RegalosTextStyles {
   final TextStyle caption;
   final TextStyle navLabel;
   final TextStyle stat;
+
+  /// La cifra grande del resumen del presupuesto (presupuesto, gastado y lo que
+  /// queda) en la app y en la web: 24/28.
+  final TextStyle statLarge;
+
+  /// El importe gastado de una tarjeta o fila del presupuesto: 15/20.
+  final TextStyle amount;
+
+  /// El estado de un presupuesto («Queda 120 €», «Te pasas 40 €», «Si compras
+  /// lo que falta…»): 13/18. Para avisar solo cambia el color.
+  final TextStyle status;
   final TextStyle countdownTitle;
+
+  /// El importe de un regalo (lista, tabla y tarjeta de carril); lo
+  /// «previsto» va debajo con [caption].
+  final TextStyle price;
+
+  /// El nombre del regalo en la tabla de la web: 14/20.
+  final TextStyle tableTitle;
+
+  /// La línea de debajo del título del tablero («jueves, 19 de noviembre…»).
+  final TextStyle boardSubtitle;
+
+  /// El título de una tarjeta de carril: 13/18.
+  final TextStyle cardTitle;
+
+  /// El texto de un campo de búsqueda del móvil: 16/22.
+  final TextStyle fieldText;
 
   /// Número grande de la cuenta atrás: 44, 56 o 64 px (maquetas Colores,
   /// Navidad y Cumple).
@@ -75,13 +118,15 @@ class RegalosTextStyles {
     double size,
     double lineHeight,
     FontWeight weight,
-    Color color,
-  ) => TextStyle(
+    Color color, {
+    double tight = 0,
+  }) => TextStyle(
     fontFamily: kAppFontFamily,
     fontSize: size,
     height: lineHeight / size,
     fontWeight: weight,
     color: color,
+    letterSpacing: tight == 0 ? null : -tight * size,
     fontFeatures: _tabular,
   );
 }

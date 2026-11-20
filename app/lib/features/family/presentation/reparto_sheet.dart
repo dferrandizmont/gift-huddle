@@ -15,12 +15,14 @@ import '../../../core/layout/pane_scope.dart';
 import '../../../core/layout/window_class.dart';
 import '../../../core/motion/haptics.dart';
 import '../../../core/sync/model.dart';
+import '../../../core/sync/protected_doc.dart' show ProtectedPersonException;
 import '../../../core/theme/occasion_theme.dart';
 import '../../../core/theme/regalos_motion.dart';
 import '../../../core/theme/regalos_shape.dart';
 import '../../../core/theme/regalos_tokens.dart';
 import '../../../core/widgets/giver_dot.dart';
 import '../../../core/widgets/gift_status_map.dart';
+import '../../../core/widgets/regalos_snack_bar.dart';
 import '../../../core/widgets/status_checkbox.dart';
 import '../../../core/widgets/stroke_icon.dart';
 import '../../../l10n/app_localizations.dart';
@@ -28,6 +30,7 @@ import '../../gifts/presentation/gift_editor_screen.dart';
 import '../application/family_controller.dart';
 import '../application/family_providers.dart';
 import 'family_texts.dart';
+import 'giver_person_flow.dart';
 import 'giver_picker.dart';
 import 'reparto_grid.dart';
 import 'reparto_person_sheet.dart';
@@ -768,7 +771,9 @@ class _SheetContentState extends ConsumerState<_SheetContent> {
   }
 
   void _pick(Gift gift, String? giverId) {
-    if (giverId == gift.giverId) {
+    final view = ref.read(familyViewProvider);
+    if (giverId == view.resolveGiver(gift.giverId)?.id &&
+        view.giversByOriginalId[gift.giverId]?.archived != true) {
       setState(() => _openId = null);
       return;
     }
@@ -792,6 +797,43 @@ class _SheetContentState extends ConsumerState<_SheetContent> {
     );
   }
 
+  /// Asigna una persona de la familia como quién regala, al momento. En un
+  /// regalo secreto pasa antes por el paso explícito.
+  Future<void> _pickPerson(Gift gift, GiverPersonCandidate candidate) async {
+    flush();
+    final previous = ref.read(familyViewProvider).repartoGiverId(gift);
+    final result = await assignGiftToPerson(
+      context,
+      ref,
+      gift: gift,
+      candidate: candidate,
+    );
+    if (!mounted || result == null) {
+      return;
+    }
+    final saved = result == GiftWriteResult.saved;
+    setState(() => _openId = null);
+    if (saved) {
+      final now = ref
+          .read(familyViewProvider)
+          .giverForPerson(candidate.person.id)
+          ?.id;
+      widget.bumps.mark([
+        if (previous != null) repartoCellKey(gift.recipientId, previous),
+        if (now != null) repartoCellKey(gift.recipientId, now),
+      ]);
+    } else {
+      showRegalosSnackBar(
+        context,
+        SnackBar(
+          content: Text(
+            giftWriteResultText(AppLocalizations.of(context), result),
+          ),
+        ),
+      );
+    }
+  }
+
   /// Termina ya lo que esté a medias (un segundo toque, cerrar la hoja).
   void flush() {
     if (_pending == null) {
@@ -805,7 +847,7 @@ class _SheetContentState extends ConsumerState<_SheetContent> {
     _apply();
   }
 
-  void _apply() {
+  Future<void> _apply() async {
     final pending = _pending;
     if (pending == null) {
       return;
@@ -816,15 +858,35 @@ class _SheetContentState extends ConsumerState<_SheetContent> {
     if (gift == null) {
       return;
     }
-    widget.bumps.mark([
-      repartoCellKey(gift.recipientId, gift.giverId),
-      repartoCellKey(gift.recipientId, pending.giverId),
-    ]);
-    ref
+    final bumps = widget.bumps;
+    final result = await ref
         .read(familyControllerProvider.notifier)
-        .upsertGift(giftWithGiver(gift, pending.giverId));
+        .setGiftGiver(gift.id, pending.giverId)
+        .onError<ProtectedPersonException>(
+          (error, _) => error.savedLocally
+              ? GiftWriteResult.saved
+              : GiftWriteResult.giftUnavailable,
+        );
+    final saved = result == GiftWriteResult.saved;
+    if (saved) {
+      final previous = view.repartoGiverId(gift);
+      bumps.mark([
+        if (previous != null) repartoCellKey(gift.recipientId, previous),
+        repartoCellKey(gift.recipientId, pending.giverId),
+      ]);
+    }
     if (mounted) {
       setState(() {});
+      if (!saved) {
+        showRegalosSnackBar(
+          context,
+          SnackBar(
+            content: Text(
+              giftWriteResultText(AppLocalizations.of(context), result),
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -838,10 +900,6 @@ class _SheetContentState extends ConsumerState<_SheetContent> {
       for (final id in widget.giftIds)
         if (byId[id] != null) byId[id]!,
     ];
-    final knownGivers = {
-      for (final g in (view.allGivers.isEmpty ? view.givers : view.allGivers))
-        g.id: g,
-    };
     final person = widget.recipient;
     final giver = widget.giver;
     final giverName = giverNameFor(l10n, giver);
@@ -1005,7 +1063,6 @@ class _SheetContentState extends ConsumerState<_SheetContent> {
                       gift: gifts[i],
                       first: i == 0,
                       view: view,
-                      knownGivers: knownGivers,
                       open: _openId == gifts[i].id,
                       pickedGiverId:
                           _pending != null && _pending!.giftId == gifts[i].id
@@ -1013,6 +1070,7 @@ class _SheetContentState extends ConsumerState<_SheetContent> {
                           : null,
                       onToggle: () => _toggle(gifts[i].id),
                       onPick: (id) => _pick(gifts[i], id),
+                      onPickPerson: (c) => _pickPerson(gifts[i], c),
                       onOpenGift: () => openGiftEditor(context, gift: gifts[i]),
                     ),
                   // Con letra grande los botones no caben fijos debajo sin
@@ -1080,34 +1138,34 @@ class _SheetButton extends StatelessWidget {
 
 /// Un regalo de la hoja: su casilla, su título, el chip de quién lo regala y,
 /// desplegada debajo, la fila para cambiarlo.
-class _GiftEntry extends StatelessWidget {
+class _GiftEntry extends ConsumerWidget {
   const _GiftEntry({
     super.key,
     required this.gift,
     required this.first,
     required this.view,
-    required this.knownGivers,
     required this.open,
     required this.pickedGiverId,
     required this.onToggle,
     required this.onPick,
+    required this.onPickPerson,
     required this.onOpenGift,
   });
 
   final Gift gift;
   final bool first;
   final FamilyView view;
-  final Map<String, Giver> knownGivers;
   final bool open;
 
   /// La elección pendiente de este regalo (`(giverId, true)`), o `null`.
   final (String?, bool)? pickedGiverId;
   final VoidCallback onToggle;
   final ValueChanged<String?> onPick;
+  final ValueChanged<GiverPersonCandidate> onPickPerson;
   final VoidCallback onOpenGift;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final t = RegalosTokens.of(context);
     final motion = RegalosMotion.of(context);
@@ -1115,8 +1173,10 @@ class _GiftEntry extends StatelessWidget {
         ? null
         : view.occasionsById[gift.occasionId];
     final price = giftPriceText(l10n, gift) ?? l10n.familyNoPrice;
-    final giver = gift.giverId == null ? null : knownGivers[gift.giverId];
-    final selectedId = pickedGiverId != null ? pickedGiverId!.$1 : gift.giverId;
+    final giver = view.resolveGiver(
+      pickedGiverId == null ? gift.giverId : pickedGiverId!.$1,
+    );
+    final selectedId = giver?.id;
     return DecoratedBox(
       decoration: BoxDecoration(
         border: first ? null : Border(top: BorderSide(color: t.separator)),
@@ -1139,7 +1199,13 @@ class _GiftEntry extends StatelessWidget {
                   onTap: onOpenGift,
                   child: Row(
                     children: [
-                      StatusGlyph(status: gift.status.visualStatus, size: 22),
+                      StatusHoverTip(
+                        status: gift.status.visualStatus,
+                        child: StatusGlyph(
+                          status: gift.status.visualStatus,
+                          size: 22,
+                        ),
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -1168,12 +1234,7 @@ class _GiftEntry extends StatelessWidget {
                   ),
                 ),
               ),
-              chip: GiverChip(
-                giver: selectedId == gift.giverId
-                    ? giver
-                    : (selectedId == null ? null : knownGivers[selectedId]),
-                onTap: onToggle,
-              ),
+              chip: GiverChip(giver: giver, onTap: onToggle),
             ),
           ),
           // La fila de chips se despliega en línea con un muelle y se pliega
@@ -1199,9 +1260,13 @@ class _GiftEntry extends StatelessWidget {
                       bottom: 12,
                     ),
                     child: GiverPicker(
-                      givers: view.givers,
+                      givers: view.selectableGiversFor(gift.recipientId),
                       selectedId: selectedId,
                       onPick: onPick,
+                      people: personSectionOf(
+                        ref.watch(giftGiverPersonCandidatesProvider(gift.id)),
+                      ),
+                      onPickPerson: onPickPerson,
                     ),
                   )
                 : const SizedBox(width: double.infinity),

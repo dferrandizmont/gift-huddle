@@ -42,13 +42,10 @@ void main() {
           await pumpRegalos(tester, phone);
           final field = find.widgetWithText(TextField, 'Nombre de este móvil');
           if (typed != null) await tester.enterText(field, typed);
-          await tester.ensureVisible(
-            find.text(qr ? 'Escanear el QR' : 'Unirme con un enlace'),
+          await tapWelcomeChoice(
+            tester,
+            qr ? 'Escanear el QR' : 'Unirme con un enlace',
           );
-          await tester.tap(
-            find.text(qr ? 'Escanear el QR' : 'Unirme con un enlace'),
-          );
-          await settle(tester);
           if (qr) {
             final scanner = find.text('Leer invitación');
             await tester.ensureVisible(scanner);

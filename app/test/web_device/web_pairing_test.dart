@@ -75,43 +75,59 @@ void main() {
     expect(h.worker.devicesOf(kV2Sync)[h.phone.identity.deviceId], isFalse);
   });
 
-  test(
-    'complete web pairing, enrollment, role and authenticated version floor',
-    () async {
-      await h.setup();
-      addTearDown(h.close);
-      expect(h.engine.status, WebSyncStatus.confirmed);
-      expect(h.guest.joined!.minVersion, greaterThanOrEqualTo(3));
-      final snapshot =
-          (await h.client.getList(h.phone.auth) as V2GetOk).snapshot;
-      expect(
-        snapshot.devices
-            .firstWhere((d) => d.deviceId == h.guest.joined!.identity.deviceId)
-            .role,
-        'web',
-      );
-      expect(h.vault.opened.data['roots'], isNotEmpty);
-      expect(h.guest.personName, 'Leo');
-      await expectLater(
-        h.client.putList(
-          h.engine.auth,
-          version: snapshot.version,
-          body: V2SnapshotUpload(
-            common: snapshot.common,
-            registry: h.phone.reg.toJson(),
-            keyPackages: const [],
+  for (final pendingStatus in [204, 404]) {
+    test(
+      'complete web pairing after $pendingStatus, enrollment, role and authenticated version floor',
+      () async {
+        final offers = <int>[];
+        h.worker.tamper = (method, uri, response) {
+          if (method == 'GET' && uri.path.endsWith('/offer')) {
+            expect(uri.queryParameters, {'pending': '204'});
+            offers.add(response.status);
+            if (response.status == 204 && pendingStatus == 404) {
+              return SyncResponse(404, const {}, Uint8List(0));
+            }
+          }
+          return response;
+        };
+        await h.setup();
+        addTearDown(h.close);
+        expect(offers, [204, 200]);
+        expect(h.engine.status, WebSyncStatus.confirmed);
+        expect(h.guest.joined!.minVersion, greaterThanOrEqualTo(3));
+        final snapshot =
+            (await h.client.getList(h.phone.auth) as V2GetOk).snapshot;
+        expect(
+          snapshot.devices
+              .firstWhere(
+                (d) => d.deviceId == h.guest.joined!.identity.deviceId,
+              )
+              .role,
+          'web',
+        );
+        expect(h.vault.opened.data['roots'], isNotEmpty);
+        expect(h.guest.personName, 'Leo');
+        await expectLater(
+          h.client.putList(
+            h.engine.auth,
+            version: snapshot.version,
+            body: V2SnapshotUpload(
+              common: snapshot.common,
+              registry: h.phone.reg.toJson(),
+              keyPackages: const [],
+            ),
           ),
-        ),
-        throwsA(
-          isA<V2ForbiddenException>().having(
-            (e) => e.code,
-            'role',
-            'forbidden_role',
+          throwsA(
+            isA<V2ForbiddenException>().having(
+              (e) => e.code,
+              'role',
+              'forbidden_role',
+            ),
           ),
-        ),
-      );
-    },
-  );
+        );
+      },
+    );
+  }
 
   test(
     'no offer yet differs from expired and respects the 10 minute budget',

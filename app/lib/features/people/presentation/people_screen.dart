@@ -44,6 +44,7 @@ import '../../family/presentation/person_sheet.dart';
 import '../../family/presentation/secret_blocks.dart';
 import '../../gifts/presentation/add_gift_button.dart';
 import '../../gifts/presentation/gift_editor_screen.dart';
+import '../../gifts/presentation/gift_search.dart';
 import '../../gifts/presentation/person_list_screen.dart';
 import 'countdown_carousel.dart';
 
@@ -297,6 +298,16 @@ class PeopleListPane extends ConsumerStatefulWidget {
 }
 
 class _PeopleListPaneState extends ConsumerState<PeopleListPane> {
+  // El buscador de regalos: con algo escrito, sus resultados sustituyen a las
+  // personas.
+  final TextEditingController _query = TextEditingController();
+
+  @override
+  void dispose() {
+    _query.dispose();
+    super.dispose();
+  }
+
   // Para saber si lo que cambia en la lista llegó de otro móvil.
   int _seenRemote = 0;
 
@@ -399,126 +410,130 @@ class _PeopleListPaneState extends ConsumerState<PeopleListPane> {
                               ),
                             ],
                           )
-                        : ContentListView(
-                            maxWidth: RegalosLayout.listColumn,
-                            storageKey: const PageStorageKey<String>(
-                              'people-list',
-                            ),
-                            padding: EdgeInsets.only(
-                              bottom: addGiftButtonClearance(context),
-                            ),
-                            children: [
-                              // Regalos en secreto guardados solo en este móvil.
-                              const PendingGiftsNotice(),
-                              if (upcoming.isNotEmpty &&
-                                  widget.upcomingStyle == UpcomingStyle.row)
-                                StaggerItem(
-                                  index: order++,
-                                  child: Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                      8,
-                                      0,
-                                      8,
-                                      8,
-                                    ),
-                                    child: DecoratedBox(
-                                      decoration: BoxDecoration(
-                                        border: Border(
-                                          bottom: BorderSide(
-                                            color: t.separator,
+                        : _withSearch(
+                            context,
+                            hasGifts: view.gifts.isNotEmpty,
+                            child: ContentListView(
+                              maxWidth: RegalosLayout.listColumn,
+                              storageKey: const PageStorageKey<String>(
+                                'people-list',
+                              ),
+                              padding: EdgeInsets.only(
+                                bottom: addGiftButtonClearance(context),
+                              ),
+                              children: [
+                                // Regalos en secreto guardados solo en este móvil.
+                                const PendingGiftsNotice(),
+                                if (upcoming.isNotEmpty &&
+                                    widget.upcomingStyle == UpcomingStyle.row)
+                                  StaggerItem(
+                                    index: order++,
+                                    child: Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        8,
+                                        0,
+                                        8,
+                                        8,
+                                      ),
+                                      child: DecoratedBox(
+                                        decoration: BoxDecoration(
+                                          border: Border(
+                                            bottom: BorderSide(
+                                              color: t.separator,
+                                            ),
+                                          ),
+                                        ),
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 8,
+                                          ),
+                                          child: UpcomingOccasionRow(
+                                            next: upcoming.first,
                                           ),
                                         ),
                                       ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 8,
-                                        ),
-                                        child: UpcomingOccasionRow(
-                                          next: upcoming.first,
-                                        ),
+                                    ),
+                                  ),
+                                if (upcoming.isNotEmpty &&
+                                    widget.upcomingStyle ==
+                                        UpcomingStyle.carousel) ...[
+                                  StaggerItem(
+                                    index: order++,
+                                    child: SectionHeader(
+                                      title: l10n.peopleUpcomingTitle,
+                                      trailing: l10n.todayShort(now),
+                                      bordered: false,
+                                      padding: const EdgeInsets.fromLTRB(
+                                        16,
+                                        4,
+                                        16,
+                                        8,
                                       ),
                                     ),
                                   ),
-                                ),
-                              if (upcoming.isNotEmpty &&
-                                  widget.upcomingStyle ==
-                                      UpcomingStyle.carousel) ...[
-                                StaggerItem(
-                                  index: order++,
-                                  child: SectionHeader(
-                                    title: l10n.peopleUpcomingTitle,
-                                    trailing: l10n.todayShort(now),
-                                    bordered: false,
-                                    padding: const EdgeInsets.fromLTRB(
-                                      16,
-                                      4,
-                                      16,
-                                      8,
+                                  StaggerItem(
+                                    index: order++,
+                                    child: CountdownCarousel(
+                                      items: upcoming,
+                                      now: now,
                                     ),
                                   ),
-                                ),
-                                StaggerItem(
-                                  index: order++,
-                                  child: CountdownCarousel(
-                                    items: upcoming,
-                                    now: now,
+                                ],
+                                // Con dos paneles, el título de la cabecera ya dice
+                                // «Personas»: la lista empieza en la primera fila.
+                                if (!panes)
+                                  StaggerItem(
+                                    index: order++,
+                                    child: SectionHeader(
+                                      title: l10n.navPeople,
+                                      trailing: '${people.length}',
+                                      padding: const EdgeInsets.fromLTRB(
+                                        16,
+                                        12,
+                                        16,
+                                        8,
+                                      ),
+                                    ),
+                                  ),
+                                SelectionScope(
+                                  selectedId: palette == null
+                                      ? null
+                                      : widget.selectedId,
+                                  fill: palette == null
+                                      ? t.surface
+                                      : (t.isDark
+                                            ? palette.tintD
+                                            : palette.pastel),
+                                  border: palette == null
+                                      ? t.separator
+                                      : (t.isDark
+                                            ? palette.tintaD
+                                            : palette.tinta),
+                                  child: AnimatedRows(
+                                    quiet: fromRemote,
+                                    rows: [
+                                      for (final person in people)
+                                        AnimatedRowItem(
+                                          id: person.id,
+                                          child: StaggerItem(
+                                            index: order++,
+                                            child: _PersonRow(
+                                              person: person,
+                                              gifts: view.giftsFor(person.id),
+                                              now: now,
+                                              panes: panes,
+                                              selected:
+                                                  panes &&
+                                                  person.id ==
+                                                      widget.selectedId,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                 ),
                               ],
-                              // Con dos paneles, el título de la cabecera ya dice
-                              // «Personas»: la lista empieza en la primera fila.
-                              if (!panes)
-                                StaggerItem(
-                                  index: order++,
-                                  child: SectionHeader(
-                                    title: l10n.navPeople,
-                                    trailing: '${people.length}',
-                                    bordered: false,
-                                    padding: const EdgeInsets.fromLTRB(
-                                      16,
-                                      12,
-                                      16,
-                                      8,
-                                    ),
-                                  ),
-                                ),
-                              SelectionScope(
-                                selectedId: palette == null
-                                    ? null
-                                    : widget.selectedId,
-                                fill: palette == null
-                                    ? t.surface
-                                    : (t.isDark
-                                          ? palette.tintD
-                                          : palette.pastel),
-                                border: palette == null
-                                    ? t.separator
-                                    : (t.isDark
-                                          ? palette.tintaD
-                                          : palette.tinta),
-                                child: AnimatedRows(
-                                  quiet: fromRemote,
-                                  rows: [
-                                    for (final person in people)
-                                      AnimatedRowItem(
-                                        id: person.id,
-                                        child: StaggerItem(
-                                          index: order++,
-                                          child: _PersonRow(
-                                            person: person,
-                                            gifts: view.giftsFor(person.id),
-                                            now: now,
-                                            panes: panes,
-                                            selected:
-                                                panes &&
-                                                person.id == widget.selectedId,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                   ),
                 ),
@@ -527,6 +542,53 @@ class _PeopleListPaneState extends ConsumerState<PeopleListPane> {
           ),
         ),
       ),
+    );
+  }
+
+  /// Pone sobre [child] (la lista de personas) el buscador de regalos, fijo
+  /// arriba, y, con algo escrito, cambia la lista por los regalos que casan
+  /// (nombre, nota, tienda o persona). Sin regalos aún no hay nada que buscar.
+  Widget _withSearch(
+    BuildContext context, {
+    required bool hasGifts,
+    required Widget child,
+  }) {
+    if (!hasGifts) {
+      return child;
+    }
+    final searching = _query.text.trim().isNotEmpty;
+    return Column(
+      children: [
+        ContentWidth(
+          maxWidth: RegalosLayout.listColumn,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: GiftSearchField(
+              key: const ValueKey<String>('people-gift-search'),
+              controller: _query,
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
+        ),
+        Expanded(
+          child: searching
+              ? ContentListView(
+                  maxWidth: RegalosLayout.listColumn,
+                  padding: EdgeInsets.only(
+                    bottom: addGiftButtonClearance(context),
+                  ),
+                  children: [
+                    GiftSearchResults(
+                      query: _query.text,
+                      scrollable: false,
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      onOpen: (g) => openGiftEditor(context, gift: g),
+                    ),
+                  ],
+                )
+              : child,
+        ),
+      ],
     );
   }
 }
@@ -580,7 +642,6 @@ class _PersonRow extends ConsumerWidget {
     ].join(' · ');
     final semanticLabel =
         '${person.name}. ${[if (meta.isNotEmpty) meta, ?pendingText, if (locked) secretBlockLabel(l10n, person.name)].join(' · ')}';
-    final palette = personPalette(person.colorIndex);
     void open() {
       if (panes) {
         ref.read(paneSelectionProvider).userChose(person.id);
@@ -665,19 +726,16 @@ class _PersonRow extends ConsumerWidget {
       label: semanticLabel,
       excludeSemantics: true,
       onTap: open,
+      // Una fila con filete de 1 px debajo, sin tarjeta (la ficha).
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         child: SelectionRow(
           id: person.id,
           // Cada fila en su capa: el hover de una no repinta la lista entera.
           child: RepaintBoundary(
             child: PointerSurface(
               child: Material(
-                color: t.cardFill,
-                shape: RoundedRectangleBorder(
-                  borderRadius: RegalosShape.card,
-                  side: BorderSide(color: t.separator),
-                ),
+                color: Colors.transparent,
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
                   onTap: open,
@@ -685,17 +743,24 @@ class _PersonRow extends ConsumerWidget {
                     constraints: const BoxConstraints(
                       minHeight: RegalosSizes.personCardHeight,
                     ),
-                    padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+                    decoration: BoxDecoration(
+                      border: Border(bottom: BorderSide(color: t.separator)),
+                    ),
+                    padding: const EdgeInsets.fromLTRB(0, 10, 0, 10),
                     child: Row(
                       children: [
                         Stack(
                           clipBehavior: Clip.none,
                           children: [
-                            AvatarHero(
-                              personId: person.id,
-                              name: person.name,
-                              colorIndex: person.colorIndex,
-                              size: RegalosSizes.personAvatar,
+                            // Late una vez al quedar completa.
+                            CompletionBeat(
+                              complete: complete,
+                              child: AvatarHero(
+                                personId: person.id,
+                                name: person.name,
+                                colorIndex: person.colorIndex,
+                                size: RegalosSizes.personAvatar,
+                              ),
                             ),
                             // El sello de «persona completa», en pequeño.
                             Positioned(
@@ -710,16 +775,25 @@ class _PersonRow extends ConsumerWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                person.name,
-                                style: t.styles.rowTitle.copyWith(
-                                  fontSize: 17,
-                                  height: 22 / 17,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                              // El nombre y, en la misma línea, lo demás; si
+                              // no cabe (letra grande), lo demás baja de línea
+                              // en vez de cortarse con «…».
+                              Wrap(
+                                crossAxisAlignment: WrapCrossAlignment.end,
+                                spacing: 8,
+                                children: [
+                                  Text(
+                                    person.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: t.styles.rowTitle.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  if (meta.isNotEmpty)
+                                    Text(meta, style: t.styles.meta),
+                                ],
                               ),
-                              if (meta.isNotEmpty)
-                                Text(meta, style: t.styles.meta),
                               if (locked) ...[
                                 const SizedBox(height: 8),
                                 SizedBox(
@@ -735,17 +809,23 @@ class _PersonRow extends ConsumerWidget {
                                 ),
                               ],
                               if (pendingText != null) ...[
-                                const SizedBox(height: 8),
+                                const SizedBox(height: 6),
                                 LayoutBuilder(
                                   builder: (context, box) => Row(
                                     children: [
-                                      Expanded(
-                                        child: GiftSegments(
-                                          total: gifts.length,
-                                          done: gifts.length - pending,
-                                          color: t.isDark
-                                              ? palette.tintaD
-                                              : palette.tinta,
+                                      // Los segmentos en la tinta del acento
+                                      // y, al lado, lo que falta (en tinta y
+                                      // negrita con todo comprado).
+                                      Flexible(
+                                        child: ConstrainedBox(
+                                          constraints: BoxConstraints(
+                                            maxWidth: box.maxWidth * 0.38,
+                                          ),
+                                          child: GiftSegments(
+                                            total: gifts.length,
+                                            done: gifts.length - pending,
+                                            color: t.ink,
+                                          ),
                                         ),
                                       ),
                                       const SizedBox(width: 10),
@@ -757,8 +837,13 @@ class _PersonRow extends ConsumerWidget {
                                           child: Text(
                                             _capitalized(pendingText),
                                             key: ValueKey(pendingText),
-                                            style: t.styles.metaStrong.copyWith(
-                                              color: t.text,
+                                            style: t.styles.meta.copyWith(
+                                              color: pending == 0
+                                                  ? t.ink
+                                                  : t.text,
+                                              fontWeight: pending == 0
+                                                  ? FontWeight.w600
+                                                  : FontWeight.w400,
                                             ),
                                           ),
                                         ),

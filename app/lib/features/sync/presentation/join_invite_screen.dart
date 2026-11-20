@@ -20,6 +20,18 @@ import '../invites/invite_link.dart';
 import 'code_card.dart';
 import 'pairing_v2_guest_view.dart';
 
+/// Tracks joins opened from links, Settings or QR until their views unmount.
+/// External links must not mount another view sharing the pairing controller.
+class JoinInvitePresence {
+  final _owners = <Object>{};
+
+  bool get isActive => _owners.isNotEmpty;
+}
+
+final joinInvitePresenceProvider = Provider<JoinInvitePresence>(
+  (ref) => JoinInvitePresence(),
+);
+
 /// Ajustes › Compartir › Unirme con un enlace: pega el enlace de invitación,
 /// espera la aprobación, compara el código con quien invitó y entra.
 class JoinInviteScreen extends ConsumerStatefulWidget {
@@ -48,6 +60,7 @@ class JoinInviteScreen extends ConsumerStatefulWidget {
 }
 
 class _JoinInviteScreenState extends ConsumerState<JoinInviteScreen> {
+  late final JoinInvitePresence _presence;
   late final TextEditingController _link = TextEditingController(
     text: widget.initialInvite ?? '',
   );
@@ -58,6 +71,7 @@ class _JoinInviteScreenState extends ConsumerState<JoinInviteScreen> {
 
   @override
   void dispose() {
+    _presence._owners.remove(this);
     _link.dispose();
     _name.dispose();
     super.dispose();
@@ -110,6 +124,8 @@ class _JoinInviteScreenState extends ConsumerState<JoinInviteScreen> {
   @override
   void initState() {
     super.initState();
+    _presence = ref.read(joinInvitePresenceProvider);
+    _presence._owners.add(this);
     final initial = widget.initialInvite;
     if (initial != null && ref.read(pairingV2AvailableProvider)) {
       _v2Invite = _inviteIdOf(initial);

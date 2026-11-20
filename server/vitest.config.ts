@@ -35,12 +35,15 @@ export default defineConfig({
         durableObjects: {
           LISTS_V2: { className: "ListV2Object", scriptName: applicationWorker },
           RECOVERIES_V2: { className: "RecoveryLocatorObject", scriptName: applicationWorker },
+          STORAGE_LEDGER: { className: "StorageLedgerObject", scriptName: applicationWorker },
         },
       }],
     },
   })],
   test: {
     name: "sync",
+    // Integration tests share the machine and perform real cross-object RPCs.
+    testTimeout: 20_000,
     include: ["test/**/*.test.ts"],
     setupFiles: ["./test/runtime.ts"],
   },

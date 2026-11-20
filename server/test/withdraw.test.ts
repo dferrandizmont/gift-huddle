@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { env } from "cloudflare:workers";
-import { runInDurableObject } from "cloudflare:test";
+import { evictDurableObject, runInDurableObject } from "cloudflare:test";
 import worker from "../src/index";
 import type { Env } from "../src/env";
 import { canonicalJson, matchV2 } from "../src/v2-contract";
 import { euNamespace } from "../src/eu-namespace";
 import { decodeB64Url, encodeB64Url, sha256 } from "../src/encoding";
-import { V2_INVITE_REQUESTS_PER_INVITE } from "../src/limits";
+import { V2_INVITE_REQUESTS_PER_INVITE, V2_CLIENT_ROWS_PER_DAY, V2_GLOBAL_LIST_ROWS_PER_DAY } from "../src/limits";
 import { b64u, call, json, newList, rand } from "./helpers";
 
 async function setup(answered = true) {
@@ -32,6 +32,28 @@ async function setup(answered = true) {
 }
 
 describe("guest invitation withdrawal", () => {
+  it.each(["list", "client", "global"] as const)("remains authenticated and available after the %s row budget is exhausted", async (kind) => {
+    const i = await setup();
+    const stub = env.LISTS_V2.get(env.LISTS_V2.idFromName(i.syncId));
+    if (kind === "list") await runInDurableObject(stub, (_o, s) => {
+      const m = JSON.parse(s.storage.sql.exec<{ data: string }>("SELECT data FROM state").one().data);
+      m.rowBudget = { day: Math.floor(Date.now() / 86400000), written: 6000 };
+      s.storage.sql.exec("UPDATE state SET data = ?", JSON.stringify(m));
+    });
+    if (kind === "client") {
+      const counter = env.LIMITER_V2.get(env.LIMITER_V2.idFromName(`v2:rows:${i.ip}`));
+      await counter.rows(V2_CLIENT_ROWS_PER_DAY, V2_CLIENT_ROWS_PER_DAY);
+    }
+    if (kind === "global") {
+      const counter = env.STORAGE_LEDGER.get(env.STORAGE_LEDGER.idFromName("v2:storage"));
+      await counter.rows(V2_GLOBAL_LIST_ROWS_PER_DAY);
+    }
+    await evictDurableObject(stub);
+    const withdraw = (key = i.guestKey) => call("POST", `${i.publicPath}/withdraw`, { key, ip: i.ip, body: {} });
+    expect((await withdraw(b64u(rand(32)))).status).toBe(404);
+    expect((await withdraw()).status).toBe(204);
+    expect((await withdraw()).status).toBe(404);
+  });
   it("before an answer has no authority; wrong/missing credentials and unknown ids have the same shape", async () => {
     const i = await setup(false);
     const unknown = await call("POST", `/v2/invites/${b64u(rand(16))}/withdraw`, { key: i.guestKey, body: {} });

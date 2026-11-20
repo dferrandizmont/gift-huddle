@@ -4,16 +4,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/motion/value_switcher.dart';
+import '../../../core/platform/user_link.dart';
 import '../../../core/theme/gift_status.dart';
 import '../../../core/theme/regalos_motion.dart';
 import '../../../core/theme/regalos_tokens.dart';
 import '../../../core/widgets/gift_status_l10n.dart';
 import '../../../core/widgets/giver_dot.dart';
+import '../../../core/widgets/link_icon_button.dart';
 import '../../../core/widgets/pointer_surface.dart';
 import '../../../core/widgets/status_checkbox.dart';
 import '../../../core/widgets/stroke_icon.dart';
+import '../../../core/widgets/tabler_icons.dart';
 import '../../../core/widgets/tag_label.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../gifts/presentation/gift_link_actions.dart';
 import '../application/gift_editor_panel.dart';
 import 'board_cursor.dart';
 
@@ -202,14 +206,19 @@ class BoardGiftTableHeader extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final t = RegalosTokens.of(context);
     final cols = BoardTableScope.of(context);
-    Widget label(String text) => Text(
+    Widget label(String text, {TextAlign? align}) => Text(
       text,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
+      textAlign: align,
       style: t.styles.caption.copyWith(fontWeight: FontWeight.w600),
     );
-    Widget slot(BoardColumn c, String text) =>
-        _Slot(visible: cols.has(c), width: cols.widthOf(c), child: label(text));
+    // Las cifras van alineadas a la derecha, y su título con ellas.
+    Widget slot(BoardColumn c, String text) => _Slot(
+      visible: cols.has(c),
+      width: cols.widthOf(c),
+      child: label(text, align: c == BoardColumn.price ? TextAlign.end : null),
+    );
     return Semantics(
       container: true,
       child: ColoredBox(
@@ -339,6 +348,8 @@ class BoardGiftTableRow extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final cols = BoardTableScope.of(context);
     final panel = ref.read(giftEditorPanelProvider);
+    final link = url;
+    final validatedUrl = link == null ? null : userLinkUri(link)?.toString();
     // Lo que no cabe en columnas pasa a la segunda línea del título.
     final second = <String>[
       if (!cols.has(BoardColumn.giver)) giverName,
@@ -379,7 +390,7 @@ class BoardGiftTableRow extends ConsumerWidget {
                       Positioned.fill(
                         child: DecoratedBox(
                           decoration: BoxDecoration(
-                            color: editing ? t.soft : null,
+                            color: editing ? t.selection : null,
                             border: markedOnly
                                 ? Border.all(color: t.controlBorder)
                                 : Border(
@@ -476,19 +487,51 @@ class BoardGiftTableRow extends ConsumerWidget {
                                     _Slot(
                                       visible: cols.has(BoardColumn.link),
                                       width: BoardColumn.link.width,
-                                      child: url == null
+                                      child: link == null
                                           ? const SizedBox.shrink()
-                                          : Tooltip(
-                                              message: url!,
-                                              child: Semantics(
-                                                label:
-                                                    '${l10n.giftFieldUrl}: $url',
-                                                child: StrokeIcon(
-                                                  AppIcons.link,
-                                                  size: 18,
-                                                  color: t.textSecondary,
-                                                ),
-                                              ),
+                                          : Align(
+                                              alignment: AlignmentDirectional
+                                                  .centerStart,
+                                              // Con un enlace https que vale, el
+                                              // icono se pulsa y lo abre; con
+                                              // otro texto, es solo la marca de
+                                              // que hay enlace.
+                                              child: validatedUrl == null
+                                                  ? Tooltip(
+                                                      message: link,
+                                                      child: Semantics(
+                                                        label:
+                                                            '${l10n.giftFieldUrl}: $link',
+                                                        child: StrokeIcon(
+                                                          tablerLink,
+                                                          size: 18,
+                                                          color:
+                                                              t.textSecondary,
+                                                        ),
+                                                      ),
+                                                    )
+                                                  // El dibujo de 18 queda a ras del
+                                                  // principio de la columna, como el
+                                                  // texto de las demás (la zona de
+                                                  // 32 sobresale 7 a la izquierda).
+                                                  : Transform.translate(
+                                                      offset: const Offset(
+                                                        -7,
+                                                        0,
+                                                      ),
+                                                      child: LinkIconButton(
+                                                        icon: tablerLink,
+                                                        label:
+                                                            '${l10n.giftLinkOpen}: $validatedUrl',
+                                                        tooltip: validatedUrl,
+                                                        onTap: () =>
+                                                            openGiftLink(
+                                                              context,
+                                                              ref,
+                                                              link,
+                                                            ),
+                                                      ),
+                                                    ),
                                             ),
                                     ),
                                   ],
@@ -537,7 +580,7 @@ class _TitleBlock extends StatelessWidget {
                   key: ValueKey(name),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: t.styles.rowTitle,
+                  style: t.styles.tableTitle,
                 ),
               ),
             ),
@@ -593,16 +636,18 @@ class _Price extends StatelessWidget {
     final t = RegalosTokens.of(context);
     final planned = _planned(p);
     return ValueSwitcher(
+      // Cifras tabulares alineadas a la derecha (la ficha).
+      alignment: AlignmentDirectional.centerEnd,
       child: Column(
         key: ValueKey(p),
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Text(
             _amount(p),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: t.styles.metaStrong,
+            style: t.styles.price,
           ),
           if (planned != null)
             Text(

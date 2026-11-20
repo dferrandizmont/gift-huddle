@@ -15,6 +15,7 @@ import 'package:regalos/features/family/application/family_controller.dart';
 import 'package:regalos/features/family/application/family_providers.dart';
 import 'package:regalos/features/family/data/device_keys_store.dart';
 import 'package:regalos/features/family/data/family_store.dart';
+import 'package:regalos/features/family/domain/family_errors.dart';
 import 'package:regalos/features/sharing/application/share_service.dart';
 import 'package:regalos/features/sync/application/app_sync_v2_local.dart';
 import 'package:regalos/features/sync/application/sync_controller.dart';
@@ -169,17 +170,22 @@ void main() {
     String title = 'Bloques',
     String? note,
     int cents = 1000,
+    int? actualCents,
+    String? giverId = 'nosotros',
+    RequestedBy? requestedBy,
   }) => Gift(
     id: id,
     recipientId: person,
     title: title,
     note: note,
-    status: GiftStatus.idea,
-    rawStatus: 'idea',
+    status: actualCents == null ? GiftStatus.idea : GiftStatus.bought,
+    rawStatus: actualCents == null ? 'idea' : 'bought',
     surprise: false,
     year: 2026,
-    giverId: 'nosotros',
+    giverId: giverId,
     plannedCents: cents,
+    actualCents: actualCents,
+    requestedBy: requestedBy,
   );
 
   Future<void> exchange(ProtectionPhone a, ProtectionPhone b) async {
@@ -197,6 +203,427 @@ void main() {
       await p.refresh();
     }
   }
+
+  test('the protected person can see their own giving, and deleting an '
+      'inaccessible giver reference preserves the secret gift', () async {
+    final a = await install(family.aritz, withKey: true);
+    final n = await install(family.nora);
+    await a.controller.upsertRecipient(
+      const Recipient(
+        id: 'leo-guest',
+        name: 'Leo',
+        colorIndex: 2,
+        archived: false,
+      ),
+    );
+    await a.controller.activateProtection('nora');
+    await a.controller.upsertGift(
+      gift(
+        'received',
+        title: 'Libro secreto',
+        actualCents: 7123,
+        giverId: null,
+      ),
+    );
+    await a.controller.upsertGift(
+      gift('given', person: 'aritz', title: 'Puzle', actualCents: 1900),
+    );
+    expect(
+      await a.controller.assignPersonAsGiver('given', 'nora'),
+      GiftWriteResult.saved,
+    );
+    final giverNora = FamilyView.fromDoc(a.common).giverForPerson('nora')!;
+    await a.controller.addPersonAsGiver('leo');
+    for (final (id, person) in [
+      (giverNora.id, 'nora'),
+      ('a-leo-household', 'leo'),
+    ]) {
+      await a.controller.upsertGiver(
+        Giver(
+          id: id,
+          name: person == 'nora' ? 'Nora' : 'Leo',
+          colorIndex: 0,
+          householdPays: true,
+          archived: false,
+        ),
+      );
+      await a.controller.linkGiver(id, person);
+    }
+    final giverLeo = FamilyView.fromDoc(a.common).giverForPerson('leo')!;
+    expect(giverLeo.id, 'a-leo-household');
+    expect(
+      FamilyView.fromDoc(a.common).giverAliasIds(giverLeo.id),
+      hasLength(2),
+    );
+    await exchange(a, n);
+
+    ({
+      List<Giver> columns,
+      List<(String, String?, bool)> candidates,
+      List<Giver> aliases,
+    })
+    publicChoices() {
+      final view = n.phone.container.read(familyFullViewProvider);
+      return (
+        columns: view.grid().givers,
+        candidates: n.phone.container
+            .read(giftGiverPersonCandidatesProvider('given'))
+            .map((c) => (c.person.id, c.giver?.id, c.needsPublicAdd))
+            .toList(),
+        aliases: view.allGivers,
+      );
+    }
+
+    final before = publicChoices();
+    expect(before.candidates, [('leo-guest', null, false)]);
+    final commonBefore = a.common.canonicalJson();
+    expect(
+      await a.controller.assignPersonAsGiver('received', 'leo'),
+      GiftWriteResult.saved,
+    );
+    expect(a.common.canonicalJson(), commonBefore);
+    await exchange(a, n);
+    final after = publicChoices();
+    expect(after.columns, before.columns);
+    expect(after.candidates, before.candidates);
+    expect(after.aliases, before.aliases);
+    final authorView = (await a.projection()).view;
+    expect(authorView.allGifts, hasLength(2));
+    expect(authorView.grid().cell('nora', giverLeo.id).giftCount, 1);
+    expect(authorView.grid().cell('aritz', giverNora.id).giftCount, 1);
+    expect(authorView.budget().total.spentCents, 9023);
+
+    Future<void> expectNoraSeesOnlyGiving(String giverId) async {
+      final projection = await n.projection();
+      final view = projection.view;
+      expect(view.allGifts.map((g) => (g.title, g.plannedCents)), [
+        ('Puzle', 1000),
+      ]);
+      expect(view.grid().cell('aritz', giverId).giftCount, 1);
+      expect(
+        view.grid().cells['nora']?.values.every((cell) => cell.giftCount == 0),
+        isTrue,
+      );
+      expect(view.budget().total.spentCents, 1900);
+      expect(projection.lockedBlocks.map((b) => b.personId), ['nora']);
+      expect(projection.doc.canonicalJson(), isNot(contains('Libro secreto')));
+    }
+
+    expect(
+      n.phone.container
+          .read(familyControllerProvider)
+          .requireValue
+          .identity
+          ?.selfRecipientId,
+      'nora',
+    );
+    await expectNoraSeesOnlyGiving(giverNora.id);
+    expect(
+      await n.controller.assignPersonAsGiver('given', 'leo'),
+      GiftWriteResult.saved,
+    );
+    await expectNoraSeesOnlyGiving(giverLeo.id);
+    expect(
+      await n.controller.setGiftGiver('given', giverNora.id),
+      GiftWriteResult.saved,
+    );
+    await expectNoraSeesOnlyGiving(giverNora.id);
+    await n.controller.deleteGiver(giverLeo.id);
+    await exchange(a, n);
+    await expectNoraSeesOnlyGiving(giverNora.id);
+    final received = (await a.projection()).view;
+    expect(
+      received.gifts.singleWhere((g) => g.id == 'received').title,
+      'Libro secreto',
+    );
+    expect(received.resolveGiver(giverLeo.id), isNull);
+    expect(received.grid().unassignedCell('nora').giftCount, 1);
+  });
+
+  test(
+    'protected People choices need an explicit public add or recovery',
+    () async {
+      final disk = MemoryFileStore();
+      final p = await install(family.aritz, withKey: true, disk: disk);
+      await p.controller.activateProtection('nora');
+      await p.controller.upsertGift(gift('secret'));
+      await p.controller.addPersonAsGiver('aritz');
+      await p.refresh();
+      final options = p.phone.container.read(
+        giftGiverPersonCandidatesProvider('secret'),
+      );
+      expect(options.map((c) => (c.person.id, c.needsPublicAdd)), [
+        ('aritz', false),
+        ('leo', true),
+      ]);
+      final commonBytes = disk.files['family.doc'];
+      final scopeBytes = await p.store.readScope('nora');
+      final needsAdd = throwsA(
+        isA<GiverPersonNeedsPublicAdd>().having(
+          (e) => e.personId,
+          'person',
+          'leo',
+        ),
+      );
+      await expectLater(
+        p.controller.assignPersonAsGiver('secret', 'leo'),
+        needsAdd,
+      );
+      await expectLater(
+        p.controller.upsertGiftWithGiverPerson(gift('new'), 'leo'),
+        needsAdd,
+      );
+      expect(disk.files['family.doc'], same(commonBytes));
+      expect(
+        (await p.store.readScope('nora'))!.canonicalJson(),
+        scopeBytes!.canonicalJson(),
+      );
+      expect(FamilyView.fromDoc(p.common).giverForPerson('leo'), isNull);
+
+      final giver = (await p.controller.addPersonAsGiver('leo'))!;
+      expect((await p.projection()).view.gifts.single.giverId, 'nosotros');
+      await p.controller.archiveGiver(giver.id);
+      await expectLater(
+        p.controller.assignPersonAsGiver('secret', 'leo'),
+        needsAdd,
+      );
+      expect((await p.controller.addPersonAsGiver('leo'))?.id, giver.id);
+      expect(
+        await p.controller.assignPersonAsGiver('secret', 'leo'),
+        GiftWriteResult.saved,
+      );
+    },
+  );
+
+  test('the editor cannot recover an archived giver after moving the draft '
+      'to a protected person', () async {
+    final disk = MemoryFileStore();
+    final p = await install(family.aritz, disk: disk, withKey: true);
+    await p.controller.activateProtection('leo');
+    final giver = (await p.controller.addPersonAsGiver('nora'))!;
+    await p.controller.archiveGiver(giver.id);
+    final original = gift('book', person: 'aritz');
+    await p.controller.upsertGift(original);
+    final candidate = (await p.projection()).view
+        .giverPersonCandidatesFor(original.recipientId, protected: false)
+        .singleWhere((choice) => choice.person.id == 'nora');
+    expect(candidate.needsPublicAdd, isFalse);
+    expect(candidate.giver?.archived, isTrue);
+
+    final before = p.common;
+    final bytes = disk.files['family.doc'];
+    await expectLater(
+      p.controller.upsertGiftWithGiverPerson(
+        gift('book', person: 'leo'),
+        candidate.person.id,
+        original: original,
+      ),
+      throwsA(
+        isA<GiverPersonNeedsPublicAdd>().having(
+          (e) => e.personId,
+          'person',
+          'nora',
+        ),
+      ),
+    );
+    expect(p.common, same(before));
+    expect(disk.files['family.doc'], same(bytes));
+    final view = (await p.projection()).view;
+    expect(view.giverForPerson('nora')?.archived, isTrue);
+    expect(view.gifts.single.recipientId, original.recipientId);
+    expect(view.gifts.single.giverId, original.giverId);
+  });
+
+  test('Reparto rechecks protection that arrived after selecting '
+      'an archived giver', () async {
+    final disk = MemoryFileStore();
+    final a = await install(family.aritz, disk: disk, withKey: true);
+    final b = await install(family.leo, withKey: true);
+    final giver = (await a.controller.addPersonAsGiver('leo'))!;
+    await a.controller.archiveGiver(giver.id);
+    await a.controller.upsertGift(gift('book'));
+    final candidate = (await a.projection()).view
+        .giverPersonCandidatesFor('nora', protected: false)
+        .singleWhere((choice) => choice.person.id == 'leo');
+    expect(candidate.needsPublicAdd, isFalse);
+    expect(candidate.giver?.archived, isTrue);
+
+    await exchange(a, b);
+    await b.controller.activateProtection('nora');
+    await exchange(a, b);
+    expect(FamilyView.fromDoc(a.common).gifts, isEmpty);
+    expect((await a.projection()).view.gifts.single.id, 'book');
+    final before = a.common;
+    final bytes = disk.files['family.doc'];
+    await expectLater(
+      a.controller.assignPersonAsGiver('book', candidate.person.id),
+      throwsA(
+        isA<GiverPersonNeedsPublicAdd>().having(
+          (e) => e.personId,
+          'person',
+          'leo',
+        ),
+      ),
+    );
+    expect(a.common, same(before));
+    expect(disk.files['family.doc'], same(bytes));
+    final view = (await a.projection()).view;
+    expect(view.giverForPerson('leo')?.archived, isTrue);
+    expect(view.gifts.single.giverId, 'nosotros');
+  });
+
+  test(
+    'archiving and deleting recheck other owners in the signed registry',
+    () async {
+      final p = await install(
+        family.aritz,
+        registry: await registryOf([family.aritz]),
+      );
+      expect(
+        p.phone.container
+            .read(familyControllerProvider)
+            .requireValue
+            .otherDevicePeople,
+        isEmpty,
+      );
+      final before = p.common.canonicalJson();
+      await p.store.saveRegistry(family.registry);
+      final refused = throwsA(
+        isA<DevicePersonException>().having(
+          (e) => e.owner,
+          'owner',
+          DevicePersonOwner.otherDevice,
+        ),
+      );
+      await expectLater(p.controller.archiveRecipient('nora'), refused);
+      await expectLater(p.controller.deleteRecipient('nora'), refused);
+      expect(p.common.canonicalJson(), before);
+      await p.refresh();
+      expect(p.phone.container.read(familyStateProvider)?.otherDevicePeople, {
+        'nora',
+        'leo',
+      });
+    },
+  );
+
+  test(
+    'person deletion clears secret requests and late references read empty',
+    () async {
+      final p = await install(
+        family.aritz,
+        registry: await registryOf([family.aritz, family.nora]),
+      );
+      const byLeo = RequestedByRecipient('leo');
+      await p.controller.activateProtection('nora');
+      await p.controller.upsertGift(gift('secret', requestedBy: byLeo));
+      final impact = await p.controller.recipientDeleteImpact('leo');
+      expect(impact.requestedGifts.map((g) => g.id), ['secret']);
+      await p.controller.deleteRecipient('leo', expectedImpact: impact);
+      final scope = (await p.store.readScope('nora'))!;
+      expect(scope.record(Collections.gifts, 'secret')!['requestedBy'], isNull);
+      expect((await p.projection()).view.gifts.single.requestedBy, isNull);
+      final clock = HlcClock(node: family.leo.id, last: scope.maxStamp);
+      final late = scope.set(
+        clock,
+        Collections.gifts,
+        'late',
+        gift('late', requestedBy: byLeo).toFields(),
+      );
+      await p.store.saveScope('nora', late);
+      await p.refresh();
+      expect(
+        (await p.projection()).view.gifts
+            .singleWhere((g) => g.id == 'late')
+            .requestedBy,
+        isNull,
+      );
+    },
+  );
+
+  test('a giver choice revalidates a remotely moved protected recipient '
+      'while the editor is open', () async {
+    final p = await install(family.aritz, withKey: true);
+    final original = gift('gift', person: 'leo');
+    await p.controller.upsertGift(original);
+    final draft = FamilyView.fromDoc(p.common).gifts.single;
+    await p.controller.upsertGiver(
+      const Giver(
+        id: 'linked',
+        name: 'Nora',
+        colorIndex: 1,
+        householdPays: false,
+        archived: false,
+      ),
+    );
+    await p.controller.linkGiver('linked', 'nora');
+
+    final clock = HlcClock(node: family.leo.id, last: p.common.maxStamp);
+    final remote = requestProtection(
+      p.common.set(clock, Collections.gifts, 'gift', {
+        'recipientId': 'nora',
+        'title': 'Puzle',
+      }),
+      clock,
+      'nora',
+    );
+    await p.controller.mergeRemote(remote, fromNode: family.leo.id);
+    expect(
+      await p.controller.upsertGiftWithGiverPerson(
+        draft,
+        'nora',
+        original: draft,
+      ),
+      GiftWriteResult.invalidPair,
+    );
+    expect(
+      await p.controller.setGiftGiver('gift', 'linked'),
+      GiftWriteResult.invalidPair,
+    );
+    await p.controller.addPersonAsGiver('leo');
+    expect(
+      await p.controller.assignPersonAsGiver('gift', 'leo'),
+      GiftWriteResult.saved,
+    );
+    final secret = (await p.projection()).view;
+    final saved = secret.gifts.single;
+    expect(saved.recipientId, 'nora');
+    expect(saved.title, 'Puzle');
+    expect(saved.plannedCents, 1000);
+    expect(secret.resolveGiver(saved.giverId)?.recipientId, 'leo');
+    expect(p.common.record(Collections.gifts, 'gift')?.isDeleted, isTrue);
+  });
+
+  test(
+    'retrying a failed secret assignment reuses the explicit public giver',
+    () async {
+      final disk = ClosingDisk();
+      final p = await install(family.aritz, withKey: true, disk: disk);
+      await p.controller.activateProtection('nora');
+      await p.controller.upsertGift(gift('received'));
+      final giver = (await p.controller.addPersonAsGiver('leo'))!;
+      final record = p.common.record(Collections.givers, giver.id)!;
+      disk.failAt = 'family.protection';
+      await expectLater(
+        p.controller.assignPersonAsGiver('received', 'leo'),
+        throwsStateError,
+      );
+      expect(disk.failAt, isNull);
+      expect(
+        await p.controller.assignPersonAsGiver('received', 'leo'),
+        GiftWriteResult.saved,
+      );
+      expect(
+        p.common.record(Collections.givers, giver.id)!.fields,
+        record.fields,
+      );
+      final projected = (await p.projection()).view;
+      expect(
+        projected.givers.where((g) => g.recipientId == 'leo'),
+        hasLength(1),
+      );
+      expect(projected.gifts.single.giverId, giver.id);
+    },
+  );
 
   test(
     'upsert create and recipient edit fail closed without epoch key',

@@ -1,3 +1,29 @@
+/// Servidor de sincronización por defecto (Worker v2 en el dominio propio).
+const String kDefaultSyncHost = 'https://sync.gifthuddle.app';
+
+/// Origen por defecto de los enlaces de invitación (`/i#<id>`), que abre la
+/// app por App Links y Universal Links.
+const String kDefaultInvitationOrigin = 'https://gifthuddle.app';
+
+/// API origin: `--dart-define=SYNC_API_ORIGIN=https://sync.example`, o el
+/// antiguo `SYNC_HOST`. Sin ninguno de los dos, [kDefaultSyncHost]. Una
+/// cadena vacía a propósito (`--dart-define=SYNC_HOST=`) no la apaga: para
+/// probar sin servidor se sustituye `syncHostProvider`.
+const String kSyncHost = String.fromEnvironment(
+  'SYNC_API_ORIGIN',
+  defaultValue: String.fromEnvironment(
+    'SYNC_HOST',
+    defaultValue: kDefaultSyncHost,
+  ),
+);
+
+/// Origen de las invitaciones: `--dart-define=SYNC_INVITATION_ORIGIN=...`, o
+/// [kDefaultInvitationOrigin].
+const String kInvitationOrigin = String.fromEnvironment(
+  'SYNC_INVITATION_ORIGIN',
+  defaultValue: kDefaultInvitationOrigin,
+);
+
 /// A dónde apunta la sincronización.
 class SyncEndpoint {
   const SyncEndpoint._(this.base, this.invitationOrigin);

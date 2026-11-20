@@ -84,7 +84,7 @@ class ChoiceGrid extends StatelessWidget {
   /// El estilo del nombre; [selected] lo pone en negrita.
   static TextStyle labelStyle(RegalosTokens t, {required bool selected}) =>
       t.styles.metaStrong.copyWith(
-        color: selected ? t.onFill : t.text,
+        color: selected ? t.ink : t.text,
         fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
       );
 
@@ -258,15 +258,17 @@ class _ChoiceCellState extends State<_ChoiceCell> {
             vertical: ChoiceGrid._paddingV,
           ),
           decoration: BoxDecoration(
-            color: selected ? t.fill : t.fill.withValues(alpha: 0),
-            border: Border.all(color: selected ? t.fill : t.chipBorder),
+            color: selected ? t.selection : t.selection.withValues(alpha: 0),
+            border: Border.all(
+              color: selected ? t.selectionBorder : t.chipBorder,
+            ),
             borderRadius: RegalosShape.chip,
           ),
           child: Row(
             children: [
               SpringPulse(
                 key: _pulse,
-                child: item.leading(selected ? t.onFill : t.text, selected),
+                child: item.leading(selected ? t.ink : t.text, selected),
               ),
               SizedBox(width: widget.leadingGap),
               Expanded(

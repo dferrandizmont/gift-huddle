@@ -63,12 +63,16 @@ class GiftFilter {
       (needsWrap ? 1 : 0);
 
   /// Si el regalo pasa todos los filtros.
-  bool matches(Gift gift) {
+  bool matches(Gift gift, {FamilyView? view}) {
     if (occasionId != null && (gift.occasionId ?? kNoOccasion) != occasionId) {
       return false;
     }
-    if (giverId != null && (gift.giverId ?? kUnassignedGiver) != giverId) {
-      return false;
+    if (giverId != null) {
+      final selected = view?.resolveGiver(giverId)?.id ?? giverId;
+      final assigned = view == null
+          ? gift.giverId
+          : view.resolveGiver(gift.giverId)?.id;
+      if ((assigned ?? kUnassignedGiver) != selected) return false;
     }
     if (status != null && gift.status != status) {
       return false;

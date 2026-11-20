@@ -114,7 +114,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('No hagas captura'), findsOneWidget);
-    expect(find.textContaining('toca «Escanear el QR»'), findsOneWidget);
+    expect(find.textContaining('toca «Unirme a una familia», luego «Escanear el QR»'), findsOneWidget);
 
     // El código es el del servicio de emparejar, con la clave de la familia.
     final expected = await tester.runAsync(
@@ -298,7 +298,7 @@ void main() {
         () => owner.container.read(pairingServiceProvider).qrTextForPairing(),
       ))!;
       await pumpRegalos(tester, phone);
-      await tapText(tester, 'Escanear el QR');
+      await tapWelcomeChoice(tester, 'Escanear el QR');
       await tester.enterText(
         find.widgetWithText(TextField, 'Nombre de este móvil'),
         'Móvil de Eva',
@@ -382,7 +382,7 @@ void main() {
     (tester, phone) async {
       qr = 'hola';
       await pumpRegalos(tester, phone);
-      await tapText(tester, 'Escanear el QR');
+      await tapWelcomeChoice(tester, 'Escanear el QR');
       await tapText(tester, 'Leer código');
       await waitReal(tester);
       expect(find.text('Este código QR no es de Gift Huddle.'), findsOneWidget);

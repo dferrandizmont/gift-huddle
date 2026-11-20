@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:fake_async/fake_async.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,10 +12,10 @@ import 'package:regalos/features/sync/invites/incoming_invite.dart';
 
 class FakeLinks implements LinkSource {
   FakeLinks(this.initial);
-  String? initial;
+  FutureOr<String?> initial;
   final controller = StreamController<String>.broadcast();
   @override
-  String? takeInitialLink() {
+  FutureOr<String?> takeInitialLink() {
     final uri = initial;
     initial = null;
     return uri;
@@ -25,6 +27,81 @@ class FakeLinks implements LinkSource {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('iOS consumes the plugin initial string once', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    const channel = MethodChannel('com.llfbandit.app_links/messages');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    addTearDown(() {
+      debugDefaultTargetPlatformOverride = null;
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'getInitialLink');
+      return 'https://gifthuddle.app:443/i#AAAAAAAAAAAAAAAAAAAAAA';
+    });
+    final source = NativeLinkSource();
+    expect(
+      await source.takeInitialLink(),
+      'https://gifthuddle.app:443/i#AAAAAAAAAAAAAAAAAAAAAA',
+    );
+    expect(await source.takeInitialLink(), isNull);
+  });
+
+  for (final streamFirst in [false, true]) {
+    test(
+      'async launch link deduplicates with stream, streamFirst=$streamFirst',
+      () async {
+        const id = 'AAAAAAAAAAAAAAAAAAAAAA';
+        const uri = 'https://gifthuddle.app/i#$id';
+        fakeAsync((async) {
+          final initial = Completer<String?>();
+          final links = FakeLinks(null)..initial = initial.future;
+          final container = ProviderContainer(
+            overrides: [linkSourceProvider.overrideWithValue(links)],
+          );
+          addTearDown(() async {
+            container.dispose();
+            await links.controller.close();
+          });
+          expect(container.read(incomingInviteProvider), isNull);
+          if (streamFirst) {
+            links.controller.add(uri);
+          } else {
+            initial.complete(uri);
+          }
+          async.flushMicrotasks();
+          expect(container.read(incomingInviteProvider), id);
+          container.read(incomingInviteProvider.notifier).consume();
+          // A launch copy delayed well beyond the former three-second window.
+          async.elapse(const Duration(minutes: 2));
+          if (streamFirst) {
+            initial.complete(uri);
+          } else {
+            links.controller.add(uri);
+          }
+          async.flushMicrotasks();
+          expect(container.read(incomingInviteProvider), isNull);
+          // Reconnection has one native owner; each following stream event is
+          // a real tap, even for the same URI and without waiting.
+          for (final tap in [
+            uri,
+            uri,
+            'https://gifthuddle.app/i#BBBBBBBBBBBBBBBBBBBBBB',
+          ]) {
+            links.controller.add(tap);
+            async.flushMicrotasks();
+            expect(
+              container.read(incomingInviteProvider),
+              tap == uri ? id : 'BBBBBBBBBBBBBBBBBBBBBB',
+            );
+            container.read(incomingInviteProvider.notifier).consume();
+          }
+        });
+      },
+    );
+  }
 
   test(
     'native events retain explicit ports until invitation validation',

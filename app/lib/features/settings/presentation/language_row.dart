@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/motion/sheet_motion.dart';
 import '../../../core/theme/regalos_motion.dart';
 import '../../../core/theme/regalos_tokens.dart';
+import '../../../core/widgets/anchored_picker.dart';
+import '../../../core/widgets/picker_option.dart';
 import '../../../core/widgets/settings_icons.dart';
 import '../../../core/widgets/settings_row.dart';
 import '../../../core/widgets/sheet_parts.dart';
@@ -26,19 +28,35 @@ String _languageName(AppLocalizations l10n, String? code) => switch (code) {
 
 /// Fila «Idioma» de Ajustes: enseña el idioma elegido a la derecha y abre la
 /// hoja para cambiarlo. Al volver, el valor nuevo entra desde abajo.
-class LanguageRow extends ConsumerWidget {
+class LanguageRow extends ConsumerStatefulWidget {
   const LanguageRow({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LanguageRow> createState() => _LanguageRowState();
+}
+
+class _LanguageRowState extends ConsumerState<LanguageRow> {
+  // El foco de la fila: el desplegable lo devuelve aquí al cerrarse, también
+  // si se abrió con el ratón estando otra fila enfocada.
+  final FocusNode _focus = FocusNode(debugLabel: 'LanguageRow');
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final current = ref.watch(localeProvider)?.languageCode;
     return SettingsRow(
       icon: SettingsIcons.language,
       title: l10n.settingsLanguage,
       value: _languageName(l10n, current),
+      focusNode: _focus,
       onTap: () async {
-        final picked = await showLanguageSheet(context, current: current);
+        final picked = await _pickLanguage(context, l10n, current, _focus);
         if (picked == null) {
           return;
         }
@@ -48,6 +66,50 @@ class LanguageRow extends ConsumerWidget {
       },
     );
   }
+}
+
+/// Los idiomas que se pueden elegir, con «Sistema» primero.
+const List<String> _languageCodes = [_systemCode, 'es', 'ca', 'en'];
+
+/// El idioma que usa la app cuando sigue al del móvil.
+String _systemLanguage(AppLocalizations l10n) {
+  final resolved = basicLocaleListResolution(
+    WidgetsBinding.instance.platformDispatcher.locales,
+    AppLocalizations.supportedLocales,
+  );
+  return _languageName(l10n, resolved.languageCode);
+}
+
+/// Elige el idioma: en una ventana de escritorio con ratón, un desplegable
+/// anclado a la fila (pegado a su lado derecho, donde se lee el valor); en el
+/// móvil y con el dedo, la hoja ([showLanguageSheet]).
+Future<String?> _pickLanguage(
+  BuildContext context,
+  AppLocalizations l10n,
+  String? current,
+  FocusNode returnFocusTo,
+) {
+  if (!usesAnchoredPicker(context)) {
+    return showLanguageSheet(context, current: current);
+  }
+  return showAnchoredPicker<String>(
+    context,
+    label: l10n.settingsLanguage,
+    selected: current ?? _systemCode,
+    options: [
+      for (final code in _languageCodes)
+        PickerOption<String>(
+          value: code,
+          label: _languageName(l10n, code),
+          hint: code == _systemCode
+              ? l10n.settingsLanguageSystemNow(_systemLanguage(l10n))
+              : null,
+        ),
+    ],
+    maxWidth: 320,
+    alignEnd: true,
+    returnFocusTo: returnFocusTo,
+  );
 }
 
 /// Abre la hoja de idioma: Sistema, Español, Català y English, con un visto
@@ -97,15 +159,6 @@ class _LanguageSheetState extends State<_LanguageSheet> {
     });
   }
 
-  /// El idioma que usa la app cuando sigue al del móvil.
-  String _systemLanguage(AppLocalizations l10n) {
-    final resolved = basicLocaleListResolution(
-      WidgetsBinding.instance.platformDispatcher.locales,
-      AppLocalizations.supportedLocales,
-    );
-    return _languageName(l10n, resolved.languageCode);
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -130,7 +183,7 @@ class _LanguageSheetState extends State<_LanguageSheet> {
                     thickness: 1,
                     color: RegalosTokens.of(context).separator,
                   ),
-                  for (final code in const [_systemCode, 'es', 'ca', 'en'])
+                  for (final code in _languageCodes)
                     CheckOptionRow(
                       title: _languageName(l10n, code),
                       hint: code == _systemCode

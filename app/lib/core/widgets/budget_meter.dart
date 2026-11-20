@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../motion/rolling_number.dart';
@@ -13,18 +15,33 @@ import '../theme/regalos_tokens.dart';
 /// Cuando crece, una banda de luz ([Sheen]) recorre la parte llena con 120 ms
 /// de retardo. Con «Reducir movimiento» la barra salta con un fundido de
 /// 150 ms, sin brillo.
+///
+/// Con [entrance], la primera vez la barra se rellena desde 0 hasta su valor
+/// ([entranceDuration], `easeOutCubic`); los cambios siguientes, como siempre.
+/// Con «Reducir movimiento» aparece ya llena.
 class BudgetBar extends StatefulWidget {
   const BudgetBar({
     super.key,
     required this.fraction,
     required this.semanticLabel,
     this.height = 4,
+    this.radius,
+    this.entrance = false,
   });
+
+  /// Lo que dura el relleno de entrada.
+  static const Duration entranceDuration = Duration(milliseconds: 600);
 
   /// De 0 a 1 (más de 1 si se pasó del presupuesto).
   final double fraction;
   final String semanticLabel;
   final double height;
+
+  /// El radio de las esquinas; sin él, la mitad del alto.
+  final double? radius;
+
+  /// Si la primera vez se rellena desde 0 hasta su valor.
+  final bool entrance;
 
   @override
   State<BudgetBar> createState() => _BudgetBarState();
@@ -32,6 +49,9 @@ class BudgetBar extends StatefulWidget {
 
 class _BudgetBarState extends State<BudgetBar> {
   final GlobalKey<SheenState> _sheen = GlobalKey<SheenState>();
+
+  // Mientras dura el relleno de entrada; después, la animación de siempre.
+  late bool _entering = widget.entrance;
 
   static double _clean(double fraction) => fraction.isNaN ? 0.0 : fraction;
 
@@ -81,9 +101,12 @@ class _BudgetBarState extends State<BudgetBar> {
             child: bar(value, key: ValueKey(value)),
           )
         : TweenAnimationBuilder<double>(
-            tween: Tween<double>(end: value),
-            duration: RegalosSprings.snapDuration,
-            curve: RegalosCurves.snap,
+            tween: Tween<double>(begin: _entering ? 0 : null, end: value),
+            duration: _entering
+                ? BudgetBar.entranceDuration
+                : RegalosSprings.snapDuration,
+            curve: _entering ? Curves.easeOutCubic : RegalosCurves.snap,
+            onEnd: () => _entering = false,
             builder: (context, v, _) => bar(v.clamp(0.0, 1.0), sheen: true),
           );
 
@@ -91,7 +114,9 @@ class _BudgetBarState extends State<BudgetBar> {
       label: widget.semanticLabel,
       excludeSemantics: true,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(height / 2),
+        borderRadius: BorderRadius.circular(
+          math.min(height / 2, widget.radius ?? height / 2),
+        ),
         child: Container(
           height: height,
           color: t.track,
@@ -114,9 +139,26 @@ class BudgetMeter extends StatelessWidget {
     required this.valueText,
     required this.fraction,
     required this.semanticLabel,
+    this.spentOnlyLabel,
+    this.barHeight = 4,
+    this.barRadius,
+    this.entrance = false,
   });
 
   final String label;
+
+  /// El alto de la barra y el radio de sus esquinas (sin él, la mitad).
+  final double barHeight;
+  final double? barRadius;
+
+  /// Si al aparecer la barra se rellena desde 0 y la cifra rueda desde vacío
+  /// (una sola vez; con «Reducir movimiento», ya llena).
+  final bool entrance;
+
+  /// Para algo sin previsto (una persona, que no tiene presupuesto): en vez de
+  /// «45 € de 0 €» y su barra, «Gastado 45 €» (esta palabra y la cifra), sin
+  /// barra. `valueText.planned` y [fraction] no se usan.
+  final String? spentOnlyLabel;
 
   /// Ya escrito para el idioma, con el «de» dentro.
   final ({String spent, String planned, String ofWord}) valueText;
@@ -126,16 +168,42 @@ class BudgetMeter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RegalosTokens.of(context);
-    final spentStyle = t.styles.label.copyWith(
-      fontSize: 14.5,
-      fontWeight: FontWeight.w700,
-    );
-    final plannedStyle = t.styles.meta.copyWith(fontSize: 14);
+    final spentStyle = t.styles.amount;
+    final plannedStyle = t.styles.meta;
+    final spentOnly = spentOnlyLabel;
+    // Con «Reducir movimiento» la cifra aparece ya puesta.
+    final roll = entrance && !RegalosMotion.of(context).reduce;
+    if (spentOnly != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (label.isNotEmpty) Text(label, style: t.styles.meta),
+          Semantics(
+            container: true,
+            label: '$spentOnly ${valueText.spent}',
+            excludeSemantics: true,
+            child: Wrap(
+              spacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(spentOnly, style: plannedStyle),
+                RollingNumber.text(
+                  text: valueText.spent,
+                  style: spentStyle,
+                  rollFromEmpty: roll,
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label, style: t.styles.meta.copyWith(fontSize: 12.5)),
+        if (label.isNotEmpty) Text(label, style: t.styles.meta),
         Semantics(
           container: true,
           label: '${valueText.spent} ${valueText.ofWord} ${valueText.planned}',
@@ -146,7 +214,11 @@ class BudgetMeter extends StatelessWidget {
             spacing: 4,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              RollingNumber.text(text: valueText.spent, style: spentStyle),
+              RollingNumber.text(
+                text: valueText.spent,
+                style: spentStyle,
+                rollFromEmpty: roll,
+              ),
               ValueSwitcher(
                 dy: 0,
                 child: Text(
@@ -161,7 +233,13 @@ class BudgetMeter extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 6),
-        BudgetBar(fraction: fraction, semanticLabel: semanticLabel),
+        BudgetBar(
+          fraction: fraction,
+          semanticLabel: semanticLabel,
+          height: barHeight,
+          radius: barRadius,
+          entrance: entrance,
+        ),
       ],
     );
   }

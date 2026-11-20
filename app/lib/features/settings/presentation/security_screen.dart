@@ -11,6 +11,7 @@ import '../../../core/widgets/settings_row.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../lock/application/lock_controller.dart';
 import '../../lock/presentation/pin_setup_screen.dart';
+import '../../review/application/review_providers.dart';
 import 'pin_verify_screen.dart';
 import 'settings_column.dart';
 import '../../../core/widgets/regalos_snack_bar.dart';
@@ -25,20 +26,32 @@ final biometricsAvailableProvider = FutureProvider.autoDispose<bool>(
 class SecurityScreen extends ConsumerWidget {
   const SecurityScreen({super.key});
 
-  Future<bool?> _push(BuildContext context, WidgetBuilder builder) =>
-      Navigator.of(
-        context,
-        rootNavigator: true,
-      ).push<bool>(MaterialPageRoute<bool>(builder: builder));
+  Future<bool?> _push(
+    BuildContext context,
+    WidgetRef ref,
+    WidgetBuilder builder,
+  ) {
+    final route = MaterialPageRoute<bool>(builder: builder);
+    final result = Navigator.of(context, rootNavigator: true).push(route);
+    if (isStoreReviewEnabled) {
+      ref.read(reviewVisibilityProvider).trackPinRoute(route);
+    }
+    return result;
+  }
 
   void _say(BuildContext context, String text) {
     showRegalosSnackBar(context, SnackBar(content: Text(text)));
   }
 
   /// Crea un PIN nuevo (al activar el bloqueo o al cambiarlo).
-  Future<bool> _createPin(BuildContext context, LockController lock) async {
+  Future<bool> _createPin(
+    BuildContext context,
+    WidgetRef ref,
+    LockController lock,
+  ) async {
     final chosen = await _push(
       context,
+      ref,
       (pinContext) => PinSetupScreen(
         onPinChosen: (pin) async {
           await lock.setPin(pin);
@@ -60,17 +73,19 @@ class SecurityScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final lock = ref.read(lockControllerProvider.notifier);
     if (on) {
-      if (await _createPin(context, lock) && context.mounted) {
+      if (await _createPin(context, ref, lock) && context.mounted) {
         _say(context, l10n.securityPinEnabled);
       }
       return;
     }
     final removed = await _push(
       context,
+      ref,
       (_) => PinVerifyScreen(
         title: l10n.securityDisableTitle,
         message: l10n.securityDisablePrompt,
         onSubmit: lock.disable,
+        pinLength: ref.read(lockControllerProvider).value?.pinLength,
       ),
     );
     if ((removed ?? false) && context.mounted) {
@@ -83,16 +98,18 @@ class SecurityScreen extends ConsumerWidget {
     final lock = ref.read(lockControllerProvider.notifier);
     final verified = await _push(
       context,
+      ref,
       (_) => PinVerifyScreen(
         title: l10n.securityChangePin,
         message: l10n.securityChangeCurrentPrompt,
         onSubmit: lock.unlock,
+        pinLength: ref.read(lockControllerProvider).value?.pinLength,
       ),
     );
     if (verified != true || !context.mounted) {
       return;
     }
-    if (await _createPin(context, lock) && context.mounted) {
+    if (await _createPin(context, ref, lock) && context.mounted) {
       _say(context, l10n.securityPinChanged);
     }
   }

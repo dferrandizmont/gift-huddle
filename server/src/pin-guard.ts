@@ -40,9 +40,15 @@ export class PinGuard {
     return this.read(device)?.rotationRequired === true;
   }
 
-  async handle(device: string, action: V2Route["action"], b: Record<string, unknown>, live = true): Promise<ApiResult> {
+  async handle(device: string, action: V2Route["action"], b: Record<string, unknown>, live = true, beforeWrite?: () => Promise<void>): Promise<ApiResult> {
     const g = live ? this.read(device) : null;
-    if (action === "open") return this.open(device, g, b);
+    if (action === "open") return this.open(device, g, b, beforeWrite);
+    return this.mutate(device, action, b);
+  }
+
+  /** Synchronous authenticated mutations share the list's storage reservation. */
+  mutate(device: string, action: V2Route["action"], b: Record<string, unknown>): ApiResult {
+    const g = this.read(device);
     if (action === "resume") {
       if (!g) return NOT_FOUND;
       g.suspended = false;
@@ -91,7 +97,7 @@ export class PinGuard {
     return ok();
   }
 
-  private async open(device: string, g: Guard | null, b: Record<string, unknown>): Promise<ApiResult> {
+  private async open(device: string, g: Guard | null, b: Record<string, unknown>, beforeWrite?: () => Promise<void>): Promise<ApiResult> {
     if (!exact(b, ["proofs"]) || !Array.isArray(b.proofs) || b.proofs.length < 1 || b.proofs.length > 2) return err(400, "bad_request");
     const seen = new Set<number>();
     for (const p of b.proofs) {
@@ -119,6 +125,7 @@ export class PinGuard {
     if (g.suspended) return err(423, "guard_suspended");
     const now = Date.now();
     if (now < g.nextAttemptAt) return err(429, "rate_limited", { "Retry-After": String(Math.max(1, Math.ceil((g.nextAttemptAt - now) / 1000))) });
+    await beforeWrite?.();
     g.nextAttemptAt = now + V2_GUARD_ATTEMPT_MS;
     if (match) {
       const failedSince = g.failedSince ?? g.failures;

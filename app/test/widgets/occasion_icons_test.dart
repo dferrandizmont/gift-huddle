@@ -13,31 +13,30 @@ import '../helpers/pump_app.dart';
 
 void main() {
   group('iconos de ocasión de trazo propio', () {
-    test(
-      'los datos coinciden con los SVG de referencia',
-      () {
-        for (final entry in kOccasionStrokeIconData.entries) {
-          final svg = File(
-            'test/fixtures/occasion_icons/${entry.key}.svg',
-          ).readAsStringSync();
-          // Mismo marco que Tabler: 24, trazo 2, extremos y uniones redondos.
-          expect(svg, contains('viewBox="0 0 24 24"'), reason: entry.key);
-          expect(svg, contains('stroke-width="2"'), reason: entry.key);
-          expect(svg, contains('stroke-linecap="round"'), reason: entry.key);
-          expect(svg, contains('stroke-linejoin="round"'), reason: entry.key);
-          final ds = RegExp(r'<path d="([^"]+)"')
-              .allMatches(svg)
-              .map((m) => m.group(1)!)
-              .toList();
-          expect(entry.value, ds, reason: entry.key);
-        }
-      },
-    );
+    test('los datos coinciden con los SVG de referencia', () {
+      for (final entry in kOccasionStrokeIconData.entries) {
+        // El Tió es de la app (assets); los demás, maquetas de referencia.
+        final svg = File(
+          entry.key == 'tio'
+              ? 'assets/icons/tabler-style/tio.svg'
+              : 'test/fixtures/occasion_icons/${entry.key}.svg',
+        ).readAsStringSync();
+        // Mismo marco que Tabler: 24, trazo 2, extremos y uniones redondos.
+        expect(svg, contains('viewBox="0 0 24 24"'), reason: entry.key);
+        expect(svg, contains('stroke-width="2"'), reason: entry.key);
+        expect(svg, contains('stroke-linecap="round"'), reason: entry.key);
+        expect(svg, contains('stroke-linejoin="round"'), reason: entry.key);
+        final ds = RegExp(r'<path d="([^"]+)"')
+            .allMatches(svg)
+            .map((m) => m.group(1)!)
+            .toList();
+        expect(entry.value, ds, reason: entry.key);
+      }
+    });
 
     test('cada icono se dibuja dentro de la rejilla de 24', () {
       final builders = {
-        'tio-a': occasionIconTio,
-        'santa-a': occasionIconSanta,
+        'tio': occasionIconTio,
         'cny-a': occasionIconChineseNewYear,
         'wedding-b': occasionIconWedding,
       };
@@ -55,10 +54,11 @@ void main() {
       }
     });
 
-    test('los cinco tipos del encargo usan trazo y no los de Material', () {
+    test('los seis tipos con icono de trazo no usan los de Material', () {
       expect(occasionKindStrokeIcon(OccasionKind.tio), occasionIconTio);
-      expect(occasionKindStrokeIcon(OccasionKind.santa), occasionIconSanta);
+      expect(occasionKindStrokeIcon(OccasionKind.santa), tablerChristmasTree);
       expect(occasionKindStrokeIcon(OccasionKind.kings), tablerCrown);
+      expect(occasionKindStrokeIcon(OccasionKind.birthday), tablerCake);
       expect(
         occasionKindStrokeIcon(OccasionKind.chineseNewYear),
         occasionIconChineseNewYear,
@@ -75,13 +75,17 @@ void main() {
             OccasionKind.tio,
             OccasionKind.santa,
             OccasionKind.kings,
+            OccasionKind.birthday,
             OccasionKind.chineseNewYear,
             OccasionKind.wedding,
           }.contains(kind),
           reason: kind.name,
         );
       }
-      expect(occasionKindIcon(OccasionKind.birthday), Icons.cake_outlined);
+      expect(
+        occasionKindIcon(OccasionKind.anniversary),
+        Icons.wine_bar_outlined,
+      );
       // El nombre guardado de un icono de «Otra» sigue valiendo.
       for (final entry in kOccasionIcons.entries) {
         expect(
@@ -104,6 +108,7 @@ void main() {
         OccasionKind.tio,
         OccasionKind.santa,
         OccasionKind.kings,
+        OccasionKind.birthday,
         OccasionKind.chineseNewYear,
         OccasionKind.wedding,
       ]) {
@@ -115,9 +120,12 @@ void main() {
     });
 
     testWidgets('pinta el de Material para los demás', (tester) async {
-      await pumpThemed(tester, const OccasionKindIcon(OccasionKind.birthday));
+      await pumpThemed(tester, const OccasionKindIcon(OccasionKind.valentine));
       expect(find.byType(StrokeIcon), findsNothing);
-      expect(tester.widget<Icon>(find.byType(Icon)).icon, Icons.cake_outlined);
+      expect(
+        tester.widget<Icon>(find.byType(Icon)).icon,
+        Icons.favorite_border_rounded,
+      );
       await pumpThemed(
         tester,
         const OccasionKindIcon(OccasionKind.custom, customIcon: 'music'),

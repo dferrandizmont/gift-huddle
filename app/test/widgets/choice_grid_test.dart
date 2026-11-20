@@ -237,7 +237,7 @@ void main() {
     expect(tester.hasRunningAnimations, isTrue);
     await tester.pumpAndSettle();
 
-    expect(decorationOf('Reyes').color, tokens.fill);
+    expect(decorationOf('Reyes').color, tokens.selection);
     expect(decorationOf('Reyes').borderRadius, RegalosShape.chip);
     expect(decorationOf('Boda').color!.a, 0);
     expect(

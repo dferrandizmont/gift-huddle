@@ -69,6 +69,9 @@ class RegalosNavRail extends StatelessWidget {
 
   static const double _labelSize = 12;
 
+  /// El respiro máximo, a cada lado de la etiqueta, con el texto grande.
+  static const double _maxLabelInset = 6;
+
   /// El alto de cada destino con el texto a escala [scaler]: los 56 de
   /// siempre o lo que pida la etiqueta. Todos miden lo mismo, y así el
   /// recuadro sabe dónde descansa cada uno.
@@ -180,6 +183,15 @@ class _RailItem extends StatelessWidget {
     final t = RegalosTokens.of(context);
     final motion = RegalosMotion.of(context);
     final color = selected ? t.ink : t.textSecondary;
+    // 0 a escala 1; crece con ella hasta [_maxLabelInset] (a partir de 1,3×).
+    // Con la escala de la fuente de la etiqueta (no lineal en Android 14+).
+    final scale =
+        MediaQuery.textScalerOf(context).scale(RegalosNavRail._labelSize) /
+        RegalosNavRail._labelSize;
+    final labelInset = ((scale - 1) * 20).clamp(
+      0.0,
+      RegalosNavRail._maxLabelInset,
+    );
     final labelStyle = t.styles.navLabel.copyWith(
       fontSize: RegalosNavRail._labelSize,
       fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
@@ -211,8 +223,8 @@ class _RailItem extends StatelessWidget {
                   height: RegalosNavRail.boxHeight,
                   decoration: BoxDecoration(
                     color: motion.reduce && selected
-                        ? t.fill
-                        : t.fill.withValues(alpha: 0),
+                        ? t.selection
+                        : t.selection.withValues(alpha: 0),
                     borderRadius: RegalosShape.chip,
                   ),
                   alignment: Alignment.center,
@@ -227,16 +239,22 @@ class _RailItem extends StatelessWidget {
                 // Una etiqueta que no cabe en los 72 se encoge entera en vez
                 // de cortarse («Repartiment», o cualquiera con el texto al
                 // 130 %).
+                // Con el texto grande, además, un respiro a cada lado para que
+                // la etiqueta encogida no roce el borde del raíl (a escala 1
+                // no hay ninguno: nada cambia).
                 Flexible(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.topCenter,
-                    child: Text(
-                      destination.label,
-                      maxLines: 1,
-                      softWrap: false,
-                      textAlign: TextAlign.center,
-                      style: labelStyle,
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: labelInset),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.topCenter,
+                      child: Text(
+                        destination.label,
+                        maxLines: 1,
+                        softWrap: false,
+                        textAlign: TextAlign.center,
+                        style: labelStyle,
+                      ),
                     ),
                   ),
                 ),

@@ -739,6 +739,13 @@ class AppLocalizationsEs extends AppLocalizations {
   String get giftFieldUrl => 'Enlace';
 
   @override
+  String get giftLinkOpen => 'Abrir enlace';
+
+  @override
+  String get giftLinkCopied =>
+      'No se ha podido abrir el navegador. Enlace copiado.';
+
+  @override
   String get giftFieldNote => 'Nota';
 
   @override
@@ -896,7 +903,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get budgetCardTitle => 'Presupuesto de la casa';
 
   @override
-  String get budgetCardHint => 'Previsto, gastado y lo que queda';
+  String get budgetCardHint => 'Presupuesto, gastado y lo que queda';
 
   @override
   String get occasionPeopleSection => 'Cada persona';
@@ -940,7 +947,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String get budgetTitle => 'Presupuesto';
 
   @override
-  String get budgetSubtitle => 'Solo lo que paga la casa';
+  String get budgetSubtitle =>
+      'Lo pones tú en cada ocasión. Gastado suma el precio real de lo que paga la casa; si algo ya está comprado y no tiene precio real, cuenta el previsto.';
+
+  @override
+  String get budgetSubtitleBudgeted =>
+      'Lo pones tú en cada ocasión. Las tres cifras solo incluyen ocasiones con presupuesto. «Gastado» suma los precios reales de lo que paga la casa. Si algo ya está comprado y no tiene precio real, cuenta el previsto.';
 
   @override
   String get budgetPlanned => 'Previsto';
@@ -967,6 +979,67 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get budgetEmpty =>
       'Todavía no hay regalos que pague la casa. Marca «Paga la casa» en quien regala y pon un precio previsto.';
+
+  @override
+  String get occasionBudgetField => 'Presupuesto (opcional)';
+
+  @override
+  String get occasionBudgetHint =>
+      'Lo que queréis gastar en esta ocasión. Déjalo vacío si no hay.';
+
+  @override
+  String get budgetFigure => 'Presupuesto';
+
+  @override
+  String get budgetNone => 'Sin presupuesto';
+
+  @override
+  String get budgetSetAction => 'Poner presupuesto';
+
+  @override
+  String get budgetEditAction => 'Cambiar presupuesto';
+
+  @override
+  String budgetSetFor(String name) {
+    return 'Poner presupuesto a $name';
+  }
+
+  @override
+  String budgetEditFor(String name) {
+    return 'Cambiar el presupuesto de $name';
+  }
+
+  @override
+  String budgetLeftIfBought(String amount) {
+    return 'Si compras lo que falta, te quedarán $amount';
+  }
+
+  @override
+  String budgetSpentOutside(String amount) {
+    return 'Además, la casa ha gastado $amount fuera de las ocasiones con presupuesto.';
+  }
+
+  @override
+  String budgetOverIfBought(String amount) {
+    return 'Si compras lo que falta, te pasarás $amount';
+  }
+
+  @override
+  String budgetSheetTitle(String name) {
+    return 'Presupuesto de $name';
+  }
+
+  @override
+  String get budgetSheetHint => 'Déjalo vacío para quitar el presupuesto.';
+
+  @override
+  String get budgetOpenGifts => 'Ver regalos';
+
+  @override
+  String get budgetArchivedTag => 'Archivada · no suma';
+
+  @override
+  String get budgetCreateOccasion => 'Crear ocasión';
 
   @override
   String get settingsGivers => 'Quién regala';
@@ -1081,7 +1154,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get showQrIntro =>
-      'En el otro móvil abre Gift Huddle, toca «Escanear el QR» y apunta la cámara a este código.';
+      'En el otro móvil abre Gift Huddle, toca «Unirme a una familia», luego «Escanear el QR» y apunta la cámara a este código.';
 
   @override
   String get showQrWarning =>
@@ -1870,7 +1943,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get giftNotSaved =>
-      'No se ha guardado: este regalo ya no existe, lo ha borrado otro móvil.';
+      'No se ha guardado: este regalo ya no está disponible en este móvil.';
 
   @override
   String giftDeletedNotice(String name) {
@@ -3119,7 +3192,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String protectionIntro(String name) {
-    return 'Con esto activo, el móvil de $name no muestra ningún regalo para $name, ni cuántos hay. El resto de la familia los sigue viendo.';
+    return 'Con los regalos en secreto activados, el móvil de $name no muestra ningún regalo para $name, ni cuántos hay. El resto de la familia los sigue viendo.';
   }
 
   @override
@@ -3353,7 +3426,30 @@ class AppLocalizationsEs extends AppLocalizations {
   String get boardLaneEmpty => 'Nada por aquí';
 
   @override
+  String boardMoveTo(String lane) {
+    return 'Mover a $lane';
+  }
+
+  @override
+  String boardLaneAdd(String lane) {
+    return 'Añadir regalo en $lane';
+  }
+
+  @override
+  String boardGiftMoved(String item, String lane) {
+    return '$item: $lane';
+  }
+
+  @override
   String get boardOccasionsHint => 'Elige una ocasión para ver su tablero.';
+
+  @override
+  String boardSeeAll(int count) {
+    return 'Ver todas ($count)';
+  }
+
+  @override
+  String get boardBudgetEmptyTitle => 'Nada previsto todavía';
 
   @override
   String get boardChangeDate => 'Cambiar fecha';
@@ -3378,6 +3474,15 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get boardSearchNone => 'Ningún regalo coincide';
+
+  @override
+  String get boardPersonFilter => 'Persona';
+
+  @override
+  String get boardPersonFilterAll => 'Todas las personas';
+
+  @override
+  String get searchClear => 'Borrar la búsqueda';
 
   @override
   String get boardColStatus => 'Estado';
@@ -4258,4 +4363,215 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get recoveryFileProblemStorageBody =>
       'El fichero sigue a la espera. Vuelve a intentarlo: antes de recuperar, la app tiene que comprobar que este móvil no tiene ya una lista.';
+
+  @override
+  String get cameraRestricted =>
+      'La cámara está restringida en este dispositivo (por ejemplo, con Tiempo de uso). Puedes permitirla en Ajustes > Tiempo de uso > Restricciones de contenido y privacidad.';
+
+  @override
+  String get obJoinFamily => 'Unirme a una familia';
+
+  @override
+  String get obJoinFamilyHint =>
+      'Elige cómo conectarte con el móvil que ya tiene la lista.';
+
+  @override
+  String get obJoinQrHint => 'Está contigo: escanea su código.';
+
+  @override
+  String get obJoinLinkHint => 'Está lejos: pega el enlace que te envió.';
+
+  @override
+  String get obRestoreBackup => 'Restaurar una copia';
+
+  @override
+  String get obRestoreBackupHint => 'Elige con qué recuperas la lista.';
+
+  @override
+  String get obRestoreCodeHint => 'Escribe las 24 palabras que guardaste.';
+
+  @override
+  String get obRestoreFileHint =>
+      'Abre el fichero de recuperación que guardaste.';
+
+  @override
+  String get giverPeopleSection => 'Personas';
+
+  @override
+  String get giverPeopleHintAdd => 'Antes se añade como quién regala';
+
+  @override
+  String get giverPeopleHintRecover => 'Se recupera como quién regala';
+
+  @override
+  String giverPersonAddTitle(String name) {
+    return '¿Añadir a $name como quién regala?';
+  }
+
+  @override
+  String giverPersonAddBody(String name) {
+    return 'Este regalo es una sorpresa. Para no delatarla, primero hay que añadir a $name como quién regala para toda la familia, y se verá en todos los móviles sin relación con este regalo. Después podrás elegir a $name aquí.';
+  }
+
+  @override
+  String giverPersonAddConfirm(String name) {
+    return 'Añadir a $name como quién regala';
+  }
+
+  @override
+  String giverPersonAddFailed(String name) {
+    return 'No se ha podido añadir a $name como quién regala.';
+  }
+
+  @override
+  String get giftNoLongerVisible =>
+      'Este regalo ya no se puede ver en este móvil.';
+
+  @override
+  String deleteGiverRows(int count, String names) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Se eliminan estos $count registros: $names.',
+      one: 'Se elimina $names.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String deleteGiverGiftTitles(String titles, int more) {
+    String _temp0 = intl.Intl.pluralLogic(
+      more,
+      locale: localeName,
+      other: 'Afecta a: $titles y $more más.',
+      zero: 'Afecta a: $titles.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String deleteGiverLinkedNote(String name) {
+    return '$name sigue en Personas: solo se elimina como quién regala.';
+  }
+
+  @override
+  String get deleteImpactChanged =>
+      'Ha cambiado mientras tenías el aviso abierto. Esto es lo que se eliminaría ahora:';
+
+  @override
+  String get deletePersonLinkedGiver =>
+      'Su nombre seguirá apareciendo en los regalos que dio, como quién regala.';
+
+  @override
+  String devicePersonBlockedThisTitle(String name) {
+    return 'Este móvil es de $name';
+  }
+
+  @override
+  String devicePersonBlockedThisBody(String name) {
+    return '$name es la persona de este móvil, así que no se puede eliminar ni archivar desde aquí. Para hacerlo, elige antes a otra persona en «Este móvil es de», en Ajustes.';
+  }
+
+  @override
+  String devicePersonBlockedOtherTitle(String name) {
+    return '$name tiene su propio móvil';
+  }
+
+  @override
+  String devicePersonBlockedOtherBody(String name) {
+    return '$name tiene su propio móvil en la familia, así que no se puede eliminar ni archivar desde aquí.';
+  }
+
+  @override
+  String get giverLinkedLine =>
+      'Enlazado a una persona: su nombre y color se cambian en Personas.';
+
+  @override
+  String giverLinkedNameHint(String name) {
+    return 'El nombre y el color son los de $name. Cámbialos en Personas.';
+  }
+
+  @override
+  String get giverLinkLabel => 'Enlazar con una persona';
+
+  @override
+  String get giverLinkHint =>
+      'Su nombre y color pasarán a ser los de la persona.';
+
+  @override
+  String get giverLinkExistingHint =>
+      'Ya es quién regala: se unirán en una columna';
+
+  @override
+  String giverLinkConfirmTitle(String name) {
+    return '¿Enlazar con $name?';
+  }
+
+  @override
+  String giverLinkConfirmBody(String giver, String name) {
+    return '«$giver» pasará a llamarse $name, con su color, y seguirá los cambios de $name en Personas. Sus regalos se mantienen.';
+  }
+
+  @override
+  String get giverLinkConfirm => 'Enlazar';
+
+  @override
+  String get giverUnlinkLabel => 'Desenlazar de la persona';
+
+  @override
+  String giverUnlinkConfirmTitle(String name) {
+    return '¿Desenlazar de $name?';
+  }
+
+  @override
+  String giverUnlinkConfirmBody(String name) {
+    return 'Seguirá como quién regala con el nombre y el color de ahora, pero ya no cambiará con $name. Sus regalos se mantienen.';
+  }
+
+  @override
+  String get giverUnlinkConfirm => 'Desenlazar';
+
+  @override
+  String get giverLinkError =>
+      'No se ha podido cambiar el enlace. Inténtalo de nuevo.';
+
+  @override
+  String get giftWriteGiftUnavailable =>
+      'No se ha guardado: este regalo ya no está disponible en este móvil.';
+
+  @override
+  String get giftWriteRecipientGone =>
+      'No se ha guardado: la persona a la que va el regalo ya no existe.';
+
+  @override
+  String get giftWriteInvalidPair =>
+      'No se ha guardado: quien regala no puede ser quien recibe el regalo.';
+
+  @override
+  String get giftWriteGiverGone =>
+      'No se ha guardado: quien regala ya no existe.';
+
+  @override
+  String get giftWriteGiverArchived =>
+      'No se ha guardado: quien regala está archivado.';
+
+  @override
+  String get giftWritePersonGone =>
+      'No se ha guardado: esa persona ya no existe.';
+
+  @override
+  String get giftWritePersonArchived =>
+      'No se ha guardado: esa persona está archivada.';
+
+  @override
+  String giverUnlinkStale(String name) {
+    return 'Ya no estaba enlazado a $name.';
+  }
+
+  @override
+  String get deleteImpactUnavailable =>
+      'No se ha podido comprobar qué se elimina. Vuelve a abrir el aviso.';
+
+  @override
+  String get deleteImpactChecking => 'Comprobando lo que se elimina…';
 }

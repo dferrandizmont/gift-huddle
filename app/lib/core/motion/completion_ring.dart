@@ -33,7 +33,8 @@ Path _squarePath(Rect rect, double r) => Path()
 /// nada:
 /// - a los 190 ms (la mitad de `snap`), una onda del anillo sale y se apaga
 ///   (radio de +0 a +15 %, opacidad de 0,55 a 0, trazo de 3 a 0,5, en 900 ms);
-/// - a la vez, el avatar rebota (`SpringPulse` desde 0,9);
+/// - a la vez, el avatar late una vez de 1 a 1,08 (la ficha «A + Actual»:
+///   190 ms de subida con rebote y 290 de vuelta, [_beat]);
 /// - a los 250 ms aparece el sello (un cuadrado de radio 6 con borde y, a los
 ///   350 ms, su visto dibujándose en 220 ms).
 ///
@@ -196,6 +197,11 @@ class _CompletionAvatarState extends State<CompletionAvatar>
     return SpringSimulation(RegalosSprings.bounce, from, 1, 0).x(t);
   }
 
+  /// El latido del avatar: sube a 1,08 en 190 ms con la curva de rebote de la
+  /// ficha (`cubic-bezier(.3, 1.6, .5, 1)`) y vuelve a 1 en 290 ms.
+  double _beat(double startMs) =>
+      _ms < 0 ? 1 : CompletionBeat.scaleAt(_ms - startMs);
+
   @override
   Widget build(BuildContext context) {
     final t = RegalosTokens.of(context);
@@ -216,7 +222,7 @@ class _CompletionAvatarState extends State<CompletionAvatar>
                 ).transform(_celebrate.value)
               : -1.0;
           final avatarScale = celebrating && !_reduce
-              ? _bounce(0.9, _d.toDouble())
+              ? _beat(_d.toDouble())
               : 1.0;
           double sealScale = 1;
           double sealOpacity = _seal.value.clamp(0.0, 1.0);
@@ -559,4 +565,90 @@ class _LightWaveState extends State<LightWave>
       );
     },
   );
+}
+
+/// El latido de «Persona completa» en la fila de Personas (la ficha): cuando
+/// [complete] pasa a `true` con la fila ya en pantalla, el cuadrado de la
+/// inicial late una vez de 1 a 1,08 (190 ms de subida con rebote y 290 de
+/// vuelta) mientras aparece el sello. Al montarse ya completa no late. Con
+/// «Reducir movimiento», nada se escala.
+class CompletionBeat extends StatefulWidget {
+  /// Crea el latido.
+  const CompletionBeat({
+    super.key,
+    required this.complete,
+    required this.child,
+  });
+
+  /// Si la persona está completa.
+  final bool complete;
+
+  /// El cuadrado de la inicial.
+  final Widget child;
+
+  /// Lo que dura el latido.
+  static const Duration duration = Duration(milliseconds: 480);
+
+  /// La escala a los [ms] milisegundos del latido.
+  static double scaleAt(double ms) {
+    if (ms <= 0 || ms >= 480) return 1;
+    if (ms < 190) return 1 + 0.08 * _up.transform(ms / 190);
+    return 1 + 0.08 * (1 - Curves.easeInOut.transform((ms - 190) / 290));
+  }
+
+  static const Cubic _up = Cubic(0.3, 1.6, 0.5, 1);
+
+  @override
+  State<CompletionBeat> createState() => _CompletionBeatState();
+}
+
+class _CompletionBeatState extends State<CompletionBeat>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: CompletionBeat.duration,
+  );
+
+  @override
+  void didUpdateWidget(CompletionBeat oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.complete &&
+        !oldWidget.complete &&
+        !RegalosMotion.of(context).reduce) {
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // «Reducir movimiento» activado a mitad del latido: se para ahí mismo y la
+    // escala vuelve a 1.
+    if (RegalosMotion.of(context).reduce && _controller.isAnimating) {
+      _controller
+        ..stop()
+        ..value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reduce = RegalosMotion.of(context).reduce;
+    return AnimatedBuilder(
+      animation: _controller,
+      child: widget.child,
+      builder: (context, child) => Transform.scale(
+        scale: !reduce && _controller.isAnimating
+            ? CompletionBeat.scaleAt(_controller.value * 480)
+            : 1,
+        child: child,
+      ),
+    );
+  }
 }

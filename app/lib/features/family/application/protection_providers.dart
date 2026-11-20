@@ -249,6 +249,12 @@ final pendingProtectedGiftsProvider =
       final ownSlots = versions.keys
           .where((k) => (k as String).endsWith('/${view.me}'))
           .length;
+      final deletedPeople = {
+        for (final person
+            in family.doc.collections[Collections.recipients]?.values ??
+                const <SyncRecord>[])
+          if (person.isDeleted) person.id,
+      };
       final result = <PendingProtectedGift>[];
       for (final person in keys.people) {
         if (!view.selfEntitled(person)) continue;
@@ -292,7 +298,7 @@ final pendingProtectedGiftsProvider =
         for (final record in pending.values) {
           final effective = resolved.record(Collections.gifts, record.id)!;
           if (effective.isDeleted) continue;
-          final gift = Gift.fromRecord(effective);
+          final gift = Gift.fromRecord(effective, deletedPeople: deletedPeople);
           if (gift != null) {
             result.add(
               PendingProtectedGift(

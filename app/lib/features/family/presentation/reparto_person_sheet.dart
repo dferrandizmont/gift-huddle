@@ -368,9 +368,11 @@ class _CheckBox extends StatelessWidget {
         width: 22,
         height: 22,
         decoration: BoxDecoration(
-          color: filled ? t.fill : Colors.transparent,
-          borderRadius: const BorderRadius.all(Radius.circular(4)),
-          border: Border.all(color: filled ? t.fill : t.chipBorder, width: 1.5),
+          color: filled ? t.selection : Colors.transparent,
+          borderRadius: RegalosShape.tiny,
+          // Marcada, el borde en la tinta (3:1 como casilla); el recuadro
+          // rellenado con el color de lo elegido.
+          border: Border.all(color: filled ? t.ink : t.chipBorder, width: 1.5),
         ),
         child: AnimatedScale(
           scale: filled || motion.reduce ? 1 : 0.3,
@@ -380,12 +382,7 @@ class _CheckBox extends StatelessWidget {
             opacity: filled ? 1 : 0,
             duration: motion.duration(const Duration(milliseconds: 150)),
             child: Center(
-              child: StrokeIcon(
-                icon,
-                size: 14,
-                color: t.onFill,
-                strokeWidth: 2.5,
-              ),
+              child: StrokeIcon(icon, size: 14, color: t.ink, strokeWidth: 2.5),
             ),
           ),
         ),

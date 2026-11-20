@@ -1,17 +1,20 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/format/money.dart';
+import '../../../core/layout/touch_targets.dart';
 import '../../../core/motion/animated_rows.dart';
 import '../../../core/motion/rect_flight.dart';
 import '../../../core/sync/model.dart';
+import '../../../core/theme/app_scrollbar.dart';
 import '../../../core/theme/regalos_motion.dart';
 import '../../../core/theme/regalos_shape.dart';
 import '../../../core/theme/regalos_tokens.dart';
 import '../../../core/widgets/gift_status_map.dart';
-import '../../../core/widgets/person_avatar.dart';
 import '../../../core/widgets/pointer_surface.dart';
 import '../../../core/widgets/status_checkbox.dart';
 import '../../../core/widgets/stroke_icon.dart';
@@ -24,6 +27,8 @@ import '../application/board_lanes.dart';
 import '../application/board_metrics.dart';
 import '../application/gift_editor_panel.dart';
 import 'board_cursor.dart';
+import 'board_lane_drag.dart';
+import 'board_lane_move.dart';
 
 /// Lo que cuenta la segunda línea de cada fila del tablero.
 enum BoardRowSubtitle {
@@ -32,6 +37,10 @@ enum BoardRowSubtitle {
 
   /// Persona y quien regala (el tablero de una ocasión).
   perOccasion,
+
+  /// Solo la ocasión («Hoy» con el filtro de una persona: ya se sabe para
+  /// quién es).
+  occasionOnly,
 }
 
 /// Cómo se reparten los carriles en un ancho dado
@@ -106,6 +115,7 @@ class BoardLanesView extends ConsumerStatefulWidget {
   const BoardLanesView({
     super.key,
     this.occasionId,
+    this.personId,
     this.subtitle = BoardRowSubtitle.all,
     required this.onAdd,
   });
@@ -113,11 +123,15 @@ class BoardLanesView extends ConsumerStatefulWidget {
   /// La ocasión de la que se enseñan los regalos, o `null` para todos.
   final String? occasionId;
 
+  /// La persona de la que se enseñan los regalos, o `null` para todas.
+  final String? personId;
+
   /// Qué dice la segunda línea de las filas.
   final BoardRowSubtitle subtitle;
 
-  /// Añade un regalo (desde el carril «Por decidir»).
-  final VoidCallback onAdd;
+  /// Añade un regalo desde el «+» de la cabecera de un carril: el editor se
+  /// abre con el estado de ese carril.
+  final ValueChanged<BoardLane> onAdd;
 
   /// El ancho mínimo de un carril.
   static const double minLaneWidth = 248;
@@ -133,7 +147,7 @@ class BoardLanesView extends ConsumerStatefulWidget {
   static const double foldedWidth = 56;
 
   /// El hueco entre carriles.
-  static const double gap = 16;
+  static const double gap = 12;
 
   /// El alto mínimo de los carriles.
   static const double minHeight = 360;
@@ -150,49 +164,172 @@ class BoardLanesView extends ConsumerStatefulWidget {
 class _BoardLanesViewState extends ConsumerState<BoardLanesView> {
   bool _readyOpen = false;
   final ScrollController _scroll = ScrollController();
+  final GlobalKey _viewKey = GlobalKey();
+  late final ValueNotifier<Offset?> _pointer = ref.read(
+    boardDragPointerProvider,
+  );
+  Timer? _autoScroll;
+  late final ValueNotifier<BoardLane?> _reveal = ref.read(
+    boardLaneRevealProvider,
+  );
+
+  // Si «Listo» va plegado en la última medida.
+  bool _folded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pointer.addListener(_onPointer);
+    _reveal.addListener(_onReveal);
+  }
+
+  /// Un regalo pasa a «Listo» con el teclado: con el carril plegado, se abre su
+  /// panel para que se vea y siga marcado.
+  void _onReveal() {
+    if (_reveal.value != BoardLane.ready) {
+      return;
+    }
+    // Las ramas que no se ven (`Hoy` mientras se mira una ocasión) siguen
+    // montadas con los relojes parados: no atienden la petición, que es del
+    // tablero a la vista, y solo él la da por atendida.
+    if (!TickerMode.valuesOf(context).enabled) {
+      return;
+    }
+    _reveal.value = null;
+    if (_folded && !_readyOpen) {
+      setState(() => _readyOpen = true);
+    }
+  }
 
   @override
   void dispose() {
+    _reveal.removeListener(_onReveal);
+    _pointer.removeListener(_onPointer);
+    _autoScroll?.cancel();
     _scroll.dispose();
     super.dispose();
   }
 
+  /// Mientras se arrastra una tarjeta, el tablero se desplaza solo si el
+  /// puntero se acerca al borde de un lado y hay más carriles fuera.
+  void _onPointer() {
+    if (_pointer.value == null) {
+      _autoScroll?.cancel();
+      _autoScroll = null;
+      return;
+    }
+    _autoScroll ??= Timer.periodic(
+      const Duration(milliseconds: 16),
+      (_) => _scrollTowardsPointer(),
+    );
+  }
+
+  void _scrollTowardsPointer() {
+    final pointer = _pointer.value;
+    final box = _viewKey.currentContext?.findRenderObject();
+    if (pointer == null ||
+        !_scroll.hasClients ||
+        box is! RenderBox ||
+        !box.attached) {
+      return;
+    }
+    const edge = 64.0;
+    const fastest = 16.0;
+    final x = box.globalToLocal(pointer).dx;
+    final width = box.size.width;
+    var step = 0.0;
+    if (x < edge) {
+      step = -fastest * (1 - x.clamp(0.0, edge) / edge);
+    } else if (x > width - edge) {
+      step = fastest * (1 - (width - x).clamp(0.0, edge) / edge);
+    }
+    if (step == 0) {
+      return;
+    }
+    final position = _scroll.position;
+    final to = (position.pixels + step).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    if (to != position.pixels) {
+      _scroll.jumpTo(to);
+    }
+  }
+
+  /// Suelta una tarjeta en «Listo» plegado.
+  void _dropOnReady(BoardDragData data, Offset offset) {
+    final size = data.size;
+    moveGiftToLane(
+      context,
+      ref,
+      data.gift,
+      BoardLane.ready,
+      from: size == null ? null : offset & size,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final groups = ref.watch(boardLanesProvider(widget.occasionId));
-    final reduce = RegalosMotion.of(context).reduce;
+    final all = ref.watch(boardLanesProvider(widget.occasionId));
+    final personId = widget.personId;
+    // Con una persona elegida, la segunda línea dice solo la ocasión.
+    final subtitle = personId != null && widget.subtitle == BoardRowSubtitle.all
+        ? BoardRowSubtitle.occasionOnly
+        : widget.subtitle;
+    final groups = personId == null
+        ? all
+        : {
+            for (final entry in all.entries)
+              entry.key: [
+                for (final gift in entry.value)
+                  if (gift.recipientId == personId) gift,
+              ],
+          };
     return LayoutBuilder(
       builder: (context, box) {
-        final fold = BoardLanesLayout.of(box.maxWidth).fold;
+        // Con la ventana más baja que los carriles, todo el tablero se
+        // desplaza en vertical y su barra va a la derecha: se le deja sitio.
+        final avail =
+            box.maxWidth -
+            (box.maxHeight < BoardLanesView.minHeight
+                ? AppScrollbar.gutter
+                : 0);
+        final fold = BoardLanesLayout.of(avail).fold;
         // El orden de las flechas del teclado: carril a carril, sin los
         // regalos de un «Listo» que no se ve.
+        _folded = fold;
+        // (con el panel de «Listo» abierto, sí se ven y entran en el orden).
         ref.read(boardGiftCursorProvider).register([
           for (final lane in BoardLane.values)
-            if (!(fold && lane == BoardLane.ready))
+            if (!(fold && lane == BoardLane.ready && !_readyOpen))
               for (final gift in groups[lane] ?? const <Gift>[]) gift.id,
         ]);
         return TweenAnimationBuilder<double>(
           tween: Tween<double>(end: fold ? 1 : 0),
-          duration: reduce
-              ? RegalosMotion.fade
-              : const Duration(milliseconds: 280),
-          curve: reduce ? Curves.linear : Curves.easeOutCubic,
-          builder: (context, phase, _) {
-            final layout = BoardLanesLayout.of(box.maxWidth, foldPhase: phase);
+          // «Listo» se pliega con `snap`; con «Reducir movimiento», un fundido.
+          duration: RegalosMotion.of(context)
+              .duration(RegalosSprings.snapDuration),
+          curve: RegalosMotion.of(context).curve(RegalosCurves.snap),
+          builder: (context, rawPhase, _) {
+            // `snap` pasa un 0,4 % de largo: el plegado no.
+            final phase = rawPhase.clamp(0.0, 1.0);
+            final layout = BoardLanesLayout.of(avail, foldPhase: phase);
             final height = math.max(BoardLanesView.minHeight, box.maxHeight);
             Widget lane(BoardLane l, double width) => SizedBox(
               width: width,
               child: BoardLaneColumn(
                 lane: l,
                 gifts: groups[l] ?? const <Gift>[],
-                subtitle: widget.subtitle,
-                onAdd: l == BoardLane.decide ? widget.onAdd : null,
+                subtitle: subtitle,
+                onAdd: () => widget.onAdd(l),
               ),
             );
             final ready = groups[BoardLane.ready] ?? const <Gift>[];
             final lanes = SizedBox(
               width: layout.total,
-              height: height,
+              // Con el tablero desplazándose, la barra va debajo de los
+              // carriles: no los pisa.
+              height: layout.scrolls ? height - AppScrollbar.gutter : height,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -208,6 +345,7 @@ class _BoardLanesViewState extends ConsumerState<BoardLanesView> {
                             open: _readyOpen,
                             onTap: () =>
                                 setState(() => _readyOpen = !_readyOpen),
+                            onDrop: _dropOnReady,
                           )
                         // Mientras se pliega, el carril sigue midiendo lo de
                         // un carril y se recorta: no se reparte en un hueco
@@ -226,7 +364,8 @@ class _BoardLanesViewState extends ConsumerState<BoardLanesView> {
                               child: BoardLaneColumn(
                                 lane: BoardLane.ready,
                                 gifts: ready,
-                                subtitle: widget.subtitle,
+                                subtitle: subtitle,
+                                onAdd: () => widget.onAdd(BoardLane.ready),
                               ),
                             ),
                           ),
@@ -239,9 +378,13 @@ class _BoardLanesViewState extends ConsumerState<BoardLanesView> {
                 ? _HorizontalFade(controller: _scroll, child: lanes)
                 : lanes;
             if (box.maxHeight < BoardLanesView.minHeight) {
-              content = SingleChildScrollView(child: content);
+              content = SingleChildScrollView(
+                padding: const EdgeInsets.only(right: AppScrollbar.gutter),
+                child: content,
+              );
             }
             return Stack(
+              key: _viewKey,
               children: [
                 Positioned.fill(
                   child: Align(alignment: Alignment.topLeft, child: content),
@@ -262,7 +405,8 @@ class _BoardLanesViewState extends ConsumerState<BoardLanesView> {
                       child: BoardLaneColumn(
                         lane: BoardLane.ready,
                         gifts: ready,
-                        subtitle: widget.subtitle,
+                        subtitle: subtitle,
+                        onAdd: () => widget.onAdd(BoardLane.ready),
                       ),
                     ),
                   ),
@@ -285,15 +429,16 @@ class _ReadyPopover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RegalosTokens.of(context);
+    final motion = RegalosMotion.of(context);
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0, end: 1),
-      duration: RegalosMotion.of(context)
-          .duration(const Duration(milliseconds: 220)),
-      curve: Curves.easeOutCubic,
+      duration: motion.duration(RegalosSprings.snapDuration),
+      curve: motion.curve(RegalosCurves.snap),
       builder: (context, v, child) => Opacity(
-        opacity: v,
+        opacity: v.clamp(0.0, 1.0),
         child: Transform.translate(
-          offset: Offset(16 * (1 - v), 0),
+          // Con «Reducir movimiento» solo se funde, sin desplazarse.
+          offset: Offset(motion.reduce ? 0 : 16 * (1 - v), 0),
           child: child,
         ),
       ),
@@ -321,11 +466,15 @@ class _FoldedReady extends StatelessWidget {
     required this.count,
     required this.open,
     required this.onTap,
+    required this.onDrop,
   });
 
   final int count;
   final bool open;
   final VoidCallback onTap;
+
+  /// Una tarjeta soltada encima (su posición al soltarla).
+  final void Function(BoardDragData data, Offset offset) onDrop;
 
   @override
   Widget build(BuildContext context) {
@@ -340,44 +489,61 @@ class _FoldedReady extends StatelessWidget {
       child: Tooltip(
         message: l10n.boardLaneReady,
         excludeFromSemantics: true,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: t.surface,
-            borderRadius: RegalosShape.card,
-          ),
-          child: PointerSurface(
-            strength: 1.6,
-            child: Material(
-              color: Colors.transparent,
+        child: DragTarget<BoardDragData>(
+          onWillAcceptWithDetails: (d) =>
+              d.data.gift.status != BoardLane.ready.status,
+          onAcceptWithDetails: (d) => onDrop(d.data, d.offset),
+          builder: (context, candidates, rejected) => AnimatedContainer(
+            duration: RegalosMotion.of(context)
+                .duration(RegalosSprings.snapDuration),
+            curve: RegalosMotion.of(context).curve(RegalosCurves.snap),
+            decoration: BoxDecoration(
+              color: candidates.isNotEmpty ? t.soft : t.surface,
               borderRadius: RegalosShape.card,
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: onTap,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: Column(
-                    children: [
-                      Text('$count', style: t.styles.sectionTitle),
-                      const SizedBox(height: 12),
-                      Expanded(
-                        child: RotatedBox(
-                          quarterTurns: 3,
-                          child: Text(
-                            l10n.boardLaneReady,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: t.styles.meta,
+            ),
+            foregroundDecoration: BoxDecoration(
+              borderRadius: RegalosShape.card,
+              border: Border.all(
+                color: candidates.isNotEmpty
+                    ? t.ink
+                    : t.ink.withValues(alpha: 0),
+                width: 1.5,
+              ),
+            ),
+            child: PointerSurface(
+              strength: 1.6,
+              child: Material(
+                color: Colors.transparent,
+                borderRadius: RegalosShape.card,
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: onTap,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Column(
+                      children: [
+                        Text('$count', style: t.styles.sectionTitle),
+                        const SizedBox(height: 12),
+                        Expanded(
+                          child: RotatedBox(
+                            quarterTurns: 3,
+                            child: Text(
+                              l10n.boardLaneReady,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: t.styles.meta,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      StrokeIcon(
-                        AppIcons.check,
-                        size: 16,
-                        color: t.textSecondary,
-                        strokeWidth: 2,
-                      ),
-                    ],
+                        const SizedBox(height: 8),
+                        StrokeIcon(
+                          AppIcons.check,
+                          size: 16,
+                          color: t.textSecondary,
+                          strokeWidth: 2,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -407,12 +573,15 @@ class _HorizontalFade extends StatelessWidget {
           child: SingleChildScrollView(
             controller: controller,
             scrollDirection: Axis.horizontal,
+            // Sitio debajo de los carriles para la barra: se dibuja encima
+            // del borde y no ha de pisarlos.
+            padding: const EdgeInsets.only(bottom: AppScrollbar.gutter),
             child: child,
           ),
         ),
         Positioned(
           top: 0,
-          bottom: 0,
+          bottom: AppScrollbar.gutter,
           right: 0,
           width: 40,
           child: IgnorePointer(
@@ -444,16 +613,13 @@ class _HorizontalFade extends StatelessWidget {
   }
 }
 
-String _laneTitle(AppLocalizations l10n, BoardLane lane) => switch (lane) {
-  BoardLane.decide => l10n.boardLaneDecide,
-  BoardLane.buy => l10n.boardLaneBuy,
-  BoardLane.arrive => l10n.boardLaneArrive,
-  BoardLane.wrap => l10n.boardLaneWrap,
-  BoardLane.ready => l10n.boardLaneReady,
-};
-
 /// Un carril: su cabecera fija (el nombre, cuántos y la suma) y sus filas, que
 /// se desplazan dentro. El fondo llega hasta abajo.
+///
+/// Es también un destino: soltar aquí una tarjeta de otro carril le pone el
+/// estado de este (`BoardLane.status`). Mientras se arrastra una tarjeta que
+/// admite, el carril se tiñe con el tono suave del acento y se marca con un
+/// filete de tinta.
 class BoardLaneColumn extends ConsumerWidget {
   /// Crea el carril.
   const BoardLaneColumn({
@@ -473,83 +639,165 @@ class BoardLaneColumn extends ConsumerWidget {
   /// Qué dice la segunda línea de las filas.
   final BoardRowSubtitle subtitle;
 
-  /// Si lleva «Añadir regalo» abajo.
+  /// Si lleva el «+» de «Añadir regalo» en la cabecera.
   final VoidCallback? onAdd;
+
+  /// Lo que ocupa la barra de desplazamiento, a la derecha: las filas miden
+  /// el ancho del carril menos esto.
+  static const double rowInset = AppScrollbar.gutter;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final t = RegalosTokens.of(context);
     final sum = centsOf(gifts);
-    return Semantics(
-      container: true,
-      label: _laneTitle(l10n, lane),
-      child: DecoratedBox(
-        key: ValueKey<String>('board-lane-${lane.name}'),
-        decoration: BoxDecoration(
-          color: t.surface,
-          borderRadius: RegalosShape.card,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Expanded(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              _laneTitle(l10n, lane),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: t.styles.sectionTitle,
-                            ),
+    final motion = RegalosMotion.of(context);
+    return DragTarget<BoardDragData>(
+      onWillAcceptWithDetails: (d) => d.data.gift.status != lane.status,
+      onAcceptWithDetails: (d) {
+        final size = d.data.size;
+        moveGiftToLane(
+          context,
+          ref,
+          d.data.gift,
+          lane,
+          from: size == null ? null : d.offset & size,
+        );
+      },
+      builder: (context, candidates, rejected) {
+        final over = candidates.isNotEmpty;
+        final title = boardLaneTitle(l10n, lane);
+        return Semantics(
+          container: true,
+          label: title,
+          child: AnimatedContainer(
+            key: ValueKey<String>('board-lane-${lane.name}'),
+            // Sin fondo gris: solo la cabecera con su filete. El carril se
+            // tiñe con `snap` al llegarle una tarjeta.
+            duration: motion.duration(RegalosSprings.snapDuration),
+            curve: motion.curve(RegalosCurves.snap),
+            decoration: BoxDecoration(
+              color: over ? t.soft : t.soft.withValues(alpha: 0),
+              borderRadius: RegalosShape.card,
+            ),
+            foregroundDecoration: BoxDecoration(
+              borderRadius: RegalosShape.card,
+              border: Border.all(
+                color: over ? t.ink : t.ink.withValues(alpha: 0),
+                width: 1.5,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // La cabecera: el nombre, cuántos, la suma a la derecha y el
+                  // «+», sobre un filete de 1 px.
+                  Padding(
+                    padding: const EdgeInsets.only(right: AppScrollbar.gutter),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        border: Border(bottom: BorderSide(color: t.separator)),
+                      ),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 32),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(2, 0, 0, 4),
+                          child: Row(
+                            children: [
+                              // El título y el recuento ocupan todo lo que
+                              // dejan la suma y el «+»: el título solo se
+                              // corta si de verdad no cabe.
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: t.styles.label,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '${gifts.length}',
+                                      style: t.styles.label.copyWith(
+                                        fontWeight: FontWeight.w400,
+                                        color: t.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (sum > 0)
+                                Text(
+                                  formatCents(sum, l10n.localeName),
+                                  style: t.styles.caption.copyWith(
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                ),
+                              if (onAdd != null) ...[
+                                const SizedBox(width: 4),
+                                _LaneAddButton(
+                                  label: l10n.boardLaneAdd(title),
+                                  onTap: onAdd!,
+                                ),
+                              ],
+                            ],
                           ),
-                          const SizedBox(width: 8),
-                          Text('${gifts.length}', style: t.styles.meta),
-                        ],
+                        ),
                       ),
                     ),
-                    if (sum > 0)
-                      Text(
-                        formatCents(sum, l10n.localeName),
-                        style: t.styles.meta,
-                      ),
-                  ],
-                ),
+                  ),
+                  Expanded(
+                    child: gifts.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.fromLTRB(2, 10, 12, 12),
+                            child: Text(
+                              l10n.boardLaneEmpty,
+                              style: t.styles.meta,
+                            ),
+                          )
+                        : _LaneList(
+                            gifts: gifts,
+                            subtitle: subtitle,
+                            // El carril sigue en pantalla cuando la fila ya se
+                            // ha ido a otro: el aviso sale de aquí.
+                            onMove: (gift, to) => moveGiftToLane(
+                              context,
+                              ref,
+                              gift,
+                              to,
+                              reveal: true,
+                            ),
+                          ),
+                  ),
+                ],
               ),
-              Expanded(
-                child: gifts.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-                        child: Text(l10n.boardLaneEmpty, style: t.styles.meta),
-                      )
-                    : _LaneList(gifts: gifts, subtitle: subtitle),
-              ),
-              if (onAdd != null) _AddInline(onTap: onAdd!),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
 
-/// Las filas de un carril, con su propia barra de desplazamiento.
+/// Las filas de un carril. Su barra de desplazamiento es la que Material
+/// pone solo a cada lista vertical en escritorio y en la web, con el estilo de
+/// la app (`AppScrollbar`): aquí no se añade otra, que saldrían dos. Se
+/// dibuja encima del borde derecho, por eso el relleno de ese lado.
 class _LaneList extends StatefulWidget {
-  const _LaneList({required this.gifts, required this.subtitle});
+  const _LaneList({
+    required this.gifts,
+    required this.subtitle,
+    required this.onMove,
+  });
 
   final List<Gift> gifts;
   final BoardRowSubtitle subtitle;
+  final void Function(Gift gift, BoardLane to) onMove;
 
   @override
   State<_LaneList> createState() => _LaneListState();
@@ -566,54 +814,69 @@ class _LaneListState extends State<_LaneList> {
 
   @override
   Widget build(BuildContext context) {
-    return Scrollbar(
+    return SingleChildScrollView(
       controller: _controller,
-      child: SingleChildScrollView(
-        controller: _controller,
-        padding: const EdgeInsets.only(bottom: 4),
-        child: AnimatedRows(
-          rows: [
-            for (final gift in widget.gifts)
-              AnimatedRowItem(
-                id: gift.id,
-                child: BoardGiftRow(gift: gift, subtitle: widget.subtitle),
+      padding: const EdgeInsets.only(bottom: 4, right: AppScrollbar.gutter),
+      child: AnimatedRows(
+        rows: [
+          for (final gift in widget.gifts)
+            AnimatedRowItem(
+              id: gift.id,
+              child: BoardGiftRow(
+                gift: gift,
+                subtitle: widget.subtitle,
+                onMove: widget.onMove,
               ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }
 }
 
-class _AddInline extends StatelessWidget {
-  const _AddInline({required this.onTap});
+/// El «+» de la cabecera de un carril: añade un regalo. Lleva su ayuda con el
+/// ratón y su etiqueta para el lector de pantalla («Añadir regalo en Por
+/// decidir»).
+class _LaneAddButton extends StatelessWidget {
+  const _LaneAddButton({required this.label, required this.onTap});
 
+  final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     final t = RegalosTokens.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(top: 2),
-      child: PointerSurface(
-        strength: 1.6,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: RegalosShape.card,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                StrokeIcon(
-                  AppIcons.plus,
-                  size: 16,
-                  color: t.textSecondary,
-                  strokeWidth: 2,
+    final touchFirst = usesTouchTargets(context);
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      onTap: onTap,
+      child: Tooltip(
+        message: label,
+        excludeFromSemantics: true,
+        child: PointerSurface(
+          strength: 1.6,
+          child: Material(
+            key: const ValueKey<String>('board-lane-add'),
+            color: Colors.transparent,
+            borderRadius: RegalosShape.tiny,
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onTap,
+              // El dibujo es de 28; con el dedo la zona de toque llega a 44 por
+              // 44 (la cabecera crece lo justo), con el ratón no cambia nada.
+              child: SizedBox.square(
+                dimension: touchFirst ? StatusCheckbox.target : 28,
+                child: Center(
+                  child: StrokeIcon(
+                    AppIcons.plus,
+                    size: 16,
+                    color: t.textSecondary,
+                    strokeWidth: 1.9,
+                  ),
                 ),
-                const SizedBox(width: 8),
-                Text(l10n.giftAdd, style: t.styles.meta),
-              ],
+              ),
             ),
           ),
         ),
@@ -632,7 +895,9 @@ class _SecondLine extends StatelessWidget {
   });
 
   final List<String> parts;
-  final String giverName;
+
+  /// Quien regala, que se quita si no cabe; `null` si no se dice.
+  final String? giverName;
   final TextStyle style;
 
   @override
@@ -641,7 +906,17 @@ class _SecondLine extends StatelessWidget {
     final direction = Directionality.of(context);
     return LayoutBuilder(
       builder: (context, box) {
-        final full = [...parts, giverName].join(' · ');
+        final giver = giverName;
+        if (giver == null) {
+          return Text(
+            parts.join(' · '),
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
+            style: style,
+          );
+        }
+        final full = [...parts, giver].join(' · ');
         final painter = TextPainter(
           text: TextSpan(text: full, style: style),
           textDirection: direction,
@@ -662,15 +937,65 @@ class _SecondLine extends StatelessWidget {
   }
 }
 
-/// Una fila de regalo del tablero, de 52 de alto y dos líneas: la casilla de
-/// estado, quien lo recibe (el avatar solo desde 300 de carril), el título y,
-/// debajo, persona, ocasión y quien regala (lo que se recorta es quien
-/// regala), y el precio. Tocarla abre el editor, que se queda a la derecha; la
-/// fila que se edita lleva el filete de tinta y la marcada con el teclado, el
-/// fondo suave.
+/// Con el teclado, la fila donde está el foco (el texto, la casilla de estado
+/// o cualquier otro control de dentro) es la marcada: Ctrl o Cmd con ← y → mueven
+/// esa y no otra. Con el ratón no marca nada (el clic ya lo hace).
+class _MarkOnFocus extends ConsumerWidget {
+  const _MarkOnFocus({
+    required this.giftId,
+    required this.enabled,
+    required this.child,
+  });
+
+  final String giftId;
+  final bool enabled;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!enabled) {
+      return child;
+    }
+    // El cursor se lee aquí: el aviso de foco puede llegar con la fila ya
+    // desmontada y su `ref` ya no vale.
+    final cursor = ref.read(boardGiftCursorProvider);
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      includeSemantics: false,
+      onFocusChange: (focused) {
+        if (focused &&
+            FocusManager.instance.highlightMode ==
+                FocusHighlightMode.traditional) {
+          cursor.set(giftId);
+        }
+      },
+      child: child,
+    );
+  }
+}
+
+/// Una tarjeta de regalo del tablero, compacta: 52 de alto y dos líneas. A la
+/// izquierda la casilla de estado (de 18, con su zona táctil); arriba el
+/// título, cortado con «…», y el precio con cifras tabulares a la derecha;
+/// debajo, en pequeño, persona y ocasión (solo la ocasión con el filtro de una
+/// persona; en el tablero de una ocasión, persona y quien regala). Tocarla
+/// abre el editor, que se queda a la derecha; la que se edita lleva el fondo
+/// de la selección y el filete de tinta, y la marcada con el teclado, el borde
+/// de control.
+///
+/// Con [onMove] la fila se puede pasar a otro carril: arrastrándola (con el
+/// ratón, de inmediato; con el dedo, tras una pulsación larga), con
+/// Ctrl o Cmd y las flechas ← y → (los atajos del tablero) o con las acciones
+/// «Mover a…» que el lector de pantalla ofrece sobre ella.
 class BoardGiftRow extends ConsumerWidget {
   /// Crea la fila.
-  const BoardGiftRow({super.key, required this.gift, required this.subtitle});
+  const BoardGiftRow({
+    super.key,
+    required this.gift,
+    required this.subtitle,
+    this.onMove,
+  });
 
   /// El regalo.
   final Gift gift;
@@ -678,17 +1003,20 @@ class BoardGiftRow extends ConsumerWidget {
   /// Qué dice la segunda línea.
   final BoardRowSubtitle subtitle;
 
-  /// El alto de la fila (con un título de dos líneas, más).
+  /// Pasa el regalo al carril dado; sin él, la fila no se mueve de carril.
+  final void Function(Gift gift, BoardLane to)? onMove;
+
+  /// El alto de la tarjeta.
   static const double height = 52;
 
-  /// Por debajo de este ancho de carril el título admite dos líneas.
-  static const double twoLinesBelow = 320;
+  /// El hueco entre dos tarjetas.
+  static const double gap = 6;
 
-  /// El ancho de carril desde el que sale el avatar.
-  static const double avatarFrom = 320;
+  /// El lado de la casilla de estado.
+  static const double glyph = 18;
 
   /// La clave con la que vuela la fila de un carril a otro.
-  static Object flightKeyOf(String giftId) => ('board-gift', giftId);
+  static Object flightKeyOf(String giftId) => boardGiftFlightKey(giftId);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -697,17 +1025,18 @@ class BoardGiftRow extends ConsumerWidget {
     final view = ref.watch(familyViewProvider);
     final full = ref.watch(familyFullViewProvider);
     final person = full.recipientsById[gift.recipientId];
-    final giver = view.giversById[gift.giverId];
+    final giver = view.resolveGiver(gift.giverId);
     final occasion = view.occasionsById[gift.occasionId];
     final labels = OccasionLabels(l10n, full.recipientsById);
-    final giverName = giver == null
-        ? l10n.giverUnassigned
-        : giverDisplayName(l10n, giver.name);
     final parts = <String>[
-      if (person != null) person.name,
-      if (subtitle == BoardRowSubtitle.all && occasion != null)
+      if (subtitle != BoardRowSubtitle.occasionOnly && person != null)
+        person.name,
+      if (subtitle != BoardRowSubtitle.perOccasion && occasion != null)
         labels.of(occasion),
     ];
+    final giverName = subtitle != BoardRowSubtitle.perOccasion
+        ? null
+        : giverNameFor(l10n, giver);
     final cents = gift.actualCents ?? gift.plannedCents;
     final panel = ref.read(giftEditorPanelProvider);
     return LayoutBuilder(
@@ -715,15 +1044,9 @@ class BoardGiftRow extends ConsumerWidget {
         context,
         ref,
         panel: panel,
-        // Sin avatar por debajo de 320 de carril (ya descontados los 16 del
-        // relleno del carril): quien recibe ya va en la segunda línea.
-        showAvatar: box.maxWidth >= avatarFrom - 16,
-        // En un carril de menos de 320 el título admite dos líneas, con la
-        // fila más alta.
-        twoLineTitle: box.maxWidth < twoLinesBelow - 16,
+        width: box.maxWidth,
         t: t,
         l10n: l10n,
-        person: person,
         parts: parts,
         giverName: giverName,
         cents: cents,
@@ -735,116 +1058,169 @@ class BoardGiftRow extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref, {
     required GiftEditorPanelController panel,
-    required bool showAvatar,
-    required bool twoLineTitle,
-    required String giverName,
+    required double width,
+    required String? giverName,
     required RegalosTokens t,
     required AppLocalizations l10n,
-    required Recipient? person,
     required List<String> parts,
     required int? cents,
   }) {
+    // El puntero compartido se toma ya: el arrastre puede seguir cuando la fila
+    // se ha ido (el regalo se borra en otro móvil) y su `ref` ya no vale.
+    final pointer = ref.read(boardDragPointerProvider);
+    final lane = BoardLane.of(gift.status);
+    final move = onMove;
+    final movable = move != null && lane != null;
+    // «Mover a Por comprar»… para el lector de pantalla: un carril cada vez,
+    // salvo en el que ya está.
+    final moveActions = <CustomSemanticsAction, VoidCallback>{
+      if (movable)
+        for (final to in BoardLane.values)
+          if (to != lane)
+            CustomSemanticsAction(
+              label: l10n.boardMoveTo(boardLaneTitle(l10n, to)),
+            ): () =>
+                move(gift, to),
+    };
+    final titleStyle = t.styles.cardTitle;
+    final priceStyle = t.styles.price;
+    final lineStyle = t.styles.caption.copyWith(fontWeight: FontWeight.w400);
     return BoardCursorTarget(
       giftId: gift.id,
       builder: (context, marked) => ListenableBuilder(
         listenable: panel,
         builder: (context, _) {
           final editing = panel.request?.gift?.id == gift.id;
-          return Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: FlightTarget(
-              flightKey: flightKeyOf(gift.id),
+          // La tarjeta: la del carril o, con [floating], la que sigue al
+          // puntero al arrastrarla (sin toques ni vuelo).
+          Widget card({required bool floating}) => _MarkOnFocus(
+            giftId: gift.id,
+            enabled: !floating,
+            child: Padding(
+              padding: floating
+                  ? EdgeInsets.zero
+                  : const EdgeInsets.only(top: gap),
               child: Builder(
                 builder: (rowContext) => ConstrainedBox(
                   constraints: const BoxConstraints(minHeight: height),
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: editing ? t.soft : t.bg,
-                      borderRadius: RegalosShape.card,
+                      color: editing && !floating ? t.selection : t.cardFill,
+                      borderRadius: RegalosShape.button,
                       border: Border.all(
-                        color: editing
-                            ? t.ink
-                            : (marked ? t.controlBorder : t.separator),
-                        width: editing ? 1.5 : 1,
+                        color: floating
+                            ? t.controlBorder
+                            : (editing
+                                  ? t.ink
+                                  : (marked ? t.controlBorder : t.separator)),
+                        width: editing && !floating ? 1.5 : 1,
                       ),
                     ),
                     child: PointerSurface(
                       strength: 2.2,
                       child: Material(
                         color: Colors.transparent,
-                        borderRadius: RegalosShape.card,
+                        borderRadius: RegalosShape.button,
                         clipBehavior: Clip.antiAlias,
                         child: Row(
                           children: [
-                            StatusCheckbox(
-                              status: gift.status.visualStatus,
-                              itemName: gift.title,
-                              onTap: () {
-                                final rect = globalRectOf(rowContext);
-                                if (rect != null) {
-                                  ref
-                                      .read(flightRegistryProvider)
-                                      .depart(flightKeyOf(gift.id), rect);
-                                }
-                                advanceGiftStatus(context, ref, gift);
-                              },
-                              onLongPress: () =>
-                                  showGiftStatusPicker(context, ref, gift),
-                            ),
-                            if (person != null && showAvatar) ...[
-                              PersonAvatar(
-                                name: person.name,
-                                colorIndex: person.colorIndex,
-                                size: 28,
+                            // La casilla con su zona táctil de 44 por 44 entera
+                            // dentro de la fila: ahí cambia el estado; a su
+                            // derecha, el texto abre el editor.
+                            SizedBox.square(
+                              dimension: StatusCheckbox.target,
+                              child: StatusCheckbox(
+                                status: gift.status.visualStatus,
+                                itemName: gift.title,
+                                glyphSize: glyph,
+                                onTap: floating
+                                    ? () {}
+                                    : () {
+                                        final rect = globalRectOf(rowContext);
+                                        if (rect != null) {
+                                          ref
+                                              .read(flightRegistryProvider)
+                                              .depart(
+                                                flightKeyOf(gift.id),
+                                                rect,
+                                              );
+                                        }
+                                        advanceGiftStatus(context, ref, gift);
+                                      },
+                                onLongPress: floating
+                                    ? null
+                                    : () => showGiftStatusPicker(
+                                        context,
+                                        ref,
+                                        gift,
+                                      ),
                               ),
-                              const SizedBox(width: 8),
-                            ],
+                            ),
                             Expanded(
-                              child: InkWell(
-                                onTap: () {
-                                  ref
-                                      .read(boardGiftCursorProvider)
-                                      .set(gift.id);
-                                  openGiftEditor(context, gift: gift);
-                                },
-                                child: Align(
-                                  alignment: AlignmentDirectional.centerStart,
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        gift.title,
-                                        maxLines: twoLineTitle ? 2 : 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: t.styles.label,
-                                      ),
-                                      _SecondLine(
-                                        parts: parts,
-                                        giverName: giverName,
-                                        style: t.styles.caption,
-                                      ),
-                                      const SizedBox(height: 4),
-                                    ],
+                              child: Semantics(
+                                customSemanticsActions: floating
+                                    ? null
+                                    : moveActions,
+                                child: InkWell(
+                                  onTap: floating
+                                      ? null
+                                      : () {
+                                          ref
+                                              .read(boardGiftCursorProvider)
+                                              .set(gift.id);
+                                          openGiftEditor(context, gift: gift);
+                                        },
+                                  child: Padding(
+                                    // 5 + 1 del borde arriba y abajo: el
+                                    // contenido (46) y el hueco de encima (6)
+                                    // caben en los 52 del vuelo.
+                                    padding: const EdgeInsets.fromLTRB(
+                                      0,
+                                      5,
+                                      10,
+                                      5,
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                gift.title,
+                                                maxLines: 1,
+                                                softWrap: false,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: titleStyle,
+                                              ),
+                                            ),
+                                            if (cents != null) ...[
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                formatCents(
+                                                  cents,
+                                                  l10n.localeName,
+                                                ),
+                                                maxLines: 1,
+                                                style: priceStyle,
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                        const SizedBox(height: 2),
+                                        _SecondLine(
+                                          parts: parts,
+                                          giverName: giverName,
+                                          style: lineStyle,
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                            if (cents != null)
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                  left: 8,
-                                  right: 12,
-                                ),
-                                child: Text(
-                                  formatCents(cents, l10n.localeName),
-                                  style: t.styles.metaStrong,
-                                ),
-                              )
-                            else
-                              const SizedBox(width: 12),
                           ],
                         ),
                       ),
@@ -852,6 +1228,20 @@ class BoardGiftRow extends ConsumerWidget {
                   ),
                 ),
               ),
+            ),
+          );
+          return FlightTarget(
+            flightKey: flightKeyOf(gift.id),
+            child: BoardRowAnchor(
+              giftId: gift.id,
+              child: movable
+                  ? BoardCardDraggable(
+                      gift: gift,
+                      width: width,
+                      card: (floating) => card(floating: floating),
+                      onPointer: (p) => pointer.value = p,
+                    )
+                  : card(floating: false),
             ),
           );
         },

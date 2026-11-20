@@ -5,6 +5,8 @@ import { err, toResponse } from "./http";
 import { routeV2 } from "./v2-router";
 import { localhostRequest } from "./eu-namespace";
 
+export { StorageLedgerObject } from "./storage-ledger-object";
+export { CreationBudgetObject } from "./creation-budget-object";
 export { ListV2Object } from "./list-v2-object";
 export { InviteV2Object } from "./invite-v2-object";
 export { LimiterV2Object } from "./limiter-v2-object";

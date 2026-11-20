@@ -1,10 +1,11 @@
+import { AuthenticatedBody } from "./authenticated-body";
 import { euNamespace } from "./eu-namespace";
 import type { Env } from "./env";
 import { decodeB64Url, encodeB64Url, sha256 } from "./encoding";
-import { err, readJsonObject, toResponse } from "./http";
-import { clientKey } from "./ip";
+import { err, readJsonObject, toResponse, type ApiResult } from "./http";
+import { clientKey, clientKey48 } from "./ip";
 import {
-  V2_GUARD_OPENS_PER_IP,
+  V2_BODY_READ_DEADLINE_MS,
   V2_MAX_GUARD_BODY_BYTES,
   V2_MAX_BODY_BYTES,
   V2_MAX_CREATE_BODY_BYTES,
@@ -12,13 +13,12 @@ import {
   V2_MAX_REVOKE_BODY_BYTES,
   V2_MAX_RENEWAL_BODY_BYTES,
   V2_WS_PROTOCOL,
-  WINDOW_MS,
 } from "./limits";
 import { matchV2, type V2Route } from "./v2-contract";
 import { renewalCommand } from "./renewal";
 import { operationId, recoveryCas, recoveryReadVerifier, recoveryShape } from "./recovery-contract";
 import { key32 } from "./v2-contract";
-import { RECOVERY_CONTROL_BYTES, RECOVERY_MAX_BODY_BYTES, RECOVERY_REQUESTS_PER_IP } from "./limits";
+import { RECOVERY_CONTROL_BYTES, RECOVERY_MAX_BODY_BYTES } from "./limits";
 
 const BEARER = /^Bearer ([A-Za-z0-9_-]{43})$/;
 const WS_BEARER = /^bearer\.([A-Za-z0-9_-]{43})$/;
@@ -29,10 +29,7 @@ async function verifierOf(credential: string | undefined): Promise<string | null
   return raw ? encodeB64Url(await sha256(raw)) : null;
 }
 
-/**
- * Bodies are read before the list object checks the credential, so each route
- * reads only what it can ever accept: a create (`If-Match: "0"`) is small.
- */
+/** Each route reads only what it can accept; large PUTs are authenticated in the list. */
 function bodyLimit(r: V2Route, match: string | null): number {
   if (r.resource === "withdraw") return 64;
   if (r.resource === "recoveryCommit") return RECOVERY_CONTROL_BYTES;
@@ -57,6 +54,7 @@ export async function routeV2(request: Request, env: Env, localRequest = false):
   const recoveryPath = /^\/v2\/(recoveries(?:\/|$)|lists\/[^/]+\/recoveries(?:\/|$))/.test(new URL(request.url).pathname);
   if (!r) return toResponse(err(recoveryPath ? 400 : 404, recoveryPath ? "invalid_recovery" : "not_found"));
   if (!r.methods.includes(request.method)) return toResponse(err(405, "method_not_allowed", { Allow: r.methods.join(", ") }));
+  const pendingOffer = r.resource === "offer" && new URL(request.url).searchParams.get("pending") === "204";
   const client = clientKey(request.headers.get("CF-Connecting-IP"));
   const protocols = (request.headers.get("Sec-WebSocket-Protocol") ?? "").split(",").map((p) => p.trim());
   const bearer = BEARER.exec(request.headers.get("Authorization") ?? "")?.[1];
@@ -66,23 +64,14 @@ export async function routeV2(request: Request, env: Env, localRequest = false):
   const guardOpen = r.resource === "guard" && r.action === "open";
   if (listRoute && !guardOpen && !verifier && !recoveryPath) return toResponse(err(401, "unauthorized"));
 
-  if (recoveryPath && !listRoute) {
-    const ns = euNamespace(env.LIMITER_V2, env, localRequest);
-    const q = await ns.get(ns.idFromName(`v2:recovery:${client}`)).hit(RECOVERY_REQUESTS_PER_IP, WINDOW_MS);
-    if (!q.ok) return toResponse(err(429, "rate_limited", { "Retry-After": String(q.retryAfter) }));
-  }
-
-  if (guardOpen) {
-    const ns = euNamespace(env.LIMITER_V2, env, localRequest);
-    const q = await ns.get(ns.idFromName(`v2:guard:${client}`)).hit(V2_GUARD_OPENS_PER_IP, WINDOW_MS);
-    if (!q.ok) return toResponse(err(429, "rate_limited", { "Retry-After": String(q.retryAfter) }));
-  }
-
-  // V2_INVITE_REQUESTS_PER_IP, enforced by the INVITE_IP_LIMITER binding (wrangler.toml).
-  if (r.inviteId !== undefined || r.resource === "invites") {
-    const { success } = await env.INVITE_IP_LIMITER.limit({ key: client });
-    if (!success) return toResponse(err(429, "rate_limited", { "Retry-After": "60" }));
-  }
+  const client48 = clientKey48(request.headers.get("CF-Connecting-IP"));
+  const limitedBy = async (narrow: RateLimit, wide: RateLimit) => {
+    if (!(await narrow.limit({ key: client })).success) return true;
+    return !(await wide.limit({ key: client48 })).success;
+  };
+  if (recoveryPath && !listRoute && await limitedBy(env.RECOVERY_IP_LIMITER, env.RECOVERY_IP48_LIMITER)) return toResponse(err(429, "rate_limited", { "Retry-After": "60" }));
+  if (guardOpen && await limitedBy(env.GUARD_IP_LIMITER, env.GUARD_IP48_LIMITER)) return toResponse(err(429, "rate_limited", { "Retry-After": "60" }));
+  if ((r.inviteId !== undefined || r.resource === "invites") && await limitedBy(env.INVITE_IP_LIMITER, env.INVITE_IP48_LIMITER)) return toResponse(err(429, "rate_limited", { "Retry-After": "60" }));
 
   // Cheap syntax checks precede body streaming and discovery, whether or not
   // the locator exists. Semantic CAS/auth decisions remain in the list object.
@@ -96,9 +85,15 @@ export async function routeV2(request: Request, env: Env, localRequest = false):
     if (request.method === "PUT" && match === '"0"' && !operationId(operation)) return toResponse(err(400, "invalid_recovery"));
   }
 
+  const match = request.headers.get("If-Match");
+  const creating = r.resource === "list" && request.method === "PUT" && match === '"0"';
+  if (creating &&
+      !(await env.CREATE_IP_LIMITER.limit({ key: client })).success) return toResponse(err(429, "rate_limited", { "Retry-After": "60" }));
+
+  const streamed = !creating && (request.method === "PUT" || request.method === "POST") && r.resource !== "withdraw" && (r.resource === "list" || r.resource === "common" || (listRoute && recoveryPath) || r.resource === "invites" || r.inviteId !== undefined);
   let body: Record<string, unknown> = {};
-  if ((request.method === "PUT" || request.method === "POST") && !(r.resource === "guard" && r.action === "resume" && request.body === null)) {
-    const parsed = await readJsonObject(request, bodyLimit(r, request.headers.get("If-Match")));
+  if (!streamed && (request.method === "PUT" || request.method === "POST") && !(r.resource === "guard" && r.action === "resume" && request.body === null)) {
+    const parsed = await readJsonObject(request, bodyLimit(r, match), creating ? V2_BODY_READ_DEADLINE_MS : undefined);
     if (!parsed.ok) return toResponse(recoveryPath ? err(parsed.result.status === 413 ? 413 : 400, parsed.result.status === 413 ? "recovery_too_large" : "invalid_recovery") : parsed.result);
     body = parsed.value;
   }
@@ -118,7 +113,7 @@ export async function routeV2(request: Request, env: Env, localRequest = false):
     }
     const match = request.headers.get("If-Match");
     if (match !== null && recoveryCas(match) === null) return toResponse(err(400, "invalid_recovery"));
-    if (request.method === "PUT" || request.method === "POST") {
+    if (!streamed && (request.method === "PUT" || request.method === "POST")) {
       const kind = r.resource === "recoveryClaim" ? "claim" : r.resource === "recoveryRotation" ? "prepare" : r.resource === "recoveryCommit" ? "commit" : "put";
       if (!recoveryShape(kind, body)) return toResponse(err(400, "invalid_recovery"));
     }
@@ -138,7 +133,7 @@ export async function routeV2(request: Request, env: Env, localRequest = false):
       const ns = euNamespace(env.INVITES_V2, env, localRequest);
       syncId = (await ns.get(ns.idFromName(r.inviteId!)).locate()) ?? undefined;
     }
-    if (!syncId) return toResponse(err(404, "not_found"));
+    if (!syncId) return toResponse(pendingOffer ? { status: 204 } : err(404, "not_found"));
   }
   const ns = euNamespace(env.LISTS_V2, env, localRequest);
   const list = ns.get(ns.idFromName(syncId!));
@@ -146,7 +141,7 @@ export async function routeV2(request: Request, env: Env, localRequest = false):
   // two source locks could deadlock. The result is an internal field only;
   // source authentication, signed shape and CAS still precede acceptance.
   let destinationCreated: boolean | undefined;
-  if (r.resource === "renewal" && renewalCommand(body) && ["reserve", "replace", "recover"].includes(body.action) && !(body.action === "reserve" && env.RENEWAL_ENABLED !== "true")) {
+  if (env.RENEWAL_ENABLED === "true" && r.resource === "renewal" && renewalCommand(body) && ["reserve", "replace", "recover"].includes(body.action)) {
     destinationCreated = await ns.get(ns.idFromName(body.targetSyncId)).renewalDestination(body.newDeviceId as string, body.newSigningKey as string);
   }
 
@@ -163,8 +158,7 @@ export async function routeV2(request: Request, env: Env, localRequest = false):
     return toResponse(err(response.status, code, retry ? { "Retry-After": retry } : undefined));
   }
 
-  return toResponse(
-    await list.handle({
+  const c = {
       localRequest,
       destinationCreated,
       renewalDisabled: env.RENEWAL_ENABLED !== "true",
@@ -175,9 +169,17 @@ export async function routeV2(request: Request, env: Env, localRequest = false):
       method: request.method,
       verifier,
       client,
-      match: request.headers.get("If-Match"),
+      client48,
+      match,
       none: request.headers.get("If-None-Match"),
       body,
-    }),
-  );
+    };
+  const result: ApiResult = streamed
+    ? await list.handleBody(c, new AuthenticatedBody(request), bodyLimit(r, c.match))
+    : await list.handle(c);
+  // Keep liveness, authentication and quotas in the list object unchanged.
+  if (pendingOffer && result.status === 404 && result.body?.error === "not_found") {
+    return toResponse({ status: 204, headers: result.headers });
+  }
+  return toResponse(result);
 }

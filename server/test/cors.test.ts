@@ -16,6 +16,7 @@ function cors(res: Response, expected: string | null = origin) {
   expect(res.headers.get("Access-Control-Allow-Origin")).toBe(expected);
   expect(res.headers.get("Vary")).toContain("Origin");
   expect(res.headers.get("Cache-Control")).toBe("no-store, no-transform");
+  expect(res.headers.get("Strict-Transport-Security")).toBe("max-age=31536000; includeSubDomains");
   expect(res.headers.get("Access-Control-Allow-Credentials")).toBeNull();
   if (expected) expect(res.headers.get("Access-Control-Expose-Headers")).toBe("ETag, Retry-After");
 }
@@ -64,6 +65,7 @@ describe("v2 common and guard CORS", () => {
     for (const [path, method] of paths) {
       const pre = await call("OPTIONS", path, { headers: { Origin, "Access-Control-Request-Method": method, "Access-Control-Request-Headers": "authorization,content-type,if-match" } });
       expect(pre.status).toBe(allowed ? 204 : 403); cors(pre, allowed ? Origin : null);
+      expect(pre.headers.get("Access-Control-Max-Age")).toBe(allowed ? "600" : null);
       const actual = await call(method, path, { headers: { Origin }, body: { proofs: [{ version: 1, guardToken: b64u(rand(32)), prueba: b64u(rand(32)) }] } });
       expect(actual.status).toBe(allowed ? path.endsWith("/open") ? 404 : 401 : 403);
       cors(actual, allowed ? Origin : null);

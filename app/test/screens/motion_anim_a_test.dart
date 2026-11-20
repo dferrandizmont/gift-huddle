@@ -271,6 +271,10 @@ void main() {
     'dibuja un visto',
     (tester, phone) async {
       await seedSample(tester, phone);
+      await setBudgets(tester, phone, {
+        'seed-santa': 15000,
+        'seed-kings': 30000,
+      });
       await pumpRegalos(tester, phone);
       phone.container.read(routerProvider).go('/occasions/budget');
       await settle(tester);
@@ -278,14 +282,16 @@ void main() {
       expect(find.byType(RollingNumber), findsWidgets);
       expect(find.byType(DrawnCheck), findsNothing);
 
-      final t = phone.container.read(budgetProvider).total;
-      final left = t.plannedCents - t.spentCents;
+      // Las cifras de arriba cuentan solo las ocasiones con presupuesto.
+      final t = phone.container.read(budgetProvider).budgeted;
+      final left = t.leftCents!;
       expect(left, greaterThan(0));
       Gift spend(String id, int cents) => Gift(
         id: id,
         recipientId: 'aritz',
         title: 'Gasto $id',
         giverId: 'us',
+        occasionId: 'seed-kings',
         status: GiftStatus.bought,
         rawStatus: 'bought',
         actualCents: cents,
@@ -366,7 +372,7 @@ void main() {
         await settle(tester);
         final tokens = Theme.of(tester.element(find.byType(SelectionScope)))
             .extension<RegalosTokens>()!;
-        expect(scope().fill, tokens.soft);
+        expect(scope().fill, tokens.selection);
         expect(scope().border, tokens.ink);
         expect(tester.hasRunningAnimations, isFalse);
       },

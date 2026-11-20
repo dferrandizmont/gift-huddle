@@ -7,7 +7,9 @@ import '../../../core/motion/sheet_motion.dart';
 import '../../../core/motion/stagger.dart';
 import '../../../core/theme/regalos_motion.dart';
 import '../../../core/theme/regalos_tokens.dart';
+import '../../../core/widgets/anchored_picker.dart';
 import '../../../core/widgets/dashed_box.dart';
+import '../../../core/widgets/picker_option.dart';
 import '../../../core/widgets/person_avatar.dart';
 import '../../../core/widgets/regalos_snack_bar.dart';
 import '../../../core/widgets/settings_icons.dart';
@@ -42,11 +44,25 @@ const double _avatarSize = 32;
 /// móviles, cambiar de persona publica una ficha nueva que otro móvil debe
 /// aprobar: antes se explica en una hoja y después se enseña la espera. Mientras
 /// ese móvil no lo apruebe, la fila lo dice debajo.
-class SelfRecipientRow extends ConsumerWidget {
+class SelfRecipientRow extends ConsumerStatefulWidget {
   const SelfRecipientRow({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SelfRecipientRow> createState() => _SelfRecipientRowState();
+}
+
+class _SelfRecipientRowState extends ConsumerState<SelfRecipientRow> {
+  // El foco de la fila: el desplegable lo devuelve aquí al cerrarse.
+  final FocusNode _focus = FocusNode(debugLabel: 'SelfRecipientRow');
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final self = ref.watch(selfRecipientProvider);
     final waiting = ref.watch(
@@ -60,7 +76,8 @@ class SelfRecipientRow extends ConsumerWidget {
       title: l10n.settingsSelf,
       value: self?.name ?? l10n.settingsSelfNobody,
       hint: waiting ? l10n.selfWaitingHint : null,
-      onTap: () => _change(context, ref),
+      focusNode: _focus,
+      onTap: () => _change(context, ref, _focus),
     );
   }
 }
@@ -80,9 +97,13 @@ Future<bool> _needsWarning(WidgetRef ref) async {
   }
 }
 
-Future<void> _change(BuildContext context, WidgetRef ref) async {
+Future<void> _change(
+  BuildContext context,
+  WidgetRef ref,
+  FocusNode focus,
+) async {
   final l10n = AppLocalizations.of(context);
-  final picked = await showSelfRecipientSheet(context);
+  final picked = await _pickSelf(context, ref, focus);
   if (picked == null || !context.mounted) {
     return;
   }
@@ -145,6 +166,59 @@ Future<void> _change(BuildContext context, WidgetRef ref) async {
   if (openReview && context.mounted) {
     await showDeviceReviewSheet(context, people: people);
   }
+}
+
+/// Elige la persona de este móvil: en una ventana de escritorio con ratón, un
+/// desplegable anclado a la fila (con la misma explicación encima de la
+/// lista); en el móvil y con el dedo, la hoja ([showSelfRecipientSheet]).
+Future<String?> _pickSelf(
+  BuildContext context,
+  WidgetRef ref,
+  FocusNode focus,
+) {
+  if (!usesAnchoredPicker(context)) {
+    return showSelfRecipientSheet(context);
+  }
+  final l10n = AppLocalizations.of(context);
+  final current = ref.read(selfRecipientIdProvider) ?? _nobody;
+  final family = ref.read(familyControllerProvider).value;
+  final isV2 = family != null && syncProtocolOf(family.doc) == kSyncProtocolV2;
+  final t = RegalosTokens.of(context);
+  return showAnchoredPicker<String>(
+    context,
+    label: l10n.settingsSelfSheetTitle,
+    description: isV2
+        ? l10n.settingsSelfSheetHintV2
+        : l10n.settingsSelfSheetHint,
+    selected: current,
+    options: [
+      for (final r in ref.read(familyFullViewProvider).recipients)
+        if (!r.archived || r.id == current)
+          PickerOption<String>(
+            value: r.id,
+            label: r.name,
+            leading: PersonAvatar(
+              name: r.name,
+              colorIndex: r.colorIndex,
+              size: 28,
+            ),
+          ),
+      PickerOption<String>(
+        value: _nobody,
+        label: l10n.settingsSelfNobody,
+        // Un hueco vacío, con el trazo de «nada aún».
+        leading: DashedBox(
+          color: t.outline,
+          radius: PersonAvatar.radiusFor(28),
+          strokeWidth: 1.2,
+          child: const SizedBox.square(dimension: 28),
+        ),
+      ),
+    ],
+    maxWidth: 360,
+    alignEnd: true,
+    returnFocusTo: focus,
+  );
 }
 
 /// Abre la hoja «¿De quién es este móvil?»: las personas de la familia (sin

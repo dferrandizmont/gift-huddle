@@ -14,6 +14,7 @@ class GiftEditorRequest {
     required this.recipientId,
     required this.occasionId,
     required this.giverId,
+    required this.status,
     required this.chooseRecipient,
   });
 
@@ -25,6 +26,9 @@ class GiftEditorRequest {
   final String? recipientId;
   final String? occasionId;
   final String? giverId;
+
+  /// El estado con el que empieza un regalo nuevo, o `null` («Idea»).
+  final GiftStatus? status;
   final bool chooseRecipient;
 
   final Completer<String?> _done = Completer<String?>();
@@ -80,6 +84,7 @@ class GiftEditorPanelController extends ChangeNotifier {
     String? recipientId,
     String? occasionId,
     String? giverId,
+    GiftStatus? status,
     bool chooseRecipient = false,
   }) {
     final previous = _request;
@@ -92,6 +97,7 @@ class GiftEditorPanelController extends ChangeNotifier {
       recipientId: recipientId,
       occasionId: occasionId,
       giverId: giverId,
+      status: status,
       chooseRecipient: chooseRecipient,
     );
     _request = next;

@@ -1,8 +1,13 @@
+import type { RpcStub } from "cloudflare:workers";
+import type { AuthenticatedBody } from "./authenticated-body";
+import { ListStorageBudget, ListTooLarge, StorageBlocksNeeded } from "./list-storage-budget";
+import { clientKey48 } from "./ip";
+import { rowRetryAfter, type RowReports, type RowStatus } from "./daily-row-budget";
 import { euNamespace, localhostRequest } from "./eu-namespace";
 import { DurableObject } from "cloudflare:workers";
 import type { Env } from "./env";
 import { decodeB64Url, encodeB64Url, randomBytes, sha256, timingSafeEqual } from "./encoding";
-import { err, NOT_FOUND, UNAUTHORIZED, type ApiResult } from "./http";
+import { err, NOT_FOUND, UNAUTHORIZED, readJsonObject, type ApiResult } from "./http";
 import {
   CHUNK_CHARS,
   INVITE_TTL_MS,
@@ -28,10 +33,21 @@ import {
   V2_MAX_SLOTS_PER_WRITER,
   V2_NEW_DEVICES_PER_LIST,
   V2_NEW_LISTS_PER_HOUR,
+  V2_NEW_LISTS_PER_DAY,
+  V2_NEW_LISTS_PER_DAY_48,
+  V2_LIST_ROWS_PER_DAY,
+  V2_CLIENT_ROWS_PER_DAY,
+  V2_CLIENT_ROWS_PER_DAY_48,
+  V2_ROW_REPORT_BLOCK,
+  V2_ROW_REPORT_MS,
+  V2_ROW_STATUS_MS,
+  V2_ROW_REPORT_KEYS,
+  V2_CREDENTIAL_CAP_AGE_MS,
+  V2_STORAGE_BLOCK_BYTES,
   V2_NEW_RECORDS_PER_CREDENTIAL,
   V2_NEW_RECORDS_PER_LIST,
   V2_QUOTA_WINDOW_MS,
-  V2_RATE_PERSIST_EVERY,
+  V2_NEW_LISTS_PER_HOUR_48,
   V2_REVOKED_SLOTS_GRACE_MS,
   V2_WARN_DEVICES,
   V2_WARN_KNOWN_RECORDS,
@@ -44,12 +60,15 @@ import { PinGuard } from "./pin-guard";
 import { renewalCanClose, renewalProjection, renewalHash, renewalCommand, verifyRenewalSignature, transitionRenewal, type RenewalState, type RenewalCommand, type RenewalHistory } from "./renewal";
 import { V2_RENEWAL_REQUESTS, V2_RENEWAL_WRITES, V2_MAX_RENEWAL_PARTICIPANTS, V2_RENEWAL_LOG_COMMANDS, V2_RENEWAL_LOG_BYTES, V2_RENEWAL_LOG_PAGE_COMMANDS, V2_RENEWAL_LOG_PAGE_BYTES } from "./limits";
 import { RecoveryStore, type RecoveryRow } from "./recovery-store";
-import { operationId, recoveryCas, recoveryEtag, recoveryFingerprint, validateCapsule } from "./recovery-contract";
+import { operationId, recoveryCas, recoveryEtag, recoveryFingerprint, recoveryShape, validateCapsule } from "./recovery-contract";
 import { RECOVERY_MAX_ACTIVE, RECOVERY_MAX_ACTIVE_BYTES, RECOVERY_RESERVATION_MS } from "./limits";
+import { V2_BODY_READ_DEADLINE_MS } from "./limits";
 
 type Counter = { start: number; count: number };
+class RowsLimited extends Error {}
 /** `verifier` is SHA-256 of the service credential; null once revoked. */
 type Credential = {
+  createdAt?: number;
   /** Immutable key captured only at credential registration. */
   signingKey?: string;
   /** Explicit support announcement, independent of common ciphertext format. */
@@ -81,8 +100,13 @@ type Meta = {
   renewalReturned?: string[];
   /** One activity fence per participant and operation, separate from signed resume. */
   renewalActivityUsed?: string[];
+  storedBytes?: number;
+  rowBudget?: { day: number; written: number };
+  rowReports?: RowReports;
   syncId: string;
   version: number;
+  /** Actual birth of the list, independent of credential age backfills. */
+  createdAt?: number;
   lastAccess: number;
   credentials: Credential[];
   /** Verifiers of revoked credentials: they can never register again in this list. */
@@ -107,6 +131,15 @@ type Meta = {
  */
 const RETIRED = { retired: true } as const;
 type Stored = Meta | typeof RETIRED | null;
+export type PurgeCriteria = { createdFrom: number; createdBefore: number; inactiveBefore: number; includeLegacy?: true };
+export type PurgeCandidate = {
+  createdAt: number | null;
+  lastActivity: number;
+  version: number;
+  storedBytes: number;
+  hasRecovery: false;
+  pendingInvites: number;
+};
 const isRetired = (s: Stored): s is typeof RETIRED => s !== null && "retired" in s;
 const MARKER_TEXT = JSON.stringify(RETIRED);
 const RETIRED_UNTIL = "retiredUntil";
@@ -193,9 +226,11 @@ export type V2Call = {
   method: string;
   verifier: string | null;
   client: string;
+  client48?: string;
   match: string | null;
   none: string | null;
   body: Record<string, unknown>;
+  bodyAuthorized?: boolean;
 };
 
 /** WebSocket close codes. */
@@ -300,14 +335,11 @@ function webAllowed(auth: Credential, c: V2Call): boolean {
  * JSON and credential hashes; it never verifies signatures or decides trust.
  */
 export class ListV2Object extends DurableObject<Env> {
-  /**
-   * Request counters: in memory and in the `rate` table, so a restart of the
-   * object does not reset the windows (finding 16). Write counters (`w:`, `list`)
-   * are saved on every hit (a write already writes rows); read counters every
-   * V2_RATE_PERSIST_EVERY hits and when full, and a restored read counter assumes
-   * the V2_RATE_PERSIST_EVERY - 1 hits it may have missed. A quiet credential that
-   * only reads writes no rows.
-   */
+  private bodyReads = new Map<string, number>();
+  private rowCall?: V2Call;
+  private exhaustedUntil = new Map<string, number>();
+  private rowRetryAt?: number;
+  /** Minute counters are deliberately ephemeral across hibernation. */
   private rate = new Map<string, Counter>();
   /** Scoped to the object lock; alarms and unrelated RPCs never inherit it. */
   private localRequest = false;
@@ -327,8 +359,86 @@ export class ListV2Object extends DurableObject<Env> {
     // would bypass credential replacement after hibernation.
   }
 
-  private get sql() {
-    return this.ctx.storage.sql;
+  private budget = new ListStorageBudget(this.ctx.storage);
+
+  private get sql() { return this.budget.sql; }
+
+  private ledgerBlocks?: number;
+  private ledger() {
+    const ns = euNamespace(this.env.STORAGE_LEDGER, this.env, this.localRequest);
+    return ns.get(ns.idFromName("v2:storage"));
+  }
+  private currentBlocks(): number {
+    const m = this.stored();
+    // Uncommitted admission caches must not change the authoritative balance.
+    return m && !isRetired(m) ? Math.ceil((m.storedBytes ?? this.budget.decorate(m).storedBytes ?? 0) / V2_STORAGE_BLOCK_BYTES) : 0;
+  }
+  private async armLedgerRetry(): Promise<void> {
+    const next = Date.now() + WINDOW_MS, alarm = await this.ctx.storage.getAlarm();
+    if (alarm === null || alarm > next) await this.ctx.storage.setAlarm(next);
+  }
+  /** A later maintenance deadline must never disarm durable reconciliation. */
+  private async scheduleAlarm(next: number): Promise<void> {
+    const now = Date.now(), current = await this.ctx.storage.getAlarm();
+    const saved = await this.ctx.storage.get<{ pending?: boolean }>("storageLedger");
+    if (this.rowRetryAt !== undefined) next = Math.min(next, Math.max(now + WINDOW_MS, this.rowRetryAt));
+    if (saved?.pending) next = Math.min(next, current !== null && current > now ? current : now + WINDOW_MS, now + WINDOW_MS);
+    if (current === next || ((saved?.pending || this.rowRetryAt !== undefined) && current !== null && current > now && current <= next)) return;
+    await this.ctx.storage.setAlarm(Math.max(now + 1, next));
+  }
+
+  private async reconcileLedger(): Promise<void> {
+    const blocks = this.currentBlocks();
+    const saved = await this.ctx.storage.get<{ blocks: number; pending?: boolean }>("storageLedger");
+    if (!saved && blocks === 0 && !this.ledgerBlocks) { this.ledgerBlocks = 0; return; }
+    if (saved?.pending || this.ledgerBlocks === undefined || blocks !== this.ledgerBlocks) {
+      // A legacy list is enrolled even above the ceiling. All subsequent
+      // growth is reserved before local commit by commit().
+      const previousAlarm = await this.ctx.storage.getAlarm();
+      await this.ctx.storage.put("storageLedger", { blocks: saved?.blocks ?? 0, pending: true });
+      await this.armLedgerRetry();
+      await this.ledger().set(this.ctx.id.toString(), blocks, true);
+      if (blocks) await this.ctx.storage.put("storageLedger", { blocks });
+      else await this.ctx.storage.delete("storageLedger");
+      const m = this.stored();
+      const next = m && !isRetired(m) ? this.nextAlarm(m) : await this.ctx.storage.get<number>(RETIRED_UNTIL);
+      if (next !== undefined) await this.scheduleAlarm(saved?.pending ? next : Math.min(previousAlarm ?? next, next));
+    }
+    this.ledgerBlocks = blocks;
+  }
+  private async withLedger<T>(run: () => Promise<T>): Promise<T> {
+    const saved = await this.ctx.storage.get<{ blocks: number; pending?: boolean }>("storageLedger");
+    this.ledgerBlocks = saved?.blocks;
+    try { await this.reconcileLedger(); }
+    catch { await this.armLedgerRetry(); }
+    try { return await run(); }
+    finally {
+      try { await this.reconcileLedger(); }
+      catch { await this.armLedgerRetry(); }
+    }
+  }
+  private async commit(run: () => void, cleanup = false, report = true, accounting = false): Promise<void> {
+    if (!cleanup && this.rowCall) await this.admitRows(this.rowCall);
+    const counted = <T>(action: () => T): T => accounting ? this.budget.accountingOnly(action) : action();
+    try { counted(() => this.budget.stage(run, this.ledgerBlocks ?? this.currentBlocks(), cleanup)); }
+    catch (e) {
+      if (!(e instanceof StorageBlocksNeeded)) throw e;
+      // Persist a reconciliation intention before any remote effect. A crash
+      // or lost response is repaired from committed local size on the alarm.
+      if (e.blocks > (this.ledgerBlocks ?? 0)) await this.reserveBlocks(e.blocks);
+      else {
+        await this.ctx.storage.put("storageLedger", { blocks: this.ledgerBlocks ?? 0, pending: true });
+        await this.armLedgerRetry();
+      }
+      counted(() => this.budget.replay(e.statements));
+    }
+    if (report) await this.settleRows();
+  }
+  private async reserveBlocks(blocks: number): Promise<void> {
+    await this.ctx.storage.put("storageLedger", { blocks: this.ledgerBlocks ?? 0, pending: true });
+    await this.armLedgerRetry();
+    if (!await this.ledger().set(this.ctx.id.toString(), blocks)) throw new ListTooLarge();
+    this.ledgerBlocks = blocks;
   }
 
   // ---- storage ----------------------------------------------------------------
@@ -352,8 +462,10 @@ export class ListV2Object extends DurableObject<Env> {
     return this.sql.exec<{ data: string }>("SELECT data FROM state WHERE id = 1").toArray()[0]?.data ?? null;
   }
 
-  private saveMeta(m: Meta | typeof RETIRED): void {
-    this.sql.exec("INSERT INTO state (id, data) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data", JSON.stringify(m));
+  private saveMeta(m: Meta | typeof RETIRED, maintenance = false): void {
+    this.budget.transaction(() => {
+      this.sql.exec("INSERT INTO state (id, data) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data WHERE data != excluded.data", JSON.stringify(this.budget.decorate(m)));
+    }, maintenance);
   }
 
   private createSchema(): void {
@@ -465,14 +577,16 @@ export class ListV2Object extends DurableObject<Env> {
 
   /** Internal probe: minimal live destination creator and its committed key. */
   async renewalDestination(deviceId: string, signingKey: string): Promise<boolean> {
-    const m = await this.live();
-    if (!m || isRetired(m)) return false;
-    const registry = this.readResource("registry") as { records: unknown[] };
-    const creator = m.credentials[0];
-    return m.credentials.length === 1 && creator !== undefined && creator.deviceId === deviceId &&
-      !creator.revoked && (creator.role ?? "device") === "device" &&
-      creator.signingKey === signingKey &&
-      registry.records.some((r) => object(r) && r.d === deviceId && r.e === signingKey);
+    return this.ctx.blockConcurrencyWhile(() => this.withLedger(async () => {
+      const m = await this.live();
+      if (!m || isRetired(m)) return false;
+      const registry = this.readResource("registry") as { records: unknown[] };
+      const creator = m.credentials[0];
+      return m.credentials.length === 1 && creator !== undefined && creator.deviceId === deviceId &&
+        !creator.revoked && (creator.role ?? "device") === "device" &&
+        creator.signingKey === signingKey &&
+        registry.records.some((r) => object(r) && r.d === deviceId && r.e === signingKey);
+    }));
   }
 
   private async renewal(m: Meta, auth: Credential, c: V2Call, current: RenewalState | null): Promise<ApiResult> {
@@ -535,12 +649,11 @@ export class ListV2Object extends DurableObject<Env> {
     // remain recoverable until installation, expiry or explicit cancellation.
     const removed = this.invites().filter((i) => c.body.action === "reserve" ? !i.package : c.body.action === "revoke" && (i.owner === c.body.participantDeviceId || i.guest === c.body.participantDeviceId));
     if (c.body.action === "reserve" && this.pendingReleases().length + removed.length > MAX_OPEN_INVITES) return limited();
-    if (removed.length > 0 || c.body.action === "revoke") await this.ctx.storage.setAlarm(Math.min(this.nextAlarm(m), Date.now() + WINDOW_MS));
     m.version++;
     if (c.body.action === "reserve") { m.renewalStartedAt = Date.now(); m.renewalActivityUsed = []; }
     if (["reserve", "revise", "replace", "recover"].includes(c.body.action as string)) m.renewalReturned = [];
     if (["resume", "revoke"].includes(c.body.action as string)) m.renewalReturned = (m.renewalReturned ?? []).filter((id) => id !== auth.deviceId);
-    this.ctx.storage.transactionSync(() => {
+    await this.commit(() => {
       this.sql.exec("INSERT INTO renewal_command (operation, height, hash, data, action, signer, target, new_device, new_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", next.state.operationId, next.state.height, hash, JSON.stringify(c.body), c.body.action, auth.deviceId, c.body.targetSyncId, c.body.newDeviceId as string ?? null, c.body.newSigningKey as string ?? null);
       if (c.body.action === "revoke") this.sql.exec("DELETE FROM renewal_usage WHERE operation = ?", next.state.operationId);
       else if ((next.state.height > V2_RENEWAL_LOG_COMMANDS || next.state.logBytes > V2_RENEWAL_LOG_BYTES) && !["recover", "abort"].includes(c.body.action as string)) {
@@ -561,7 +674,8 @@ export class ListV2Object extends DurableObject<Env> {
         this.dropCheckpoints(i.id);
       }
       this.saveMeta(m);
-    });
+    }, c.body.action === "revoke");
+    if (removed.length > 0 || c.body.action === "revoke") await this.scheduleAlarm(Math.min(this.nextAlarm(m), Date.now() + WINDOW_MS));
     if (c.body.action === "revoke") this.closeSockets(CLOSE_REVOKED, c.body.participantDeviceId as string);
     this.notify(m);
     // The durable queue, not a successful RPC, is the cancellation guarantee.
@@ -633,10 +747,10 @@ export class ListV2Object extends DurableObject<Env> {
   private nextAlarm(m: Meta): number {
     const row = this.sql.exec<{ next: number | null }>("SELECT MIN(expires_at) AS next FROM invite").one();
     const recoveryExpiry = this.recoveryStore().rows().filter((r) => r.state === "candidate" || r.state === "intention").reduce((next, r) => Math.min(next, r.expiresAt!), Number.MAX_SAFE_INTEGER);
-    const recoveryPending = this.sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'recovery_release'").toArray().length > 0;
+    const recoveryPending = this.sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'recovery_release'").toArray().length > 0 &&
+      this.sql.exec("SELECT 1 FROM recovery_release WHERE action != 'pending' LIMIT 1").toArray().length > 0;
     const slotExpiry = m.credentials.reduce((next, c) => Math.min(next, c.revoked ? c.slotsExpireAt ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER), Number.MAX_SAFE_INTEGER);
-    const rateStart = this.hasRateTable() ? this.sql.exec<{ next: number | null }>("SELECT MIN(start) AS next FROM rate").one().next : null;
-    return Math.min(m.lastAccess + LIST_TTL_MS, m.inviteCopyExpiresAt ?? Number.MAX_SAFE_INTEGER, row.next ?? Number.MAX_SAFE_INTEGER, recoveryExpiry, slotExpiry, rateStart === null ? Number.MAX_SAFE_INTEGER : rateStart + WINDOW_MS, this.hasReleases() || recoveryPending ? Date.now() + WINDOW_MS : Number.MAX_SAFE_INTEGER);
+    return Math.min(m.lastAccess + LIST_TTL_MS, m.inviteCopyExpiresAt ?? Number.MAX_SAFE_INTEGER, row.next ?? Number.MAX_SAFE_INTEGER, recoveryExpiry, slotExpiry, this.hasReleases() || recoveryPending ? Date.now() + WINDOW_MS : Number.MAX_SAFE_INTEGER);
   }
 
   /** Any authenticated activity before confirm cancels an exclusion. */
@@ -644,6 +758,7 @@ export class ListV2Object extends DurableObject<Env> {
     const now = Date.now();
     for (const credential of m.credentials) credential.lastRequest = activityHour(credential.lastRequest ?? now);
     auth.lastRequest = activityHour(now);
+    this.saveMeta(m, true);
     const observed = this.readRenewal();
     if (observed !== null) m.renewalStartedAt ??= now;
     const wasExcluded = observed !== null && Object.hasOwn(observed.exclusions, auth.deviceId);
@@ -665,8 +780,8 @@ export class ListV2Object extends DurableObject<Env> {
     const now = Date.now();
     if (now - m.lastAccess < TOUCH_INTERVAL_MS && m.lastAccess === activityHour(m.lastAccess)) return;
     m.lastAccess = activityHour(now);
-    this.saveMeta(m);
-    await this.ctx.storage.setAlarm(this.nextAlarm(m));
+    this.saveMeta(m, true);
+    await this.scheduleAlarm(this.nextAlarm(m));
   }
 
   // ---- access -----------------------------------------------------------------
@@ -687,42 +802,15 @@ export class ListV2Object extends DurableObject<Env> {
   }
 
   /** Counts one request against `key`; false when the window is full. */
-  private async hit(key: string, max: number): Promise<boolean> {
+  private async hit(key: string, max: number, checkOnly = false): Promise<boolean> {
     const now = Date.now();
-    const writes = key === "list" || key.startsWith("w:") || key.startsWith("renewal-w:");
     let c = this.rate.get(key);
-    if (!c) {
-      const saved = this.savedRate(key);
-      // A read counter is saved only every few hits: count the ones it may lack.
-      if (saved) c = writes ? saved : { start: saved.start, count: Math.min(max, saved.count + V2_RATE_PERSIST_EVERY - 1) };
-    }
     if (!c || now - c.start >= WINDOW_MS) c = { start: now, count: 0 };
     this.rate.set(key, c);
+    if (checkOnly) return c.count <= max;
     if (c.count >= max) return false;
     c.count++;
-    if (writes || (key.startsWith("p:") && c.count === 1) || c.count % V2_RATE_PERSIST_EVERY === 0 || c.count >= max) await this.saveRate(key, c, now);
     return true;
-  }
-
-  private hasRateTable(): boolean {
-    return this.sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'rate'").toArray().length > 0;
-  }
-
-  /** The counter a previous instance left, if any (read once per key and instance). */
-  private savedRate(key: string): Counter | undefined {
-    if (!this.hasRateTable()) return undefined;
-    return this.sql.exec<Counter>("SELECT start, count FROM rate WHERE key = ?", key).toArray()[0];
-  }
-
-  /** One row per live counter; expired windows are dropped as they are replaced. */
-  private async saveRate(key: string, c: Counter, now: number): Promise<void> {
-    // Arm before persisting exact timestamps, even if no further request comes.
-    const deadline = c.start + WINDOW_MS;
-    const alarm = await this.ctx.storage.getAlarm();
-    if (alarm === null || alarm > deadline) await this.ctx.storage.setAlarm(deadline);
-    this.sql.exec("CREATE TABLE IF NOT EXISTS rate (key TEXT PRIMARY KEY, start INTEGER NOT NULL, count INTEGER NOT NULL) WITHOUT ROWID");
-    this.sql.exec("DELETE FROM rate WHERE start <= ?", now - WINDOW_MS);
-    this.sql.exec("INSERT INTO rate (key, start, count) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET start = excluded.start, count = excluded.count", key, c.start, c.count);
   }
 
   private precondition(m: Meta, match: string | null): ApiResult | null {
@@ -783,7 +871,231 @@ export class ListV2Object extends DurableObject<Env> {
   // ---- API --------------------------------------------------------------------
 
   async handle(c: V2Call): Promise<ApiResult> {
-    return this.ctx.blockConcurrencyWhile(() => this.withLocalRequest(c.localRequest === true, () => this.locked(c)));
+    return this.ctx.blockConcurrencyWhile(() => this.withLocalRequest(c.localRequest === true, async () => {
+      try {
+        // The Worker has already buffered version-zero PUTs. Keep the same
+        // authorization and rate accounting if the destination already exists.
+        if (c.route.resource === "list" && c.method === "PUT" && c.match === etag(0) && !c.bodyAuthorized) {
+          const rejected = await this.authorize(c);
+          if (rejected) return rejected;
+          c = { ...c, bodyAuthorized: true };
+        }
+        return await this.withLedger(() => this.locked(c));
+      }
+      catch (e) {
+        if (e instanceof RowsLimited) return limited(rowRetryAfter());
+        if (e instanceof ListTooLarge) return err(413, "too_large");
+        throw e;
+      } finally {
+        try { await this.settleRows(); }
+        finally { this.rowCall = undefined; this.budget.rowContext = undefined; }
+      }
+    }));
+  }
+
+  /** Preflight and commit take short independent locks. No body I/O holds one. */
+  async handleBody(c: V2Call, reader: RpcStub<AuthenticatedBody>, max: number): Promise<ApiResult> {
+    const credential = c.verifier ?? c.route.deviceId ?? c.route.inviteId ?? c.route.recoveryId ?? "public";
+    let reading = false;
+    try {
+      const rejected = await this.ctx.blockConcurrencyWhile(() => this.withLocalRequest(c.localRequest === true, async () => {
+        const rejected = await this.authorize(c);
+        if (rejected) return rejected;
+        const total = [...this.bodyReads.values()].reduce((a, b) => a + b, 0);
+        if (total >= 4 || (this.bodyReads.get(credential) ?? 0) >= 2) return limited(1);
+        this.bodyReads.set(credential, (this.bodyReads.get(credential) ?? 0) + 1);
+        reading = true;
+        return null;
+      }));
+      if (rejected) return rejected;
+      const request = await reader.open();
+      let parsed: Awaited<ReturnType<typeof readJsonObject>>;
+      try { parsed = await readJsonObject(request, max, V2_BODY_READ_DEADLINE_MS); }
+      finally { request[Symbol.dispose](); }
+      if (!parsed.ok) return c.route.recoveryId !== undefined || c.route.resource === "recoveries"
+        ? err(parsed.result.status === 408 ? 408 : parsed.result.status === 413 ? 413 : 400, parsed.result.status === 413 ? "recovery_too_large" : "invalid_recovery") : parsed.result;
+      if (c.route.recoveryId !== undefined || c.route.resource === "recoveries") {
+        const kind = c.route.resource === "recoveryClaim" ? "claim" : c.route.resource === "recoveryRotation" ? "prepare" : c.route.resource === "recoveryCommit" ? "commit" : "put";
+        if (!recoveryShape(kind, parsed.value)) return err(400, "invalid_recovery");
+      }
+      return await this.handle({ ...c, body: parsed.value, bodyAuthorized: true });
+    } finally {
+      if (reading) {
+        const left = this.bodyReads.get(credential)! - 1;
+        if (left) this.bodyReads.set(credential, left); else this.bodyReads.delete(credential);
+      }
+      reader[Symbol.dispose]();
+    }
+  }
+
+  private async rowsError(m: Meta, c: V2Call): Promise<ApiResult | null> {
+    const day = Math.floor(Date.now() / 86400000);
+    if (this.rowsExempt(c) || m.rowBudget?.day !== day || m.rowBudget.written < V2_LIST_ROWS_PER_DAY) return null;
+    // Admission remains closed, but a capped list must still pay its old debt.
+    const previous = this.budget.rowContext;
+    this.restoreRowContext(m.rowReports);
+    try { await this.settleRows(); }
+    finally { this.budget.rowContext = previous; }
+    return limited(rowRetryAfter());
+  }
+
+  private rowsExempt(c: V2Call): boolean {
+    return c.method === "GET" || c.method === "DELETE" || c.route.resource === "revoke" || c.route.resource === "withdraw" ||
+      (c.route.resource === "renewal" && c.body.action === "revoke");
+  }
+  private rowCounter(key: string, amount = 0): Promise<RowStatus> {
+    if (key === "global") return this.ledger().rows(amount);
+    const ns = euNamespace(this.env.LIMITER_V2, this.env, this.localRequest);
+    return ns.get(ns.idFromName(key)).rows(key.startsWith("v2:rows48:") ? V2_CLIENT_ROWS_PER_DAY_48 : V2_CLIENT_ROWS_PER_DAY, amount);
+  }
+  private restoreRowContext(reports = this.budget.pendingReports()): void {
+    // Maintenance and exempt writes are charged only to the list itself; reportRows()
+    // still walks reports.keys, so rows already pending for a client are reported.
+    if (!this.budget.rowContext && reports) {
+      this.budget.rowContext = { keys: [], reports: structuredClone(reports) };
+    }
+  }
+  /** Reporting after a local commit cannot change its result or skip its
+   * remaining application steps. Admission uses reportRows() directly. */
+  private async settleRows(force?: string): Promise<void> {
+    if (isRetired(this.stored())) { this.rowRetryAt = undefined; this.budget.rowContext = undefined; return; }
+    const expiry = this.budget.attemptsExpireAt();
+    if (this.stored() === null && expiry !== undefined) {
+      const current = await this.ctx.storage.getAlarm();
+      if (current === null || current > expiry) await this.scheduleAlarm(expiry);
+    }
+    try {
+      if (this.rowRetryAt !== undefined && this.rowRetryAt > Date.now()) {
+        await this.scheduleAlarm(this.rowRetryAt);
+        return;
+      }
+      const retry = this.rowRetryAt;
+      await this.reportRows(retry !== undefined ? "*" : force);
+      this.rowRetryAt = undefined;
+      if (retry !== undefined) {
+        const m = this.stored();
+        const next = m && !isRetired(m) ? this.nextAlarm(m) : this.budget.attemptsExpireAt();
+        if (next !== undefined) await this.scheduleAlarm(next);
+      }
+    } catch {
+      this.rowRetryAt = Date.now() + V2_ROW_STATUS_MS;
+      try { await this.scheduleAlarm(this.rowRetryAt); }
+      catch { /* Durable pending rows remain available on the next wake. */ }
+    }
+  }
+  private async reportRows(force?: string, evict = false): Promise<void> {
+    const context = this.budget.rowContext;
+    if (!context) return;
+    const now = Date.now(), day = Math.floor(now / 86400000);
+    let changed = false;
+    try {
+      const entries = Object.entries(context.reports.keys).sort(([a], [b]) => Number(b === force) - Number(a === force));
+      for (const [key, entry] of entries) {
+        const due = force === "*" || key === force || entry.pending >= V2_ROW_REPORT_BLOCK || (!entry.exhausted && entry.pending >= entry.remaining) || entry.day !== day || now - entry.reportedAt >= V2_ROW_REPORT_MS;
+        if (entry.pending && due) {
+          const status = await this.rowCounter(key, entry.pending);
+          Object.assign(entry, status, { pending: 0, checkedAt: now, reportedAt: now });
+          if (status.exhausted) this.exhaustedUntil.set(key, (day + 1) * 86400000);
+          changed = true;
+        }
+        if (evict && key === force) delete context.reports.keys[key];
+      }
+    } finally {
+      context.reports.day = day;
+      const m = this.stored();
+      if (changed && !isRetired(m)) {
+        // Acknowledgements are batched into one state write per report round;
+        // that write is charged only to the list budget.
+        try {
+          if (m) await this.commit(() => this.saveMeta(m), true, false, true);
+          else this.budget.acknowledgeReports();
+        }
+        catch (e) {
+          // Only a durable acknowledgement may remove pending rows.
+          this.budget.rowContext = undefined;
+          this.restoreRowContext();
+          throw e;
+        }
+      }
+    }
+  }
+  private async admitRows(c: V2Call): Promise<void> {
+    try { await this.checkRowAdmission(c); }
+    catch (e) {
+      if (e instanceof RowsLimited) throw e;
+      // Counter availability is required before admitting any new mutation.
+      throw new RowsLimited();
+    }
+  }
+  private async checkRowAdmission(c: V2Call): Promise<void> {
+    if (this.rowsExempt(c)) return;
+    if (this.rowCall === c) return;
+    const day = Math.floor(Date.now() / 86400000), wide = c.client48 ?? clientKey48(c.client);
+    for (const [key, until] of this.exhaustedUntil) if (until <= Date.now()) this.exhaustedUntil.delete(key);
+    // Check wider ceilings first so an exhausted account or /48 cannot cause
+    // fresh narrow-counter writes on every rejected request.
+    const keys = ["global", ...(wide === c.client ? [] : [`v2:rows48:${wide}`]), `v2:rows:${c.client}`];
+    const saved = this.budget.pendingReports();
+    // Pending rows survive midnight and are charged to each counter's current day.
+    const reports: RowReports = saved ? structuredClone(saved) : { day, keys: {} };
+    this.budget.rowContext = { keys, reports };
+    if (Object.values(reports.keys).some((entry) => entry.day !== day)) await this.reportRows();
+    for (const key of keys) {
+      let entry = this.budget.rowContext.reports.keys[key];
+      if ((this.exhaustedUntil.get(key) ?? 0) > Date.now() || (entry?.day === day && entry.exhausted)) {
+        if (entry?.pending) await this.reportRows();
+        throw new RowsLimited();
+      }
+      if (!entry) {
+        const status = await this.rowCounter(key);
+        entry = { ...status, pending: 0, checkedAt: Date.now(), reportedAt: Date.now(), usedAt: Date.now() };
+        this.budget.rowContext.reports.keys[key] = entry;
+        if (status.exhausted) {
+          this.exhaustedUntil.set(key, (day + 1) * 86400000);
+          throw new RowsLimited();
+        }
+        if (Object.keys(this.budget.rowContext.reports.keys).length > V2_ROW_REPORT_KEYS) {
+          const oldest = Object.keys(this.budget.rowContext.reports.keys).filter((k) => !keys.includes(k)).sort((a, b) => this.budget.rowContext!.reports.keys[a]!.usedAt - this.budget.rowContext!.reports.keys[b]!.usedAt)[0]!;
+          try { await this.reportRows(oldest, true); }
+          catch (e) { delete this.budget.rowContext.reports.keys[key]; throw e; }
+        }
+      } else if (entry.day !== day || Date.now() - entry.checkedAt > V2_ROW_STATUS_MS || entry.pending >= V2_ROW_REPORT_BLOCK || Date.now() - entry.reportedAt > V2_ROW_REPORT_MS || entry.pending >= entry.remaining) {
+        if (entry.pending) {
+          await this.reportRows(key);
+          entry = this.budget.rowContext.reports.keys[key]!;
+        }
+        else Object.assign(entry, await this.rowCounter(key), { checkedAt: Date.now() });
+      }
+      if (entry.exhausted) {
+        this.exhaustedUntil.set(key, (day + 1) * 86400000);
+        throw new RowsLimited();
+      }
+    }
+    this.rowCall = c;
+  }
+
+  private async authorize(c: V2Call): Promise<ApiResult | null> {
+    const m = this.stored();
+    if (isRetired(m)) return this.retiredAnswer(c);
+    if (!m) {
+      if (c.route.resource !== "list" || c.method !== "PUT") return NOT_FOUND;
+      if (c.match === null) return err(428, "precondition_required");
+      return c.match === etag(0) ? null : err(412, "precondition_failed", { ETag: etag(0) });
+    }
+    const replaced = this.replacedError(m, c.verifier);
+    if (replaced) return replaced;
+    // Public invitation/recovery endpoints authenticate their scoped capability
+    // in handle; they still stream outside the lock and have the same deadline.
+    if (c.route.syncId === undefined) return this.rowsError(m, c);
+    const auth = this.active(m, c.verifier);
+    if (!auth) return UNAUTHORIZED;
+    if (auth.role === "web" && !webAllowed(auth, c)) return err(403, "forbidden_role");
+    if (auth.role === "web" && new PinGuard(this.sql).requiresRotation(auth.deviceId) && c.route.resource !== "guard") return err(409, "guard_rotation_required");
+    const rows = await this.rowsError(m, c);
+    if (rows) return rows;
+    if (!await this.hit(`r:${auth.deviceId}`, V2_CREDENTIAL_REQUESTS) ||
+        !await this.hit(`w:${auth.deviceId}`, V2_CREDENTIAL_WRITES)) return limited();
+    return null;
   }
 
   private async locked(c: V2Call): Promise<ApiResult> {
@@ -803,18 +1115,27 @@ export class ListV2Object extends DurableObject<Env> {
       return err(409, "renewal_disabled");
     }
     const s = await this.live();
+    if (!isRetired(s)) { this.restoreRowContext(); await this.settleRows(); }
     if (c.route.resource === "guard" && c.route.action === "open") {
-      return new PinGuard(this.sql).handle(c.route.deviceId!, "open", c.body, s !== null && !isRetired(s));
+      if (s && !isRetired(s)) {
+        const rows = await this.rowsError(s, c);
+        if (rows) return rows;
+      }
+      return new PinGuard(this.sql).handle(c.route.deviceId!, "open", c.body, s !== null && !isRetired(s), () => this.admitRows(c));
     }
     if (s === null) return this.create(c);
     if (isRetired(s)) return this.retiredAnswer(c);
     const m = s;
+    const rowsError = await this.rowsError(m, c);
+    if (rowsError) return rowsError;
     if (recovery) {
-      this.expireRecoveries();
+      if (!this.rowsExempt(c)) await this.admitRows(c);
+      await this.expireRecoveries();
       return this.recovery(m, c);
     }
     // Public invitation routes: authority is the live state of this list.
     if (c.route.syncId === undefined) {
+      if (!this.rowsExempt(c)) await this.admitRows(c);
       const authenticated = this.active(m, c.verifier);
       if (authenticated) this.recordActivity(m, authenticated);
       return this.publicInvite(m, c);
@@ -822,6 +1143,7 @@ export class ListV2Object extends DurableObject<Env> {
 
     const auth = this.active(m, c.verifier);
     if (!auth) return UNAUTHORIZED;
+    await this.admitRows(c);
     const controlRow = this.sql.exec<{ data: string }>("SELECT data FROM resource WHERE name = 'renewal'").toArray()[0];
     if (controlRow && !key32((JSON.parse(controlRow.data) as Record<string, unknown>).head)) return err(409, "renewal_upgrade_required");
     const wasExcluded = this.recordActivity(m, auth);
@@ -830,10 +1152,10 @@ export class ListV2Object extends DurableObject<Env> {
     // Guard cancellation is recovery bookkeeping only: it never lifts this gate.
     if (auth.role === "web" && new PinGuard(this.sql).requiresRotation(auth.deviceId) && c.route.resource !== "guard") return err(409, "guard_rotation_required");
     const control = c.route.resource === "renewal";
-    if (!await this.hit(`${control ? "renewal-r" : "r"}:${auth.deviceId}`, control ? V2_RENEWAL_REQUESTS : V2_CREDENTIAL_REQUESTS)) return limited();
+    if (!await this.hit(`${control ? "renewal-r" : "r"}:${auth.deviceId}`, control ? V2_RENEWAL_REQUESTS : V2_CREDENTIAL_REQUESTS, c.bodyAuthorized === true)) return limited();
     if (control && c.method !== "GET" && !await this.hit(`renewal-w:${auth.deviceId}`, V2_RENEWAL_WRITES)) return limited();
     if (c.method !== "GET" && c.route.resource !== "guard" && !control) {
-      if (!await this.hit(`w:${auth.deviceId}`, V2_CREDENTIAL_WRITES)) return limited();
+      if (!await this.hit(`w:${auth.deviceId}`, V2_CREDENTIAL_WRITES, c.bodyAuthorized === true)) return limited();
       // Another writer spending the list budget must never block a revocation.
       if (c.route.resource !== "revoke" && !await this.hit("list", MAX_WRITES_PER_WINDOW)) return limited();
     }
@@ -860,7 +1182,9 @@ export class ListV2Object extends DurableObject<Env> {
         return this.capability(m, auth, c);
       case "guard":
         if (r.action !== "resume" && (auth.role !== "web" || auth.deviceId !== r.deviceId)) return err(403, "forbidden_role");
-        return new PinGuard(this.sql).handle(r.deviceId!, r.action, c.body);
+        let guarded!: ApiResult;
+        await this.commit(() => { guarded = new PinGuard(this.sql).mutate(r.deviceId!, r.action, c.body); });
+        return guarded;
       case "revoke":
         return this.revoke(m, c);
       default:
@@ -870,31 +1194,87 @@ export class ListV2Object extends DurableObject<Env> {
 
   /** One-off operator RPC. No activity, authorization, version bump or notification. */
   async applyRetention(): Promise<void> {
-    await this.ctx.blockConcurrencyWhile(async () => {
+    await this.ctx.blockConcurrencyWhile(() => this.withLedger(async () => {
       const m = await this.retained();
       if (m === null || isRetired(m)) return;
       const next = this.nextAlarm(m);
       const current = await this.ctx.storage.getAlarm();
       // An already earlier alarm may be retrying a release. Never postpone it.
-      if (current === null || current > next) await this.ctx.storage.setAlarm(next);
+      if (current === null || current > next) await this.scheduleAlarm(next);
+    }));
+  }
+
+  /** Read-only operator preview, without retention, activity or ledger mutations. */
+  previewPurge(criteria: PurgeCriteria): PurgeCandidate | null {
+    const m = this.stored();
+    const credential = m && !isRetired(m) && m.credentials.length === 1 ? m.credentials[0] : undefined;
+    if (!m || isRetired(m) || !credential || credential.revoked || credential.verifier === null) return null;
+    if (this.readRenewal() !== null || this.hasReleases()) return null;
+    const now = Date.now();
+    const lastActivity = Math.max(m.lastAccess, credential.lastRequest ?? 0);
+    if (!Number.isSafeInteger(lastActivity) || lastActivity < 0 || lastActivity > criteria.inactiveBefore ||
+        now - m.lastAccess >= LIST_TTL_MS || now >= (m.inviteCopyExpiresAt ?? Infinity) ||
+        this.bodyReads.size > 0 || this.openSockets().length > 0) return null;
+
+    // Old credential timestamps may have been synthesized for capacity
+    // accounting. The fixed invitation cap records the real creation time.
+    if (m.createdAt === undefined && criteria.includeLegacy !== true) return null;
+    const createdAt = m.createdAt ?? (m.inviteCopyMaxExpiresAt === undefined ? null : m.inviteCopyMaxExpiresAt - 7 * INVITE_TTL_MS);
+    if (createdAt === null) {
+      // For undated lists the full possible range must fit the window.
+      if (criteria.createdFrom !== 0 || lastActivity >= criteria.createdBefore) return null;
+    } else if (!Number.isSafeInteger(createdAt) || createdAt < criteria.createdFrom ||
+               createdAt >= criteria.createdBefore || createdAt > lastActivity) return null;
+    const hasRecovery = this.recoveryStore().rows().some((row) => row.state !== "retired");
+    if (hasRecovery) return null;
+    const storedBytes = m.storedBytes;
+    if (storedBytes === undefined || !Number.isSafeInteger(storedBytes) || storedBytes < 0) return null;
+    const pendingInvites = this.invites().filter((invite) => !invite.package).length;
+    return { createdAt, lastActivity, version: m.version, storedBytes, hasRecovery, pendingInvites };
+  }
+
+  /** Only retire a reviewed candidate that still matches under the list lock. */
+  async purgeInactive(criteria: PurgeCriteria, expected: PurgeCandidate): Promise<boolean> {
+    return this.ctx.blockConcurrencyWhile(async () => {
+      const current = this.previewPurge(criteria);
+      if (!current || current.createdAt !== expected.createdAt ||
+          current.lastActivity !== expected.lastActivity || current.version !== expected.version ||
+          current.storedBytes !== expected.storedBytes || current.hasRecovery !== expected.hasRecovery ||
+          current.pendingInvites !== expected.pendingInvites) return false;
+      return this.withLedger(async () => {
+        if (!await this.retire()) throw new Error("Retirement cleanup pending");
+        return true;
+      });
     });
   }
 
   /** What is stored, after retiring a list that has gone 400 days without access. */
   private async retained(): Promise<Stored> {
     const s = this.stored();
+    if (s === null && (this.budget.attemptsExpireAt() ?? Infinity) <= Date.now()) {
+      await this.ctx.storage.deleteAll();
+      await this.ctx.storage.deleteAlarm();
+      this.budget = new ListStorageBudget(this.ctx.storage);
+      this.rowRetryAt = undefined;
+      return null;
+    }
     if (isRetired(s) && this.rawState() === MARKER_TEXT) {
+      this.rowRetryAt = undefined;
+      this.budget.rowContext = undefined;
+      // Remove accounting left beside bare markers by older versions.
+      this.budget.transaction(() => this.sql.exec("DROP TABLE IF EXISTS row_attempts"), true);
       // Old bare markers acquire a deadline on their first wake after upgrade.
       const previous = await this.ctx.storage.get<number>(RETIRED_UNTIL);
       const until = previous ?? Date.now() + LIST_TTL_MS;
       if (Date.now() >= until) {
         await this.ctx.storage.deleteAll();
+        this.budget = new ListStorageBudget(this.ctx.storage);
         await this.ctx.storage.deleteAlarm();
         this.rate.clear();
         return null;
       }
       if (previous === undefined) await this.ctx.storage.put(RETIRED_UNTIL, until);
-      if (await this.ctx.storage.getAlarm() !== until) await this.ctx.storage.setAlarm(until);
+      if (await this.ctx.storage.getAlarm() !== until) await this.scheduleAlarm(until);
       return s;
     }
     // A legacy or malformed row is retired for good, wiping whatever it left.
@@ -907,14 +1287,19 @@ export class ListV2Object extends DurableObject<Env> {
       return RETIRED;
     }
     if (s !== null && !isRetired(s)) {
+      if (s.credentials.some((c) => c.createdAt === undefined)) {
+        for (const c of s.credentials) c.createdAt ??= Date.now() - V2_CREDENTIAL_CAP_AGE_MS;
+        this.saveMeta(s, true);
+      }
+      if (s.storedBytes === undefined) this.saveMeta(s, true);
       // Older versions never dated service revocations. Their remaining slots
       // receive one fixed grace on first wake; reads cannot renew it.
       const legacy = s.credentials.filter((c) => c.revoked && c.slotsExpireAt === undefined &&
         this.sql.exec("SELECT 1 FROM slot WHERE device = ? LIMIT 1", c.deviceId).toArray().length > 0);
       if (legacy.length > 0) {
         for (const credential of legacy) credential.slotsExpireAt = Date.now() + V2_REVOKED_SLOTS_GRACE_MS;
-        await this.ctx.storage.setAlarm(this.nextAlarm(s));
-        this.saveMeta(s);
+        await this.scheduleAlarm(this.nextAlarm(s));
+        this.saveMeta(s, true);
       }
     }
     return s;
@@ -941,25 +1326,28 @@ export class ListV2Object extends DurableObject<Env> {
 
   /** Queue lives outside the content tables so list retirement can finish even
    * when a locator RPC fails. A delayed confirm can never supersede retirement. */
-  private queueRecoveryLocator(sid: string, row: RecoveryRow): void {
+  private queueRecoveryLocator(sid: string, row: RecoveryRow, pending = false): void {
     this.sql.exec("CREATE TABLE IF NOT EXISTS recovery_release (rid TEXT PRIMARY KEY, sid TEXT NOT NULL, token TEXT NOT NULL, action TEXT NOT NULL) WITHOUT ROWID");
-    this.sql.exec("INSERT INTO recovery_release VALUES (?, ?, ?, ?) ON CONFLICT(rid) DO UPDATE SET action = CASE WHEN action = 'retire' THEN action ELSE excluded.action END", row.rid, sid, row.reservationId, row.state === "retired" ? "retire" : "confirm");
+    this.sql.exec("INSERT INTO recovery_release VALUES (?, ?, ?, ?) ON CONFLICT(rid) DO UPDATE SET action = CASE WHEN action = 'retire' THEN action ELSE excluded.action END", row.rid, sid, row.reservationId, pending ? "pending" : row.state === "retired" ? "retire" : "confirm");
   }
 
   private async drainRecoveryReleases(): Promise<boolean> {
     if (!this.sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'recovery_release'").toArray().length) return true;
     let failed = false;
     for (const row of this.sql.exec<{ rid: string; sid: string; token: string; action: string }>("SELECT * FROM recovery_release").toArray()) {
+      // An intention owns this space until reserve completes or expiry retires
+      // it. Never confirm discovery before the authoritative blob is active.
+      if (row.action === "pending") continue;
       try {
         const ns = euNamespace(this.env.RECOVERIES_V2, this.env, this.localRequest);
         const locator = ns.get(ns.idFromName(row.rid));
         if (row.action === "retire") await locator.retire(row.sid, row.token);
         else if (!await locator.confirm(row.sid, row.token)) { failed = true; continue; }
-        this.sql.exec("DELETE FROM recovery_release WHERE rid = ?", row.rid);
+        await this.commit(() => { this.sql.exec("DELETE FROM recovery_release WHERE rid = ?", row.rid); }, true);
       } catch { failed = true; }
     }
-    if (failed) await this.ctx.storage.setAlarm(Date.now() + WINDOW_MS);
-    else this.sql.exec("DROP TABLE recovery_release");
+    if (failed) await this.scheduleAlarm(Date.now() + WINDOW_MS);
+    else if (!this.sql.exec("SELECT 1 FROM recovery_release LIMIT 1").toArray().length) await this.commit(() => { this.sql.exec("DROP TABLE recovery_release"); }, true);
     return !failed;
   }
 
@@ -978,50 +1366,77 @@ export class ListV2Object extends DurableObject<Env> {
     for (const row of this.recoveryStore().rows()) if (row.deviceId === deviceId && row.state !== "retired") this.closeRecovery(m, row, row.parent ? "cancelled" : undefined);
   }
 
-  private expireRecoveries(): void {
+  private async expireRecoveries(): Promise<void> {
     const s = this.stored();
     if (!s || isRetired(s)) return;
-    this.ctx.storage.transactionSync(() => {
-      for (const row of this.recoveryStore().rows()) if ((row.state === "intention" || row.state === "candidate") && row.expiresAt! <= Date.now()) this.closeRecovery(s, row, row.parent ? "expired" : undefined);
-    });
+    let expired = false;
+    await this.commit(() => {
+      for (const row of this.recoveryStore().rows()) if ((row.state === "intention" || row.state === "candidate") && row.expiresAt! <= Date.now()) {
+        this.closeRecovery(s, row, row.parent ? "expired" : undefined);
+        expired = true;
+      }
+    }, true);
+    if (expired) await this.scheduleAlarm(this.nextAlarm(s));
   }
 
   /** Called by the locator outside its own lock. Cancellation and blob commit
    * are serialized here, so a late token cannot commit after this acknowledgement. */
   async recoveryReconcile(token: string): Promise<"linked" | "reserved" | "retired"> {
-    return this.ctx.blockConcurrencyWhile(async () => {
+    return this.ctx.blockConcurrencyWhile(() => this.withLedger(async () => {
       const m = await this.live();
       if (!m || isRetired(m)) return "retired";
-      this.expireRecoveries();
+      await this.expireRecoveries();
       const row = this.recoveryStore().rows().find((r) => r.reservationId === token);
       if (!row || row.state === "retired") return "retired";
       return row.state === "intention" ? "reserved" : "linked";
-    });
+    }));
   }
 
   private async finishRecoveryIntention(m: Meta, row: RecoveryRow, capsule: string): Promise<ApiResult> {
+    // Also upgrades interrupted intentions from before capacity was reserved.
+    // The unpublished row, blob and pending queue cover the entire final commit.
+    await this.commit(() => {
+      row.published = false;
+      if (this.recoveryStore().blob(row.rid) !== capsule) this.recoveryStore().writeBlob(row.rid, capsule);
+      this.recoveryStore().save(row);
+      this.queueRecoveryLocator(m.syncId, row, true);
+    });
+    await this.scheduleAlarm(this.nextAlarm(m));
     const ns = euNamespace(this.env.RECOVERIES_V2, this.env, this.localRequest);
     let reserved: boolean;
     try { reserved = await ns.get(ns.idFromName(row.rid)).reserve(m.syncId, row.reservationId); }
     catch { return err(503, "recovery_unavailable", { "Retry-After": "60" }); }
     if (!reserved) {
-      this.ctx.storage.transactionSync(() => this.recoveryStore().discardUnreserved(row));
+      await this.commit(() => {
+        this.recoveryStore().discardUnreserved(row);
+        this.sql.exec("DELETE FROM recovery_blob WHERE rid = ?", row.rid);
+        this.sql.exec("DELETE FROM recovery_release WHERE rid = ?", row.rid);
+      }, true);
       return err(409, "recovery_retired");
     }
-    this.ctx.storage.transactionSync(() => {
-      row.state = row.parent ? "candidate" : "active";
-      row.published = true;
-      delete m.inviteCopyExpiresAt;
-      delete m.inviteCopyMaxExpiresAt;
-      if (!row.parent) delete row.expiresAt;
-      this.recoveryStore().writeBlob(row.rid, capsule);
-      this.recoveryStore().save(row);
-      this.queueRecoveryLocator(m.syncId, row);
-      m.lastAccess = activityHour(Date.now());
-      this.saveMeta(m);
-    });
+    const publishedMeta = { ...m, lastAccess: activityHour(Date.now()) };
+    delete publishedMeta.inviteCopyExpiresAt;
+    delete publishedMeta.inviteCopyMaxExpiresAt;
+    try {
+      await this.commit(() => {
+        const published: RecoveryRow = { ...row, state: row.parent ? "candidate" : "active", published: true };
+        if (!published.parent) delete published.expiresAt;
+        this.recoveryStore().save(published);
+        this.queueRecoveryLocator(m.syncId, published);
+        this.saveMeta(publishedMeta);
+      });
+    } catch (e) {
+      // A successful reserve (including a lost response) must always have a
+      // durable terminal path, even if the final local commit fails.
+      // Reload the unpublished intention: SQLite rollback cannot undo JS mutations.
+      await this.commit(() => {
+        const intention = this.recoveryStore().get(row.rid)!;
+        this.closeRecovery(m, intention, intention.parent ? "cancelled" : undefined);
+      }, true);
+      throw e;
+    }
     await this.drainRecoveryReleases();
-    await this.ctx.storage.setAlarm(this.nextAlarm(m));
+    await this.scheduleAlarm(this.nextAlarm(publishedMeta));
     return row.initial.response;
   }
 
@@ -1062,9 +1477,8 @@ export class ListV2Object extends DurableObject<Env> {
       updated.claim = { operationId: b.operationId, fingerprint, verifier: c.verifier, response };
       const error = store.history(store.rows().map((a) => a.rid === row.rid ? updated : a), true) ?? store.quotaError(true, auth.deviceId, true);
       if (error) return error;
-      await this.ctx.storage.setAlarm(Date.now() + WINDOW_MS);
       const removed = this.invites().filter((i) => i.owner === auth!.deviceId || i.guest === auth!.deviceId);
-      this.ctx.storage.transactionSync(() => {
+      await this.commit(() => {
         store.retireVerifier(c.verifier!, auth!.deviceId);
         auth!.verifier = fresh;
         auth!.lastRequest = activityHour(Date.now());
@@ -1081,13 +1495,14 @@ export class ListV2Object extends DurableObject<Env> {
         store.charge(true, auth!.deviceId, true);
         this.saveMeta(m);
       });
+      await this.scheduleAlarm(this.nextAlarm(m));
       // The committed credential fence protects notify even if the process dies
       // here, before explicit close (including hibernated sockets).
       this.closeSockets(CLOSE_REPLACED, auth.deviceId);
       this.notify(m);
       await this.drainReleases();
       await this.drainRecoveryReleases();
-      await this.ctx.storage.setAlarm(this.nextAlarm(m));
+      await this.scheduleAlarm(this.nextAlarm(m));
       return response;
     }
 
@@ -1107,17 +1522,17 @@ export class ListV2Object extends DurableObject<Env> {
       if (row.state !== "active") return NOT_FOUND;
       const error = this.recoveryPrecondition(row, c.match) ?? store.quotaError(false, auth.deviceId);
       if (error) return error;
-      await this.ctx.storage.setAlarm(Date.now() + WINDOW_MS);
+      await this.scheduleAlarm(Date.now() + WINDOW_MS);
       const response: ApiResult = { status: 204 };
-      this.ctx.storage.transactionSync(() => {
+      await this.commit(() => {
         row.deletion = { verifier: c.verifier!, deviceId: auth!.deviceId, expectedRevision: expected!, response };
         this.cancelRecoveryCandidate(m, row.rid);
         this.closeRecovery(m, row);
         store.charge(false, auth!.deviceId);
         m.lastAccess = activityHour(Date.now()); this.saveMeta(m);
-      });
+      }, true);
       await this.drainRecoveryReleases();
-      await this.ctx.storage.setAlarm(this.nextAlarm(m));
+      await this.scheduleAlarm(this.nextAlarm(m));
       return response;
     }
 
@@ -1156,15 +1571,20 @@ export class ListV2Object extends DurableObject<Env> {
     if (!row) updated.initial.response = this.recoveryResponse(updated, 201);
     const error = store.history(row ? rows.map((a) => a.rid === row.rid ? updated : a) : [...rows, updated]) ?? store.quotaError(true, auth.deviceId);
     if (error) return error;
-    await this.ctx.storage.setAlarm(Date.now() + WINDOW_MS);
-    this.ctx.storage.transactionSync(() => {
+    await this.commit(() => {
       if (row) { this.cancelRecoveryCandidate(m, row.rid); store.writeBlob(row.rid, b.capsule as string); }
+      else {
+        updated.published = false;
+        store.writeBlob(updated.rid, b.capsule as string);
+        this.queueRecoveryLocator(m.syncId, updated, true);
+      }
       store.save(updated); store.charge(true, auth!.deviceId);
-      if (row) { m.lastAccess = activityHour(Date.now()); this.saveMeta(m); }
+      m.lastAccess = activityHour(Date.now()); this.saveMeta(m);
     });
     if (!row) return this.finishRecoveryIntention(m, updated, b.capsule as string);
+    await this.scheduleAlarm(this.nextAlarm(m));
     await this.drainRecoveryReleases();
-    await this.ctx.storage.setAlarm(this.nextAlarm(m));
+    await this.scheduleAlarm(this.nextAlarm(m));
     return this.recoveryResponse(updated);
   }
 
@@ -1189,17 +1609,17 @@ export class ListV2Object extends DurableObject<Env> {
       if (!candidate || candidate.state !== "candidate") return NOT_FOUND;
       const quota = store.quotaError(false, auth.deviceId);
       if (quota) return quota;
-      await this.ctx.storage.setAlarm(Date.now() + WINDOW_MS);
       const response = this.recoveryResponse(candidate, 200, op);
-      this.ctx.storage.transactionSync(() => {
+      await this.commit(() => {
         candidate.state = "active"; candidate.terminal = "committed"; delete candidate.expiresAt;
         store.save(candidate);
         old.commit = { verifier: c.verifier!, expectedRevision: expected!, response };
         this.closeRecovery(m, old);
         store.charge(false, auth!.deviceId); m.lastAccess = activityHour(Date.now()); this.saveMeta(m);
       });
+      await this.scheduleAlarm(this.nextAlarm(m));
       await this.drainRecoveryReleases();
-      await this.ctx.storage.setAlarm(this.nextAlarm(m));
+      await this.scheduleAlarm(this.nextAlarm(m));
       return response;
     }
     if (store.rows().some((r) => r.parent && (r.state === "candidate" || r.state === "intention"))) return err(409, "recovery_exists");
@@ -1212,8 +1632,14 @@ export class ListV2Object extends DurableObject<Env> {
     row.initial.response = this.recoveryResponse(row, 201, op);
     const error = store.history([...store.rows(), row]) ?? store.quotaError(true, auth.deviceId);
     if (error) return error;
-    await this.ctx.storage.setAlarm(Date.now() + WINDOW_MS);
-    this.ctx.storage.transactionSync(() => { store.save(row); store.charge(true, auth!.deviceId); });
+    await this.commit(() => {
+      row.published = false;
+      store.writeBlob(row.rid, b.capsule as string);
+      store.save(row);
+      this.queueRecoveryLocator(m.syncId, row, true);
+      m.lastAccess = activityHour(Date.now()); this.saveMeta(m);
+      store.charge(true, auth!.deviceId);
+    });
     return this.finishRecoveryIntention(m, row, b.capsule as string);
   }
 
@@ -1234,6 +1660,15 @@ export class ListV2Object extends DurableObject<Env> {
     if (c.verifier === null) return UNAUTHORIZED;
     if (c.match === null) return err(428, "precondition_required");
     if (c.match !== etag(0)) return err(412, "precondition_failed", { ETag: etag(0) });
+    const ns = euNamespace(this.env.LIMITER_V2, this.env, this.localRequest);
+    const wide = c.client48 ?? clientKey48(c.client);
+    const quotas: [string, number, number][] = wide === c.client
+      ? [[`v2:new:${c.client}`, V2_NEW_LISTS_PER_HOUR, V2_NEW_LISTS_PER_DAY]]
+      : [[`v2:new48:${wide}`, V2_NEW_LISTS_PER_HOUR_48, V2_NEW_LISTS_PER_DAY_48], [`v2:new:${c.client}`, V2_NEW_LISTS_PER_HOUR, V2_NEW_LISTS_PER_DAY]];
+    for (const [key, hourly, daily] of quotas) {
+      const quota = await ns.get(ns.idFromName(key)).creation(hourly, daily);
+      if (!quota.ok) return limited(quota.retryAfter);
+    }
     const b = c.body;
     if (!identifier(b.deviceId)) return err(400, "bad_request");
     if (b.inviteCopy !== undefined && typeof b.inviteCopy !== "boolean") return err(400, "bad_request");
@@ -1255,20 +1690,17 @@ export class ListV2Object extends DurableObject<Env> {
     if (!signingKey) return err(400, "renewal_key_binding_required");
     // A new list stays small; it can grow with later versions.
     if (bytes(b) > MAX_FIRST_UPLOAD_BYTES) return err(413, "too_large");
-    // Creating Durable Objects is the expensive thing a stranger can do.
-    const ns = euNamespace(this.env.LIMITER_V2, this.env, this.localRequest);
-    const quota = await ns.get(ns.idFromName(`v2:new:${c.client}`)).hit(V2_NEW_LISTS_PER_HOUR, NEW_LIST_WINDOW_MS);
-    if (!quota.ok) return limited(quota.retryAfter);
 
     const now = Date.now();
     const knownRecords = [...new Set(await Promise.all((s.registry.records as unknown[]).map(recordHash)))];
     const m: Meta = {
       syncId: r.syncId,
       version: 1,
+      createdAt: now,
       lastAccess: activityHour(now),
       ...(b.inviteCopy === true ? { inviteCopyExpiresAt: now + INVITE_TTL_MS, inviteCopyMaxExpiresAt: now + 7 * INVITE_TTL_MS } : {}),
       // The first registry is bounded by its own caps and costs no quota.
-      credentials: [{ deviceId: b.deviceId, verifier: c.verifier, revoked: false, records: [], role: "device",
+      credentials: [{ deviceId: b.deviceId, verifier: c.verifier, revoked: false, createdAt: now, records: [], role: "device",
         signingKey,
         ...(minCommonFormat > 1 ? { commonFormat: minCommonFormat } : {}) }],
       denied: [],
@@ -1277,11 +1709,24 @@ export class ListV2Object extends DurableObject<Env> {
       approvals: [],
       ...(minCommonFormat > 1 ? { minCommonFormat } : {}),
     };
+    const global = euNamespace(this.env.CREATION_BUDGET, this.env, this.localRequest);
+    const reservation = await global.get(global.idFromName("v2:new-lists")).reserve();
+    if (!reservation.ok) return limited(reservation.retryAfter);
+    await this.admitRows(c);
     // Arm before committing the first copy, including a crash before the reply.
-    await this.ctx.storage.setAlarm(m.inviteCopyExpiresAt ?? now + LIST_TTL_MS);
-    this.ctx.storage.transactionSync(() => {
+    await this.scheduleAlarm(m.inviteCopyExpiresAt ?? now + LIST_TTL_MS);
+    const slots = s.slots.filter((x) => x.data !== null);
+    // Schema rows (13), snapshot/state rows (6), and slot index entries.
+    const blocks = this.budget.initialBlocks(m, [
+      { idx: 0, data: s.common },
+      { name: "registry", data: JSON.stringify(s.registry) },
+      { name: "packages", data: JSON.stringify(s.keyPackages) },
+      ...slots.map((slot) => ({ person: slot.personId, device: slot.deviceId, ver: 1, data: slot.data })),
+    ], 19 + 2 * slots.length);
+    await this.reserveBlocks(blocks);
+    await this.commit(() => {
       this.createSchema();
-      this.writeSnapshot({ ...s, slots: s.slots.filter((x) => x.data !== null) }, 1);
+      this.writeSnapshot({ ...s, slots }, 1);
       this.saveMeta(m);
     });
     return this.versioned(m, 201);
@@ -1398,7 +1843,7 @@ export class ListV2Object extends DurableObject<Env> {
     m.version++;
     m.lastAccess = activityHour(Date.now());
     if (minCommonFormat > (m.minCommonFormat ?? 1)) m.minCommonFormat = minCommonFormat;
-    this.ctx.storage.transactionSync(() => {
+    await this.commit(() => {
       this.writeSnapshot(s, m.version);
       this.saveMeta(m);
     });
@@ -1406,7 +1851,7 @@ export class ListV2Object extends DurableObject<Env> {
     return this.versioned(m);
   }
 
-  private putCommon(m: Meta, c: V2Call): ApiResult {
+  private async putCommon(m: Meta, c: V2Call): Promise<ApiResult> {
     const failed = this.precondition(m, c.match);
     if (failed) return failed;
     if (Object.keys(c.body).length !== 1 || !("common" in c.body)) return err(400, "bad_request");
@@ -1416,7 +1861,7 @@ export class ListV2Object extends DurableObject<Env> {
     if (formatError) return formatError;
     m.version++;
     m.lastAccess = activityHour(Date.now());
-    this.ctx.storage.transactionSync(() => {
+    await this.commit(() => {
       this.writeCommon(c.body.common as string);
       this.saveMeta(m);
     });
@@ -1430,7 +1875,7 @@ export class ListV2Object extends DurableObject<Env> {
    * Both announcements are monotonic and idempotent. A first announcement bumps
    * the version and notifies; common format alone never opts into renewal.
    */
-  private capability(m: Meta, auth: Credential, c: V2Call): ApiResult {
+  private async capability(m: Meta, auth: Credential, c: V2Call): Promise<ApiResult> {
     if (this.readRenewal()?.abortion === null) return err(409, "renewal_signed_capability_required");
     const format = c.body.commonFormat;
     if (Object.keys(c.body).some((k) => k !== "commonFormat" && k !== "renewalProtocol") ||
@@ -1444,7 +1889,7 @@ export class ListV2Object extends DurableObject<Env> {
     if (announceRenewal) auth.renewalProtocol = 1;
     m.version++;
     m.lastAccess = activityHour(Date.now());
-    this.saveMeta(m);
+    await this.commit(() => this.saveMeta(m));
     this.notify(m);
     return this.versioned(m);
   }
@@ -1494,8 +1939,8 @@ export class ListV2Object extends DurableObject<Env> {
         return await this.retire() ? response : err(500, "internal");
       }
       const removed = this.invites().filter((i) => i.owner === deviceId || i.guest === deviceId);
-      await this.ctx.storage.setAlarm(Math.min(this.nextAlarm(m), Date.now() + WINDOW_MS));
-      this.ctx.storage.transactionSync(() => {
+      await this.scheduleAlarm(Math.min(this.nextAlarm(m), Date.now() + WINDOW_MS));
+      await this.commit(() => {
         for (const i of removed) {
           this.queueRelease(m.syncId, i);
           this.sql.exec("DELETE FROM invite WHERE id = ?", i.id);
@@ -1505,7 +1950,7 @@ export class ListV2Object extends DurableObject<Env> {
         // Surviving readers get a fixed grace before the alarm erases slots.
         this.retireDeviceRecoveries(m, deviceId);
         this.saveMeta(m);
-      });
+      }, true);
       this.closeSockets(CLOSE_REVOKED, deviceId);
       this.notify(m);
       if (!await this.drainReleases()) return err(500, "internal");
@@ -1545,22 +1990,56 @@ export class ListV2Object extends DurableObject<Env> {
       if (b.inviteId !== undefined && pending.some((p) => p.id === b.inviteId)) return err(409, "invite_exists");
       if (pending.length >= MAX_OPEN_INVITES) return limited(Math.ceil(WINDOW_MS / 1000));
       if (this.invites().filter((i) => !i.package).length >= MAX_OPEN_INVITES) return err(429, "too_many_invites");
-      const i: Invitation = { id: b.inviteId as string | undefined ?? encodeB64Url(randomBytes(16)), owner: auth.deviceId, expiresAt: Date.now() + INVITE_TTL_MS, offer, guestPerson };
-      const ns = euNamespace(this.env.INVITES_V2, this.env, this.localRequest);
-      const reservation = await ns.get(ns.idFromName(i.id)).reserve({ syncId: m.syncId, owner: auth.deviceId, offerHash, guestPerson, expiresAt: i.expiresAt, reservationId: encodeB64Url(randomBytes(16)) });
-      if (!reservation.ok) return err(409, "invite_exists");
-      i.expiresAt = reservation.expiresAt;
-      i.reservationId = reservation.reservationId;
-      this.ctx.storage.transactionSync(() => {
-        if (m.inviteCopyExpiresAt !== undefined) {
-          // Old provisional copies had only the initial 24-hour deadline.
-          m.inviteCopyMaxExpiresAt ??= m.inviteCopyExpiresAt + 6 * INVITE_TTL_MS;
-          m.inviteCopyExpiresAt = Math.min(i.expiresAt, m.inviteCopyMaxExpiresAt);
-          this.saveMeta(m);
-        }
+      const i: Invitation = { id: b.inviteId as string | undefined ?? encodeB64Url(randomBytes(16)), owner: auth.deviceId, expiresAt: Date.now() + INVITE_TTL_MS, offer, guestPerson, reservationId: encodeB64Url(randomBytes(16)) };
+      const invitedMeta = { ...m };
+      if (invitedMeta.inviteCopyExpiresAt !== undefined) {
+        invitedMeta.inviteCopyMaxExpiresAt ??= invitedMeta.inviteCopyExpiresAt + 6 * INVITE_TTL_MS;
+        invitedMeta.inviteCopyExpiresAt = Math.min(i.expiresAt, invitedMeta.inviteCopyMaxExpiresAt);
+      }
+      // Validate the full invitation, metadata and cancellation queue together.
+      // The lock prevents another writer from spending this capacity while the
+      // RPC is in flight. A crash leaves only a durable cancellation to drain.
+      this.budget.preview(() => {
+        this.queueRelease(m.syncId, i);
         this.saveInvite(i);
+        this.saveMeta(invitedMeta);
       });
-      await this.ctx.storage.setAlarm(this.nextAlarm(m));
+      await this.commit(() => this.queueRelease(m.syncId, i));
+      await this.scheduleAlarm(this.nextAlarm(m));
+      const ns = euNamespace(this.env.INVITES_V2, this.env, this.localRequest);
+      let release = JSON.stringify({ id: i.id, syncId: m.syncId, expiresAt: i.expiresAt, reservationId: i.reservationId });
+      try {
+        const reservation = await ns.get(ns.idFromName(i.id)).reserve({ syncId: m.syncId, owner: auth.deviceId, offerHash, guestPerson, expiresAt: i.expiresAt, reservationId: i.reservationId });
+        if (!reservation.ok) {
+          this.sql.exec("DELETE FROM pending_release WHERE data = ?", release);
+          return err(409, "invite_exists");
+        }
+        i.expiresAt = reservation.expiresAt;
+        i.reservationId = reservation.reservationId;
+        // An identical global reservation can return its original fencing token.
+        const confirmedRelease = JSON.stringify({ id: i.id, syncId: m.syncId, expiresAt: i.expiresAt, reservationId: i.reservationId });
+        if (confirmedRelease !== release) await this.commit(() => {
+          this.sql.exec("DELETE FROM pending_release WHERE data = ?", release);
+          this.queueRelease(m.syncId, i);
+        }, true);
+        release = confirmedRelease;
+        if (invitedMeta.inviteCopyExpiresAt !== undefined) invitedMeta.inviteCopyExpiresAt = Math.min(i.expiresAt, invitedMeta.inviteCopyMaxExpiresAt!);
+        await this.commit(() => {
+          this.saveInvite(i);
+          this.saveMeta(invitedMeta);
+          this.sql.exec("DELETE FROM pending_release WHERE data = ?", release);
+          if (this.pendingReleases().length === 0) this.sql.exec("DROP TABLE pending_release");
+        });
+        await this.scheduleAlarm(this.nextAlarm(invitedMeta));
+      } catch (e) {
+        await this.commit(() => {
+          this.queueRelease(m.syncId, i);
+          this.sql.exec("DELETE FROM invite WHERE id = ?", i.id);
+          this.saveMeta(m);
+        }, true);
+        await this.drainReleases();
+        throw e;
+      }
       return { status: 201, body: { inviteId: i.id, expiresAt: i.expiresAt } };
     }
 
@@ -1569,12 +2048,12 @@ export class ListV2Object extends DurableObject<Env> {
     if (i.owner !== auth.deviceId) return err(403, "forbidden");
     if (c.method === "DELETE") {
       if (this.pendingReleases().length >= MAX_OPEN_INVITES) return limited(Math.ceil(WINDOW_MS / 1000));
-      await this.ctx.storage.setAlarm(Math.min(this.nextAlarm(m), Date.now() + WINDOW_MS));
-      this.ctx.storage.transactionSync(() => {
+      await this.scheduleAlarm(Math.min(this.nextAlarm(m), Date.now() + WINDOW_MS));
+      await this.commit(() => {
         this.queueRelease(m.syncId, i);
         this.sql.exec("DELETE FROM invite WHERE id = ?", i.id);
         this.dropCheckpoints(i.id);
-      });
+      }, true);
       if (!await this.drainReleases()) return err(500, "internal");
       return { status: 204 };
     }
@@ -1592,7 +2071,7 @@ export class ListV2Object extends DurableObject<Env> {
       if (!i.answer || i.reveal) return err(409, "invalid_state");
       if (!object(b.reveal) || b.reveal.v !== 2 || !key32(b.reveal.n)) return err(400, "bad_reveal");
       i.reveal = b.reveal;
-      this.saveInvite(i);
+      await this.commit(() => this.saveInvite(i));
       return { status: 200, body: { expiresAt: i.expiresAt } };
     }
     // approve: registers the guest credential under the version the host saw.
@@ -1638,7 +2117,7 @@ export class ListV2Object extends DurableObject<Env> {
     const wait = waitFor(approvals, 1, V2_NEW_DEVICES_PER_LIST, now);
     if (wait > 0) return err(429, "too_many_approvals", { "Retry-After": String(wait) });
     m.approvals = [...approvals, now];
-    m.credentials.push({ deviceId: guest, verifier, revoked: false, records: [], approvedBy: i.owner, role,
+    m.credentials.push({ deviceId: guest, verifier, revoked: false, createdAt: now, records: [], approvedBy: i.owner, role,
       signingKey: guestRecord.e });
     delete m.inviteCopyExpiresAt;
     delete m.inviteCopyMaxExpiresAt;
@@ -1646,7 +2125,7 @@ export class ListV2Object extends DurableObject<Env> {
     i.package = b.package;
     i.minVersion = m.version;
     if (checkpoint) i.checkpoint = { common: checkpoint.common, registry: checkpoint.registry };
-    this.ctx.storage.transactionSync(() => {
+    await this.commit(() => {
       if (checkpoint) this.saveCheckpoint(i.id, checkpoint.commonText, checkpoint.registryText);
       this.saveInvite(i);
       this.saveMeta(m);
@@ -1678,11 +2157,10 @@ export class ListV2Object extends DurableObject<Env> {
       }
       if (i.answer) return err(409, "already_answered");
       if (this.pendingReleases().length + prior.length > MAX_OPEN_INVITES) return limited();
-      if (prior.length) await this.ctx.storage.setAlarm(Math.min(this.nextAlarm(m), Date.now() + WINDOW_MS));
       i.answer = answer;
       i.guest = guest;
       i.verifier = verifier;
-      this.ctx.storage.transactionSync(() => {
+      await this.commit(() => {
         for (const old of prior) {
           this.queueRelease(m.syncId, old);
           this.sql.exec("DELETE FROM invite WHERE id = ?", old.id);
@@ -1690,6 +2168,7 @@ export class ListV2Object extends DurableObject<Env> {
         }
         this.saveInvite(i);
       });
+      if (prior.length) await this.scheduleAlarm(Math.min(this.nextAlarm(m), Date.now() + WINDOW_MS));
       if (prior.length) await this.drainReleases();
       return { status: 201, body: { expiresAt: i.expiresAt } };
     }
@@ -1704,12 +2183,12 @@ export class ListV2Object extends DurableObject<Env> {
       // is real: do not silently erase its package/checkpoint or claim success.
       if (i.package) return err(409, "already_approved");
       if (this.pendingReleases().length >= MAX_OPEN_INVITES) return limited();
-      await this.ctx.storage.setAlarm(Math.min(this.nextAlarm(m), Date.now() + WINDOW_MS));
-      this.ctx.storage.transactionSync(() => {
+      await this.scheduleAlarm(Math.min(this.nextAlarm(m), Date.now() + WINDOW_MS));
+      await this.commit(() => {
         this.queueRelease(m.syncId, i);
         this.sql.exec("DELETE FROM invite WHERE id = ?", i.id);
         this.dropCheckpoints(i.id);
-      });
+      }, true);
       // The authoritative deletion is committed; failed locator cleanup is
       // retried by the alarm, just like the other invitation releases.
       await this.drainReleases();
@@ -1722,12 +2201,12 @@ export class ListV2Object extends DurableObject<Env> {
       if (c.method === "DELETE") {
         // Installation acknowledgement ends retries, including for older hosts
         // which did not provide a checkpoint. Erase the entire opaque package.
-        await this.ctx.storage.setAlarm(Math.min(this.nextAlarm(m), Date.now() + WINDOW_MS));
-        this.ctx.storage.transactionSync(() => {
+        await this.scheduleAlarm(Math.min(this.nextAlarm(m), Date.now() + WINDOW_MS));
+        await this.commit(() => {
           this.queueRelease(m.syncId, i);
           this.dropCheckpoints(i.id);
           this.sql.exec("DELETE FROM invite WHERE id = ?", i.id);
-        });
+        }, true);
         await this.drainReleases();
         return { status: 204 };
       }
@@ -1751,7 +2230,7 @@ export class ListV2Object extends DurableObject<Env> {
   override async fetch(request: Request): Promise<Response> {
     const local = this.env.LOCAL_DEV === "true" && localhostRequest(request);
     if (this.env.LOCAL_DEV === "true" && !local) return new Response(null, { status: 500 });
-    return this.ctx.blockConcurrencyWhile(() => this.withLocalRequest(local, async () => {
+    return this.ctx.blockConcurrencyWhile(() => this.withLocalRequest(local, () => this.withLedger(async () => {
       const m = await this.live();
       if (m === null || isRetired(m)) return new Response(null, { status: 404 });
       const v = request.headers.get("x-verifier");
@@ -1770,13 +2249,13 @@ export class ListV2Object extends DurableObject<Env> {
       pair[1].serializeAttachment({ deviceId: auth.deviceId, credentialVerifier: auth.verifier, t: Date.now() });
       const headers: Record<string, string> = request.headers.has("x-ws-protocol") ? { "Sec-WebSocket-Protocol": V2_WS_PROTOCOL } : {};
       return new Response(null, { status: 101, webSocket: pair[0], headers });
-    }));
+    })));
   }
 
   /** Text keepalives are bounded per device and revalidate the stored credential. */
   override async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
     if (message !== "ping") { ws.close(CLOSE_POLICY, "read only"); return; }
-    await this.ctx.blockConcurrencyWhile(async () => {
+    await this.ctx.blockConcurrencyWhile(() => this.withLedger(async () => {
       const m = this.stored();
       if (!m || isRetired(m)) { ws.close(CLOSE_GONE, "gone"); return; }
       if (Date.now() - m.lastAccess >= LIST_TTL_MS) { ws.close(CLOSE_GONE, "gone"); return; }
@@ -1784,7 +2263,7 @@ export class ListV2Object extends DurableObject<Env> {
       const a = ws.deserializeAttachment() as { deviceId: string };
       if (!await this.hit(`p:${a.deviceId}`, 12)) { ws.close(CLOSE_POLICY, "rate limited"); return; }
       ws.send("pong");
-    });
+    }));
   }
 
   override webSocketClose(ws: WebSocket, code: number): void {
@@ -1819,13 +2298,13 @@ export class ListV2Object extends DurableObject<Env> {
       ? this.sql.exec<{ data: string }>("SELECT data FROM invite").toArray().map((r) => JSON.parse(r.data) as Invitation) : [];
     // Arm recovery before committing any local mutation, including a crash
     // between that commit and the first remote release.
-    await this.ctx.storage.setAlarm(Date.now() + WINDOW_MS);
+    await this.scheduleAlarm(Date.now() + WINDOW_MS);
     const until = await this.ctx.storage.get<number>(RETIRED_UNTIL) ?? Date.now() + LIST_TTL_MS;
     await this.ctx.storage.put(RETIRED_UNTIL, until);
-    this.ctx.storage.transactionSync(() => {
+    await this.commit(() => {
       if (m && !isRetired(m)) for (const i of invitations) this.queueRelease(m.syncId, i);
       if (m && !isRetired(m)) for (const row of this.recoveryStore().rows()) this.queueRecoveryLocator(m.syncId, { ...row, state: "retired" });
-      for (const table of ["common", "resource", "slot", "invite", "checkpoint", "guard", "rate", "renewal_command", "renewal_usage", "recovery", "recovery_blob", "recovery_retired", "recovery_quota"]) this.sql.exec(`DROP TABLE IF EXISTS ${table}`);
+      for (const table of ["common", "resource", "slot", "invite", "checkpoint", "guard", "rate", "renewal_command", "renewal_usage", "recovery", "recovery_blob", "recovery_retired", "recovery_quota", "row_attempts"]) this.sql.exec(`DROP TABLE IF EXISTS ${table}`);
       this.sql.exec("INSERT INTO state (id, data) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data", JSON.stringify({ retiring: true }));
     });
     this.closeSockets(CLOSE_GONE);
@@ -1833,8 +2312,11 @@ export class ListV2Object extends DurableObject<Env> {
     const invitesReleased = await this.drainReleases();
     const recoveriesReleased = await this.drainRecoveryReleases();
     if (!invitesReleased || !recoveriesReleased) return false;
+    this.rowRetryAt = undefined;
+    this.budget.rowContext = undefined;
     this.saveMeta(RETIRED);
-    await this.ctx.storage.setAlarm(until);
+    this.budget = new ListStorageBudget(this.ctx.storage);
+    await this.scheduleAlarm(until);
     return true;
   }
 
@@ -1863,7 +2345,7 @@ export class ListV2Object extends DurableObject<Env> {
     for (const row of this.sql.exec<{ data: string }>("SELECT data FROM pending_release").toArray()) {
       const r = JSON.parse(row.data) as Release;
       if (r.expiresAt <= Date.now()) {
-        this.sql.exec("DELETE FROM pending_release WHERE data = ?", row.data);
+        await this.commit(() => { this.sql.exec("DELETE FROM pending_release WHERE data = ?", row.data); }, true);
         continue;
       }
       try {
@@ -1873,39 +2355,48 @@ export class ListV2Object extends DurableObject<Env> {
         failed = true;
         continue;
       }
-      this.sql.exec("DELETE FROM pending_release WHERE data = ?", row.data);
+      await this.commit(() => { this.sql.exec("DELETE FROM pending_release WHERE data = ?", row.data); }, true);
     }
     if (failed) {
-      await this.ctx.storage.setAlarm(Date.now() + WINDOW_MS);
+      await this.scheduleAlarm(Date.now() + WINDOW_MS);
       return false;
     }
-    this.sql.exec("DROP TABLE pending_release");
+    await this.commit(() => { this.sql.exec("DROP TABLE pending_release"); }, true);
     return true;
   }
 
   override async alarm(): Promise<void> {
-    await this.ctx.blockConcurrencyWhile(async () => {
+    await this.ctx.blockConcurrencyWhile(() => this.withLedger(async () => {
       const m = await this.live();
-      if (m === null || isRetired(m)) return;
-      const now = Date.now();
-      if (this.hasRateTable()) this.sql.exec("DELETE FROM rate WHERE start <= ?", now - WINDOW_MS);
-      for (const [key, counter] of this.rate) if (counter.start <= now - WINDOW_MS) this.rate.delete(key);
-      let removedSlots = false;
-      this.ctx.storage.transactionSync(() => {
-        for (const credential of m.credentials) {
-          if (!credential.revoked || credential.slotsExpireAt === undefined || credential.slotsExpireAt > now) continue;
-          removedSlots = this.sql.exec("DELETE FROM slot WHERE device = ?", credential.deviceId).rowsWritten > 0 || removedSlots;
-          delete credential.slotsExpireAt;
-        }
-        if (removedSlots) m.version++;
-        this.saveMeta(m);
-      });
-      if (removedSlots) this.notify(m);
-      this.expireRecoveries();
-      await this.drainRecoveryReleases();
-      this.sql.exec("DELETE FROM invite WHERE expires_at <= ?", Date.now());
-      this.dropCheckpoints();
-      await this.ctx.storage.setAlarm(this.nextAlarm(m));
-    });
+      if (isRetired(m)) return;
+      this.restoreRowContext();
+      try {
+        if (m === null) return;
+        const now = Date.now();
+        for (const [key, counter] of this.rate) if (counter.start <= now - WINDOW_MS) this.rate.delete(key);
+        let removedSlots = false;
+        await this.commit(() => {
+          this.sql.exec("DROP TABLE IF EXISTS rate");
+          this.sql.exec("DELETE FROM invite WHERE expires_at <= ?", now);
+          this.dropCheckpoints();
+          for (const credential of m.credentials) {
+            if (!credential.revoked || credential.slotsExpireAt === undefined || credential.slotsExpireAt > now) continue;
+            removedSlots = this.sql.exec("DELETE FROM slot WHERE device = ?", credential.deviceId).rowsWritten > 0 || removedSlots;
+            delete credential.slotsExpireAt;
+          }
+          if (removedSlots) m.version++;
+          this.saveMeta(m);
+        }, true);
+        if (removedSlots) this.notify(m);
+        await this.expireRecoveries();
+        await this.drainRecoveryReleases();
+        await this.scheduleAlarm(this.nextAlarm(m));
+      } finally {
+        // A retry alarm must drain even a sub-block tail after hibernation,
+        // when the in-memory reason for the wake has been lost.
+        await this.settleRows("*");
+        this.budget.rowContext = undefined;
+      }
+    }));
   }
 }

@@ -1048,25 +1048,25 @@ void main() {
 
   group('barra de desplazamiento', () {
     screenTest(
-      'el tema la deja fina, con el borde de control y más marcada al pasar el ratón',
+      'el tema la deja fina, de tinta suave y más marcada al pasar el ratón',
       (tester, phone) async {
         await seedSample(tester, phone);
         await pumpRegalos(tester, phone);
         final context = tester.element(find.byType(PeopleListPane));
         final theme = Theme.of(context);
         final t = RegalosTokens.of(context);
-        expect(theme.scrollbarTheme.thickness!.resolve({}), 6);
-        final thumb = theme.scrollbarTheme.thumbColor!;
-        expect(thumb.resolve({}), t.outline);
+        final bar = theme.scrollbarTheme;
+        // 6 en reposo y más ancha al pasar el ratón; radio de 4 como mucho.
+        expect(bar.thickness!.resolve({}), 6);
+        expect(bar.thickness!.resolve({WidgetState.hovered}), greaterThan(6));
+        expect(bar.radius!.x, lessThanOrEqualTo(4));
+        // La tinta del texto con poca opacidad, que sube con el ratón.
+        final thumb = bar.thumbColor!;
+        final rest = thumb.resolve({})!;
         final hover = thumb.resolve({WidgetState.hovered})!;
-        expect(hover, isNot(t.outline));
-        // Al pasar el ratón se acerca al texto: más contraste con el fondo.
-        expect(
-          (hover.computeLuminance() - t.bg.computeLuminance()).abs(),
-          greaterThan(
-            (t.outline.computeLuminance() - t.bg.computeLuminance()).abs(),
-          ),
-        );
+        expect(rest, t.text.withValues(alpha: rest.a));
+        expect(rest.a, lessThan(0.4));
+        expect(hover.a, greaterThan(rest.a));
       },
       size: _desktop,
     );

@@ -348,9 +348,27 @@ class FakeWorkerV2 {
     if (p[2] == 'invites') {
       final syncId = _invites[p[3]];
       final list = syncId == null ? null : _lists[syncId];
-      if (list == null || p.length != 5) return _err(404, 'not_found');
+      if (p.length != 5) return _err(404, 'not_found');
+      final pendingOffer =
+          method == 'GET' &&
+          p[4] == 'offer' &&
+          uri.queryParameters['pending'] == '204';
+      if (list == null) {
+        return pendingOffer ? _r(204) : _err(404, 'not_found');
+      }
       _count('$method ${p[4]}');
-      return list.publicInvite(p[3], p[4], verifier, body, method: method);
+      final response = list.publicInvite(
+        p[3],
+        p[4],
+        verifier,
+        body,
+        method: method,
+      );
+      return pendingOffer &&
+              response.status == 404 &&
+              response.json()['error'] == 'not_found'
+          ? _r(204, null, response.headers)
+          : response;
     }
     if (p[2] != 'lists') return _err(404, 'not_found');
     final syncId = p[3];

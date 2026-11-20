@@ -1,10 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 
-import '../../../core/platform/link_source.dart';
-
+import 'package:cryptography/dart.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/platform/link_source.dart';
 import '../data/sync_config.dart';
 import 'invite_link.dart';
 
@@ -16,10 +17,21 @@ import 'invite_link.dart';
 /// de Android sigue comentado hasta tener dominio.
 class IncomingInviteController extends Notifier<String?> {
   StreamSubscription<String>? _links;
+  final _launchEvents = <String>{};
+  bool _initialPending = false;
+  String? _initialFingerprint;
+
+  // Retain only a digest until the one stream copy arrives, never the URL.
+  String _fingerprint(String uri) =>
+      base64Encode(const DartSha256().hashSync(utf8.encode(uri)).bytes);
 
   @override
   String? build() {
-    ref.onDispose(() => _links?.cancel());
+    var disposed = false;
+    ref.onDispose(() {
+      disposed = true;
+      _links?.cancel();
+    });
     final endpoint = ref.read(syncEndpointProvider);
     if (endpoint != null) {
       try {
@@ -32,13 +44,47 @@ class IncomingInviteController extends Notifier<String?> {
       }
     }
     final initial = ref.read(linkSourceProvider).takeInitialLink();
+    if (initial is Future<String?>) {
+      _initialPending = true;
+      unawaited(
+        initial.then(
+          (uri) {
+            if (disposed) return;
+            _initialPending = false;
+            if (uri != null) {
+              final fingerprint = _fingerprint(uri);
+              if (!_launchEvents.contains(fingerprint)) {
+                _initialFingerprint = fingerprint;
+                handleUri(uri, initial: true);
+              }
+            }
+            _launchEvents.clear();
+          },
+          onError: (Object _) {
+            _initialPending = false;
+            _launchEvents.clear();
+          },
+        ),
+      );
+      return null;
+    }
     return endpoint == null || initial == null
         ? null
         : inviteIdFromUri(initial, endpoint.invitationHost);
   }
 
   /// Mira un enlace; si es una invitación de este servidor, la guarda.
-  void handleUri(String uri) {
+  void handleUri(String uri, {bool initial = false}) {
+    // iOS can replay the launch activity via both the initial API and stream,
+    // in either order. Later taps of the same invitation must still work.
+    if (!initial) {
+      final fingerprint = _fingerprint(uri);
+      if (_initialPending) _launchEvents.add(fingerprint);
+      if (fingerprint == _initialFingerprint) {
+        _initialFingerprint = null;
+        return;
+      }
+    }
     final endpoint = ref.read(syncEndpointProvider);
     if (endpoint == null) {
       return;

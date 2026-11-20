@@ -1,6 +1,7 @@
 import Flutter
 import UIKit
 import UniformTypeIdentifiers
+import AVFoundation
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate,
@@ -15,6 +16,7 @@ import UniformTypeIdentifiers
   private var incomingChannel: FlutterMethodChannel?
   private var pendingFile: Data?
   private var flutterAskedForInitialFile = false
+  private var cameraRequests: [(FlutterResult, Bool)] = []
 
   /// Selector de ficheros abierto para el fichero de recuperación (ADR 0008):
   /// uno a la vez. Cancelar devuelve nil, no un error.
@@ -42,6 +44,15 @@ import UniformTypeIdentifiers
     channel.setMethodCallHandler { [weak self] call, result in
       guard let self = self else { return result(nil) }
       switch call.method {
+      case "cameraPermission":
+        result(AVCaptureDevice.authorizationStatus(for: .video) == .authorized)
+      case "requestCameraPermission", "requestCameraPermissionStatus":
+        self.requestCamera(result, asStatus: call.method == "requestCameraPermissionStatus")
+      case "openAppSettings":
+        guard let url = URL(string: UIApplication.openSettingsURLString) else {
+          return result(false)
+        }
+        UIApplication.shared.open(url, options: [:]) { opened in result(opened) }
       case "takeInitialFile":
         self.flutterAskedForInitialFile = true
         if let data = self.pendingFile {
@@ -84,6 +95,27 @@ import UniformTypeIdentifiers
         UIApplication.shared.open(url, options: [:]) { opened in
           result(opened)
         }
+      case "openUserUrl":
+        // Vuelve a validar la autoridad original del enlace de regalo y
+        // excluye el dominio de los Universal Links.
+        let shape = #"\Ahttps://(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+"#
+          + #"(?:[A-Za-z]{2,63}|[Xx][Nn]--[A-Za-z0-9-]{0,58}[A-Za-z0-9])(?:[/?#].*)?\z"#
+        guard let text = call.arguments as? String,
+          text.utf16.count <= 2048,
+          text.range(
+            of: #"[\\\p{Z}\p{Cf}\u0000-\u001f\u007f-\u009f]"#,
+            options: .regularExpression
+          ) == nil,
+          text.range(of: shape, options: .regularExpression) != nil,
+          let url = URL(string: text),
+          url.scheme == "https",
+          let host = url.host?.lowercased(),
+          host != "gifthuddle.app",
+          !host.hasSuffix(".gifthuddle.app")
+        else { return result(false) }
+        UIApplication.shared.open(url, options: [:]) { opened in
+          result(opened)
+        }
       case "saveDocument":
         self.saveDocument(call.arguments, result: result)
       case "openDocument":
@@ -110,6 +142,39 @@ import UniformTypeIdentifiers
       }
     }
     incomingChannel = channel
+  }
+
+  /// Resolve permission before creating the QR view. iOS never prompts again
+  /// after denial; restrictions need separate Screen Time / MDM guidance.
+  private func requestCamera(_ result: @escaping FlutterResult, asStatus: Bool) {
+    let status = AVCaptureDevice.authorizationStatus(for: .video)
+    guard status == .notDetermined else {
+      let outcome: String
+      switch status {
+      case .authorized: outcome = "granted"
+      case .denied: outcome = "permanentlyDenied"
+      case .restricted: outcome = "restricted"
+      default: outcome = "cancelled"
+      }
+      if asStatus { result(outcome) } else { result(status == .authorized) }
+      return
+    }
+    // Retries while the system prompt is open share its answer.
+    cameraRequests.append((result, asStatus))
+    guard cameraRequests.count == 1 else { return }
+    AVCaptureDevice.requestAccess(for: .video) { granted in
+      DispatchQueue.main.async {
+        let requests = self.cameraRequests
+        self.cameraRequests = []
+        for (callback, wantsStatus) in requests {
+          if wantsStatus {
+            callback(granted ? "granted" : "permanentlyDenied")
+          } else {
+            callback(granted)
+          }
+        }
+      }
+    }
   }
 
   // MARK: - Fichero de recuperación (ADR 0008)

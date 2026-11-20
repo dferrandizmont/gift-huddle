@@ -36,7 +36,7 @@ class _BlurredBars extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RegalosTokens.of(context);
     final palette = personPalette(colorIndex);
-    final tint = t.isDark ? palette.tintD : palette.pastel;
+    final tint = palette.surfaceOf(t.isDark);
     return ExcludeSemantics(
       child: ImageFiltered(
         imageFilter: ImageFilter.blur(

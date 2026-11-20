@@ -6,7 +6,12 @@
 /// ones that do not repeat.
 library;
 
+import 'dart:convert';
+
+import 'package:cryptography/dart.dart';
+
 import 'family_doc.dart';
+import 'hlc.dart';
 
 /// The collections of the family document.
 abstract final class Collections {
@@ -288,6 +293,23 @@ class Recipient {
 
 /// Somebody who gives gifts.
 class Giver {
+  static const recipientIdField = 'recipientId';
+
+  /// Manual ids are UUIDs. This namespace is reserved for creation from People.
+  static const personIdPrefix = 'person-giver:';
+
+  /// Finds the first unused generation. Occupied ids include tombstones and
+  /// previous generations that have since been unlinked.
+  static String nextPersonGiverId(FamilyDoc doc, String recipientId) {
+    final input = utf8.encode(jsonEncode([doc.listId, recipientId]));
+    final digest = const DartSha256().hashSync(input).bytes.sublist(0, 16);
+    final identity = base64Url.encode(digest).replaceAll('=', '');
+    for (var generation = 0; ; generation++) {
+      final id = '$personIdPrefix$identity:$generation';
+      if (doc.record(Collections.givers, id) == null) return id;
+    }
+  }
+
   /// Id of the giver.
   final String id;
 
@@ -304,6 +326,10 @@ class Giver {
   /// Whether the giver is kept out of the current list.
   final bool archived;
 
+  /// The person linked to this giver. Name and color remain on the record
+  /// for older clients and for history after the person is deleted.
+  final String? recipientId;
+
   /// Creates a giver.
   const Giver({
     required this.id,
@@ -311,6 +337,7 @@ class Giver {
     required this.colorIndex,
     required this.householdPays,
     required this.archived,
+    this.recipientId,
   });
 
   /// Reads a giver from a record, or null when the record is deleted or is
@@ -335,19 +362,29 @@ class Giver {
       colorIndex: colorIndex,
       householdPays: householdPays,
       archived: archived,
+      recipientId: _string(record[recipientIdField]),
     );
   }
 
   /// The fields of the giver.
   ///
-  /// Every field is written, also the ones that are not there: a null value
-  /// is the tombstone of a field that is gone.
+  /// Use a separate stamped null to explicitly remove a link.
   Map<String, Object?> toFields() => <String, Object?>{
     'name': name,
     'colorIndex': colorIndex,
     'householdPays': householdPays,
     'archived': archived,
+    if (recipientId != null) recipientIdField: recipientId,
   };
+
+  Giver withPersonDetails(Recipient person) => Giver(
+    id: id,
+    name: person.name,
+    colorIndex: person.colorIndex,
+    householdPays: householdPays,
+    archived: archived,
+    recipientId: recipientId,
+  );
 
   @override
   bool operator ==(Object other) =>
@@ -357,14 +394,44 @@ class Giver {
           other.name == name &&
           other.colorIndex == colorIndex &&
           other.householdPays == householdPays &&
-          other.archived == archived;
+          other.archived == archived &&
+          other.recipientId == recipientId;
 
   @override
   int get hashCode =>
-      Object.hash(id, name, colorIndex, householdPays, archived);
+      Object.hash(id, name, colorIndex, householdPays, archived, recipientId);
 
   @override
   String toString() => 'Giver($id, $name)';
+}
+
+/// Repairs the copies after merging independently stamped person fields.
+/// The caller's clock has observed the incoming document before writing.
+FamilyDoc reconcileGiverCopies(
+  FamilyDoc doc,
+  HlcClock clock, {
+  String? onlyPersonId,
+}) {
+  var next = doc;
+  for (final record
+      in doc.collections[Collections.givers]?.values ?? const <SyncRecord>[]) {
+    final giver = Giver.fromRecord(record);
+    final personId = giver?.recipientId;
+    if (personId == null ||
+        (onlyPersonId != null && personId != onlyPersonId)) {
+      continue;
+    }
+    final personRecord = doc.record(Collections.recipients, personId);
+    final person = personRecord == null
+        ? null
+        : Recipient.fromRecord(personRecord);
+    if (person == null) continue;
+    next = next.setChanged(clock, Collections.givers, record.id, {
+      'name': person.name,
+      'colorIndex': person.colorIndex,
+    });
+  }
+  return next;
 }
 
 /// A day of the year the family gives gifts.
@@ -407,6 +474,12 @@ class Occasion {
   /// name of one of the icons of the app. Any other value is ignored.
   final String? icon;
 
+  /// The household's budget in cents, or null when none has been set.
+  final int? budgetCents;
+
+  /// The stable wire field for [budgetCents].
+  static const String budgetField = 'budgetCents';
+
   /// Creates an occasion.
   const Occasion({
     required this.id,
@@ -421,7 +494,25 @@ class Occasion {
     required this.archived,
     this.color,
     this.icon,
+    this.budgetCents,
   });
+
+  /// Copies the occasion with a new budget. Pass null to clear it.
+  Occasion copyWith({required int? budgetCents}) => Occasion(
+    id: id,
+    kind: kind,
+    rawKind: rawKind,
+    name: name,
+    month: month,
+    day: day,
+    year: year,
+    recurring: recurring,
+    recipientId: recipientId,
+    archived: archived,
+    color: color,
+    icon: icon,
+    budgetCents: budgetCents,
+  );
 
   /// Reads an occasion from a record, or null when the record is deleted or
   /// is missing something mandatory.
@@ -467,6 +558,7 @@ class Occasion {
       archived: archived,
       color: _string(record['color']),
       icon: _string(record['icon']),
+      budgetCents: _cents(record[budgetField]),
     );
   }
 
@@ -485,7 +577,13 @@ class Occasion {
     'archived': archived,
     'color': color,
     'icon': icon,
+    budgetField: checkedBudgetCents(budgetCents),
   };
+
+  /// Checks a budget before writing it. Null clears the budget.
+  static int? checkedBudgetCents(int? cents) => cents == null
+      ? null
+      : RangeError.checkValueInInterval(cents, 0, kMaxCents, budgetField);
 
   @override
   bool operator ==(Object other) =>
@@ -502,7 +600,8 @@ class Occasion {
           other.recipientId == recipientId &&
           other.archived == archived &&
           other.color == color &&
-          other.icon == icon;
+          other.icon == icon &&
+          other.budgetCents == budgetCents;
 
   @override
   int get hashCode => Object.hash(
@@ -518,10 +617,11 @@ class Occasion {
     archived,
     color,
     icon,
+    budgetCents,
   );
 
   @override
-  String toString() => 'Occasion($id, $name)';
+  String toString() => 'Occasion($id, $name, budgetCents: $budgetCents)';
 }
 
 /// Who asked for a gift.
@@ -688,7 +788,10 @@ class Gift {
   ///
   /// An amount of money out of range is treated as missing: it comes from
   /// another phone and cannot be trusted.
-  static Gift? fromRecord(SyncRecord record) {
+  static Gift? fromRecord(
+    SyncRecord record, {
+    Set<String> deletedPeople = const {},
+  }) {
     if (record.isDeleted) {
       return null;
     }
@@ -704,6 +807,7 @@ class Gift {
         year == null) {
       return null;
     }
+    final requester = RequestedBy.fromFields(record['requestedBy']);
     return Gift(
       id: record.id,
       recipientId: recipientId,
@@ -718,7 +822,11 @@ class Gift {
       url: _string(record['url']),
       note: _string(record['note']),
       size: _string(record['size']),
-      requestedBy: RequestedBy.fromFields(record['requestedBy']),
+      requestedBy:
+          requester is RequestedByRecipient &&
+              deletedPeople.contains(requester.recipientId)
+          ? null
+          : requester,
       requestNote: _string(record['requestNote']),
       surprise: surprise,
       year: year,
@@ -805,49 +913,96 @@ class Gift {
 
 /// Totals of money, in cents.
 class BudgetTotals {
+  /// The amount set by the household, or null when no budget has been set.
+  final int? budgetCents;
+
   /// What is expected to be spent.
   final int plannedCents;
 
   /// What has been spent.
   final int spentCents;
 
+  /// Planned prices of gifts that have yet to be bought, for occasions and
+  /// the household total.
+  final int pendingCents;
+
   /// Creates the totals.
-  const BudgetTotals({this.plannedCents = 0, this.spentCents = 0});
+  const BudgetTotals({
+    this.budgetCents,
+    this.plannedCents = 0,
+    this.spentCents = 0,
+    this.pendingCents = 0,
+  });
+
+  /// The budget left after spending, or null when there is no budget.
+  int? get leftCents {
+    final budget = budgetCents;
+    return budget == null ? null : budget - spentCents;
+  }
+
+  /// The budget left after buying the pending gifts at their planned prices.
+  int? get leftIfBoughtCents {
+    final left = leftCents;
+    return left == null ? null : left - pendingCents;
+  }
+
+  /// Whether actual spending exceeds the budget.
+  bool get isOver => (leftCents ?? 0) < 0;
 
   /// Adds two sets of totals.
   BudgetTotals operator +(BudgetTotals other) => BudgetTotals(
+    budgetCents: budgetCents == null && other.budgetCents == null
+        ? null
+        : (budgetCents ?? 0) + (other.budgetCents ?? 0),
     plannedCents: plannedCents + other.plannedCents,
     spentCents: spentCents + other.spentCents,
+    pendingCents: pendingCents + other.pendingCents,
   );
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is BudgetTotals &&
+          other.budgetCents == budgetCents &&
           other.plannedCents == plannedCents &&
-          other.spentCents == spentCents;
+          other.spentCents == spentCents &&
+          other.pendingCents == pendingCents;
 
   @override
-  int get hashCode => Object.hash(plannedCents, spentCents);
+  int get hashCode =>
+      Object.hash(budgetCents, plannedCents, spentCents, pendingCents);
 
   @override
   String toString() =>
-      'BudgetTotals(planned: $plannedCents, spent: $spentCents)';
+      'BudgetTotals(budget: $budgetCents, planned: $plannedCents, '
+      'spent: $spentCents, pending: $pendingCents)';
 }
 
 /// The budget of the list: by recipient, by occasion and the total.
 ///
 /// Only the gifts paid by the house count. What the uncles and the
 /// grandparents give is a gift, not an expense.
+///
+/// Archived occasions do not count in [total], [budgeted],
+/// [spentOutsideBudgetCents] or [byRecipient]; [byOccasion] keeps their
+/// figures so their own row can still show them.
 class Budget {
-  /// Totals by recipient id.
+  /// Planned and spent totals by recipient id, of the gifts of occasions that
+  /// are not archived and of the gifts without an occasion.
   final Map<String, BudgetTotals> byRecipient;
 
-  /// Totals by occasion id. Gifts without an occasion go to the empty key.
+  /// Totals by occasion id, including budgets for occasions without gifts and
+  /// the archived occasions, which keep their full figures here.
+  /// Gifts without an existing occasion go to [noOccasion].
   final Map<String, BudgetTotals> byOccasion;
 
-  /// The totals of everything.
+  /// Household gift totals and the sum of budgets of the occasions that are
+  /// not archived, plus the gifts without an occasion.
   final BudgetTotals total;
+
+  /// Ids of the archived occasions: they are in [byOccasion] but not in
+  /// [total], [budgeted] or [byRecipient].
+  final Set<String> archivedOccasionIds;
 
   /// Key used for the gifts that do not belong to any occasion.
   static const String noOccasion = '';
@@ -857,6 +1012,7 @@ class Budget {
     required this.byRecipient,
     required this.byOccasion,
     required this.total,
+    this.archivedOccasionIds = const <String>{},
   });
 
   /// The totals of one recipient, or empty totals when there is none.
@@ -866,6 +1022,47 @@ class Budget {
   /// The totals of one occasion, or empty totals when there is none.
   BudgetTotals ofOccasion(String occasionId) =>
       byOccasion[occasionId] ?? const BudgetTotals();
+
+  /// Whether the occasion is archived and so left out of the household
+  /// figures.
+  bool isArchivedOccasion(String occasionId) =>
+      archivedOccasionIds.contains(occasionId);
+
+  /// The sum of the active occasions that have a budget (0 is a valid
+  /// budget); archived ones are left out. Its [BudgetTotals.budgetCents] is
+  /// null when no active occasion has one. Unlike [total], gifts of occasions
+  /// without a budget and gifts without an occasion are left out, so the
+  /// budget, the spending and what is left refer to the same gifts.
+  BudgetTotals get budgeted {
+    var sum = const BudgetTotals();
+    for (final entry in byOccasion.entries) {
+      if (entry.key != noOccasion &&
+          !isArchivedOccasion(entry.key) &&
+          entry.value.budgetCents != null) {
+        sum += entry.value;
+      }
+    }
+    return sum;
+  }
+
+  /// Whether at least one active occasion has a budget.
+  bool get hasBudgeted => budgeted.budgetCents != null;
+
+  /// What the household spent on gifts outside [budgeted]: active occasions
+  /// without a budget and gifts without an occasion. Archived occasions are
+  /// not counted at all.
+  int get spentOutsideBudgetCents {
+    var spent = 0;
+    for (final entry in byOccasion.entries) {
+      if (isArchivedOccasion(entry.key)) {
+        continue;
+      }
+      if (entry.key == noOccasion || entry.value.budgetCents == null) {
+        spent += entry.value.spentCents;
+      }
+    }
+    return spent;
+  }
 }
 
 /// How a cell of the family grid looks.
@@ -999,6 +1196,23 @@ class DuplicatePair {
       'DuplicatePair($recipientId, ${first.title}, ${second.title})';
 }
 
+/// A person offered in a giver picker and their current public link.
+class GiverPersonCandidate {
+  const GiverPersonCandidate(
+    this.person,
+    this.giver, {
+    required this.needsPublicAdd,
+  });
+
+  final Recipient person;
+
+  /// The active giver, an archived giver to recover, or null for a new link.
+  final Giver? giver;
+
+  /// A protected gift can use this person only after an explicit public add.
+  final bool needsPublicAdd;
+}
+
 /// The list of the family seen as typed lists.
 ///
 /// Everything deleted is left out. The lists are sorted by name, or by title
@@ -1007,8 +1221,10 @@ class FamilyView {
   /// The recipients, sorted by name.
   final List<Recipient> recipients;
 
-  /// The givers, sorted by name.
-  final List<Giver> givers;
+  /// The active giver columns, sorted by name. A linked person has one
+  /// column. In a view including archives, wholly archived groups also
+  /// have one representative.
+  late final List<Giver> givers;
 
   /// The occasions, sorted by name.
   final List<Occasion> occasions;
@@ -1022,22 +1238,132 @@ class FamilyView {
   /// [previousYearsGifts] looks at.
   final List<Gift> allGifts;
 
-  /// Every giver of the list, the archived ones too, sorted by name.
-  ///
-  /// The [givers] list only has the ones that are not archived; this one
-  /// tells the grid which gifts are of somebody that is archived, and so
-  /// out of the grid.
+  /// Every original giver record, including aliases and archived givers.
   final List<Giver> allGivers;
 
+  /// Whether the grid includes archived giver assignments.
+  final bool includeArchived;
+
   /// Creates the view.
-  const FamilyView({
+  FamilyView({
     required this.recipients,
-    required this.givers,
+    required List<Giver> givers,
     required this.occasions,
     required this.gifts,
     this.allGifts = const <Gift>[],
-    this.allGivers = const <Giver>[],
+    List<Giver> allGivers = const <Giver>[],
+    this.includeArchived = false,
+    Map<String, Recipient>? allRecipientsById,
+  }) : allGivers = allGivers.isEmpty ? givers : allGivers,
+       allRecipientsById =
+           allRecipientsById ??
+           Map.unmodifiable({
+             for (final person in recipients) person.id: person,
+           }) {
+    this.givers = _sortedByName([
+      for (final giver in giversByOriginalId.values)
+        if ((includeArchived || !giver.archived) &&
+            resolveGiver(giver.id)?.id == giver.id)
+          giver,
+    ]);
+  }
+
+  /// Every live person, including archived people.
+  final Map<String, Recipient> allRecipientsById;
+
+  /// Original records hold the payer and archive state of each gift.
+  late final Map<String, Giver> giversByOriginalId = Map.unmodifiable({
+    for (final giver in allGivers) giver.id: giver,
   });
+
+  late final Map<String, Giver> _giverByPerson = _indexGiversByPerson();
+
+  Map<String, Giver> _indexGiversByPerson() {
+    final byPerson = <String, Giver>{};
+    for (final giver in giversByOriginalId.values) {
+      final personId = giver.recipientId;
+      if (personId == null) continue;
+      final existing = byPerson[personId];
+      if (existing == null ||
+          (existing.archived && !giver.archived) ||
+          (existing.archived == giver.archived &&
+              giver.id.compareTo(existing.id) < 0)) {
+        byPerson[personId] = giver;
+      }
+    }
+    return byPerson;
+  }
+
+  /// The active representative, or the archived representative to recover.
+  Giver? giverForPerson(String personId) => _giverByPerson[personId];
+
+  /// The current label for a People choice, even before it has a giver.
+  /// Returns null if the person no longer exists.
+  String? giverForPersonLabel(String personId) =>
+      allRecipientsById[personId]?.name;
+
+  /// People that may be added as givers, with an archived giver recoverable
+  /// via [giverForPerson] when there is one.
+  List<Recipient> giverPeopleFor(String recipientId) => _sortedByName([
+    for (final person in allRecipientsById.values)
+      if (!person.archived &&
+          person.id != recipientId &&
+          giverForPerson(person.id)?.archived != false)
+        person,
+  ]);
+
+  /// For protected gifts, include people who already have an active giver
+  /// alongside people who need a separate public add or recovery.
+  List<GiverPersonCandidate> giverPersonCandidatesFor(
+    String recipientId, {
+    required bool protected,
+  }) {
+    final people = protected
+        ? _sortedByName([
+            for (final person in allRecipientsById.values)
+              if (!person.archived && person.id != recipientId) person,
+          ])
+        : giverPeopleFor(recipientId);
+    return people.map((person) {
+      final giver = giverForPerson(person.id);
+      return GiverPersonCandidate(
+        person,
+        giver,
+        needsPublicAdd: protected && giver?.archived != false,
+      );
+    }).toList();
+  }
+
+  /// Active giver choices for a gift. An existing self-assignment remains
+  /// readable through [resolveGiver] but is not offered as a new choice.
+  List<Giver> selectableGiversFor(String recipientId) => [
+    for (final giver in givers)
+      if (!giver.archived && giver.recipientId != recipientId) giver,
+  ];
+
+  /// Resolves an original id to its display representative.
+  Giver? resolveGiver(String? id) => giversById[id];
+
+  /// The grid column for this gift. Archived assignments have no cell.
+  String? repartoGiverId(Gift gift) {
+    if (!includeArchived &&
+        giversByOriginalId[gift.giverId]?.archived == true) {
+      return null;
+    }
+    return resolveGiver(gift.giverId)?.id ?? FamilyGrid.unassignedGiverId;
+  }
+
+  /// All live records in the same column, including archived aliases.
+  Set<String> giverAliasIds(String id) {
+    final giver = giversByOriginalId[id];
+    if (giver == null) return const {};
+    final personId = giver.recipientId;
+    if (personId == null) return {id};
+    return {
+      for (final alias in giversByOriginalId.values)
+        if (alias.recipientId == personId) alias.id,
+    };
+  }
 
   /// Reads the view of a document.
   ///
@@ -1047,6 +1373,7 @@ class FamilyView {
   /// With [year] only the gifts of that year are counted. The people that
   /// are archived are left out too, unless [includeArchived] says the other
   /// way; their gifts do not reach the grid either.
+  /// Archiving an occasion leaves its gifts in the view.
   ///
   /// A gift whose person is not there any more (the person was deleted, for
   /// instance on another phone while this one was creating the gift) is left
@@ -1068,25 +1395,26 @@ class FamilyView {
         if (record.isDeleted) record.id,
     };
     final recipients = <Recipient>[];
+    final allRecipientsById = <String, Recipient>{};
     for (final record
         in doc.collections[Collections.recipients]?.values ??
             const <SyncRecord>[]) {
       final recipient = Recipient.fromRecord(record);
-      if (recipient != null && (includeArchived || !recipient.archived)) {
-        recipients.add(recipient);
+      if (recipient != null) {
+        allRecipientsById[recipient.id] = recipient;
+        if (includeArchived || !recipient.archived) recipients.add(recipient);
       }
     }
-    final givers = <Giver>[];
     final everyGiver = <Giver>[];
     for (final record
         in doc.collections[Collections.givers]?.values ??
             const <SyncRecord>[]) {
       final giver = Giver.fromRecord(record);
       if (giver != null) {
-        everyGiver.add(giver);
-        if (includeArchived || !giver.archived) {
-          givers.add(giver);
-        }
+        final person = allRecipientsById[giver.recipientId];
+        everyGiver.add(
+          person == null ? giver : giver.withPersonDetails(person),
+        );
       }
     }
     final occasions = <Occasion>[];
@@ -1103,7 +1431,7 @@ class FamilyView {
     final everyGift = <Gift>[];
     for (final record
         in doc.collections[Collections.gifts]?.values ?? const <SyncRecord>[]) {
-      final gift = Gift.fromRecord(record);
+      final gift = Gift.fromRecord(record, deletedPeople: deletedPeople);
       if (gift != null &&
           !deletedPeople.contains(gift.recipientId) &&
           !hiddenGiftIds.contains(gift.id)) {
@@ -1115,11 +1443,13 @@ class FamilyView {
         .toList();
     return FamilyView(
       recipients: _sortedByName(recipients),
-      givers: _sortedByName(givers),
+      givers: const [],
       occasions: _sortedByName(occasions),
       gifts: _sortedByName(gifts),
       allGifts: _sortedByName(everyGift),
       allGivers: _sortedByName(everyGiver),
+      includeArchived: includeArchived,
+      allRecipientsById: Map.unmodifiable(allRecipientsById),
     );
   }
 
@@ -1145,10 +1475,12 @@ class FamilyView {
     return _sortedByName(previous);
   }
 
-  /// The givers by id.
-  Map<String, Giver> get giversById => <String, Giver>{
-    for (final giver in givers) giver.id: giver,
-  };
+  /// Display representatives keyed by every original id, for history and
+  /// filters as well as the active columns.
+  late final Map<String, Giver> giversById = Map.unmodifiable({
+    for (final giver in giversByOriginalId.values)
+      giver.id: _giverByPerson[giver.recipientId] ?? giver,
+  });
 
   /// The recipients by id.
   Map<String, Recipient> get recipientsById => <String, Recipient>{
@@ -1185,6 +1517,7 @@ class FamilyView {
     final visible = {for (final r in repartoRecipients) r.id: r};
     bool includes(Gift gift) =>
         visible.containsKey(gift.recipientId) &&
+        repartoGiverId(gift) != null &&
         (occasionKeys == null || occasionKeys.contains(gift.occasionId)) &&
         (gift.occasionId == null ||
             !visible[gift.recipientId]!.skipsOccasion(gift.occasionId!));
@@ -1195,6 +1528,8 @@ class FamilyView {
       gifts: gifts.where(includes).toList(),
       allGifts: allGifts.where(includes).toList(),
       allGivers: allGivers,
+      includeArchived: includeArchived,
+      allRecipientsById: allRecipientsById,
     );
   }
 
@@ -1204,32 +1539,61 @@ class FamilyView {
   /// whatever the recipient is: a gift of the house to a nephew is an
   /// expense too, and a gift asked for by somebody does not make the gift
   /// of somebody else an expense of the house.
+  /// Archived occasions keep their own figures in [Budget.byOccasion] but do
+  /// not count in the total, the budgeted sum or the recipients.
   Budget budget() {
-    final giversById = this.giversById;
-    var byRecipient = <String, BudgetTotals>{};
-    var byOccasion = <String, BudgetTotals>{};
+    final occasionIds = {for (final occasion in occasions) occasion.id};
+    final archivedIds = {
+      for (final occasion in occasions)
+        if (occasion.archived) occasion.id,
+    };
+    final byRecipient = <String, BudgetTotals>{};
+    final byOccasion = <String, BudgetTotals>{};
     var total = const BudgetTotals();
-    for (final gift in gifts) {
-      final giver = gift.giverId == null ? null : giversById[gift.giverId];
-      if (giver == null || !giver.householdPays) {
+    for (final occasion in occasions) {
+      final budgetCents = occasion.budgetCents;
+      if (budgetCents == null || occasion.id == Budget.noOccasion) {
         continue;
       }
+      final totals = BudgetTotals(budgetCents: budgetCents);
+      byOccasion[occasion.id] = totals;
+      if (!occasion.archived) {
+        total += totals;
+      }
+    }
+    for (final gift in gifts) {
+      final giver = giversByOriginalId[gift.giverId];
+      if (giver == null || giver.archived || !giver.householdPays) {
+        continue;
+      }
+      final planned = gift.plannedCents ?? 0;
+      final spent = gift.spentCents;
       final totals = BudgetTotals(
-        plannedCents: gift.plannedCents ?? 0,
-        spentCents: gift.spentCents,
+        plannedCents: planned,
+        spentCents: spent,
+        pendingCents: gift.status.isBoughtOrLater ? 0 : planned,
       );
-      byRecipient = _addTotals(byRecipient, gift.recipientId, totals);
-      byOccasion = _addTotals(
-        byOccasion,
-        gift.occasionId ?? Budget.noOccasion,
-        totals,
+      final requested = gift.occasionId ?? Budget.noOccasion;
+      final occasionId = occasionIds.contains(requested)
+          ? requested
+          : Budget.noOccasion;
+      _addTotals(byOccasion, occasionId, totals);
+      if (archivedIds.contains(occasionId)) {
+        // Archived: the row of the occasion keeps it, the household does not.
+        continue;
+      }
+      _addTotals(
+        byRecipient,
+        gift.recipientId,
+        BudgetTotals(plannedCents: planned, spentCents: spent),
       );
-      total = total + totals;
+      total += totals;
     }
     return Budget(
       byRecipient: byRecipient,
       byOccasion: byOccasion,
       total: total,
+      archivedOccasionIds: archivedIds,
     );
   }
 
@@ -1237,12 +1601,9 @@ class FamilyView {
   ///
   /// The gifts of a giver that is not in the list go to the cell of the
   /// people that are not assigned yet. The gifts of an archived giver do not
-  /// reach the grid at all.
+  /// reach the grid unless [includeArchived] is enabled.
   /// [occasionKeys] filters by stable occasion ids; null means All.
   FamilyGrid grid({Set<String>? occasionKeys}) {
-    final everyGiver = allGivers.isEmpty ? givers : allGivers;
-    final visibleGiverIds = givers.map((giver) => giver.id).toSet();
-    final knownGiverIds = everyGiver.map((giver) => giver.id).toSet();
     final giftsByRecipient = <String, List<Gift>>{};
     for (final gift in forReparto(occasionKeys: occasionKeys).gifts) {
       giftsByRecipient.putIfAbsent(gift.recipientId, () => <Gift>[]).add(gift);
@@ -1262,25 +1623,17 @@ class FamilyView {
         continue;
       }
       final byGiver = <String, List<Gift>>{};
-      final unassigned = <Gift>[];
       for (final gift in giftsByRecipient[recipient.id] ?? const <Gift>[]) {
-        final giverId = gift.giverId;
-        if (giverId == null) {
-          // Nadie ha dicho quién lo regala todavía.
-          unassigned.add(gift);
-        } else if (visibleGiverIds.contains(giverId)) {
-          byGiver.putIfAbsent(giverId, () => <Gift>[]).add(gift);
-        } else if (!knownGiverIds.contains(giverId)) {
-          // El regalador no está en la lista: tampoco tiene celda propia.
-          unassigned.add(gift);
-        }
-        // Los regalos de un regalador archivado no llegan a la rejilla.
+        final id = repartoGiverId(gift);
+        if (id == null) continue;
+        byGiver.putIfAbsent(id, () => <Gift>[]).add(gift);
       }
       final row = <String, GridCell>{};
       for (final giver in givers) {
         row[giver.id] = _cellOf(byGiver[giver.id] ?? const <Gift>[]);
       }
-      if (unassigned.isNotEmpty) {
+      final unassigned = byGiver[FamilyGrid.unassignedGiverId];
+      if (unassigned != null) {
         row[FamilyGrid.unassignedGiverId] = _cellOf(unassigned);
       }
       cells[recipient.id] = row;
@@ -1348,14 +1701,12 @@ GridCell _cellOf(List<Gift> gifts) {
 }
 
 /// Adds [totals] to the bucket [key] of [buckets].
-Map<String, BudgetTotals> _addTotals(
+void _addTotals(
   Map<String, BudgetTotals> buckets,
   String key,
   BudgetTotals totals,
 ) {
-  final next = Map<String, BudgetTotals>.of(buckets);
-  next[key] = (next[key] ?? const BudgetTotals()) + totals;
-  return next;
+  buckets[key] = (buckets[key] ?? const BudgetTotals()) + totals;
 }
 
 /// Sorts a list of named things by name, ignoring the case.
@@ -1594,7 +1945,7 @@ int? _day(Object? value) {
   return day;
 }
 
-/// Biggest amount of money a gift can have, in cents.
+/// Biggest amount of money a gift or occasion budget can have, in cents.
 const int kMaxCents = 1000000000;
 
 /// Reads an amount of money in cents.

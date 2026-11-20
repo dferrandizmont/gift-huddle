@@ -48,3 +48,9 @@ export function clientKey(ip: string | null): string {
   const g = (n: number) => n.toString(16).padStart(4, "0");
   return `${g(groups[0]!)}:${g(groups[1]!)}:${g(groups[2]!)}:${g(groups[3]! & 0xff00)}::/56`;
 }
+
+/** Additional aggregate budget across the /56 networks of one IPv6 /48. */
+export function clientKey48(ip: string | null): string {
+  const key = clientKey(ip);
+  return key.endsWith("::/56") ? `${key.split(":").slice(0, 3).join(":")}::/48` : key;
+}

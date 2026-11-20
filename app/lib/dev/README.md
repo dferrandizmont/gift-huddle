@@ -28,3 +28,7 @@ capturas si pasa tiempo.
 ```sh
 flutter build apk --debug -t lib/dev/main_store_demo.dart --dart-define=DEMO_LOCALE=es
 ```
+
+Con `--dart-define=DEMO_LOCK=true` arranca bloqueada con un PIN de muestra (2468): es la captura `03-bloqueo` de las tiendas. Las capturas
+de tienda de Android (móvil y tablet) las hace `tool/store_capture_android.py` (cabecera con el uso); las de iOS, el Mac, con los mismos
+nombres (`01-navidad`, `02-reparto`, `03-bloqueo`, `04-personas`, `05-lista`, `06-oscuro`).

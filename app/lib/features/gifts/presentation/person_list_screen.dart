@@ -22,6 +22,7 @@ import '../../../core/motion/sheet_motion.dart';
 import '../../../core/motion/stagger.dart';
 import '../../../core/motion/state_switcher.dart';
 import '../../../core/motion/value_switcher.dart';
+import '../../../core/platform/user_link.dart';
 import '../../../core/sync/model.dart';
 import '../../../core/theme/regalos_shape.dart';
 import '../../../core/theme/regalos_tokens.dart';
@@ -58,6 +59,7 @@ import '../../web_board/application/board_metrics.dart';
 import '../../web_board/presentation/board_gift_table.dart';
 import 'gift_actions.dart';
 import 'gift_editor_screen.dart';
+import 'gift_link_actions.dart';
 
 /// La lista de regalos de una persona: secciones por ocasión, filtros, mini
 /// presupuesto de la casa y botón para añadir.
@@ -237,13 +239,15 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
     final desktop = isDetail;
     final table = widget.boardTable && desktop;
     final columnWidth = table ? double.infinity : detailColumnWidth(context);
-    // En la tabla, lo que no es la tabla (el presupuesto) queda a la izquierda
-    // con un ancho razonable.
+    // En la tabla del tablero, la tarjeta ocupa el ancho de la tabla (sus
+    // bordes, con el mismo margen de 16, caen sobre los de la cabecera) hasta
+    // un máximo de 1200 de tarjeta (más los dos márgenes), pegada a la
+    // izquierda: en ventanas muy anchas las barras no se hacen eternas.
     Widget narrowColumn(Widget child) => table
         ? Align(
             alignment: Alignment.topLeft,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 880),
+              constraints: const BoxConstraints(maxWidth: _kBudgetCardMax + 32),
               child: child,
             ),
           )
@@ -275,7 +279,7 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
     final gifts = view.giftsFor(person.id);
     final shown = [
       for (final g in gifts)
-        if (_filter.matches(g)) g,
+        if (_filter.matches(g, view: view)) g,
     ];
     final occasions = ref.watch(occasionsProvider);
     final occasionsById = {for (final o in occasions) o.id: o};
@@ -284,7 +288,7 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
     final labels = OccasionLabels(l10n, people);
     final age = ageText(l10n, person, now);
     final palette = personPalette(person.colorIndex);
-    final pastel = t.isDark ? palette.tintD : palette.pastel;
+    final pastel = palette.surfaceOf(t.isDark);
 
     // Secciones: una por ocasión, por orden de fecha, y al final «sin ocasión».
     final byOccasion = <String, List<Gift>>{};
@@ -563,11 +567,18 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
                                       planned: money(personTotals.plannedCents),
                                       ofWord: l10n.budgetOf,
                                     ),
+                                    spentOnlyLabel:
+                                        personTotals.plannedCents > 0
+                                        ? null
+                                        : l10n.budgetSpent,
                                     fraction: fraction(personTotals),
                                     semanticLabel: l10n.budgetBarLabel(
                                       money(personTotals.spentCents),
                                       money(personTotals.plannedCents),
                                     ),
+                                    barHeight: table ? 10 : 4,
+                                    barRadius: table ? 4 : null,
+                                    entrance: table,
                                   ),
                                 ),
                                 const SizedBox(width: 20),
@@ -579,11 +590,17 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
                                       planned: money(houseTotals.plannedCents),
                                       ofWord: l10n.budgetOf,
                                     ),
+                                    spentOnlyLabel: houseTotals.plannedCents > 0
+                                        ? null
+                                        : l10n.budgetSpent,
                                     fraction: fraction(houseTotals),
                                     semanticLabel: l10n.budgetBarLabel(
                                       money(houseTotals.spentCents),
                                       money(houseTotals.plannedCents),
                                     ),
+                                    barHeight: table ? 10 : 4,
+                                    barRadius: table ? 4 : null,
+                                    entrance: table,
                                   ),
                                 ),
                               ],
@@ -598,7 +615,11 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
                     StaggerItem(
                       index: 1,
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        // En la tabla del tablero, a 16 como el avatar, la
+                        // tarjeta y la tabla.
+                        padding: EdgeInsets.symmetric(
+                          horizontal: table ? 16 : 12,
+                        ),
                         child: SizedBox(
                           width: double.infinity,
                           child: Wrap(
@@ -833,6 +854,7 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
         onStatusLongPress: () => showGiftStatusPicker(context, ref, gift),
       );
     }
+    final linkHost = gift.url == null ? null : userLinkHost(gift.url!);
     return GiftRow(
       columnsFrom: desktop ? kGiftColumnsFrom : null,
       name: gift.title,
@@ -845,6 +867,11 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
         if (gift.surprise) l10n.giftTagSurprise,
         if (by != null) l10n.giftTagRequest,
       ],
+      linkHost: linkHost,
+      linkLabel: linkHost == null ? null : '${l10n.giftLinkOpen}: $linkHost',
+      onLinkTap: gift.url == null
+          ? null
+          : () => openGiftLink(context, ref, gift.url!),
       onTap: () => _openEditor(gift: gift),
       onStatusTap: () => advanceGiftStatus(context, ref, gift),
       onStatusLongPress: () => showGiftStatusPicker(context, ref, gift),
@@ -860,6 +887,9 @@ bool _filled(String? text) => text != null && text.trim().isNotEmpty;
 Widget _sectionInset(bool table, Widget child) => table
     ? Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: child)
     : child;
+
+/// El ancho máximo de la tarjeta de gastos sobre la tabla del tablero.
+const double _kBudgetCardMax = 1200;
 
 /// El ancho de fila de regalo desde el que el detalle de escritorio pone las
 /// filas en columnas.
@@ -1083,7 +1113,8 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
       l10n,
       ref.watch(familyFullViewProvider).recipientsById,
     );
-    final givers = ref.watch(giversProvider);
+    final view = ref.watch(familyViewProvider);
+    final givers = view.givers;
     // Los adornos de las celdas: un icono, «cualquiera» y «sin».
     ChoiceLeadingBuilder icon(IconData data, double size) =>
         (color, _) => Icon(data, size: size, color: color);
@@ -1161,7 +1192,7 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
                         child: GiverDot(colorIndex: g.colorIndex, size: 12),
                       ),
                     ),
-                    selected: _filter.giverId == g.id,
+                    selected: view.resolveGiver(_filter.giverId)?.id == g.id,
                     onTap: () => _set(_filter.copyWith(giverId: g.id)),
                   ),
                 ChoiceGridItem(

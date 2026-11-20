@@ -66,8 +66,12 @@ String giverDisplayName(AppLocalizations l10n, String storedName) {
 }
 
 /// Quién regala: su nombre (traducido si es el de serie), o «Sin asignar».
-String giverNameFor(AppLocalizations l10n, Giver? giver) =>
-    giver == null ? l10n.giverUnassigned : giverDisplayName(l10n, giver.name);
+String giverNameFor(AppLocalizations l10n, Giver? giver) {
+  if (giver == null) return l10n.giverUnassigned;
+  return giver.recipientId == null
+      ? giverDisplayName(l10n, giver.name)
+      : giver.name;
+}
 
 /// La edad de una persona escrita, o `null` si no se sabe su año.
 String? ageText(AppLocalizations l10n, Recipient person, DateTime now) {
@@ -96,12 +100,26 @@ final List<AppLocalizations> _everyLanguage = <AppLocalizations>[
   AppLocalizationsEn(),
 ];
 
+/// Nombres de serie que tuvo la ocasión de Navidad (`OccasionKind.santa`)
+/// antes del 16-11-2026 (commit 44737c4), en es, ca y en. Las ocasiones que
+/// guardaron las versiones anteriores siguen con ese nombre y se reconocen
+/// como de serie, así que se ven como «Navidad» en el idioma del móvil.
+const List<String> kLegacySantaOccasionNames = <String>[
+  'Papá Noel',
+  'Pare Noel',
+  'Santa Claus',
+];
+
 /// Si el nombre de [occasion] es el de serie: vacío (marcador) o, por
 /// compatibilidad, el nombre de su tipo en cualquiera de los tres idiomas
 /// (en un cumpleaños, el de «cumpleaños de» la persona [personName]).
 bool hasSeedOccasionName(Occasion occasion, {String? personName}) {
   final stored = occasion.name.trim();
   if (stored.isEmpty) {
+    return true;
+  }
+  if (occasion.kind == OccasionKind.santa &&
+      kLegacySantaOccasionNames.contains(stored)) {
     return true;
   }
   switch (occasion.kind) {

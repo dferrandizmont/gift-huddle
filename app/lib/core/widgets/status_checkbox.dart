@@ -43,6 +43,7 @@ class StatusGlyph extends StatelessWidget {
           status: status,
           stroke: stroke ?? t.statusStroke(status),
           fill: t.statusFill(status),
+          checkColor: t.bg,
         ),
       ),
     );
@@ -62,6 +63,7 @@ class StatusGlyphPainter extends CustomPainter {
     required this.status,
     required this.stroke,
     required this.fill,
+    this.checkColor,
     this.sweep,
     this.solid,
     this.grow,
@@ -71,6 +73,10 @@ class StatusGlyphPainter extends CustomPainter {
   final GiftStatus status;
   final Color stroke;
   final Color fill;
+
+  /// El visto de «entregado», sobre el círculo lleno: el fondo de la
+  /// pantalla (el sector y el círculo van en tinta). Sin él, el trazo.
+  final Color? checkColor;
   final double? sweep;
   final double? solid;
   final double? grow;
@@ -148,7 +154,7 @@ class StatusGlyphPainter extends CustomPainter {
         drawn,
         Paint()
           ..style = PaintingStyle.stroke
-          ..color = stroke
+          ..color = grow > 0 ? (checkColor ?? stroke) : stroke
           ..strokeWidth = 2
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round,
@@ -187,6 +193,7 @@ class StatusGlyphPainter extends CustomPainter {
       old.status != status ||
       old.stroke != stroke ||
       old.fill != fill ||
+      old.checkColor != checkColor ||
       old.sweep != sweep ||
       old.solid != solid ||
       old.grow != grow ||
@@ -197,6 +204,30 @@ class StatusGlyphPainter extends CustomPainter {
 /// los 500 ms de Flutter y que los 400 ms de Android: una pulsación larga a la
 /// manera del sistema no debe quedarse en un toque que avanza el estado.
 const Duration kStatusLongPress = Duration(milliseconds: 350);
+
+/// Pone el nombre del estado («Comprado») en un tooltip al pasar el ratón por
+/// el círculo, que solo se ve sin texto al lado. Solo con ratón: no responde al
+/// toque ni a la pulsación larga (la casilla ya usa esta para el selector), no
+/// intercepta el clic y no repite el estado en voz alta (ya va en la etiqueta
+/// accesible de quien lo usa).
+class StatusHoverTip extends StatelessWidget {
+  const StatusHoverTip({super.key, required this.status, required this.child});
+
+  final GiftStatus status;
+  final Widget child;
+
+  /// Lo que se espera con el ratón encima antes de mostrarlo.
+  static const Duration wait = Duration(milliseconds: 350);
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: status.label(AppLocalizations.of(context)),
+    triggerMode: TooltipTriggerMode.manual,
+    waitDuration: wait,
+    excludeFromSemantics: true,
+    child: child,
+  );
+}
 
 /// Casilla de estado tocable: botón de 44 x 44 con el estado en voz alta.
 ///
@@ -209,10 +240,15 @@ class StatusCheckbox extends StatelessWidget {
     required this.itemName,
     this.onTap,
     this.onLongPress,
+    this.glyphSize = 24,
   });
 
   final GiftStatus status;
   final String itemName;
+
+  /// Lado del dibujo: 24 en las listas y 18 en las tarjetas compactas del
+  /// tablero. La zona táctil sigue siendo de [target].
+  final double glyphSize;
   final VoidCallback? onTap;
 
   /// Pulsación larga: abre el selector de los seis estados.
@@ -236,16 +272,21 @@ class StatusCheckbox extends StatelessWidget {
       onTap: onTap,
       onLongPress: onLongPress,
       excludeSemantics: true,
-      child: SizedBox.square(
-        dimension: target,
-        child: LongPressAfter(
-          duration: kStatusLongPress,
-          onLongPress: onLongPress,
-          child: InkResponse(
-            onTap: onTap,
-            customBorder: const CircleBorder(),
-            radius: target / 2,
-            child: Center(child: AnimatedStatusGlyph(status: status)),
+      child: StatusHoverTip(
+        status: status,
+        child: SizedBox.square(
+          dimension: target,
+          child: LongPressAfter(
+            duration: kStatusLongPress,
+            onLongPress: onLongPress,
+            child: InkResponse(
+              onTap: onTap,
+              customBorder: const CircleBorder(),
+              radius: target / 2,
+              child: Center(
+                child: AnimatedStatusGlyph(status: status, size: glyphSize),
+              ),
+            ),
           ),
         ),
       ),

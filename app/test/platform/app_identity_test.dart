@@ -109,7 +109,7 @@ void main() {
             .readAsStringSync(),
       ) as Map<String, dynamic>;
       final details = association['applinks']['details'] as List<dynamic>;
-      expect(details.single['appIDs'], ['REEMPLAZAR_TEAM_ID.$appId']);
+      expect(details.single['appIDs'], ['4J74M2FPLP.$appId']);
     },
     skip:
         !File('../web/public/.well-known/assetlinks.json').existsSync() ||

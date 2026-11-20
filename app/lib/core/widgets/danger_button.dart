@@ -19,8 +19,10 @@ class DangerButton extends StatelessWidget {
     this.compact = false,
   });
 
-  /// Si va en una fila (el pie del panel del editor): del ancho de su texto y
-  /// de 40 de alto, en vez de a todo el ancho.
+  /// Si va en una fila junto a «Cancelar» y «Guardar» (el pie del panel o del
+  /// diálogo del editor): un botón de texto en rojo, sin borde ni relleno y del
+  /// ancho de su texto, para que no compita con «Guardar». Si no, va a todo el
+  /// ancho con el contorno rojo.
   final bool compact;
 
   /// El texto.
@@ -32,10 +34,28 @@ class DangerButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RegalosTokens.of(context);
+    if (compact) {
+      return TextButton(
+        style: TextButton.styleFrom(
+          foregroundColor: t.danger,
+          minimumSize: const Size(44, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          shape: const RoundedRectangleBorder(
+            borderRadius: RegalosShape.button,
+          ),
+          textStyle: t.styles.label.copyWith(
+            fontSize: 15,
+            fontFamily: kAppFontFamily,
+          ),
+        ),
+        onPressed: onPressed,
+        child: Text(label, maxLines: 1, softWrap: false),
+      );
+    }
     final button = OutlinedButton(
       style: OutlinedButton.styleFrom(
         foregroundColor: t.danger,
-        minimumSize: Size(44, compact ? 40 : 48),
+        minimumSize: const Size(44, 48),
         side: BorderSide(color: t.danger),
         shape: const RoundedRectangleBorder(borderRadius: RegalosShape.button),
         textStyle: t.styles.label.copyWith(
@@ -46,6 +66,6 @@ class DangerButton extends StatelessWidget {
       onPressed: onPressed,
       child: Text(label),
     );
-    return compact ? button : SizedBox(width: double.infinity, child: button);
+    return SizedBox(width: double.infinity, child: button);
   }
 }

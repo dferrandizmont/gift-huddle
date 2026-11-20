@@ -14,6 +14,7 @@ import 'package:regalos/core/sync/envelope.dart';
 import 'package:regalos/core/sync/exchange_file.dart';
 import 'package:regalos/core/sync/family_candidate.dart' show sha256Hex;
 import 'package:regalos/core/sync/family_envelope.dart';
+import 'package:regalos/core/sync/model.dart';
 import 'package:regalos/features/sync/application/common_v2.dart';
 import 'package:regalos/features/sync/application/common_v2_cutover.dart';
 import 'package:regalos/features/sync/application/exchange_v2.dart';
@@ -168,6 +169,72 @@ void main() {
     expect(latin1.decode(bytes), isNot(contains('Tardío')));
     expect(leo.giftTitles, contains('Tardío'));
   });
+
+  test(
+    'exchange and sync keep the linked giver and unknown field stamps',
+    () async {
+      await cut();
+      final giver = Giver(
+        id: Giver.nextPersonGiverId(leo.doc, 'nora'),
+        name: 'Nora',
+        colorIndex: 2,
+        householdPays: true,
+        archived: false,
+        recipientId: 'nora',
+      );
+      leo.addGift('given', 'aritz', 'Puzle');
+      leo.addGift('secret', 'nora', 'Libro secreto');
+      leo.doc = requestProtection(leo.doc, leo.clock, 'nora')
+          .set(leo.clock, Collections.recipients, 'nora', {'colorIndex': 2})
+          .set(leo.clock, Collections.givers, giver.id, {
+            ...giver.toFields(),
+            'future': {'version': 2},
+          })
+          .set(leo.clock, Collections.gifts, 'given', {
+            'giverId': giver.id,
+            'surprise': false,
+          });
+      final exported = leo.doc.record(Collections.givers, giver.id)!;
+      final bytes = await ExchangeV2(leo).export();
+      await import(aritz, bytes);
+      expect(aritz.giftTitles, contains('Puzle'));
+      expect(aritz.giftTitles, isNot(contains('Libro secreto')));
+      final imported = aritz.doc.record(Collections.givers, giver.id)!;
+      expect(Giver.fromRecord(imported), giver);
+      expect(imported.fields.keys, unorderedEquals(exported.fields.keys));
+      for (final field in exported.fields.keys) {
+        expect(imported.field(field)?.value, exported.field(field)?.value);
+        expect(imported.field(field)?.stamp, exported.field(field)?.stamp);
+      }
+      expect(
+        FamilyView.fromDoc(aritz.doc).gifts
+            .singleWhere((gift) => gift.id == 'given')
+            .giverId,
+        giver.id,
+      );
+      aritz.doc = aritz.doc.setChanged(
+        aritz.clock,
+        Collections.givers,
+        giver.id,
+        {'householdPays': false},
+      );
+      await import(leo, await ExchangeV2(aritz).export());
+      await syncAll([aritz, leo, nora]);
+      for (final phone in [aritz, leo, nora]) {
+        final received = phone.doc.record(Collections.givers, giver.id)!;
+        expect(received['householdPays'], isFalse);
+        for (final field in [
+          Giver.recipientIdField,
+          'name',
+          'colorIndex',
+          'future',
+        ]) {
+          expect(received.field(field)?.value, exported.field(field)?.value);
+          expect(received.field(field)?.stamp, exported.field(field)?.stamp);
+        }
+      }
+    },
+  );
 
   test('B6: un revocado con la clave vieja fabrica un fichero y no entra; '
       'tampoco rehabilita su credencial ni quita la revocación', () async {

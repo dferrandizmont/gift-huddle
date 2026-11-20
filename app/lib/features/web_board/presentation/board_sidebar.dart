@@ -17,6 +17,8 @@ import '../../family/application/family_actions.dart';
 import '../../family/application/family_providers.dart';
 import '../../family/presentation/person_sheet.dart';
 import '../../gifts/presentation/gift_editor_screen.dart';
+import '../../gifts/presentation/gift_search.dart';
+import '../../occasions/application/occasion_rows.dart';
 import '../../web_device/presentation/web_status_strip.dart';
 import '../application/board_lanes.dart';
 import '../application/board_metrics.dart';
@@ -34,7 +36,12 @@ String boardSelectionOf(Uri uri) {
     case 'family':
       return 'family';
     case 'occasions':
-      return 'occasions';
+      // El presupuesto es una entrada de la barra, aunque su ruta cuelgue de
+      // `/occasions` (`/occasions/budget`, que también abren los enlaces
+      // de siempre).
+      return segments.length >= 2 && segments[1] == kBudgetRowId
+          ? boardBudgetId
+          : 'occasions';
     case 'settings':
       return 'settings';
   }
@@ -62,6 +69,9 @@ void departBoardAvatar(WidgetRef ref, String personId) {
 /// El id de la fila «Hoy».
 const String boardTodayId = 'today';
 
+/// El id de la fila «Presupuesto».
+const String boardBudgetId = 'budget';
+
 /// El id de la fila de una persona.
 String boardPersonId(String personId) => 'person:$personId';
 
@@ -80,7 +90,7 @@ class _Compact extends InheritedWidget {
 
 /// La barra lateral del tablero de la web de escritorio
 /// (la guía de diseño de escritorio): las secciones (Hoy,
-/// Reparto, Ocasiones y Ajustes) y, debajo, las personas, como los proyectos
+/// Reparto, Ocasiones, Presupuesto y Ajustes) y, debajo, las personas, como los proyectos
 /// de Todoist. Arriba, «Buscar un regalo»; abajo, el estado de guardado.
 ///
 /// Mide 264 (232 por debajo de 1600 de ventana) y se pliega a un raíl de 64 con
@@ -89,11 +99,18 @@ class _Compact extends InheritedWidget {
 /// tocar una persona, su avatar vuela a la cabecera de su lista.
 class BoardSidebar extends ConsumerStatefulWidget {
   /// Crea la barra.
-  const BoardSidebar({super.key, required this.onSection});
+  const BoardSidebar({
+    super.key,
+    required this.onSection,
+    required this.onBudget,
+  });
 
   /// Se llama con el índice de la pestaña (0 Personas y Hoy, 1 Reparto,
   /// 2 Ocasiones, 3 Ajustes) al tocar una sección.
   final ValueChanged<int> onSection;
+
+  /// Se llama al elegir «Presupuesto».
+  final VoidCallback onBudget;
 
   /// El ancho de la barra desplegada en una ventana ancha.
   static const double width = BoardMetrics.sidebarWide;
@@ -159,7 +176,7 @@ class _BoardSidebarState extends ConsumerState<BoardSidebar> {
       explicitChildNodes: true,
       label: l10n.navMainLabel,
       child: Material(
-        color: t.surface,
+        color: t.sidebar,
         child: DecoratedBox(
           position: DecorationPosition.foreground,
           decoration: BoxDecoration(
@@ -196,7 +213,7 @@ class _BoardSidebarState extends ConsumerState<BoardSidebar> {
                     .where((p) => boardPersonId(p.id) == selected)
                     .firstOrNull;
                 final colors = person == null
-                    ? (fill: t.soft, ink: t.ink)
+                    ? (fill: t.selection, ink: t.ink)
                     : boardColorsOf(t, personPalette(person.colorIndex));
                 return Builder(
                   builder: (context) {
@@ -232,8 +249,9 @@ class _BoardSidebarState extends ConsumerState<BoardSidebar> {
                           ),
                           Expanded(
                             child: searching
-                                ? _SearchResults(
+                                ? GiftSearchResults(
                                     query: _query.text,
+                                    limit: 12,
                                     onOpen: (g) => _openGift(context, g),
                                   )
                                 : ListView(
@@ -279,6 +297,14 @@ class _BoardSidebarState extends ConsumerState<BoardSidebar> {
                                               icon: AppIcons.occasions,
                                               selected: selected == 'occasions',
                                               onTap: () => widget.onSection(2),
+                                            ),
+                                            _Item(
+                                              id: boardBudgetId,
+                                              label: l10n.budgetTitle,
+                                              icon: AppIcons.budget,
+                                              selected:
+                                                  selected == boardBudgetId,
+                                              onTap: () => widget.onBudget(),
                                             ),
                                             _Item(
                                               id: 'settings',
@@ -484,126 +510,13 @@ class _SearchField extends StatelessWidget {
     }
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-      child: SizedBox(
-        height: 36,
-        child: TextField(
-          controller: controller,
-          focusNode: focusNode,
-          onChanged: onChanged,
-          textInputAction: TextInputAction.search,
-          style: t.styles.label,
-          cursorColor: t.ink,
-          decoration: InputDecoration(
-            hintText: l10n.boardSearchHint,
-            hintStyle: t.styles.meta,
-            isDense: true,
-            filled: true,
-            fillColor: t.bg,
-            contentPadding: const EdgeInsets.symmetric(vertical: 8),
-            prefixIcon: Center(
-              widthFactor: 1,
-              heightFactor: 1,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: StrokeIcon(
-                  AppIcons.search,
-                  size: 16,
-                  color: t.textSecondary,
-                ),
-              ),
-            ),
-            prefixIconConstraints: const BoxConstraints(
-              minWidth: 36,
-              minHeight: 36,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: RegalosShape.field,
-              borderSide: BorderSide(color: t.separator),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: RegalosShape.field,
-              borderSide: BorderSide(color: t.separator),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: RegalosShape.field,
-              borderSide: BorderSide(color: t.ink, width: 1.5),
-            ),
-          ),
-        ),
+      child: GiftSearchField(
+        key: const ValueKey<String>('board-sidebar-search'),
+        dense: true,
+        controller: controller,
+        focusNode: focusNode,
+        onChanged: onChanged,
       ),
-    );
-  }
-}
-
-/// Los regalos que casan con la búsqueda, como filas de la barra.
-class _SearchResults extends ConsumerWidget {
-  const _SearchResults({required this.query, required this.onOpen});
-
-  final String query;
-  final ValueChanged<Gift> onOpen;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final t = RegalosTokens.of(context);
-    final needle = query.trim().toLowerCase();
-    final people = ref.watch(familyFullViewProvider).recipientsById;
-    final found = [
-      for (final g in ref.watch(boardGiftsProvider))
-        if (g.title.toLowerCase().contains(needle)) g,
-    ];
-    if (found.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
-        child: Text(l10n.boardSearchNone, style: t.styles.meta),
-      );
-    }
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-      children: [
-        for (final g in found.take(12))
-          Semantics(
-            button: true,
-            label: '${g.title}, ${people[g.recipientId]?.name ?? ''}',
-            excludeSemantics: true,
-            onTap: () => onOpen(g),
-            child: PointerSurface(
-              child: Material(
-                color: Colors.transparent,
-                shape: const RoundedRectangleBorder(
-                  borderRadius: RegalosShape.card,
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: () => onOpen(g),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          g.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: t.styles.label,
-                        ),
-                        Text(
-                          people[g.recipientId]?.name ?? '',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: t.styles.caption,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
     );
   }
 }
@@ -855,10 +768,12 @@ class _AddPerson extends StatelessWidget {
                         children: [
                           icon,
                           const SizedBox(width: 12),
-                          Text(
-                            l10n.personNew,
-                            style: t.styles.meta.copyWith(
-                              color: t.textSecondary,
+                          Expanded(
+                            child: Text(
+                              l10n.personNew,
+                              style: t.styles.meta.copyWith(
+                                color: t.textSecondary,
+                              ),
                             ),
                           ),
                         ],

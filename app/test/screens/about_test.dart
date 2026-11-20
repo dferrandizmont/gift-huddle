@@ -19,6 +19,9 @@ class _FakeOpener implements ExternalLinkOpener {
     opened.add(Uri.parse(url));
     return works;
   }
+
+  @override
+  Future<bool> openUserLink(String url) async => false;
 }
 
 /// «Acerca de» enlaza a la política de privacidad publicada en la web y la

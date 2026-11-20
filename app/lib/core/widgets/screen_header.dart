@@ -83,7 +83,16 @@ class ScreenHeader extends StatelessWidget {
     // mínimo debajo.
     final topAligned = inDetail && leading == null;
     final titleAlign = inDetail && (extraLine || topAligned)
-        ? (44 - (compactTitle ? 28 : 30)) / 2
+        ? (44 -
+                  (compactTitle
+                              ? t.styles.screenTitleSmall
+                              : t.styles.screenTitle)
+                          .fontSize! *
+                      (compactTitle
+                              ? t.styles.screenTitleSmall
+                              : t.styles.screenTitle)
+                          .height!) /
+              2
         : 0.0;
     final body = Padding(
       padding: hasBack
@@ -126,11 +135,7 @@ class ScreenHeader extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (eyebrow != null)
-                      Text(
-                        eyebrow,
-                        style: t.styles.caption.copyWith(height: 16 / 13),
-                      ),
+                    if (eyebrow != null) Text(eyebrow, style: t.styles.caption),
                     Semantics(
                       header: true,
                       child: FitText(

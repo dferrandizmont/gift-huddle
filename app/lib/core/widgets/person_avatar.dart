@@ -42,7 +42,7 @@ class PersonAvatar extends StatelessWidget {
         height: size,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: t.isDark ? p.tintD : p.pastel,
+          color: p.fillOf(t.isDark),
           borderRadius: BorderRadius.circular(radiusFor(size)),
         ),
         child: Text(
@@ -51,7 +51,7 @@ class PersonAvatar extends StatelessWidget {
           style: TextStyle(
             fontSize: size * 0.45,
             fontWeight: FontWeight.w700,
-            color: t.isDark ? p.tintaD : p.tinta,
+            color: p.inkOf(t.isDark),
           ),
         ),
       ),

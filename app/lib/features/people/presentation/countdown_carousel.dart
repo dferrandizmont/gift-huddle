@@ -13,12 +13,14 @@ import '../../../core/layout/window_class.dart';
 import '../../../core/motion/page_physics.dart';
 import '../../../core/motion/unlock_cascade.dart';
 import '../../../core/sync/model.dart';
+import '../../../core/theme/app_scrollbar.dart';
 import '../../../core/theme/occasion_theme.dart';
 import '../../../core/theme/regalos_motion.dart';
 import '../../../core/theme/regalos_shape.dart';
 import '../../../core/theme/regalos_tokens.dart';
 import '../../../core/widgets/budget_meter.dart';
 import '../../../core/widgets/occasion_countdown_card.dart';
+import '../../../core/widgets/occasion_icons.dart';
 import '../../../core/widgets/pointer_surface.dart';
 import '../../../core/widgets/screen_header.dart';
 import '../../../core/widgets/spring_pulse.dart';
@@ -312,79 +314,84 @@ class _CountdownCarouselState extends ConsumerState<CountdownCarousel> {
                   // filete: la tarjeta que asoma se funde hacia el fondo en
                   // vez de quedar cortada.
                   enabled: !wide && PaneScope.roleOf(context) == PaneRole.list,
-                  child: SizedBox(
-                    height: height,
-                    child: PageView.builder(
-                      // Otro controlador, otro carrusel: no se le cambia la
-                      // fracción del visor a uno en marcha.
-                      key: ValueKey<int>(perView),
-                      controller: controller,
-                      padEnds: false,
-                      // Con una tarjeta a la vista hay una página vacía de más:
-                      // sin ella la última no llegaría al margen izquierdo (el
-                      // visor se acaba antes) y se quedaría pegada a la derecha.
-                      physics: wide
-                          ? RegalosPagePhysics(reduce: reduce)
-                          : LeftAlignedPagePhysics(
-                              reduce: reduce,
-                              count: items.length,
-                              viewportFraction:
-                                  RegalosSizes.carouselViewportFraction,
-                            ),
-                      itemCount: wide ? items.length : items.length + 1,
-                      onPageChanged: _arrive,
-                      itemBuilder: (context, i) {
-                        if (i >= items.length) {
-                          return const ExcludeSemantics(child: SizedBox());
-                        }
-                        final card = _OccasionCard(
-                          next: items[i],
-                          height: height,
-                          // La primera vista: ruedan desde vacío, con 60 ms
-                          // entre tarjetas.
-                          rollFromEmpty: i < perView + 1,
-                          rollDelay: _rollDelay(i),
-                          rollCue: _arrivals[i],
-                          rollFrom: _arrivedFrom[i],
-                          pulseKey: _pulses.putIfAbsent(i, GlobalKey.new),
-                          cardKey: _cardKey(i),
-                          numberKey: _numberKey(i),
-                          parallax: reduce
-                              ? null
-                              // El dibujo se retrasa mientras la tarjeta entra
-                              // o sale; a la vista está en su sitio.
-                              : (icon) => AnimatedBuilder(
-                                  animation: controller,
-                                  child: icon,
-                                  builder: (context, child) =>
-                                      Transform.translate(
-                                        offset: Offset(24 * _outside(i), 0),
-                                        child: child,
-                                      ),
-                                ),
-                        );
-                        return Padding(
-                          padding: EdgeInsets.symmetric(horizontal: gap / 2),
-                          // Las que no están a la vista se ven un poco más
-                          // pequeñas y tenues; sigue al dedo, no es un muelle.
-                          child: reduce
-                              ? card
-                              : AnimatedBuilder(
-                                  animation: controller,
-                                  child: card,
-                                  builder: (context, child) {
-                                    final d = _outside(i).abs().clamp(0.0, 1.0);
-                                    return Opacity(
-                                      opacity: 1 - 0.35 * d,
-                                      child: Transform.scale(
-                                        scale: 1 - 0.05 * d,
-                                        child: child,
-                                      ),
-                                    );
-                                  },
-                                ),
-                        );
-                      },
+                  // Con el ratón, el carrusel también se arrastra.
+                  child: MouseDragScroll(
+                    child: SizedBox(
+                      height: height,
+                      child: PageView.builder(
+                        // Otro controlador, otro carrusel: no se le cambia la
+                        // fracción del visor a uno en marcha.
+                        key: ValueKey<int>(perView),
+                        controller: controller,
+                        padEnds: false,
+                        // Con una tarjeta a la vista hay una página vacía de más:
+                        // sin ella la última no llegaría al margen izquierdo (el
+                        // visor se acaba antes) y se quedaría pegada a la derecha.
+                        physics: wide
+                            ? RegalosPagePhysics(reduce: reduce)
+                            : LeftAlignedPagePhysics(
+                                reduce: reduce,
+                                count: items.length,
+                                viewportFraction:
+                                    RegalosSizes.carouselViewportFraction,
+                              ),
+                        itemCount: wide ? items.length : items.length + 1,
+                        onPageChanged: _arrive,
+                        itemBuilder: (context, i) {
+                          if (i >= items.length) {
+                            return const ExcludeSemantics(child: SizedBox());
+                          }
+                          final card = _OccasionCard(
+                            next: items[i],
+                            height: height,
+                            // La primera vista: ruedan desde vacío, con 60 ms
+                            // entre tarjetas.
+                            rollFromEmpty: i < perView + 1,
+                            rollDelay: _rollDelay(i),
+                            rollCue: _arrivals[i],
+                            rollFrom: _arrivedFrom[i],
+                            pulseKey: _pulses.putIfAbsent(i, GlobalKey.new),
+                            cardKey: _cardKey(i),
+                            numberKey: _numberKey(i),
+                            parallax: reduce
+                                ? null
+                                // El dibujo se retrasa mientras la tarjeta entra
+                                // o sale; a la vista está en su sitio.
+                                : (icon) => AnimatedBuilder(
+                                    animation: controller,
+                                    child: icon,
+                                    builder: (context, child) =>
+                                        Transform.translate(
+                                          offset: Offset(24 * _outside(i), 0),
+                                          child: child,
+                                        ),
+                                  ),
+                          );
+                          return Padding(
+                            padding: EdgeInsets.symmetric(horizontal: gap / 2),
+                            // Las que no están a la vista se ven un poco más
+                            // pequeñas y tenues; sigue al dedo, no es un muelle.
+                            child: reduce
+                                ? card
+                                : AnimatedBuilder(
+                                    animation: controller,
+                                    child: card,
+                                    builder: (context, child) {
+                                      final d = _outside(i)
+                                          .abs()
+                                          .clamp(0.0, 1.0);
+                                      return Opacity(
+                                        opacity: 1 - 0.35 * d,
+                                        child: Transform.scale(
+                                          scale: 1 - 0.05 * d,
+                                          child: child,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
@@ -568,6 +575,9 @@ class _SummaryColumnState extends ConsumerState<SummaryColumn> {
                     planned: money(budget.plannedCents),
                     ofWord: l10n.budgetOf,
                   ),
+                  spentOnlyLabel: budget.plannedCents > 0
+                      ? null
+                      : l10n.budgetSpent,
                   fraction: budget.plannedCents > 0
                       ? budget.spentCents / budget.plannedCents
                       : 0,
@@ -777,11 +787,7 @@ class _CardTexts {
     shortMeta = mine.isEmpty
         ? l10n.occasionNoGiftsYet
         : l10n.occasionGiftsBoughtShort(bought, mine.length);
-    shortDate = shortDayMonth(
-      next.date.month,
-      next.date.day,
-      l10n.localeName,
-    );
+    shortDate = shortDayMonth(next.date.month, next.date.day, l10n.localeName);
   }
 
   final String title;
@@ -913,7 +919,11 @@ class _OccasionCard extends ConsumerWidget {
             // La tarjeta compacta de «Resumen» lleva la fecha y los regalos en
             // una sola línea: con el texto abreviado cabe entera.
             meta: compact ? texts.shortMeta : texts.meta,
-            icon: motif?.cardIcon,
+            // El icono del tipo (el Tió lleva el suyo, no el abeto de la
+            // guirnalda de Navidad que comparte); sin guirnalda, ninguno.
+            icon: motif == null
+                ? null
+                : occasionKindStrokeIcon(next.occasion.kind) ?? motif.cardIcon,
             occasion: theme,
             height: height,
             compact: compact,

@@ -1,5 +1,6 @@
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/core/sync/model.dart';
 import 'package:regalos/core/widgets/regalos_switch.dart';
@@ -75,6 +76,33 @@ void clockedTest(
 
 void main() {
   final today = Clock.fixed(DateTime(2026, 11, 9, 10));
+
+  clockedTest('el editor abre el calendario en la fecha archivada de 2024', (
+    tester,
+  ) async {
+    final h = _Harness();
+    await h.open(
+      tester,
+      initial: const Occasion(
+        id: 'vieja',
+        kind: OccasionKind.wedding,
+        rawKind: 'wedding',
+        name: 'Boda de Leo',
+        month: 5,
+        day: 2,
+        year: 2024,
+        recurring: false,
+        archived: true,
+      ),
+    );
+    await tester.tap(find.widgetWithText(OutlinedButton, '2 de mayo'));
+    await tester.pumpAndSettle();
+    final picker = tester.widget<DatePickerDialog>(
+      find.byType(DatePickerDialog),
+    );
+    expect(picker.initialDate, DateTime(2024, 5, 2));
+    expect(tester.takeException(), isNull);
+  });
 
   clockedTest('al crear, lo primero es elegir el tipo en una lista con icono', (
     tester,
@@ -436,6 +464,195 @@ void main() {
     await tester.pumpAndSettle();
     expect(h.result!.kind, OccasionKind.wedding);
     expect(h.result!.name, '');
+  });
+
+  group('presupuesto', () {
+    const withBudget = Occasion(
+      id: 'navidad',
+      kind: OccasionKind.santa,
+      rawKind: 'santa',
+      name: 'Navidad',
+      month: 12,
+      day: 25,
+      recurring: true,
+      archived: false,
+      budgetCents: 50000,
+    );
+    final field = find.byKey(const ValueKey<String>('occasion-budget-field'));
+    String text(WidgetTester tester) =>
+        tester.widget<TextField>(field).controller!.text;
+
+    clockedTest('es opcional: vacío no pone ninguno', (tester) async {
+      final h = _Harness();
+      await h.open(tester);
+      expect(find.text('Presupuesto (opcional)'), findsOneWidget);
+      await withClock(today, () => _tapLabel(tester, 'Navidad'));
+      await tester.tap(find.text('Guardar'));
+      await tester.pumpAndSettle();
+      expect(h.result!.budgetCents, isNull);
+    });
+
+    clockedTest('al crear, se lee como el precio de un regalo', (tester) async {
+      final h = _Harness();
+      await h.open(tester);
+      await withClock(today, () => _tapLabel(tester, 'Navidad'));
+      expect(
+        tester.widget<TextField>(field).keyboardType,
+        const TextInputType.numberWithOptions(decimal: true),
+      );
+      await tester.enterText(field, '1.250,5');
+      await tester.tap(find.text('Guardar'));
+      await tester.pumpAndSettle();
+      expect(h.result!.budgetCents, 125050);
+    });
+
+    clockedTest('pegar un presupuesto valida el cambio entero', (tester) async {
+      final h = _Harness();
+      await h.open(tester, initial: withBudget);
+      for (final value in ['1', '12', '12,', '12,5', '12,50']) {
+        await tester.enterText(field, value);
+        expect(text(tester), value);
+      }
+
+      var clipboard = '12a50';
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async => call.method == 'Clipboard.getData'
+            ? <String, Object?>{'text': clipboard}
+            : null,
+      );
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      final editable = tester.state<EditableTextState>(
+        find.descendant(of: field, matching: find.byType(EditableText)),
+      );
+      final controller = tester.widget<TextField>(field).controller!;
+      controller.selection = const TextSelection(
+        baseOffset: 0,
+        extentOffset: 5,
+      );
+      final beforePaste = controller.value;
+      await editable.pasteText(SelectionChangedCause.keyboard);
+      expect(controller.value, beforePaste);
+
+      clipboard = '12 € 50 €';
+      await editable.pasteText(SelectionChangedCause.keyboard);
+      expect(text(tester), clipboard);
+      await tester.tap(find.text('Guardar'));
+      await tester.pumpAndSettle();
+      expect(h.closed, isFalse);
+      expect(
+        find.text('Escribe un importe, por ejemplo 12,50.'),
+        findsOneWidget,
+      );
+
+      clipboard = '12\u202f345,67 €';
+      controller.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: controller.text.length,
+      );
+      await editable.pasteText(SelectionChangedCause.keyboard);
+      expect(text(tester), clipboard);
+      await tester.tap(find.text('Guardar'));
+      await tester.pumpAndSettle();
+      expect(h.result!.budgetCents, 1234567);
+    });
+
+    clockedTest('al cambiar una ocasión con presupuesto se ve, se cambia y '
+        'se quita', (tester) async {
+      final h = _Harness();
+      await h.open(tester, initial: withBudget);
+      expect(text(tester), '500');
+      await tester.enterText(field, '650,50');
+      await tester.tap(find.text('Guardar'));
+      await tester.pumpAndSettle();
+      expect(h.result!.budgetCents, 65050);
+      expect(h.result!.id, 'navidad');
+
+      final other = _Harness();
+      await other.open(tester, initial: withBudget);
+      await tester.enterText(field, '');
+      await tester.tap(find.text('Guardar'));
+      await tester.pumpAndSettle();
+      expect(other.closed, isTrue);
+      expect(other.result!.budgetCents, isNull);
+    });
+
+    clockedTest('sin tocarlo se conserva', (tester) async {
+      final h = _Harness();
+      await h.open(tester, initial: withBudget);
+      await tester.tap(find.text('Guardar'));
+      await tester.pumpAndSettle();
+      expect(h.result, equals(withBudget));
+    });
+
+    clockedTest('un importe que no vale avisa y no guarda', (tester) async {
+      final h = _Harness();
+      await h.open(tester, initial: withBudget);
+      await tester.enterText(field, '12,345,6');
+      await tester.tap(find.text('Guardar'));
+      await tester.pumpAndSettle();
+      expect(h.closed, isFalse);
+      expect(
+        find.text('Escribe un importe, por ejemplo 12,50.'),
+        findsOneWidget,
+      );
+      await tester.enterText(field, '12');
+      await tester.pumpAndSettle();
+      expect(find.text('Escribe un importe, por ejemplo 12,50.'), findsNothing);
+      await tester.tap(find.text('Guardar'));
+      await tester.pumpAndSettle();
+      expect(h.result!.budgetCents, 1200);
+    });
+
+    clockedTest(
+      'un importe negativo o fuera de rango no guarda ni envía nada',
+      (tester) async {
+        final h = _Harness();
+        await h.open(tester, initial: withBudget);
+        for (final bad in ['-5', '99999999999', '1,2,3']) {
+          await tester.enterText(field, bad);
+          await tester.tap(find.text('Guardar'));
+          await tester.pumpAndSettle();
+          expect(h.closed, isFalse, reason: bad);
+          expect(h.result, isNull, reason: bad);
+          expect(
+            find.text('Escribe un importe, por ejemplo 12,50.'),
+            findsOneWidget,
+            reason: bad,
+          );
+        }
+        // El máximo, el mismo que el del precio de un regalo, sí vale.
+        await tester.enterText(field, '10000000');
+        await tester.tap(find.text('Guardar'));
+        await tester.pumpAndSettle();
+        expect(h.result!.budgetCents, kMaxCents);
+      },
+    );
+
+    clockedTest('también un cumpleaños lleva el campo', (tester) async {
+      const birthday = Occasion(
+        id: 'birthday-aritz',
+        kind: OccasionKind.birthday,
+        rawKind: 'birthday',
+        name: 'Cumpleaños de Aritz',
+        month: 3,
+        day: 14,
+        recurring: true,
+        archived: false,
+        recipientId: 'aritz',
+      );
+      final h = _Harness();
+      await h.open(tester, initial: birthday);
+      expect(field, findsOneWidget);
+      await tester.enterText(field, '80');
+      await tester.tap(find.text('Guardar'));
+      await tester.pumpAndSettle();
+      expect(h.result!.budgetCents, 8000);
+      expect(h.result!.kind, OccasionKind.birthday);
+    });
   });
 
   clockedTest('con el texto al 130 % la lista de tipos no desborda', (

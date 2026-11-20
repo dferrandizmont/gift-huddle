@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:clock/clock.dart';
+import 'package:qr_code_scanner_plus/qr_code_scanner_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/core/platform/camera_permission.dart';
@@ -198,6 +200,72 @@ void main() {
 
     AppLocalizations l10n(WidgetTester tester) =>
         AppLocalizations.of(tester.element(find.byType(Scaffold)));
+
+    testWidgets(
+      'iOS denial uses native status and offers settings without creating the scanner',
+      (tester) async {
+        const channel = MethodChannel('com.dferrandizmont.regalos/incoming');
+        final messenger =
+            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+        final calls = <String>[];
+        messenger.setMockMethodCallHandler(channel, (call) async {
+          calls.add(call.method);
+          return switch (call.method) {
+            'requestCameraPermissionStatus' => 'permanentlyDenied',
+            'openAppSettings' => true,
+            'cameraPermission' => true,
+            _ => false,
+          };
+        });
+        addTearDown(() {
+          messenger.setMockMethodCallHandler(channel, null);
+        });
+        await tester.pumpWidget(app(QrCameraScanner(onCode: (_) {})));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 600));
+        final l = l10n(tester);
+        expect(find.text(l.scannerRetry), findsNothing);
+        await tester.tap(find.text(l.scannerOpenSettings));
+        await tester.pump();
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await tester.pump();
+        expect(calls, [
+          'requestCameraPermissionStatus',
+          'openAppSettings',
+          'cameraPermission',
+        ]);
+        expect(find.text(l.scannerOpenSettings), findsNothing);
+        expect(find.byType(QRView), findsOneWidget);
+        await tester.pumpWidget(const SizedBox());
+      },
+      variant: TargetPlatformVariant({TargetPlatform.iOS}),
+    );
+
+    testWidgets('restricted camera explains Screen Time without actions', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        app(
+          QrCameraScanner(
+            onCode: (_) {},
+            requestPermissionStatus: () async =>
+                CameraPermissionOutcome.restricted,
+            checkPermission: () async => false,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      final l = l10n(tester);
+      expect(find.text(l.cameraRestricted), findsOneWidget);
+      expect(find.text(l.scannerOpenSettings), findsNothing);
+      expect(find.text(l.scannerRetry), findsNothing);
+      expect(find.byType(QRView), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    });
 
     testWidgets('mientras espera enseña un texto y un indicador, no negro', (
       tester,

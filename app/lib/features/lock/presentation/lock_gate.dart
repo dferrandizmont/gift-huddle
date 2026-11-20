@@ -10,7 +10,9 @@ import '../../../core/theme/regalos_tokens.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../family/application/family_controller.dart';
 import '../../recovery/application/recovery_hold.dart';
+import '../../review/application/review_providers.dart';
 import '../application/lock_controller.dart';
+import '../application/lock_gate_state.dart';
 import 'lock_screen.dart';
 import 'pin_setup_screen.dart';
 
@@ -37,6 +39,7 @@ class LockGate extends ConsumerStatefulWidget {
 class _LockGateState extends ConsumerState<LockGate>
     with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   bool _covered = false;
+  ReviewVisibility? _reviewVisibility;
 
   /// El fundido de salida del overlay (0 a 1). En reposo vale 1.
   late final AnimationController _reveal = AnimationController(
@@ -84,10 +87,14 @@ class _LockGateState extends ConsumerState<LockGate>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _hold.addListener(_onDeferralChanged);
+    if (isStoreReviewEnabled) {
+      _reviewVisibility = ref.read(reviewVisibilityProvider);
+    }
   }
 
   @override
   void dispose() {
+    _reviewVisibility?.isLockGateClear = false;
     _hold.removeListener(_onDeferralChanged);
     WidgetsBinding.instance.removeObserver(this);
     _revealTimer?.cancel();
@@ -156,37 +163,24 @@ class _LockGateState extends ConsumerState<LockGate>
     });
     final family = ref.watch(familyControllerProvider);
     final lockAsync = ref.watch(lockControllerProvider);
-    final lock = lockAsync.value;
-    final hasFamily = family.value?.hasFamily ?? false;
-
-    Widget? overlay;
-    var hideApp = false;
-    if (family.isLoading || lockAsync.isLoading) {
-      // Sin nombre: en el primer arranque este fotograma va entre la pantalla
-      // de inicio y la bienvenida, y un texto suelto en medio parpadeaba.
-      overlay = const _Cover(named: false);
-      hideApp = true;
-    } else if (lockAsync.hasError) {
-      // Falla cerrado: sin saber si hay PIN no se enseña nada.
-      overlay = _RetryCover(
+    final content = lockGateContent(
+      family: family,
+      lock: lockAsync,
+      recoveryHeld: _hold.value,
+    );
+    Widget? overlay = switch (content) {
+      LockGateContent.none => null,
+      LockGateContent.loading => const _Cover(named: false),
+      LockGateContent.error => _RetryCover(
         onRetry: () => ref.invalidate(lockControllerProvider),
-      );
-      hideApp = true;
-    } else if (hasFamily && lock != null && lock.enabled) {
-      if (lock.needsSetup && _hold.value) {
-        // La recuperación con el código enseña antes su pantalla final: el
-        // aviso espera a «Entrar en la lista».
-      } else if (lock.needsSetup) {
-        overlay = PinSetupScreen(
-          onPinChosen: ref.read(lockControllerProvider.notifier).setPin,
-          onSkip: ref.read(lockControllerProvider.notifier).skipSetup,
-        );
-        hideApp = true;
-      } else if (lock.locked) {
-        overlay = LockScreen(onPinUnlocked: _onPinUnlocked);
-        hideApp = true;
-      }
-    }
+      ),
+      LockGateContent.setup => PinSetupScreen(
+        onPinChosen: ref.read(lockControllerProvider.notifier).setPin,
+        onSkip: ref.read(lockControllerProvider.notifier).skipSetup,
+      ),
+      LockGateContent.locked => LockScreen(onPinUnlocked: _onPinUnlocked),
+    };
+    var hideApp = content != LockGateContent.none;
     if (_covered) {
       overlay = const _Cover();
       hideApp = true;
@@ -226,6 +220,11 @@ class _LockGateState extends ConsumerState<LockGate>
     _lastOverlay = overlay ?? _lastOverlay;
 
     final shown = overlay ?? _leaving;
+    final reviewVisibility = _reviewVisibility;
+    if (reviewVisibility != null) {
+      // The overlay can still be on screen after the PIN state is unlocked.
+      reviewVisibility.isLockGateClear = shown == null;
+    }
     return Stack(
       fit: StackFit.expand,
       children: [

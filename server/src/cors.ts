@@ -24,6 +24,7 @@ export function preflight(request: Request): Response {
   return new Response(null, { status: 204, headers: {
     "Access-Control-Allow-Methods": methods.join(", "),
     "Access-Control-Allow-Headers": "Authorization, Content-Type, If-None-Match, X-Public-Key" + (v2 ? ", If-Match" : ""),
+    "Access-Control-Max-Age": "600",
   } });
 }
 
@@ -34,6 +35,7 @@ export function apiHeaders(response: Response, request: Request, configured: str
   // which the app rejects (early test clients failed to pair behind the proxy).
   headers.set("Cache-Control", "no-store, no-transform");
   headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   const vary = headers.get("Vary");
   headers.set("Vary", vary ? `${vary}, Origin` : "Origin");
   const origin = request.headers.get("Origin");

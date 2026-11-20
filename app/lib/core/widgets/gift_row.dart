@@ -6,6 +6,7 @@ import '../theme/gift_status.dart';
 import '../theme/regalos_tokens.dart';
 import 'gift_status_l10n.dart';
 import 'giver_dot.dart';
+import 'link_icon_button.dart';
 import 'status_checkbox.dart';
 import 'pointer_surface.dart';
 import 'tag_label.dart';
@@ -32,6 +33,9 @@ class GiftRow extends StatelessWidget {
     this.tags = const <String>[],
     this.bordered = true,
     this.columnsFrom,
+    this.linkHost,
+    this.linkLabel,
+    this.onLinkTap,
   });
 
   final String name;
@@ -55,10 +59,33 @@ class GiftRow extends StatelessWidget {
   /// El ancho de fila desde el que va en columnas; `null`, nunca.
   final double? columnsFrom;
 
+  /// El sitio del enlace del regalo («amzn.eu»), o `null` si no tiene un
+  /// enlace que se pueda abrir. Se ve pulsable en la línea de debajo del
+  /// nombre.
+  final String? linkHost;
+
+  /// Lo que dice el lector de pantalla del enlace («Abrir enlace: amzn.eu»).
+  final String? linkLabel;
+
+  /// Abre el enlace.
+  final VoidCallback? onLinkTap;
+
+  Widget? _linkLabel({bool separator = false, bool compact = false}) =>
+      linkHost != null && onLinkTap != null
+      ? GiftLinkLabel(
+          host: linkHost!,
+          label: linkLabel ?? linkHost!,
+          onTap: onLinkTap!,
+          separator: separator,
+          compact: compact,
+        )
+      : null;
+
   /// El ancho de la columna de quién regala.
   static const double giverColumn = 160;
 
-  /// El ancho de la columna del precio (alineado a la derecha).
+  /// El ancho mínimo de la columna del precio (alineado a la derecha): crece
+  /// con la cifra.
   static const double priceColumn = 112;
 
   /// El ancho de la columna del estado.
@@ -97,37 +124,6 @@ class GiftRow extends StatelessWidget {
     final t = RegalosTokens.of(context);
     final l10n = AppLocalizations.of(context);
 
-    final meta = Wrap(
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 6,
-      children: [
-        GiverDot(colorIndex: giverColorIndex),
-        // Al editar el regalo, lo que cambia (quién regala, el precio) se
-        // cruza con un fundido corto en vez de saltar.
-        ValueSwitcher(
-          child: Text(
-            giverName,
-            key: ValueKey(giverName),
-            style: t.styles.meta,
-          ),
-        ),
-        if (price != null) ...[
-          const Text('·', semanticsLabel: ''),
-          ValueSwitcher(
-            child: Text(price!, key: ValueKey(price), style: t.styles.meta),
-          ),
-        ],
-        const Text('·', semanticsLabel: ''),
-        ValueSwitcher(
-          child: Text(
-            status.label(l10n),
-            key: ValueKey(status),
-            style: t.styles.metaStrong,
-          ),
-        ),
-      ],
-    );
-
     final title = tags.isEmpty
         ? ValueSwitcher(
             child: Text(name, key: ValueKey(name), style: t.styles.rowTitle),
@@ -147,6 +143,7 @@ class GiftRow extends StatelessWidget {
             ],
           );
 
+    final link = _linkLabel(compact: true);
     final Widget body;
     if (columns) {
       body = Padding(
@@ -159,6 +156,7 @@ class GiftRow extends StatelessWidget {
                 children: [
                   title,
                   if (note != null) Text(note!, style: t.styles.meta),
+                  ?link,
                 ],
               ),
             ),
@@ -185,8 +183,10 @@ class GiftRow extends StatelessWidget {
                 ),
               ),
             ),
-            SizedBox(
-              width: priceColumn,
+            // El precio nunca se corta: la columna mide [priceColumn] como
+            // mínimo y crece hasta el ancho de la cifra; el nombre cede.
+            ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: priceColumn),
               child: Padding(
                 padding: const EdgeInsets.only(left: 12),
                 child: Align(
@@ -204,14 +204,14 @@ class GiftRow extends StatelessWidget {
                               Text(
                                 _amount(price!),
                                 maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: t.styles.metaStrong,
+                                softWrap: false,
+                                style: t.styles.price,
                               ),
                               if (_planned(price!) != null)
                                 Text(
                                   _planned(price!)!,
                                   maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                  softWrap: false,
                                   style: t.styles.caption,
                                 ),
                             ],
@@ -239,15 +239,96 @@ class GiftRow extends StatelessWidget {
         ),
       );
     } else {
+      // La ficha: debajo del título, el estado y quién regala; el precio, con
+      // cifras tabulares, a la derecha.
+      final narrowLink = _linkLabel(separator: true);
+      final narrowMeta = Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 6,
+        children: [
+          ValueSwitcher(
+            child: Text(
+              status.label(l10n),
+              key: ValueKey(status),
+              style: t.styles.metaStrong.copyWith(color: t.textSecondary),
+            ),
+          ),
+          const Text('·', semanticsLabel: ''),
+          GiverDot(colorIndex: giverColorIndex),
+          ValueSwitcher(
+            child: Text(
+              giverName,
+              key: ValueKey(giverName),
+              style: t.styles.meta,
+            ),
+          ),
+          ?narrowLink,
+        ],
+      );
       body = Padding(
         padding: const EdgeInsets.symmetric(vertical: 7),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            title,
-            DefaultTextStyle.merge(style: t.styles.meta, child: meta),
-            if (note != null) Text(note!, style: t.styles.meta),
-          ],
+        child: LayoutBuilder(
+          builder: (context, box) => Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    title,
+                    DefaultTextStyle.merge(
+                      style: t.styles.meta,
+                      child: narrowMeta,
+                    ),
+                    if (note != null) Text(note!, style: t.styles.meta),
+                  ],
+                ),
+              ),
+              // El importe, con su ancho entero y en una línea: un precio no
+              // se corta ni se parte entre cifras; el nombre cede. Solo si
+              // pasara del 60 % de la fila (letra enorme en un móvil
+              // estrecho) se encoge entero en vez de comerse el nombre. Lo
+              // previsto («49,99 € (previsto 55 €)») va debajo, en pequeño, y
+              // es lo único que puede bajar de línea (hasta el 40 %).
+              if (price != null)
+                Padding(
+                  padding: const EdgeInsets.only(left: 12),
+                  child: ValueSwitcher(
+                    alignment: Alignment.centerRight,
+                    child: ConstrainedBox(
+                      key: ValueKey(price),
+                      constraints: BoxConstraints(maxWidth: box.maxWidth * 0.6),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: AlignmentDirectional.centerEnd,
+                            child: Text(
+                              _amount(price!),
+                              maxLines: 1,
+                              softWrap: false,
+                              style: t.styles.price,
+                            ),
+                          ),
+                          if (_planned(price!) != null)
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: box.maxWidth * 0.4,
+                              ),
+                              child: Text(
+                                _planned(price!)!,
+                                textAlign: TextAlign.end,
+                                style: t.styles.caption,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       );
     }

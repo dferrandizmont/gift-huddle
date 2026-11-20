@@ -98,11 +98,7 @@ Future<void> spin(WidgetTester tester, [int frames = 6]) async {
 /// «Tengo un código de recuperación» de la bienvenida, aunque quede por debajo
 /// del pliegue.
 Future<void> openRecover(WidgetTester tester) async {
-  final button = find.text('Tengo un código de recuperación');
-  await tester.ensureVisible(button);
-  await tester.pump();
-  await tester.tap(button);
-  await settle(tester);
+  await tapWelcomeChoice(tester, 'Tengo un código de recuperación');
 }
 
 Future<void> openRecoveryRow(WidgetTester tester) async {
@@ -622,7 +618,7 @@ void main() {
       phone,
     ) async {
       await pumpRegalos(tester, phone);
-      expect(find.text('Tengo un código de recuperación'), findsOneWidget);
+      expect(find.text('Restaurar una copia'), findsOneWidget);
       await openRecover(tester);
       expect(find.text('Recuperar la lista'), findsNWidgets(2));
       expect(find.byType(TextField), findsNWidgets(24));
@@ -631,7 +627,7 @@ void main() {
       expect(tester.widget<FilledButton>(submit).onPressed, isNull);
       // Atrás vuelve a la bienvenida.
       await tapLabel(tester, 'Atrás');
-      expect(find.text('Tengo un código de recuperación'), findsOneWidget);
+      expect(find.text('Restaurar una copia'), findsOneWidget);
     });
 
     recoveryTest('cada casilla de palabra es un único campo con su etiqueta', (
@@ -1087,13 +1083,30 @@ void main() {
       'una recuperación en marcha enseña su progreso',
       (tester, phone) async {
         await pumpRegalos(tester, phone);
-        final button = find.text('Tengo un código de recuperación');
-        await tester.ensureVisible(button);
-        await tester.pump();
-        await tester.tap(button);
+        await openWelcomeSheet(tester, 'Tengo un código de recuperación');
+        await tester.tap(find.text('Tengo un código de recuperación').last);
         await spin(tester, 10);
         expect(find.text('Recuperando la lista'), findsOneWidget);
         expect(find.byType(TextField), findsNothing);
+      },
+      initial: const RecoveryStatus(
+        RecoveryReadiness.updatePending,
+        phase: RecoveryPhase.downloading,
+      ),
+    );
+
+    recoveryTest(
+      'con una recuperación a medias «Unirme a una familia» está desactivado',
+      (tester, phone) async {
+        await pumpRegalos(tester, phone);
+        final join = tester.widget<OutlinedButton>(
+          find.widgetWithText(OutlinedButton, 'Unirme a una familia'),
+        );
+        final restore = tester.widget<OutlinedButton>(
+          find.widgetWithText(OutlinedButton, 'Restaurar una copia'),
+        );
+        expect(join.onPressed, isNull);
+        expect(restore.onPressed, isNotNull);
       },
       initial: const RecoveryStatus(
         RecoveryReadiness.updatePending,

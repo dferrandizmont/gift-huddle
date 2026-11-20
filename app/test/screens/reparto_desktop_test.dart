@@ -77,23 +77,30 @@ void main() {
         [for (final id in ids) tester.getRect(cellOf('aritz', id))]
           ..sort((a, b) => a.left.compareTo(b.left));
 
-    screenTest('a 1536 las celdas miden 120 × 56 y los nombres 280', (
-      tester,
-      phone,
-    ) async {
-      await seedSample(tester, phone);
-      await pumpRegalos(tester, phone);
-      await openFamily(tester);
-      expect(tester.takeException(), isNull);
-      final cells = row(tester, givers);
-      for (final cell in cells) {
-        expect(cell.size, const Size(120, 56));
-      }
-      final avatar = tester.getRect(anchorOf(repartoAvatarAnchor('aritz')));
-      // La columna de nombres, a su máximo; la celda va centrada en su hueco.
-      expect(cells.first.left - avatar.left, closeTo(280 + 1.5, 0.01));
-      expect(tester.takeException(), isNull);
-    }, size: desktop);
+    screenTest(
+      'a 1536 las celdas miden 190 × 78,4 y los nombres 210, y la rejilla llena la columna',
+      (tester, phone) async {
+        await seedSample(tester, phone);
+        await pumpRegalos(tester, phone);
+        await openFamily(tester);
+        expect(tester.takeException(), isNull);
+        final cells = row(tester, givers);
+        for (final cell in cells) {
+          expect(cell.width, closeTo(190, 0.01));
+          expect(cell.height, closeTo(78.4, 0.01));
+        }
+        final avatar = tester.getRect(anchorOf(repartoAvatarAnchor('aritz')));
+        // Las celdas llenan la columna de 1400 (1368 sin márgenes): los nombres
+        // son lo que queda; la celda va centrada en su hueco.
+        expect(
+          cells.first.left - avatar.left,
+          closeTo(1368 - 6 * 193 + 1.5, 0.01),
+        );
+        expect(cells.last.right - avatar.left, closeTo(1368 - 1.5, 0.01));
+        expect(tester.takeException(), isNull);
+      },
+      size: desktop,
+    );
 
     screenTest(
       'a 2560 las celdas son mayores de 96 y la rejilla queda centrada',
@@ -104,12 +111,14 @@ void main() {
         expect(tester.takeException(), isNull);
         final cells = row(tester, givers);
         expect(cells.first.width, greaterThan(96));
-        expect(cells.first.size, const Size(120, 56));
+        expect(cells.first.width, closeTo(190, 0.01));
+        expect(cells.first.height, closeTo(78.4, 0.01));
         final avatar = tester.getRect(anchorOf(repartoAvatarAnchor('aritz')));
-        // Mismo margen a los dos lados del área de contenido (sin el raíl).
+        // El bloque de 1400, centrado en el área de contenido (sin el raíl):
+        // a la izquierda, 16 más lo que sobra a cada lado.
         expect(
           avatar.left - kRail,
-          closeTo(huge.width - cells.last.right, 3),
+          closeTo(16 + (huge.width - kRail - 1400) / 2, 1),
           reason: 'centrada',
         );
         expect(cells.last.right - avatar.left, lessThanOrEqualTo(1400));
@@ -161,23 +170,25 @@ void main() {
             wide: true,
             desktop: desktop,
           );
-      // Una ventana media: igual que antes (96 × 52, nombres 220).
+      // Una ventana media: 116 × 52 a 720 (el tope sube con el ancho de 96 a
+      // 120), nombres 220.
       final medium = layout(720, 3);
-      expect(medium.cellWidth, 96);
+      expect(medium.cellWidth, closeTo(116, 0.01));
       expect(medium.cellHeight, 52);
       expect(medium.leftWidth, 220);
       // Escritorio.
       final d = layout(1456, 6, desktop: true);
-      expect(d.cellWidth, 120);
-      expect(d.cellHeight, 56);
-      expect(d.leftWidth, 280);
+      expect(d.cellWidth, 190);
+      expect(d.cellHeight, closeTo(78.4, 0.001));
+      expect(d.leftWidth, closeTo(1368 - 6 * 193, 0.001));
       final huge = layout(2480, 6, desktop: true);
-      expect(huge.cellWidth, 120);
+      expect(huge.cellWidth, 190);
       expect(huge.width, 2480);
-      // La rejilla (nombres + celdas) cabe en 1400 y está centrada.
+      // La rejilla (nombres + celdas) cabe en 1400 y el bloque de 1400 está
+      // centrado (la rejilla, a su izquierda).
       final used = huge.leftWidth + huge.slot * 6;
       expect(used, lessThanOrEqualTo(1400));
-      expect(huge.pad, closeTo((2480 - used) / 2, 0.001));
+      expect(huge.pad, closeTo(16 + (2480 - 1400) / 2, 0.001));
       final many = layout(2480, 14, desktop: true);
       expect(
         many.leftWidth + many.slot * 14,

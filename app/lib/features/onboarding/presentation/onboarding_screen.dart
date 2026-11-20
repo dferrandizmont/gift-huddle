@@ -37,6 +37,7 @@ import '../../lock/presentation/pin_setup_screen.dart';
 import '../../recovery/presentation/recovery_parts.dart';
 import '../../sync/application/recovery_providers.dart';
 import '../../tour/application/tour_state.dart';
+import 'welcome_alternatives.dart';
 
 /// Lo que se ha elegido en el primer uso hasta que se guarda todo junto.
 class OnboardingDraft {
@@ -607,37 +608,10 @@ class _WelcomeStep extends ConsumerWidget {
                   style: t.styles.meta,
                   textAlign: TextAlign.center,
                 ),
-                Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 8,
-                  children: [
-                    TextButton(
-                      onPressed: pending
-                          ? null
-                          : () => context.push(
-                              AppRoutes.join,
-                              extra: deviceNameToSend(ref, nameController.text),
-                            ),
-                      child: Text(l10n.shareJoinTitle),
-                    ),
-                    TextButton(
-                      onPressed: pending
-                          ? null
-                          : () => context.push(
-                              AppRoutes.joinLink,
-                              extra: deviceNameToSend(ref, nameController.text),
-                            ),
-                      child: Text(l10n.joinInviteRowTitle),
-                    ),
-                    TextButton(
-                      onPressed: () => context.push(AppRoutes.recover),
-                      child: Text(l10n.obHaveRecoveryCode),
-                    ),
-                    TextButton(
-                      onPressed: () => context.push(AppRoutes.recoverFile),
-                      child: Text(l10n.obRecoverWithFile),
-                    ),
-                  ],
+                const SizedBox(height: 8),
+                WelcomeAlternatives(
+                  nameController: nameController,
+                  pending: pending,
                 ),
               ],
             ),

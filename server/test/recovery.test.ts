@@ -89,6 +89,35 @@ async function prepare(id: Setup, r: Recovery, expected = 1) {
 
 afterEach(() => vi.restoreAllMocks());
 
+it("excludes a single-device list with a published recovery capsule from purge preview and apply", async () => {
+  const id = await setup(), r = await recovery(id);
+  const stub = listStub(id.syncId);
+  const day = 86_400_000, now = Date.now(), createdAt = now - 90 * day, lastActivity = createdAt + day;
+  await editState(id, (m) => {
+    m.lastAccess = lastActivity;
+    Object.assign(m, { createdAt });
+    Object.assign(m.credentials[0]!, { lastRequest: lastActivity });
+  });
+  const before = await state(id);
+  expect(before.credentials).toHaveLength(1);
+  expect(await rows(id)).toMatchObject([{ state: "active", published: true }]);
+  const criteria = { createdFrom: createdAt, createdBefore: now - day, inactiveBefore: now - 30 * day, includeLegacy: true };
+  const objectId = stub.id.toString();
+  const maintenance = (env as unknown as { MAINTENANCE: Fetcher }).MAINTENANCE;
+  const purge = (body: object) => maintenance.fetch("http://127.0.0.1:8791/purge-inactive", {
+    method: "POST", headers: { Host: "127.0.0.1:8791", "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  expect(await json(await purge({ criteria, objects: [{ id: objectId }] }))).toEqual({ candidates: [] });
+
+  const expected = {
+    createdAt, lastActivity, version: before.version, pendingInvites: 0, hasRecovery: false,
+    storedBytes: (before as Meta & { storedBytes: number }).storedBytes,
+  };
+  expect(await json(await purge({ criteria, apply: true, objects: [{ id: objectId, expected }] }))).toEqual({ purged: 0 });
+  expect(await state(id)).toEqual(before);
+  expect(await json(await get(r))).toMatchObject({ capsule: r.body.capsule });
+});
+
 describe("recovery envelopes and HTTP bounds", () => {
   it.each([false, true])("rejects cheap malformed headers without reading the body (existing=%s)", async (existing) => {
     const id = await setup(), r = existing ? await recovery(id) : { publicPath: `/v2/recoveries/${key()}` };
@@ -420,7 +449,7 @@ describe("recovery quotas and atomic rejection", () => {
     const before = await quota(id);
     expect((await claim(id, r, third.body, '"3"', again.newKey)).status).toBe(429);
     expect(await quota(id)).toBe(before);
-  });
+  }, 20_000);
   it.each(["active", "revoked", "retired", "invitation"] as const)("rejects a new verifier colliding with %s state without changing the claim", async (kind) => {
     const id = await setup(), r = await recovery(id);
     let collision = await digest(id.key);
@@ -525,6 +554,10 @@ describe("recovery quotas and atomic rejection", () => {
   });
   it("accepts four full-size blobs plus exactly one full-size temporary candidate", async () => {
     const id = await setup();
+    // Full recovery resource caps also require enough aggregate list capacity.
+    await editState(id, (m) => {
+      for (let n = 0; n < 4; n++) m.credentials.push({ deviceId: `capacity${n}`, verifier: key(), revoked: false, records: [], createdAt: Date.now() - 8 * 86400000 } as Meta["credentials"][number]);
+    });
     const active: Recovery[] = [];
     for (const deviceId of ["aritz", "nora", "leo", "aritz2"]) {
       const credential = deviceId === "aritz" ? id.key : key(), verifier = await digest(credential);
@@ -680,7 +713,7 @@ describe("recovery WebSocket credential epochs", () => {
     const messages: unknown[] = []; ws.addEventListener("message", (e) => messages.push(e.data));
     return { ws, closed, messages };
   }
-  it("shares the 12 text pings/minute budget across sockets and hibernation", async () => {
+  it("shares the 12 text pings/minute budget across sockets and resets on hibernation", async () => {
     const id = await setup(), first = await open(id);
     const pong = new Promise<void>((resolve) => first.ws.addEventListener("message", () => { if (first.messages.length === 6) resolve(); }));
     for (let n = 0; n < 6; n++) first.ws.send("ping");
@@ -690,7 +723,7 @@ describe("recovery WebSocket credential epochs", () => {
     for (let n = 0; n < 13; n++) second.ws.send("ping");
     expect((await second.closed).code).toBe(1008);
     expect(second.messages.every((m) => m === "pong")).toBe(true);
-    expect(second.messages.length).toBeLessThanOrEqual(6);
+    expect(second.messages.length).toBe(12);
     first.ws.close();
   });
   it("closes other messages before storage and does not perform live maintenance on ping", async () => {

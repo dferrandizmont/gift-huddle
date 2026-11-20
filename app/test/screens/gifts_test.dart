@@ -60,7 +60,9 @@ void main() {
     expect(find.text('Encargo'), findsOneWidget);
     expect(find.text('Lo pidió Aritz'), findsOneWidget);
     expect(find.text('Sin asignar'), findsOneWidget);
-    expect(find.text(eur('49,99 € (previsto 55 €)')), findsOneWidget);
+    // El importe y, debajo, lo previsto (el precio nunca se parte).
+    expect(find.text(eur('49,99 €')), findsOneWidget);
+    expect(find.text(eur('previsto 55 €')), findsOneWidget);
 
     await tester.tap(find.byType(FloatingActionButton));
     await settle(tester);

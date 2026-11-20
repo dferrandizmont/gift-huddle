@@ -149,7 +149,9 @@ class _RepartoAside extends ConsumerWidget {
     final people = full.recipientsById;
     final loose = [
       for (final g in ref.watch(boardGiftsProvider))
-        if (g.giverId == null && g.status != GiftStatus.delivered) g,
+        if (full.resolveGiver(g.giverId) == null &&
+            g.status != GiftStatus.delivered)
+          g,
     ];
     final duplicates = ref.watch(duplicatesProvider);
     return SafeArea(

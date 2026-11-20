@@ -10,8 +10,11 @@ import 'package:regalos/app/app.dart';
 import 'package:flutter/services.dart';
 import 'package:regalos/app/router.dart';
 import 'package:regalos/core/layout/ui_scale.dart';
+import 'package:regalos/core/sync/hlc.dart';
+import 'package:regalos/core/sync/model.dart';
 import 'package:regalos/core/theme/regalos_tokens.dart';
 import 'package:regalos/core/widgets/focus_ring.dart';
+import 'package:regalos/features/family/application/family_controller.dart';
 import 'package:regalos/features/web_board/application/gift_editor_panel.dart';
 import 'package:regalos/features/gifts/presentation/gift_editor_screen.dart';
 import 'package:regalos/features/web_board/application/board_lanes.dart';
@@ -148,18 +151,18 @@ void main() {
 
   group('carriles en una sola fila', () {
     test('cinco desde 1304 cómodos; «Listo» se pliega; luego se desplaza', () {
-      // 1920 sin editor: 1592 de sitio, cinco de unos 305.
+      // 1920 sin editor: 1592 de sitio, cinco de unos 309.
       var layout = BoardLanesLayout.of(1592);
       expect(layout.fold, isFalse);
       expect(layout.scrolls, isFalse);
-      expect(layout.laneWidth, closeTo(305.6, 0.1));
+      expect(layout.laneWidth, closeTo(308.8, 0.1));
       expect(layout.total, closeTo(1592, 0.01));
-      // 1920 con editor: 1192, «Listo» plegado y cuatro de unos 268.
+      // 1920 con editor: 1192, «Listo» plegado y cuatro de unos 272.
       layout = BoardLanesLayout.of(1192);
       expect(layout.fold, isTrue);
       expect(layout.scrolls, isFalse);
       expect(layout.readyWidth, BoardLanesView.foldedWidth);
-      expect(layout.laneWidth, closeTo(268, 1));
+      expect(layout.laneWidth, closeTo(272, 1));
       expect(layout.total, closeTo(1192, 0.01));
       // 1536 sin barra de por medio no cabe ni así: se desplaza.
       layout = BoardLanesLayout.of(1000);
@@ -359,6 +362,47 @@ void main() {
     );
 
     screenTest(
+      'Reparto web agrupa los alias y muestra las referencias tardías sin asignar',
+      (tester, phone) async {
+        await _mountWeb(tester, phone);
+        await tester.runAsync(() async {
+          final c = familyOf(phone);
+          await c.linkGiver('marta', 'nora');
+          await c.linkGiver('us', 'nora');
+          await c.deleteGiver('yayos');
+          final doc = phone.container
+              .read(familyControllerProvider)
+              .requireValue
+              .doc;
+          final clock = HlcClock(node: 'remote', last: doc.maxStamp);
+          await c.mergeRemote(
+            doc.set(clock, Collections.gifts, 'late', {
+              'recipientId': 'aritz',
+              'giverId': 'yayos',
+              'title': 'Bicicleta plegable',
+              'status': 'idea',
+              'surprise': false,
+              'year': 2026,
+            }),
+            fromNode: 'remote',
+          );
+        });
+        await tester.tap(section('Reparto'));
+        await settle(tester);
+        await tester.tap(find.text('Todas'));
+        await settle(tester);
+        expect(
+          find.bySemanticsLabel(RegExp(r'^Nora para Aritz: 3 regalos')),
+          findsOneWidget,
+        );
+        expect(find.text('Bicicleta plegable'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+      size: const Size(1920, 960),
+      overrides: _web(),
+    );
+
+    screenTest(
       'G1: el editor se cierra al cambiar de sección o de persona y quita la '
       'marca',
       (tester, phone) async {
@@ -424,7 +468,10 @@ void main() {
         await tester.tap(section('Hoy'));
         await settle(tester);
         expect(path(phone), '/people');
-        expect(find.text('Qué toca ahora'), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey<String>('board-add-gift')),
+          findsOneWidget,
+        );
         expect(tester.takeException(), isNull);
       },
       size: const Size(1920, 960),
@@ -470,7 +517,7 @@ void main() {
             (w) =>
                 w is DecoratedBox &&
                 w.decoration is BoxDecoration &&
-                (w.decoration as BoxDecoration).color == t.soft &&
+                (w.decoration as BoxDecoration).color == t.selection &&
                 (w.decoration as BoxDecoration).border is Border &&
                 ((w.decoration as BoxDecoration).border! as Border).top.color ==
                     t.ink,

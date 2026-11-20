@@ -103,7 +103,7 @@ void main() {
       await tester.tap(find.text('Presupuesto de la casa').first);
       await settle(tester);
       expect(_scope(tester).selectedId, kBudgetRowId);
-      expect(_scope(tester).fill, t.soft);
+      expect(_scope(tester).fill, t.selection);
       expect(_scope(tester).border, t.ink);
       expect(tester.takeException(), isNull);
     }, size: _desktop);

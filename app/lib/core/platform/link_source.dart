@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'link_source_native.dart'
@@ -6,7 +8,7 @@ import 'link_source_native.dart'
 
 abstract interface class LinkSource {
   // Keep the original authority, including explicit default ports.
-  String? takeInitialLink();
+  FutureOr<String?> takeInitialLink();
   Stream<String> get links;
 }
 

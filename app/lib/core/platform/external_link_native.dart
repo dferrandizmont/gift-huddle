@@ -1,9 +1,11 @@
 import 'package:flutter/services.dart';
 
 import 'external_link.dart';
+import 'user_link.dart';
 
 /// Canal nativo de la app (el mismo que recibe los ficheros `.regalos`):
-/// `openUrl` abre un enlace `https` en el navegador del sistema.
+/// `openUrl` abre un enlace `https` de la app en el navegador del sistema y
+/// `openUserUrl`, el de un regalo (cualquier tienda, ya comprobado).
 const MethodChannel _nativeChannel = MethodChannel(
   'com.dferrandizmont.regalos/incoming',
 );
@@ -42,6 +44,25 @@ class NativeExternalLinkOpener implements ExternalLinkOpener {
       return opened ?? false;
     } on MissingPluginException {
       // Sin código nativo (pruebas, escritorio).
+      return false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> openUserLink(String url) async {
+    final uri = userLinkUri(url);
+    if (uri == null) {
+      return false;
+    }
+    try {
+      final opened = await _nativeChannel.invokeMethod<bool>(
+        'openUserUrl',
+        uri.toString(),
+      );
+      return opened ?? false;
+    } on MissingPluginException {
       return false;
     } on PlatformException {
       return false;

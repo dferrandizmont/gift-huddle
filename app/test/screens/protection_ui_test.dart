@@ -143,13 +143,13 @@ class _Family extends FamilyController {
   ProtectedPersonException? upsertThrows;
 
   @override
-  Future<bool> upsertGift(Gift gift, {Gift? original}) async {
+  Future<GiftWriteResult> upsertGiftResult(Gift gift, {Gift? original}) async {
     final error = upsertThrows;
     if (error != null) {
       calls.add('upsert-rejected');
       throw error;
     }
-    return super.upsertGift(gift, original: original);
+    return super.upsertGiftResult(gift, original: original);
   }
 }
 

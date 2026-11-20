@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/core/sync/model.dart';
 import 'package:regalos/core/theme/theme.dart';
+import 'package:regalos/core/widgets/occasion_countdown_card.dart';
 
 double _contrast(Color a, Color b) {
   final la = a.computeLuminance();
@@ -129,16 +130,88 @@ void main() {
     }
   });
 
+  test('el texto secundario de la cuenta atrás llega a 4,5:1 en los dos temas '
+      '(color efectivo sobre la tarjeta)', () {
+    final themes = <(String, AccentPalette, OccasionTheme?)>[
+      for (final id in AccentId.values) (id.name, id.palette, null),
+      for (final o in OccasionTheme.all) (o.id, AccentId.lavender.palette, o),
+    ];
+    for (final b in Brightness.values) {
+      for (final (name, accent, occasion) in themes) {
+        final t = RegalosTokens.resolve(
+          accent: accent,
+          brightness: b,
+          occasion: occasion,
+        );
+        final meta = OccasionCountdownCard.metaColorOf(t);
+        // El color efectivo: lo que se ve tras mezclar con la tarjeta.
+        final effective = Color.alphaBlend(meta, t.soft);
+        expect(meta.a, 1, reason: 'opaco en $name / ${b.name}');
+        expect(
+          _contrast(effective, t.soft),
+          greaterThanOrEqualTo(4.5),
+          reason: '$name / ${b.name}',
+        );
+      }
+    }
+  });
+
+  test('avisos y calendario siguen los tokens en claro y oscuro', () {
+    for (final b in Brightness.values) {
+      for (final id in AccentId.values) {
+        final theme = buildTheme(id.palette, b);
+        final t = theme.extension<RegalosTokens>()!;
+        final snack = theme.snackBarTheme;
+        final bg = snack.backgroundColor!;
+        final text = snack.contentTextStyle!.color!;
+        final action = snack.actionTextColor!;
+        final reason = '${id.name} / ${b.name}';
+        expect(_contrast(text, bg), greaterThanOrEqualTo(4.5), reason: reason);
+        expect(
+          _contrast(action, bg),
+          greaterThanOrEqualTo(4.5),
+          reason: reason,
+        );
+        if (b == Brightness.dark) {
+          expect(bg, t.popover);
+          expect(text, t.text);
+          expect(action, t.ink);
+          expect(
+            ((snack.shape! as RoundedRectangleBorder).side).color,
+            t.separator,
+          );
+        }
+        final date = theme.datePickerTheme;
+        expect(date.backgroundColor, t.sheet);
+        final selected = <WidgetState>{WidgetState.selected};
+        expect(date.dayBackgroundColor!.resolve(selected), t.selection);
+        expect(date.dayForegroundColor!.resolve(selected), t.ink);
+        expect(
+          _contrast(
+            date.dayForegroundColor!.resolve(selected)!,
+            date.dayBackgroundColor!.resolve(selected)!,
+          ),
+          greaterThanOrEqualTo(4.5),
+          reason: reason,
+        );
+        expect(date.dayForegroundColor!.resolve({}), t.text);
+      }
+    }
+  });
+
   test('hay seis acentos con los valores de la maqueta', () {
     expect(AccentId.values.length, 6);
     expect(AccentId.defaultAccent, AccentId.lavender);
     final l = AccentId.lavender.palette;
     expect(l.pastel, const Color(0xFFD8D2F8));
     expect(l.tinta, const Color(0xFF4B3FB0));
-    expect(l.pastelD, const Color(0xFF908FFE));
-    expect(l.tintaD, const Color(0xFFB6BAFE));
-    expect(l.tintD, const Color(0xFF2D2D58));
-    expect(l.onFill, const Color(0xFF13122C));
+    // El oscuro «Pastel en velo»: el pastel encima y, debajo, su velo.
+    expect(l.tintaD, const Color(0xFFD8D2F8));
+    expect(l.onFill, const Color(0xFFD8D2F8));
+    expect(
+      l.pastelD,
+      Color.lerp(const Color(0xFF161514), l.veilSource, kVeilFill),
+    );
   });
 
   test('AccentId.fromName cae en lavanda con un valor desconocido', () {
@@ -153,7 +226,7 @@ void main() {
     expect(light.useMaterial3, isTrue);
     expect(light.extension<RegalosTokens>(), isNotNull);
     expect(light.scaffoldBackgroundColor, const Color(0xFFFFFFFF));
-    expect(dark.scaffoldBackgroundColor, const Color(0xFF1C1C1C));
+    expect(dark.scaffoldBackgroundColor, const Color(0xFF161514));
     expect(light.colorScheme.primaryContainer, AccentId.sage.palette.pastel);
     expect(dark.colorScheme.primaryContainer, AccentId.sage.palette.pastelD);
   });
@@ -180,11 +253,16 @@ void main() {
       text: const Color(0xFF000000),
       secondary: const Color(0xFF555555),
     );
-    expect(t.screenTitle.fontSize, 24);
+    // «A + Actual»: 32 en el tablero, 28 en el móvil, 15 los grupos y los
+    // carriles, 12 la segunda línea.
+    expect(t.boardTitle.fontSize, 32);
+    expect(t.screenTitle.fontSize, 28);
     expect(t.screenTitle.fontWeight, FontWeight.w700);
+    expect(t.screenTitle.letterSpacing, closeTo(-0.56, 1e-9));
     expect(t.rowTitle.fontSize, 16);
-    expect(t.sectionTitle.fontSize, 14);
+    expect(t.sectionTitle.fontSize, 15);
     expect(t.meta.fontSize, 13);
+    expect(t.caption.fontSize, 12);
     expect(
       t
           .countdownNumber(CountdownSize.compact, const Color(0xFF000000))

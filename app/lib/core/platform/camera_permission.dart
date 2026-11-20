@@ -8,16 +8,21 @@ export 'camera_permission_gate.dart'
 
 const _channel = MethodChannel('com.dferrandizmont.regalos/incoming');
 
+bool get _usesNativePermission =>
+    !kIsWeb &&
+    (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS);
+
 /// Pide el permiso de cámara (una sola vez) y dice si se tiene.
 ///
 /// En Android lo pide la propia app, antes de crear el lector de QR: el lector
 /// lo volvía a pedir al volver del diálogo y, si se denegaba, salía dos veces.
-/// En el resto (iPhone, pruebas) devuelve `true` y lo gestiona el lector.
+/// iOS también resuelve el permiso antes de crear el lector.
 typedef CameraPermissionRequest = Future<bool> Function();
 
 /// Si el permiso ya está concedido, sin preguntar nada.
 Future<bool> hasCameraPermission() async {
-  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+  if (!_usesNativePermission) {
     return true;
   }
   try {
@@ -29,7 +34,7 @@ Future<bool> hasCameraPermission() async {
 
 /// Muestra el diálogo del sistema si hace falta y devuelve el resultado.
 Future<bool> requestCameraPermission() async {
-  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+  if (!_usesNativePermission) {
     return true;
   }
   try {
@@ -45,7 +50,7 @@ Future<bool> requestCameraPermission() async {
 /// «interrumpido». Si la app nativa es anterior (sin el método nuevo), cae al
 /// sí o no de siempre.
 Future<CameraPermissionOutcome> requestCameraPermissionStatus() async {
-  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+  if (!_usesNativePermission) {
     return CameraPermissionOutcome.granted;
   }
   try {
@@ -63,11 +68,12 @@ Future<CameraPermissionOutcome> requestCameraPermissionStatus() async {
 }
 
 /// Lee lo que devuelve el canal nativo (`granted`, `denied`,
-/// `permanentlyDenied`, `cancelled`); cualquier otra cosa es `cancelled`.
+/// `permanentlyDenied`, `restricted`, `cancelled`); cualquier otra cosa es `cancelled`.
 @visibleForTesting
 CameraPermissionOutcome parseCameraPermissionOutcome(String? raw) =>
     switch (raw) {
       'granted' => CameraPermissionOutcome.granted,
+      'restricted' => CameraPermissionOutcome.restricted,
       'denied' => CameraPermissionOutcome.denied,
       'permanentlyDenied' => CameraPermissionOutcome.permanentlyDenied,
       _ => CameraPermissionOutcome.cancelled,
@@ -76,7 +82,7 @@ CameraPermissionOutcome parseCameraPermissionOutcome(String? raw) =>
 /// Abre la página de la app en los ajustes del sistema (para dar el permiso
 /// a mano). Devuelve si se pudo abrir.
 Future<bool> openCameraSettings() async {
-  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+  if (!_usesNativePermission) {
     return false;
   }
   try {

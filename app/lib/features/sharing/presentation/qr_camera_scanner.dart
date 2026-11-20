@@ -178,7 +178,8 @@ class _QrCameraScannerState extends State<QrCameraScanner>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed &&
         _gate.state != CameraPermissionState.granted &&
-        defaultTargetPlatform == TargetPlatform.android) {
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)) {
       unawaited(_gate.resumed());
     }
   }
@@ -202,8 +203,8 @@ class _QrCameraScannerState extends State<QrCameraScanner>
     }
   }
 
-  // iPhone: el permiso lo pide el lector y avisa aquí; en Android ya llega
-  // resuelto y este aviso no cambia nada.
+  // El lector se crea con permiso concedido. Este aviso cubre cambios
+  // posteriores y plataformas sin canal nativo.
   void _onPermission(QRViewController controller, bool granted) {
     if (granted == (_gate.state == CameraPermissionState.granted)) return;
     _gate.report(granted: granted);
@@ -364,6 +365,10 @@ class _DefaultIssue extends StatelessWidget {
         l10n.scannerBlockedTitle,
         l10n.scannerBlockedBody,
       ),
+      CameraIssue.restricted => (
+        l10n.scannerBlockedTitle,
+        l10n.cameraRestricted,
+      ),
       CameraIssue.failed => (l10n.scannerFailedTitle, l10n.scannerFailedBody),
     };
     final settings = issue == CameraIssue.permanentlyDenied;
@@ -391,24 +396,26 @@ class _DefaultIssue extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          Center(
-            child: FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: _OnCamera.button,
-                foregroundColor: _OnCamera.onButton,
-                minimumSize: const Size(44, 48),
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                shape: const RoundedRectangleBorder(
-                  borderRadius: RegalosShape.button,
+          if (issue != CameraIssue.restricted) ...[
+            const SizedBox(height: 16),
+            Center(
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: _OnCamera.button,
+                  foregroundColor: _OnCamera.onButton,
+                  minimumSize: const Size(44, 48),
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: RegalosShape.button,
+                  ),
+                ),
+                onPressed: settings ? openSettings : retry,
+                child: Text(
+                  settings ? l10n.scannerOpenSettings : l10n.scannerRetry,
                 ),
               ),
-              onPressed: settings ? openSettings : retry,
-              child: Text(
-                settings ? l10n.scannerOpenSettings : l10n.scannerRetry,
-              ),
             ),
-          ),
+          ],
         ],
       ),
     );

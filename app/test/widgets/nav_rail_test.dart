@@ -138,7 +138,7 @@ void main() {
                   )
                   .decoration
               as BoxDecoration;
-      expect(deco.color, t.fill);
+      expect(deco.color, t.selection);
       expect(deco.borderRadius, RegalosShape.chip);
 
       // Etiqueta de 12 en negrita y en tinta; el resto, no.
@@ -263,7 +263,7 @@ void main() {
       ),
     );
     bool lit(String label) =>
-        (box(label).decoration! as BoxDecoration).color == t.fill;
+        (box(label).decoration! as BoxDecoration).color == t.selection;
 
     expect(lit('Reparto'), isTrue);
     expect(lit('Personas'), isFalse);
@@ -341,6 +341,91 @@ void main() {
     }
   });
 
+  for (final size in kTabletSizes) {
+    for (final names in const [
+      ['Personas', 'Reparto', 'Ocasiones', 'Ajustes'],
+      ['People', 'Household', 'Occasions', 'Settings'],
+      ['Persones', 'Repartiment', 'Ocasions', 'Ajustos'],
+    ]) {
+      testWidgets(
+        'con la letra al 200 % (${names.first}, ${size.width.toInt()}×'
+        '${size.height.toInt()}) ninguna etiqueta roza el borde del raíl',
+        (tester) async {
+          await pumpThemed(
+            tester,
+            RegalosNavRail(
+              semanticLabel: 'Navegación principal',
+              selectedIndex: 0,
+              onSelected: (_) {},
+              destinations: [
+                NavDestination(icon: AppIcons.people, label: names[0]),
+                NavDestination(icon: AppIcons.family, label: names[1]),
+                NavDestination(icon: AppIcons.occasions, label: names[2]),
+                NavDestination(icon: AppIcons.settings, label: names[3]),
+              ],
+            ),
+            textScale: 2,
+            surfaceSize: size,
+          );
+          expect(tester.takeException(), isNull);
+          final railRect = tester.getRect(rail);
+          for (final label in names) {
+            final text = tester.getRect(find.text(label));
+            // Al menos 8 px de cada borde del raíl (con el texto normal, las
+            // etiquetas más largas llegan a 4).
+            expect(
+              text.left,
+              greaterThanOrEqualTo(railRect.left + 8),
+              reason: label,
+            );
+            expect(
+              text.right,
+              lessThanOrEqualTo(railRect.right - 8),
+              reason: label,
+            );
+          }
+        },
+      );
+    }
+  }
+
+  testWidgets('con el texto normal la etiqueta ocupa los 72 de siempre', (
+    tester,
+  ) async {
+    await pumpRail(tester, familyLabel: 'Repartiment');
+    final area = tester.getRect(zone('Repartiment'));
+    final text = tester.getRect(find.text('Repartiment'));
+    // Sin respiro añadido: la etiqueta larga sigue encogida a todo el ancho.
+    expect(text.width, closeTo(area.width, 0.5));
+  });
+
+  testWidgets('con un escalado no lineal (12 se duplica y 100 no) las '
+      'etiquetas también guardan su respiro', (tester) async {
+    await pumpThemed(
+      tester,
+      Builder(
+        builder: (context) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: const _NonLinearScaler()),
+          child: RegalosNavRail(
+            semanticLabel: 'Navegación principal',
+            selectedIndex: 0,
+            onSelected: (_) {},
+            destinations: destinations(),
+          ),
+        ),
+      ),
+      surfaceSize: kTabletPortrait,
+    );
+    expect(tester.takeException(), isNull);
+    final railRect = tester.getRect(rail);
+    for (final label in labels) {
+      final text = tester.getRect(find.text(label));
+      expect(text.left, greaterThanOrEqualTo(railRect.left + 8), reason: label);
+      expect(text.right, lessThanOrEqualTo(railRect.right - 8), reason: label);
+    }
+  });
+
   testWidgets('respeta los márgenes seguros de arriba y de su lado', (
     tester,
   ) async {
@@ -402,4 +487,16 @@ void main() {
     expect(border.start, BorderSide.none);
     expect(tester.getRect(find.text('Personas')).center.dx, railRect.center.dx);
   });
+}
+
+/// Como el de Android 14 o posterior: crece más en las fuentes pequeñas que en
+/// las grandes. Aquí 12 pasa a 24 y 100 se queda en 100.
+class _NonLinearScaler extends TextScaler {
+  const _NonLinearScaler();
+
+  @override
+  double scale(double fontSize) => fontSize <= 12 ? fontSize * 2 : fontSize;
+
+  @override
+  double get textScaleFactor => 2;
 }

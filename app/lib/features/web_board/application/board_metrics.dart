@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../family/application/family_providers.dart';
+
 /// Las medidas del tablero de la web de escritorio, todas en puntos lógicos
 /// (ya sin la escala de interfaz) y a partir del ancho de la ventana W
 /// (la guía de diseño de escritorio, «Reglas»).
@@ -82,6 +84,29 @@ class BoardSidebarCollapsed extends Notifier<bool> {
 /// Si la barra lateral está plegada.
 final boardSidebarCollapsedProvider =
     NotifierProvider<BoardSidebarCollapsed, bool>(BoardSidebarCollapsed.new);
+
+/// La persona por la que se filtran los carriles de «Hoy» (`null`: todas), para
+/// arrastrar regalos de un carril a otro con una lista corta. Se recuerda
+/// mientras dura la sesión.
+class BoardPersonFilter extends Notifier<String?> {
+  @override
+  String? build() {
+    ref.listen(recipientsProvider, (_, people) {
+      if (state != null && !people.any((person) => person.id == state)) {
+        state = null;
+      }
+    });
+    return null;
+  }
+
+  /// Filtra por [personId], o quita el filtro con `null`.
+  void choose(String? personId) => state = personId;
+}
+
+/// La persona elegida en el filtro de «Hoy», o `null` si se ven todas.
+final boardPersonFilterProvider = NotifierProvider<BoardPersonFilter, String?>(
+  BoardPersonFilter.new,
+);
 
 /// El regalo marcado con el teclado (↑ y ↓ recorren los regalos de la
 /// pantalla). Cada pantalla le cuenta en qué orden salen sus regalos; solo

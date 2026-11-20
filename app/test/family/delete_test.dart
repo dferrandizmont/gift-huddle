@@ -106,7 +106,7 @@ void main() {
     expect(aritz.gifts, 3);
     expect(aritz.hasBirthday, isTrue);
     expect(DeleteImpact.ofRecipient(full, 'nora').hasBirthday, isFalse);
-    expect(DeleteImpact.ofGiver(full, 'us').gifts, 4);
+    expect(DeleteImpact.ofGiverAlias(full, 'us').gifts, 4);
     expect(DeleteImpact.ofOccasion(full, 'seed-tio').gifts, 2);
   });
 
@@ -325,7 +325,7 @@ void main() {
     expect(DeleteImpact.ofOccasion(full, 'seed-tio').gifts, 2);
     expect(DeleteImpact.ofRecipient(full, 'aritz').hasRequests, isTrue);
     expect(DeleteImpact.ofRecipient(full, 'nora').hasRequests, isFalse);
-    expect(DeleteImpact.ofGiver(full, 'us').paysFromHousehold, isTrue);
+    expect(DeleteImpact.ofGiverAlias(full, 'us').paysFromHousehold, isTrue);
     await controller.deleteRecipient('nora');
     await controller.deleteOccasion('seed-tio');
     final after = (await state()).fullView;

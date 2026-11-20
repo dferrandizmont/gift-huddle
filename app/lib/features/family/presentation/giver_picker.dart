@@ -10,6 +10,7 @@ import '../../../core/widgets/spring_pulse.dart';
 import '../../../core/widgets/stroke_icon.dart';
 import '../../../l10n/app_localizations.dart';
 import 'family_texts.dart';
+import 'giver_person_flow.dart';
 
 // El chip de quién regala un regalo y la fila de chips que se despliega en
 // línea para cambiarlo. Los usan la hoja de una celda de Reparto y la vista
@@ -96,7 +97,7 @@ class _GiverChipState extends State<GiverChip> {
     final color = giver == null ? t.ink : t.giver(giver.colorIndex);
     final name = giver == null
         ? l10n.repartoSheetWho
-        : giverDisplayName(l10n, giver.name);
+        : giverNameFor(l10n, giver);
     final face = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -124,9 +125,7 @@ class _GiverChipState extends State<GiverChip> {
     return Semantics(
       button: true,
       label: l10n.repartoSheetChipLabel(
-        giver == null
-            ? l10n.repartoSheetWho
-            : giverDisplayName(l10n, giver.name),
+        giver == null ? l10n.repartoSheetWho : giverNameFor(l10n, giver),
       ),
       excludeSemantics: true,
       onTap: widget.onTap,
@@ -192,18 +191,27 @@ class _GiverChipState extends State<GiverChip> {
 }
 
 /// La fila de chips para elegir quién regala. Cada chip entra desfasado 30 ms
-/// (opacidad, subida y escala con `bounce`).
+/// (opacidad, subida y escala con `bounce`). Debajo, la sección «Personas»
+/// con las de la familia que aún no son quién regala ([people]); elegir una
+/// llama a [onPickPerson].
 class GiverPicker extends StatelessWidget {
   const GiverPicker({
     super.key,
     required this.givers,
     required this.selectedId,
     required this.onPick,
+    this.people = const <GiverPersonCandidate>[],
+    this.onPickPerson,
   });
 
   final List<Giver> givers;
   final String? selectedId;
   final ValueChanged<String?> onPick;
+
+  /// Las personas de la sección «Personas» (ya filtradas con
+  /// `personSectionOf`).
+  final List<GiverPersonCandidate> people;
+  final ValueChanged<GiverPersonCandidate>? onPickPerson;
 
   @override
   Widget build(BuildContext context) {
@@ -213,7 +221,7 @@ class GiverPicker extends StatelessWidget {
       for (final g in givers)
         (
           id: g.id,
-          name: giverDisplayName(l10n, g.name),
+          name: giverNameFor(l10n, g),
           color: t.giver(g.colorIndex),
           onColor: t.giverOn(g.colorIndex),
         ),
@@ -224,7 +232,7 @@ class GiverPicker extends StatelessWidget {
         onColor: t.bg,
       ),
     ];
-    return Wrap(
+    final wrap = Wrap(
       spacing: 8,
       runSpacing: 0,
       children: [
@@ -239,6 +247,40 @@ class GiverPicker extends StatelessWidget {
               onTap: () => onPick(options[i].id),
             ),
           ),
+      ],
+    );
+    final pick = onPickPerson;
+    if (people.isEmpty || pick == null) {
+      return wrap;
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        wrap,
+        const SizedBox(height: 6),
+        Semantics(
+          header: true,
+          child: Text(l10n.giverPeopleSection, style: t.styles.meta),
+        ),
+        const SizedBox(height: 2),
+        Wrap(
+          spacing: 8,
+          runSpacing: 0,
+          children: [
+            for (var i = 0; i < people.length; i++)
+              StaggerIn(
+                index: options.length + i,
+                child: PickerChip(
+                  label: people[i].person.name,
+                  hint: personCandidateHint(l10n, people[i]),
+                  color: t.giver(people[i].person.colorIndex),
+                  onColor: t.giverOn(people[i].person.colorIndex),
+                  selected: false,
+                  onTap: () => pick(people[i]),
+                ),
+              ),
+          ],
+        ),
       ],
     );
   }
@@ -328,9 +370,13 @@ class PickerChip extends StatelessWidget {
     required this.onColor,
     required this.selected,
     required this.onTap,
+    this.hint,
   });
 
   final String label;
+
+  /// Lo que pasa al elegirlo, para el lector de pantalla.
+  final String? hint;
   final Color color;
 
   /// Texto y visto sobre el chip elegido.
@@ -351,7 +397,7 @@ class PickerChip extends StatelessWidget {
     return Semantics(
       button: true,
       selected: selected,
-      label: label,
+      label: hint == null ? label : '$label. $hint',
       excludeSemantics: true,
       onTap: onTap,
       child: GestureDetector(
@@ -419,24 +465,3 @@ class PickerChip extends StatelessWidget {
     );
   }
 }
-
-/// El mismo regalo con otro [giverId] (`null` lo deja sin quién regala).
-Gift giftWithGiver(Gift g, String? giverId) => Gift(
-  id: g.id,
-  recipientId: g.recipientId,
-  title: g.title,
-  giverId: giverId,
-  occasionId: g.occasionId,
-  status: g.status,
-  rawStatus: g.rawStatus,
-  plannedCents: g.plannedCents,
-  actualCents: g.actualCents,
-  store: g.store,
-  url: g.url,
-  note: g.note,
-  size: g.size,
-  requestedBy: g.requestedBy,
-  requestNote: g.requestNote,
-  surprise: g.surprise,
-  year: g.year,
-);

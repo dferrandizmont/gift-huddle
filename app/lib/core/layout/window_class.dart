@@ -22,6 +22,32 @@ abstract final class RegalosBreakpoints {
   static const double minHeight = 480;
 }
 
+/// Los anchos de contenido (la ventana menos el raíl) que gobiernan cómo crece
+/// la rejilla de Reparto en una tablet (`RepartoLayout`): el tope de la celda
+/// sube sin saltos de 96 a 120 entre [gridRampStart] y [gridRampMid], y de 120
+/// a su tope entre [gridRampMid] y [gridRampEnd]. El tope depende de cuántos
+/// regalan: con pocas columnas las celdas pueden ser más grandes.
+abstract final class RegalosGridWidths {
+  /// Contenido de la ventana media más estrecha (600 menos el raíl de 80).
+  static const double gridRampStart = 520;
+
+  /// Contenido de la ventana expandida más estrecha (840 menos el raíl).
+  static const double gridRampMid = 760;
+
+  /// Contenido de un iPad de 13 pulgadas en horizontal (1366 menos el raíl):
+  /// desde aquí la celda llega a su tope.
+  static const double gridRampEnd = 1286;
+
+  /// Tope del ancho de la celda con tres que regalan o menos…
+  static const double cellMaxFew = 210;
+
+  /// …con cuatro…
+  static const double cellMaxFour = 184;
+
+  /// …y con más.
+  static const double cellMaxMany = 190;
+}
+
 /// La clase de la ventana de la app. Sale del tamaño de la ventana, nunca del
 /// aparato ni de la orientación: así vale igual para la tablet girada, la
 /// pantalla partida de Android y Split View.

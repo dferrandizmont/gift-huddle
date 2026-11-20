@@ -311,7 +311,11 @@ class _BodyState extends ConsumerState<_Body> {
             bottom: false,
             child: ContentListView(
               maxWidth: columnWidth,
-              padding: const EdgeInsets.only(bottom: 96),
+              // Sin barra inferior (tableta, web) la barra del sistema no deja
+              // sitio: el último elemento acabaría debajo.
+              padding: EdgeInsets.only(
+                bottom: 96 + MediaQuery.paddingOf(context).bottom,
+              ),
               children: [
                 OccasionExpandReveal(
                   child: ScreenHeader(
@@ -682,7 +686,9 @@ class _BodyState extends ConsumerState<_Body> {
       initialName: OccasionLabels(l10n, people).of(occasion),
     );
     if (result != null) {
-      await ref.read(familyControllerProvider.notifier).upsertOccasion(result);
+      await ref
+          .read(familyControllerProvider.notifier)
+          .upsertOccasion(result, original: occasion);
     }
   }
 }
@@ -984,9 +990,12 @@ class _PersonBlock extends ConsumerWidget {
                           child: Row(
                             children: [
                               const SizedBox(width: 44),
-                              AnimatedStatusGlyph(
+                              StatusHoverTip(
                                 status: g.status.visualStatus,
-                                size: 22,
+                                child: AnimatedStatusGlyph(
+                                  status: g.status.visualStatus,
+                                  size: 22,
+                                ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -1102,9 +1111,12 @@ class _BuyRow extends ConsumerWidget {
                 onTap: buy,
                 customBorder: const CircleBorder(),
                 child: Center(
-                  child: AnimatedStatusGlyph(
+                  child: StatusHoverTip(
                     status: gift.status.visualStatus,
-                    size: 24,
+                    child: AnimatedStatusGlyph(
+                      status: gift.status.visualStatus,
+                      size: 24,
+                    ),
                   ),
                 ),
               ),
@@ -1218,7 +1230,7 @@ class _GiftFx extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = RegalosTokens.of(context);
     final palette = personPalette(person?.colorIndex ?? 0);
-    final pastel = t.isDark ? palette.tintD : palette.pastel;
+    final pastel = palette.surfaceOf(t.isDark);
     return HighlightFlash(
       id: gift.id,
       signal: highlight,

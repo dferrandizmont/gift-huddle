@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// Neutros del diseño: fondo blanco puro en claro y gris neutro casi negro en
-/// oscuro, al estilo Todoist (la guía del tema oscuro).
+/// Neutros del diseño «A + Actual»: fondo blanco puro en claro y, en oscuro,
+/// el casi negro cálido de «Pastel en velo» (D1).
 @immutable
 class NeutralPalette {
   const NeutralPalette({
@@ -12,6 +12,7 @@ class NeutralPalette {
     required this.scrim,
     required this.shadow,
     required this.danger,
+    required this.dangerOnTint,
     required this.dangerSoft,
     required this.dangerRow,
     required this.text,
@@ -22,6 +23,9 @@ class NeutralPalette {
     required this.controlBorder,
     required this.track,
     required this.idea,
+    required this.sidebar,
+    required this.field,
+    required this.popover,
   });
 
   /// Fondo de pantalla.
@@ -47,6 +51,11 @@ class NeutralPalette {
   /// presupuesto) y su fondo suave (botón de borrar, fila que se borra).
   final Color danger;
   final Color dangerSoft;
+
+  /// El aviso (texto, trazo y barra) sobre una superficie pastel de color
+  /// (tarjeta de ocasión o de persona): en claro, el mismo `danger`; en oscuro,
+  /// uno más claro que llega a 4,5:1 sobre el velo de las seis paletas.
+  final Color dangerOnTint;
 
   /// Tinte de una fila (sobre el fondo) mientras se borra.
   final Color dangerRow;
@@ -74,6 +83,16 @@ class NeutralPalette {
   /// Trazo discontinuo de «Idea» y de «sin asignar».
   final Color idea;
 
+  /// Fondo de la barra lateral del tablero (un escalón por debajo del fondo
+  /// en claro y por encima en oscuro).
+  final Color sidebar;
+
+  /// Fondo de los campos de texto y de los buscadores.
+  final Color field;
+
+  /// Fondo de un desplegable abierto (lo más alto que hay).
+  final Color popover;
+
   static const light = NeutralPalette(
     bg: Color(0xFFFFFFFF),
     surface: Color(0xFFF5F5F8),
@@ -82,6 +101,7 @@ class NeutralPalette {
     scrim: Color(0x5217171C),
     shadow: Color(0xFF14143C),
     danger: Color(0xFFB3261E),
+    dangerOnTint: Color(0xFFB3261E),
     dangerSoft: Color(0xFFF9DEDC),
     dangerRow: Color(0xFFFCEBE9),
     text: Color(0xFF17171C),
@@ -95,29 +115,38 @@ class NeutralPalette {
     controlBorder: Color(0xFF8B8C96),
     track: Color(0xFFE1E1E8),
     idea: Color(0xFF8B8C96),
+    sidebar: Color(0xFFFAFAFC),
+    field: Color(0xFFFFFFFF),
+    popover: Color(0xFFFFFFFF),
   );
 
-  // «Todoist neutro» (la guía del tema oscuro): grises sin tinte, con un
-  // escalón claro entre fondo, tarjeta y hoja; texto casi blanco y acentos
-  // saturados (los pone `AccentPalette`).
+  // «Pastel en velo» (D1): casi negro cálido, con un escalón claro entre
+  // fondo, tarjeta y hoja; texto marfil y, encima, los pasteles velados (los
+  // pone `AccentPalette`).
   static const dark = NeutralPalette(
-    bg: Color(0xFF1C1C1C),
-    surface: Color(0xFF2B2B2B),
-    sheet: Color(0xFF363636),
-    sheetEdge: Color(0xFF4C4C4C),
-    scrim: Color(0x66000000),
+    bg: Color(0xFF161514),
+    surface: Color(0xFF1F1D1B),
+    sheet: Color(0xFF252321),
+    sheetEdge: Color(0xFF3A3633),
+    scrim: Color(0x8C000000),
     shadow: Color(0xFF000000),
     danger: Color(0xFFFF7A6E),
+    dangerOnTint: Color(0xFFFF8F84),
     dangerSoft: Color(0xFF55231F),
-    dangerRow: Color(0xFF3A2321),
-    text: Color(0xFFF5F5F5),
-    textSecondary: Color(0xFFC4C4C4),
-    textOnSoft: Color(0xFFD2D2D2),
-    separator: Color(0xFF3B3B3B),
-    outline: Color(0xFF565656),
-    controlBorder: Color(0xFF8C8C8C),
-    track: Color(0xFF444444),
-    idea: Color(0xFF949494),
+    dangerRow: Color(0xFF34201D),
+    text: Color(0xFFF2EFEA),
+    textSecondary: Color(0xFFBDB7AE),
+    textOnSoft: Color(0xFFE2DED7),
+    separator: Color(0xFF2D2A27),
+    outline: Color(0xFF4A4541),
+    // 4,9:1 sobre el fondo y 4,4:1 sobre la hoja: los controles que solo se
+    // reconocen por el borde siguen pasando de 3:1.
+    controlBorder: Color(0xFF87817A),
+    track: Color(0xFF2D2A27),
+    idea: Color(0xFF8C8781),
+    sidebar: Color(0xFF1A1918),
+    field: Color(0xFF1A1918),
+    popover: Color(0xFF252321),
   );
 }
 

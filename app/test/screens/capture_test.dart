@@ -195,13 +195,11 @@ void _scenes(
     'unirse con QR o con enlace $suffix',
     (tester, phone) async {
       await _mount(tester, phone);
-      await tapText(tester, 'Escanear el QR');
+      await tapWelcomeChoice(tester, 'Escanear el QR');
       await shot(tester, 'p08-escanear-qr-$suffix');
       await tester.binding.handlePopRoute();
       await settle(tester);
-      await tester.ensureVisible(find.text('Unirme con un enlace'));
-      await tester.pump();
-      await tapText(tester, 'Unirme con un enlace');
+      await tapWelcomeChoice(tester, 'Unirme con un enlace');
       await shot(tester, 'p09-unirse-enlace-$suffix');
     },
     brightness: brightness,

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/app/fresh_install.dart';
@@ -11,6 +12,8 @@ import 'package:regalos/features/family/application/self_recipient_provider.dart
 import 'package:regalos/features/family/data/device_keys_store.dart';
 import 'package:regalos/features/family/data/secure_wipe.dart';
 import 'package:regalos/features/lock/application/lock_controller.dart';
+import 'package:regalos/features/review/application/review_providers.dart';
+import 'package:regalos/features/review/application/review_service.dart';
 import 'package:regalos/features/settings/application/appearance_provider.dart';
 import 'package:regalos/features/settings/application/erase_all.dart';
 import 'package:regalos/features/settings/application/locale_provider.dart';
@@ -23,6 +26,7 @@ import 'package:regalos/features/sync/domain/sync_status.dart';
 import '../helpers/fake_sync_server.dart';
 import '../helpers/memory_stores.dart';
 import '../helpers/pump_app.dart';
+import '../review/review_service_test.dart' show FakeStoreReview;
 import '../sync/sync_harness.dart' show eventually, kFastTiming, kTestHost;
 
 /// Un almacén seguro que, cuando se le dice, falla al borrar una clave (como
@@ -49,6 +53,28 @@ class _StuckFiles extends MemoryFileStore {
       throw FileSystemException('no se puede borrar', name);
     }
     await super.delete(name);
+  }
+}
+
+class _ReviewTrackingFiles extends MemoryFileStore {
+  final reviewAccesses = <String>[];
+
+  @override
+  Future<Uint8List?> read(String name) {
+    if (name == 'review.json') reviewAccesses.add('read');
+    return super.read(name);
+  }
+
+  @override
+  Future<void> writeAtomic(String name, Uint8List bytes) {
+    if (name == 'review.json') reviewAccesses.add('write');
+    return super.writeAtomic(name, bytes);
+  }
+
+  @override
+  Future<void> delete(String name) {
+    if (name == 'review.json') reviewAccesses.add('delete');
+    return super.delete(name);
   }
 }
 
@@ -352,6 +378,71 @@ void main() {
     final again = await p.container.read(familyControllerProvider.future);
     expect(again.listId, fresh.listId);
   });
+
+  test(
+    'borrar todo no accede a un historial de valoración inexistente',
+    () async {
+      final files = _ReviewTrackingFiles();
+      final p = await newPhone(files: files);
+      await fill(p);
+
+      await eraserOf(p).eraseLocal();
+
+      expect(files.reviewAccesses, isEmpty);
+      expect(files.files, isNot(contains('review.json')));
+      await expectFirstUse(p);
+    },
+  );
+
+  for (final (count, daysSinceLastRequest, limit) in [
+    (1, 0, 'el plazo de 120 días'),
+    (3, 121, 'el máximo de tres peticiones'),
+  ]) {
+    test('borrar todo conserva $limit al crear otra familia', () async {
+      final files = _ReviewTrackingFiles();
+      final p = await newPhone(files: files);
+      final now = DateTime.utc(2026, 11, 20);
+      final lastRequestedAt = now.subtract(
+        Duration(days: daysSinceLastRequest),
+      );
+      final history = (count: count, lastRequestedAt: lastRequestedAt);
+      await fill(p);
+      final oldList = (await p.container.read(familyControllerProvider.future))
+          .listId!;
+      final preferences = p.container.read(localReviewPreferencesProvider);
+      await preferences.writeHistory(history);
+      final original = files.files['review.json'];
+      expect(original, isNotNull);
+      files.reviewAccesses.clear();
+
+      await eraserOf(p).eraseLocal();
+      expect(files.reviewAccesses, isEmpty);
+      expect(files.files['review.json'], same(original));
+      await p.prefs!.reload();
+      expect(p.prefs!.getKeys(), isEmpty);
+
+      await familyOf(p).createFamily(deviceName: 'Otra vez');
+      p.restart(temp: temp);
+      final fresh = await p.container.read(familyControllerProvider.future);
+      expect(fresh.listId, isNot(oldList));
+      expect(files.reviewAccesses, isEmpty);
+      final restartedPreferences = p.container.read(
+        localReviewPreferencesProvider,
+      );
+      final store = FakeStoreReview();
+      await ReviewService(
+        preferences: restartedPreferences,
+        store: store,
+        isWeb: false,
+        isStoreBuild: true,
+        canPresent: (id) => id == fresh.listId,
+        clock: Clock.fixed(now),
+      ).deliverySaved(familyId: fresh.listId!, before: 4, after: 5);
+
+      expect(store.requests, 0);
+      expect(await restartedPreferences.readHistory(), history);
+    });
+  }
 
   test('si el almacén seguro falla al borrar las claves una a una, lo demás '
       'se borra igual y la app queda sin familia', () async {
