@@ -39,14 +39,16 @@ Finder _field(String key) => find.byKey(ValueKey<String>(key));
 
 /// Sin ninguna ocasión con presupuesto, las tres cifras cuentan todo.
 const _subtitle =
-    'Lo pones tú en cada ocasión. Gastado suma el precio real de lo que paga '
-    'la casa; si algo ya está comprado y no tiene precio real, cuenta el previsto.';
+    'Puedes poner un presupuesto en cada ocasión. «Gastado» suma los precios '
+    'reales de los regalos que paga la casa. Si ya se ha comprado un regalo y '
+    'falta el precio real, cuenta el previsto.';
 
 /// Con alguna ocasión con presupuesto, avisa de que solo cuentan esas.
 const _subtitleBudgeted =
-    'Lo pones tú en cada ocasión. Las tres cifras solo incluyen ocasiones con '
-    'presupuesto. «Gastado» suma los precios reales de lo que paga la casa. '
-    'Si algo ya está comprado y no tiene precio real, cuenta el previsto.';
+    'Puedes poner un presupuesto en cada ocasión. Las tres cifras solo incluyen '
+    'ocasiones con presupuesto. «Gastado» suma los precios reales de los regalos '
+    'que paga la casa. Si ya se ha comprado un regalo y falta el precio real, '
+    'cuenta el previsto.';
 
 String _fieldText(WidgetTester tester, Finder field) =>
     tester.widget<TextField>(field).controller!.text;
@@ -66,7 +68,7 @@ void main() {
       // Las tres cifras de arriba.
       expect(find.text('Presupuesto'), findsNWidgets(2)); // título y cifra
       expect(find.text('Gastado'), findsWidgets); // cifra y ocasiones
-      expect(find.text('Queda'), findsOneWidget);
+      expect(find.text('Disponible'), findsOneWidget);
       expect(find.text('Sin presupuesto'), findsWidgets);
       expect(find.text('–'), findsOneWidget);
       expect(
@@ -150,7 +152,7 @@ void main() {
       expect(total.spentCents, 14549);
       expect(find.text(eur('145,49 €')), findsWidgets); // gastado
       expect(find.text(eur('169,49 €')), findsNothing);
-      expect(find.text('Queda'), findsOneWidget);
+      expect(find.text('Disponible'), findsOneWidget);
       expect(find.text(eur('304,51 €')), findsWidgets);
       expect(
         find.text(
@@ -172,7 +174,7 @@ void main() {
       expect(ifBought, greaterThanOrEqualTo(0));
       expect(
         find.bySemanticsLabel(
-          'Si compras lo que falta, te quedarán ${_money(ifBought)}',
+          'Si compras lo que falta, te quedarás con ${_money(ifBought)}',
         ),
         findsOneWidget,
       );
@@ -185,7 +187,7 @@ void main() {
       expect(
         find.descendant(
           of: kings,
-          matching: find.text('Queda ${_money(30000 - 8099)}'),
+          matching: find.text('Disponible ${_money(30000 - 8099)}'),
         ),
         findsOneWidget,
       );
@@ -240,7 +242,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('Te pasas'), findsNothing);
-      expect(find.text('Queda'), findsOneWidget);
+      expect(find.text('Disponible'), findsOneWidget);
 
       // Un poco más de presupuesto y sobra: «te quedarán».
       await setBudgets(tester, phone, {
@@ -248,7 +250,7 @@ void main() {
       });
       await settle(tester);
       expect(
-        find.bySemanticsLabel(eur('Si compras lo que falta, te quedarán 7 €')),
+        find.bySemanticsLabel(eur('Si compras lo que falta, te quedarás con 7 €')),
         findsOneWidget,
       );
 
@@ -257,7 +259,7 @@ void main() {
       await settle(tester);
       expect(_budgeted(phone).isOver, isTrue);
       expect(find.text('Te pasas'), findsOneWidget);
-      expect(find.text('Queda'), findsNothing);
+      expect(find.text('Disponible'), findsNothing);
       expect(
         find.bySemanticsLabel(RegExp('Si compras lo que falta, te pasarás')),
         findsOneWidget,
@@ -296,7 +298,7 @@ void main() {
       expect(
         find.descendant(
           of: boda,
-          matching: find.text('Queda ${_money(30000)}'),
+          matching: find.text('Disponible ${_money(30000)}'),
         ),
         findsOneWidget,
       );
@@ -370,7 +372,7 @@ void main() {
       expect(
         find.descendant(
           of: vieja,
-          matching: find.text('Queda ${_money(10000)}'),
+          matching: find.text('Disponible ${_money(10000)}'),
         ),
         findsOneWidget,
       );
@@ -719,7 +721,7 @@ void main() {
         final budget = phone.container.read(budgetProvider);
         expect(budget.total.spentCents, 0);
         expect(budget.hasBudgeted, isFalse);
-        expect(find.textContaining('Marca «Paga la casa»'), findsNothing);
+        expect(find.textContaining('Activa «Paga la casa»'), findsNothing);
         expect(find.text('Sin presupuesto'), findsWidgets);
         final vieja = _card('vieja');
         expect(vieja, findsOneWidget);
@@ -761,7 +763,7 @@ void main() {
         await pumpRegalos(tester, phone);
         await _openBudget(tester, phone);
         // El estado vacío sale, y con él el acceso.
-        expect(find.textContaining('Marca «Paga la casa»'), findsOneWidget);
+        expect(find.textContaining('Activa «Paga la casa»'), findsOneWidget);
         final access = find.byKey(const ValueKey<String>('budget-set-first'));
         expect(access, findsOneWidget);
         expect(tester.getSize(access).height, greaterThanOrEqualTo(44));
@@ -771,7 +773,7 @@ void main() {
         await tester.tap(find.text('Guardar'));
         await settle(tester);
         expect(_total(phone).budgetCents, 6000);
-        expect(find.textContaining('Marca «Paga la casa»'), findsNothing);
+        expect(find.textContaining('Activa «Paga la casa»'), findsNothing);
       },
     );
 

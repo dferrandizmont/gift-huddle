@@ -99,11 +99,11 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.textContaining('no verá las sorpresas de nadie'),
+      find.textContaining('no verás las sorpresas de nadie'),
       findsOneWidget,
     );
     expect(
-      find.textContaining('pueden tener que confirmarse otra vez'),
+      find.textContaining('volver a confirmar algunos móviles'),
       findsOneWidget,
     );
     expect(_fake.calls, isEmpty);
@@ -147,7 +147,7 @@ void main() {
     );
     // Sin persona, que otro móvil lo apruebe no devuelve las sorpresas: no se
     // promete.
-    expect(find.textContaining('Hasta que otro móvil'), findsNothing);
+    expect(find.textContaining('Hasta que se apruebe el cambio'), findsNothing);
     await tester.tap(find.text('Cambiar de persona'));
     await settle(tester);
     expect(_fake.calls, [null]);

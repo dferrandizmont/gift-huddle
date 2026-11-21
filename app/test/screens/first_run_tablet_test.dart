@@ -164,7 +164,7 @@ void main() {
     await tapText(tester, 'Siguiente');
 
     // 5. PIN: crear uno abre el teclado centrado; se deja para luego.
-    expectStep(tester, size, 'Protege los regalos');
+    expectStep(tester, size, 'Bloquea la app');
     final create = tester.getRect(
       find.widgetWithText(FilledButton, 'Crear PIN'),
     );
@@ -183,7 +183,7 @@ void main() {
     expect(block.center.dy, lessThan(size.height / 2));
     await tapText(tester, 'Ahora no');
     expect(find.byType(PinSetupScreen), findsNothing);
-    expectStep(tester, size, 'Protege los regalos');
+    expectStep(tester, size, 'Bloquea la app');
     await tapText(tester, 'Ahora no');
 
     // Ya en Personas, con lo elegido.
@@ -207,7 +207,7 @@ void main() {
       await tapText(tester, 'Siguiente');
       expectStep(tester, size, '¿Cuándo hay regalos?');
       await tapText(tester, 'Siguiente');
-      expectStep(tester, size, 'Protege los regalos');
+      expectStep(tester, size, 'Bloquea la app');
     },
     sizes: const [kTabletPortrait],
     textScale: 1.3,

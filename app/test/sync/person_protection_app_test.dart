@@ -70,6 +70,16 @@ class ClosingSecrets extends MemorySecretStore {
   }
 }
 
+class RegistryReadDisk extends MemoryFileStore {
+  int registryReads = 0;
+
+  @override
+  Future<Uint8List?> read(String name) {
+    if (name == 'family.registry') registryReads++;
+    return super.read(name);
+  }
+}
+
 class ProtectionPhone {
   ProtectionPhone(this.phone, this.member);
   final FakePhone phone;
@@ -87,8 +97,17 @@ class ProtectionPhone {
     return projection!;
   }
 
+  /// Reads the access list while it is listened, as the sheet does: a
+  /// failing registry read retries only while someone listens.
+  Future<List<GiftRecipientAccess>> listenedAccess() {
+    final sub = phone.container.listen(giftRecipientAccessProvider, (_, _) {});
+    return phone.container
+        .read(giftRecipientAccessProvider.future)
+        .whenComplete(sub.close);
+  }
+
   Future<void> refresh() async {
-    phone.container.invalidate(localRegistryViewProvider);
+    phone.container.invalidate(localRegistryReadProvider);
     phone.container.invalidate(authorizedProjectionProvider);
     await projection();
   }
@@ -114,6 +133,7 @@ void main() {
     MemoryFileStore? disk,
     MemorySecretStore? secrets,
     FamilyDoc? doc,
+    bool v2 = true,
     bool withKey = false,
     SlotSet? slots,
     DeviceRegistry? registry,
@@ -136,7 +156,7 @@ void main() {
     addTearDown(fake.dispose);
     final p = ProtectionPhone(fake, member);
     final keys = fake.container.read(deviceKeysStoreProvider);
-    await keys.restore(member.keys);
+    if (v2) await keys.restore(member.keys);
     await p.store.saveFamily(
       StoredFamily(
         identity: FamilyIdentity(
@@ -150,14 +170,16 @@ void main() {
         doc: doc ?? common,
       ),
     );
-    await p.store.saveSyncV2(
-      SyncIdentityV2(
-        listId: kListId,
-        deviceId: member.id,
-        syncId: 'AAAAAAAAAAAAAAAAAAAAAA',
-      ),
-    );
-    await p.store.saveRegistry(registry ?? family.registry);
+    if (v2) {
+      await p.store.saveSyncV2(
+        SyncIdentityV2(
+          listId: kListId,
+          deviceId: member.id,
+          syncId: 'AAAAAAAAAAAAAAAAAAAAAA',
+        ),
+      );
+      await p.store.saveRegistry(registry ?? family.registry);
+    }
     if (withKey) await keys.saveKeyring(kListId, family.authorizedKeyring);
     if (slots != null) await p.store.saveSlots(slots);
     await fake.container.read(familyControllerProvider.future);
@@ -689,9 +711,296 @@ void main() {
   );
 
   test(
+    'the unassigned 8T can only request protection with a confirmer',
+    () async {
+      final unassigned = await Phone.create('8t', null, 5);
+      final pair = await registryOf([unassigned, family.nora]);
+      final p = await install(unassigned, registry: pair);
+      final before = p.common.toJson();
+      final persisted = p.phone.files.files['family.doc'];
+      expect(persisted, isNotNull);
+
+      Future<GiftRecipientAccess> noraAccess() async =>
+          (await p.phone.container.read(giftRecipientAccessProvider.future))
+              .singleWhere((access) => access.recipient.id == 'nora');
+
+      final blocked = await noraAccess();
+      expect(blocked.canRequest, isFalse);
+      expect(blocked.requestReason, ProtectedPersonReason.noConfirmer);
+      await expectLater(
+        p.controller.requestProtection('nora'),
+        throwsA(
+          isA<ProtectedPersonException>().having(
+            (e) => e.reason,
+            'reason',
+            ProtectedPersonReason.noConfirmer,
+          ),
+        ),
+      );
+      expect(p.common.toJson(), before);
+      expect(p.phone.files.files['family.doc'], same(persisted));
+
+      await p.store.saveRegistry(
+        await registryOf([unassigned, family.nora, family.aritz]),
+      );
+      await p.refresh();
+      expect((await noraAccess()).canRequest, isTrue);
+      await p.controller.requestProtection('nora');
+      expect(publishedPolicy(p.common, 'nora')?.hideOwnGifts, isTrue);
+      expect((await p.store.load())!.doc.toJson(), p.common.toJson());
+      expect((await p.store.readSlots()).all, isEmpty);
+    },
+  );
+
+  test('Nora cannot request protection with only the unassigned 8T', () async {
+    final unassigned = await Phone.create('8t', null, 5);
+    final pair = await registryOf([unassigned, family.nora]);
+    final p = await install(family.nora, registry: pair);
+    final before = p.common.toJson();
+    final slots = (await p.store.readSlots()).toJson();
+    final keys = p.phone.container.read(deviceKeysStoreProvider);
+    final keyring = (await keys.readKeyring(kListId)).toJson();
+    final access = await p.phone.container.read(
+      giftRecipientAccessProvider.future,
+    );
+    final nora = access.singleWhere((a) => a.recipient.id == 'nora');
+    expect(nora.canRequest, isFalse);
+    expect(nora.requestReason, ProtectedPersonReason.noConfirmer);
+    expect(nora.viewerIsRecipient, isTrue);
+
+    await expectLater(
+      p.controller.requestProtection('nora'),
+      throwsA(
+        isA<ProtectedPersonException>().having(
+          (e) => e.reason,
+          'reason',
+          ProtectedPersonReason.noConfirmer,
+        ),
+      ),
+    );
+    expect(p.common.toJson(), before);
+    expect((await p.store.load())!.doc.toJson(), before);
+    expect((await p.store.readSlots()).toJson(), slots);
+    expect((await keys.readKeyring(kListId)).toJson(), keyring);
+  });
+
+  test(
+    'the request rechecks the registry after waiting for the family lock',
+    () async {
+      final unassigned = await Phone.create('8t', null, 5);
+      final registry = await registryOf([
+        unassigned,
+        family.nora,
+        family.aritz,
+      ]);
+      final p = await install(unassigned, registry: registry);
+      final before = p.common.toJson();
+      final access = await p.phone.container.read(
+        giftRecipientAccessProvider.future,
+      );
+      expect(
+        access.singleWhere((a) => a.recipient.id == 'nora').canRequest,
+        isTrue,
+      );
+      final revoked = await registry.withRevocation(
+        await Revocation.create(
+          keys: family.nora.keys,
+          by: await family.nora.record(),
+          deviceId: family.aritz.id,
+        ),
+      );
+      final lock = p.phone.container.read(v2FamilyLockProvider);
+      late Future<void> rejection;
+      await lock.run(() async {
+        rejection = expectLater(
+          p.controller.requestProtection('nora'),
+          throwsA(
+            isA<ProtectedPersonException>().having(
+              (e) => e.reason,
+              'reason',
+              ProtectedPersonReason.noConfirmer,
+            ),
+          ),
+        );
+        await p.store.saveRegistry(revoked);
+      });
+      await rejection;
+      expect((await p.store.load())!.doc.toJson(), before);
+    },
+  );
+
+  test('a request cannot use a registry with a mixed local identity', () async {
+    final web = await DeviceRecord.create(
+      keys: family.aritz.keys,
+      listId: kListId,
+      deviceId: family.aritz.id,
+      personId: 'aritz',
+      kind: DeviceKind.web,
+    );
+    final p = await install(
+      family.aritz,
+      registry: await family.registry.withRecord(web),
+    );
+    final before = p.common.toJson();
+    final access = await p.listenedAccess();
+    final nora = access.singleWhere((a) => a.recipient.id == 'nora');
+    expect(nora.canRequest, isFalse);
+    expect(nora.requestReason, ProtectedPersonReason.requesterAmbiguous);
+    expect(nora.canSelect, isFalse);
+
+    await expectLater(
+      p.controller.requestProtection('nora'),
+      throwsA(
+        isA<ProtectedPersonException>().having(
+          (e) => e.reason,
+          'reason',
+          ProtectedPersonReason.requesterAmbiguous,
+        ),
+      ),
+    );
+    expect((await p.store.load())!.doc.toJson(), before);
+  });
+
+  test('v1 can select recipients and cannot request protection', () async {
+    final p = await install(
+      family.aritz,
+      doc: commonWithPeople(HlcClock(node: family.aritz.id)),
+      v2: false,
+    );
+    expect(await p.store.readSyncV2(), isNull);
+    final nora = (await p.listenedAccess()).singleWhere(
+      (a) => a.recipient.id == 'nora',
+    );
+    expect(nora.canSelect, isTrue);
+    expect(nora.canRequest, isFalse);
+    expect(nora.requestReason, ProtectedPersonReason.requiresV2);
+    await expectLater(
+      p.controller.requestProtection('nora'),
+      throwsA(
+        isA<ProtectedPersonException>().having(
+          (e) => e.reason,
+          'reason',
+          ProtectedPersonReason.requiresV2,
+        ),
+      ),
+    );
+  });
+
+  test(
+    'v2 without its registry stays blocked with any protocol mark',
+    () async {
+      final clock = HlcClock(node: family.aritz.id, last: common.maxStamp);
+      final versionOne = common.set(
+        clock,
+        Collections.meta,
+        kProtocolRecordId,
+        {kProtocolVersionField: 1},
+      );
+      final tombstone = common.delete(
+        clock,
+        Collections.meta,
+        kProtocolRecordId,
+      );
+      expect(syncProtocolOf(versionOne), 1);
+      expect(
+        tombstone.record(Collections.meta, kProtocolRecordId)!.isDeleted,
+        isTrue,
+      );
+      for (final doc in [common, versionOne, tombstone]) {
+        final p = await install(family.aritz, doc: doc);
+        expect(await p.store.readSyncV2(), isNotNull);
+        await p.phone.files.delete('family.registry');
+        final before = p.common.toJson();
+        final access = await p.listenedAccess();
+        final nora = access.singleWhere((a) => a.recipient.id == 'nora');
+        expect(nora.canRequest, isFalse);
+        expect(nora.requestReason, ProtectedPersonReason.registryUnavailable);
+        expect(nora.canSelect, isFalse);
+        expect(nora.reason, ProtectedPersonReason.registryUnavailable);
+        await expectLater(
+          p.controller.requestProtection('nora'),
+          throwsA(
+            isA<ProtectedPersonException>().having(
+              (e) => e.reason,
+              'reason',
+              ProtectedPersonReason.registryUnavailable,
+            ),
+          ),
+        );
+        expect((await p.store.load())!.doc.toJson(), before);
+      }
+    },
+  );
+
+  test(
+    'projection and recipient access share one verified registry read',
+    () async {
+      final disk = RegistryReadDisk();
+      final p = await install(family.aritz, disk: disk);
+      disk.registryReads = 0;
+
+      final projection = p.projection();
+      final access = p.listenedAccess();
+      expect(await projection, isA<AuthorizedProjection>());
+      expect(
+        (await access).singleWhere((a) => a.recipient.id == 'nora').canRequest,
+        isTrue,
+      );
+      expect(disk.registryReads, 1);
+    },
+  );
+
+  test(
+    'unreadable device keys block a request and the family can reopen',
+    () async {
+      final p = await install(family.aritz);
+      final before = p.common.toJson();
+      expect(
+        (await p.listenedAccess())
+            .singleWhere((a) => a.recipient.id == 'nora')
+            .canRequest,
+        isTrue,
+      );
+      await p.phone.secrets.write(kDeviceKeysSecret, 'unreadable');
+
+      await expectLater(
+        p.controller.requestProtection('nora'),
+        throwsA(
+          isA<ProtectedPersonException>().having(
+            (e) => e.reason,
+            'reason',
+            ProtectedPersonReason.registryUnavailable,
+          ),
+        ),
+      );
+      expect((await p.store.load())!.doc.toJson(), before);
+
+      p.phone.restart();
+      final reopened = await p.phone.container.read(
+        familyControllerProvider.future,
+      );
+      expect(reopened.doc.toJson(), before);
+      expect(reopened.otherDevicePeople, isEmpty);
+      final nora = (await p.listenedAccess()).singleWhere(
+        (a) => a.recipient.id == 'nora',
+      );
+      expect(nora.canRequest, isFalse);
+      expect(nora.canSelect, isFalse);
+      expect(nora.requestReason, ProtectedPersonReason.registryUnavailable);
+    },
+  );
+
+  test(
     'request stays pending on own phone and restricts own requests',
     () async {
       final p = await install(family.nora);
+      final before = await p.phone.container.read(
+        giftRecipientAccessProvider.future,
+      );
+      expect(
+        before.singleWhere((a) => a.recipient.id == 'nora').canRequest,
+        isTrue,
+      );
       await p.controller.requestProtection('nora');
       expect(
         await p.phone.container
@@ -704,6 +1013,7 @@ void main() {
       );
       final nora = access.singleWhere((a) => a.recipient.id == 'nora');
       expect(nora.status, PersonProtectionStatus.requested);
+      expect(nora.canRequest, isFalse);
       expect(nora.canSelect, isFalse);
       expect(
         await p.phone.container.read(ownGiftRequestStateProvider.future),

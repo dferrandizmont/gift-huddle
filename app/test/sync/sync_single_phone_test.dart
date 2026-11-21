@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:clock/clock.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/core/prefs/shared_preferences_provider.dart';
 import 'package:regalos/core/sync/envelope.dart';
+import 'package:regalos/features/settings/application/erase_all.dart';
 import 'package:regalos/features/sharing/application/pairing_service.dart';
 import 'package:regalos/features/sharing/application/share_service.dart';
 import 'package:regalos/features/sync/application/peer_connected.dart';
@@ -13,9 +16,44 @@ import 'package:regalos/features/sync/domain/sync_keys.dart';
 import 'package:regalos/features/sync/domain/sync_status.dart';
 import 'package:regalos/features/sync/invites/invite_guest.dart';
 import 'package:regalos/features/sync/invites/invite_host.dart';
+// The legacy preferences API has no hook for simulating a failed write.
+// ignore: depend_on_referenced_packages
+import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 
 import '../helpers/fake_sync_server.dart';
 import 'sync_harness.dart';
+
+class _FailingQrPreferences extends InMemorySharedPreferencesStore {
+  _FailingQrPreferences({this.throwOnFailure = false}) : super.empty();
+
+  final bool throwOnFailure;
+  bool fail = true;
+
+  @override
+  Future<bool> setValue(String valueType, String key, Object value) {
+    if (fail && key == 'flutter.sync.sharedQr') {
+      if (throwOnFailure) return Future.error(StateError('fallo al guardar'));
+      return Future.value(false);
+    }
+    return super.setValue(valueType, key, value);
+  }
+}
+
+class _DelayedPeerWaitPreferences extends InMemorySharedPreferencesStore {
+  _DelayedPeerWaitPreferences(super.data) : super.withData();
+
+  final removing = Completer<void>();
+  final resume = Completer<void>();
+
+  @override
+  Future<bool> remove(String key) async {
+    if (key == 'flutter.sync.peerWait') {
+      removing.complete();
+      await resume.future;
+    }
+    return super.remove(key);
+  }
+}
 
 /// Con un solo móvil no se habla con el servidor: nada sube ni se abre el
 /// WebSocket hasta que la familia tiene un segundo móvil emparejado, por QR o
@@ -99,6 +137,65 @@ void main() {
   });
 
   group('emparejar por QR', () {
+    test(
+      'el QR espera a que la señal quede guardada, incluso si está en caché',
+      () async {
+        final a = await newPhone();
+        await a.createFamily();
+        final previous = SharedPreferencesStorePlatform.instance;
+        final platform = _FailingQrPreferences()..fail = false;
+        SharedPreferencesStorePlatform.instance = platform;
+        addTearDown(() => SharedPreferencesStorePlatform.instance = previous);
+        final prefs = a.c.read(sharedPreferencesProvider);
+        await prefs.setStringList('sync.sharedQr', ['otra-lista']);
+        platform.fail = true;
+        final pairing = a.c.read(pairingServiceProvider);
+
+        await expectLater(pairing.qrTextForPairing(), throwsStateError);
+        expect(prefs.getStringList('sync.sharedQr'), ['otra-lista']);
+        await expectLater(pairing.qrTextForPairing(), throwsStateError);
+        expect(server.calls, isEmpty);
+
+        platform.fail = false;
+        final qr = PairingPayload.parse(await pairing.qrTextForPairing());
+        expect((await platform.getAll())['flutter.sync.sharedQr'], [
+          'otra-lista',
+          qr.listId,
+        ]);
+      },
+    );
+
+    for (final restart in [false, true]) {
+      final when = restart ? 'tras reiniciar' : 'en la misma sesión';
+      test('un fallo al preparar el QR permite borrar sin red $when', () async {
+        final a = await newPhone();
+        await a.createFamily();
+        final previous = SharedPreferencesStorePlatform.instance;
+        SharedPreferencesStorePlatform.instance = _FailingQrPreferences(
+          throwOnFailure: restart,
+        );
+        addTearDown(() => SharedPreferencesStorePlatform.instance = previous);
+
+        await expectLater(
+          a.c.read(pairingServiceProvider).qrTextForPairing(),
+          throwsStateError,
+        );
+        a.transport.offline = true;
+        if (restart) {
+          await a.c.read(sharedPreferencesProvider).reload();
+          a.phone.restart();
+          await a.family.future;
+          await a.sync.syncNow();
+        }
+        final eraser = a.c.read(eraseAllProvider);
+        expect(eraser.hasServerCopy, isTrue);
+        await eraser.eraseServerCopy();
+        await eraser.eraseLocal();
+        expect(await a.hasFamily(), isFalse);
+        expect(server.calls, isEmpty);
+      });
+    }
+
     test('enseñar el QR solo mira si el otro ha entrado: no sube nada ni abre el WebSocket', () async {
       final a = await newPhone();
       await a.createFamily();
@@ -195,6 +292,9 @@ void main() {
       expect(server.calls['get'], afterPoll + 1);
       final prefs = a.c.read(sharedPreferencesProvider);
       expect(prefs.getStringList('sync.peerWait'), hasLength(1));
+      expect(prefs.getStringList('sync.sharedQr'), hasLength(1));
+      // Una instalación anterior solo guardaba la fecha del sondeo.
+      await prefs.remove('sync.sharedQr');
       // Cuatro días después ya no: vuelve a ser un solo móvil.
       final later = clock.now().add(const Duration(days: 4));
       await withClock(Clock.fixed(later), () async {
@@ -204,9 +304,29 @@ void main() {
       expect(server.calls['get'], afterPoll + 1);
       expect(server.calls.keys, {'get'});
       expect(a.status.phase, SyncPhase.waitingForPeer);
-      // Y la marca de que se enseñó el QR se borra al caducar, no solo al
-      // emparejarse.
+      // Caduca la fecha del sondeo y se conserva que el QR pudo compartirse.
       expect(prefs.getStringList('sync.peerWait'), isNull);
+      expect(prefs.getStringList('sync.sharedQr'), hasLength(1));
+    });
+
+    test('caducar el sondeo admite que se descarte el controlador durante '
+        'la escritura de la fecha', () async {
+      final a = await newPhone();
+      await a.createFamily();
+      await a.c.read(pairingServiceProvider).qrTextForPairing();
+      await a.sync.syncNow();
+      final previous = SharedPreferencesStorePlatform.instance;
+      final platform = _DelayedPeerWaitPreferences(await previous.getAll());
+      SharedPreferencesStorePlatform.instance = platform;
+      addTearDown(() => SharedPreferencesStorePlatform.instance = previous);
+
+      final later = clock.now().add(const Duration(days: 4));
+      final expiring = withClock(Clock.fixed(later), a.sync.syncNow);
+      await platform.removing.future;
+      a.c.invalidate(syncControllerProvider);
+      platform.resume.complete();
+      await expiring;
+      expect((await platform.getAll())['flutter.sync.peerWait'], isNull);
     });
 
     test(

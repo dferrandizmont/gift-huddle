@@ -98,7 +98,7 @@ Future<void> spin(WidgetTester tester, [int frames = 6]) async {
 /// «Tengo un código de recuperación» de la bienvenida, aunque quede por debajo
 /// del pliegue.
 Future<void> openRecover(WidgetTester tester) async {
-  await tapWelcomeChoice(tester, 'Tengo un código de recuperación');
+  await tapWelcomeChoice(tester, 'Usar el código de recuperación');
 }
 
 Future<void> openRecoveryRow(WidgetTester tester) async {
@@ -168,10 +168,10 @@ void main() {
       expect(find.text('Crear código de recuperación'), findsOneWidget);
       // Dice qué recupera y qué no, sin tecnicismos.
       expect(
-        find.textContaining('todo lo que este móvil puede ver'),
+        find.textContaining('todo lo que ves en este'),
         findsOneWidget,
       );
-      expect(find.textContaining('No recuperan lo que nunca'), findsOneWidget);
+      expect(find.textContaining('Solo se puede recuperar lo que se haya sincronizado'), findsOneWidget);
       for (final banned in ['credencial', 'cápsula', 'Worker']) {
         expect(find.textContaining(banned), findsNothing);
       }
@@ -217,7 +217,7 @@ void main() {
         await openRecoveryRow(tester);
         expect(find.text('Código preparado'), findsOneWidget);
         expect(find.text('Cambiar el código'), findsOneWidget);
-        expect(find.text('Quitar el código'), findsOneWidget);
+        expect(find.text('Borrar el código'), findsOneWidget);
         expect(find.text('Crear código de recuperación'), findsNothing);
       },
       initial: const RecoveryStatus(RecoveryReadiness.prepared),
@@ -230,8 +230,8 @@ void main() {
       await seedSample(tester, phone);
       await pumpRegalos(tester, phone);
       await openRecoveryRow(tester);
-      await tapText(tester, 'Quitar el código');
-      expect(find.text('¿Quitar el código de recuperación?'), findsOneWidget);
+      await tapText(tester, 'Borrar el código');
+      expect(find.text('¿Borrar el código de recuperación?'), findsOneWidget);
       // Con otro móvil o la web conectados, la lista sigue en el servidor:
       // no sale el aviso de que se borra.
       expect(fake.calls, contains('removalCheck'));
@@ -239,10 +239,10 @@ void main() {
       // Cancelar no quita nada.
       await tapText(tester, 'Cancelar');
       expect(fake.calls, isNot(contains('retire')));
-      await tapText(tester, 'Quitar el código');
-      await tapText(tester, 'Quitar código');
+      await tapText(tester, 'Borrar el código');
+      await tapText(tester, 'Borrar código');
       expect(fake.calls, contains('retire'));
-      expect(find.text('Código quitado'), findsOneWidget);
+      expect(find.text('Código borrado'), findsOneWidget);
       // El estado vuelve al principio.
       expect(find.text('Crear código de recuperación'), findsOneWidget);
     }, initial: const RecoveryStatus(RecoveryReadiness.prepared));
@@ -255,13 +255,13 @@ void main() {
         await seedSample(tester, phone);
         await pumpRegalos(tester, phone);
         await openRecoveryRow(tester);
-        await tapText(tester, 'Quitar el código');
-        expect(find.text('¿Quitar el código de recuperación?'), findsOneWidget);
+        await tapText(tester, 'Borrar el código');
+        expect(find.text('¿Borrar el código de recuperación?'), findsOneWidget);
         expect(
-          find.textContaining('también se borra la copia cifrada de la lista'),
+          find.textContaining('también se borra del servidor la copia cifrada de la lista'),
           findsOneWidget,
         );
-        await tapText(tester, 'Quitar código');
+        await tapText(tester, 'Borrar código');
         expect(fake.calls, contains('retire'));
       },
       initial: const RecoveryStatus(RecoveryReadiness.prepared),
@@ -333,7 +333,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.textContaining('Quien las tenga puede entrar'),
+        find.textContaining('Quien las tenga tendrá el mismo acceso'),
         findsOneWidget,
       );
       expect(find.textContaining('nunca se sincronizó'), findsOneWidget);
@@ -618,7 +618,7 @@ void main() {
       phone,
     ) async {
       await pumpRegalos(tester, phone);
-      expect(find.text('Restaurar una copia'), findsOneWidget);
+      expect(find.text('Recuperar una copia'), findsOneWidget);
       await openRecover(tester);
       expect(find.text('Recuperar la lista'), findsNWidgets(2));
       expect(find.byType(TextField), findsNWidgets(24));
@@ -627,7 +627,7 @@ void main() {
       expect(tester.widget<FilledButton>(submit).onPressed, isNull);
       // Atrás vuelve a la bienvenida.
       await tapLabel(tester, 'Atrás');
-      expect(find.text('Restaurar una copia'), findsOneWidget);
+      expect(find.text('Recuperar una copia'), findsOneWidget);
     });
 
     recoveryTest('cada casilla de palabra es un único campo con su etiqueta', (
@@ -685,9 +685,9 @@ void main() {
       expect(find.text('1 de 24 palabras'), findsOneWidget);
       // Una palabra que no existe, avisada con su número.
       await typeWord(tester, 4, 'zzzz');
-      expect(find.text('La palabra 5 no está en la lista.'), findsOneWidget);
+      expect(find.text('Revisa cómo has escrito la palabra 5.'), findsOneWidget);
       await typeWord(tester, 4, 'able');
-      expect(find.text('La palabra 5 no está en la lista.'), findsNothing);
+      expect(find.text('Revisa cómo has escrito la palabra 5.'), findsNothing);
       expect(find.text('2 de 24 palabras'), findsOneWidget);
     });
 
@@ -700,7 +700,7 @@ void main() {
       await tapText(tester, 'Pegar las 24 palabras');
       expect(find.text('No hay nada copiado.'), findsOneWidget);
       await pasteAll(tester, 'solo tres palabras');
-      expect(find.text('Lo copiado no tiene 24 palabras.'), findsOneWidget);
+      expect(find.text('Lo copiado no tiene 24 palabras. Copia el código entero y pégalo de nuevo.'), findsOneWidget);
       await pasteAll(tester, display.words.join(' '));
       expect(find.text('24 de 24 palabras'), findsOneWidget);
       expect(tester.widget<FilledButton>(submit).onPressed, isNotNull);
@@ -761,7 +761,7 @@ void main() {
         'Buscando la copia',
         'Comprobando el código',
         'Descargando la lista',
-        'Instalando en este móvil',
+        'Guardando la lista en este móvil',
       ]) {
         expect(find.text(step), findsOneWidget);
       }
@@ -783,7 +783,7 @@ void main() {
         'hecho',
       );
       expect(
-        tester.getSemantics(semanticsOf('Instalando en este móvil')).value,
+        tester.getSemantics(semanticsOf('Guardando la lista en este móvil')).value,
         isNot('hecho'),
       );
       fake.holdRestore!.complete();
@@ -842,7 +842,7 @@ void main() {
       await tester.ensureVisible(submit);
       await tester.tap(submit);
       await spin(tester, 10);
-      expect(find.textContaining('no tiene persona asignada'), findsOneWidget);
+      expect(find.textContaining('Falta indicar de quién es este móvil'), findsOneWidget);
     });
 
     group('errores tipados', () {
@@ -975,7 +975,7 @@ void main() {
         await spin(tester, 10);
         expect(find.text('¿Sustituir la lista de este móvil?'), findsOneWidget);
         expect(
-          find.textContaining('sustituirá a la que tienes en este móvil'),
+          find.textContaining('verás su lista en este móvil'),
           findsOneWidget,
         );
         // Cancelar deja el aviso, sin sustituir nada.
@@ -1036,7 +1036,7 @@ void main() {
         await spin(tester, 10);
         await tester.tap(find.text('Escribir otro código'));
         await spin(tester, 6);
-        expect(find.textContaining('No se ha podido cancelar'), findsOneWidget);
+        expect(find.textContaining('Algo no ha salido bien'), findsOneWidget);
         expect(find.text('Ese código no abre ninguna lista'), findsOneWidget);
       });
 
@@ -1083,8 +1083,8 @@ void main() {
       'una recuperación en marcha enseña su progreso',
       (tester, phone) async {
         await pumpRegalos(tester, phone);
-        await openWelcomeSheet(tester, 'Tengo un código de recuperación');
-        await tester.tap(find.text('Tengo un código de recuperación').last);
+        await openWelcomeSheet(tester, 'Usar el código de recuperación');
+        await tester.tap(find.text('Usar el código de recuperación').last);
         await spin(tester, 10);
         expect(find.text('Recuperando la lista'), findsOneWidget);
         expect(find.byType(TextField), findsNothing);
@@ -1103,7 +1103,7 @@ void main() {
           find.widgetWithText(OutlinedButton, 'Unirme a una familia'),
         );
         final restore = tester.widget<OutlinedButton>(
-          find.widgetWithText(OutlinedButton, 'Restaurar una copia'),
+          find.widgetWithText(OutlinedButton, 'Recuperar una copia'),
         );
         expect(join.onPressed, isNull);
         expect(restore.onPressed, isNotNull);
@@ -1120,7 +1120,7 @@ void main() {
         await pumpRegalos(tester, phone);
         await openRecover(tester);
         await tapText(tester, 'Escanear el QR');
-        expect(find.text('Escanear el QR del código'), findsOneWidget);
+        expect(find.text('Escanear el QR'), findsOneWidget);
         await tester.tap(find.text('leer otro'));
         await settle(tester);
         expect(
@@ -1156,10 +1156,10 @@ void main() {
         await seedSample(tester, phone);
         await pumpRegalos(tester, phone);
         expect(
-          find.text('Esta lista se ha pasado a otro móvil'),
+          find.text('Esta lista se ha traspasado'),
           findsOneWidget,
         );
-        expect(find.textContaining('copia de solo lectura'), findsOneWidget);
+        expect(find.textContaining('ya no puedes editarla'), findsOneWidget);
         expect(find.text('Solo lectura'), findsOneWidget);
         // Lo que había sigue a la vista.
         Finder inside(String text) => find.descendant(
@@ -1202,11 +1202,11 @@ void main() {
         await seedSample(tester, phone);
         await pumpRegalos(tester, phone);
         expect(
-          find.text('Esta lista se ha pasado a otro móvil'),
+          find.text('Esta lista se ha traspasado'),
           findsOneWidget,
         );
         final title = tester.getRect(
-          find.text('Esta lista se ha pasado a otro móvil'),
+          find.text('Esta lista se ha traspasado'),
         );
         expect(title.width, lessThanOrEqualTo(520));
         expect(tester.takeException(), isNull);
@@ -1220,11 +1220,11 @@ void main() {
       (tester, phone) async {
         await seedSample(tester, phone);
         await pumpRegalos(tester, phone);
-        expect(find.text('Esta lista se ha pasado a otro móvil'), findsNothing);
+        expect(find.text('Esta lista se ha traspasado'), findsNothing);
         fake.push(const RecoveryStatus(RecoveryReadiness.transferred));
         await settle(tester);
         expect(
-          find.text('Esta lista se ha pasado a otro móvil'),
+          find.text('Esta lista se ha traspasado'),
           findsOneWidget,
         );
       },

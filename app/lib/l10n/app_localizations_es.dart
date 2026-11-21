@@ -38,11 +38,11 @@ class AppLocalizationsEs extends AppLocalizations {
       'Añade a las personas a las que regaláis para empezar sus listas de regalos.';
 
   @override
-  String get emptyFamilyTitle => 'Nadie ha apuntado regalos';
+  String get emptyFamilyTitle => 'Faltan personas';
 
   @override
   String get emptyFamilyMessage =>
-      'Aquí verás quién regala qué a cada persona.';
+      'Para ver el reparto, hace falta al menos una persona que regale y una que reciba.';
 
   @override
   String get emptyOccasionsTitle => 'Sin ocasiones';
@@ -101,14 +101,14 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get appearanceOccasionHint =>
-      'La lista de una ocasión cambia de acento y cabecera.';
+      'El color y la cabecera de la lista cambian según la ocasión.';
 
   @override
   String get appearanceHapticsTitle => 'Vibraciones';
 
   @override
   String get appearanceHapticsHint =>
-      'Pequeños toques al marcar, elegir o cuando algo llega.';
+      'El móvil vibra suavemente, por ejemplo, al marcar una casilla o elegir una opción.';
 
   @override
   String get appearancePreview => 'Vista previa';
@@ -191,7 +191,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get previewOccasion => 'Reyes';
 
   @override
-  String get shareEnvelopeText => 'Cambios de Gift Huddle: ábrelo con la app.';
+  String get shareEnvelopeText =>
+      'Abre el fichero con Gift Huddle para ver los cambios en la lista.';
 
   @override
   String get occasionNameTio => 'Tió';
@@ -228,15 +229,15 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get shareErrorClockDrift =>
-      'El otro móvil tiene la fecha y la hora mal puestas. Corrígelas y vuelve a enviarlo.';
+      'El reloj del otro móvil va adelantado. Revisa la fecha y la hora en ese móvil y vuelve a enviar la lista desde él.';
 
   @override
   String get shareErrorLegacyFile =>
-      'Este fichero es de una versión anterior de Gift Huddle y ya no se abre. Guárdalo y pide que te lo envíen de nuevo desde un móvil actualizado.';
+      'Este fichero es de una versión anterior de Gift Huddle. Guárdalo y pide que te envíen uno nuevo creado con la app actualizada.';
 
   @override
   String get shareErrorNotReady =>
-      'Este móvil todavía no está al día con la familia. Sincroniza y vuelve a abrir el fichero.';
+      'Este móvil todavía no está al día con la familia. Sincroniza e inténtalo de nuevo.';
 
   @override
   String get shareErrorGeneration =>
@@ -248,7 +249,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get shareErrorMissingKey =>
-      'Todavía no se puede abrir este fichero. Se ha guardado y se abrirá solo cuando sincronices.';
+      'Todavía no se puede abrir este fichero. Se ha guardado y se volverá a intentar cuando sincronices.';
 
   @override
   String get shareErrorSyncAndReopen =>
@@ -286,6 +287,51 @@ class AppLocalizationsEs extends AppLocalizations {
       'Cualquier huella o cara registrada en el móvil podrá abrir la app.';
 
   @override
+  String lockBiometricNamed(String name) {
+    return 'Usar $name';
+  }
+
+  @override
+  String lockBiometricHintNamed(String name) {
+    return 'Toca el botón de $name para desbloquear la app';
+  }
+
+  @override
+  String get lockBiometricNoticeFace =>
+      'Cualquier persona que tenga la cara registrada en Face ID podrá abrir la app.';
+
+  @override
+  String get lockBiometricNoticeTouch =>
+      'Cualquier persona que tenga una huella registrada en Touch ID podrá abrir la app.';
+
+  @override
+  String pinBiometricOfferTitleNamed(String name) {
+    return '¿Activar $name?';
+  }
+
+  @override
+  String get securityBiometricsUnavailableIos =>
+      'Este móvil no tiene Face ID ni Touch ID configurados.';
+
+  @override
+  String securityBiometricsFailedNamed(String name) {
+    return 'No se ha podido activar. Comprueba que $name esté configurado en los Ajustes del móvil.';
+  }
+
+  @override
+  String get giftDiscardTitle => '¿Descartar los cambios?';
+
+  @override
+  String get giftDiscardBody =>
+      'Los cambios de este regalo todavía no se han guardado.';
+
+  @override
+  String get actionDiscard => 'Descartar';
+
+  @override
+  String get giftKeepEditing => 'Seguir editando';
+
+  @override
   String get lockLoadError => 'No se ha podido comprobar el bloqueo.';
 
   @override
@@ -307,7 +353,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String lockWait(String time) {
-    return 'Demasiados intentos. Vuelve a probar en $time.';
+    return 'Demasiados intentos. Inténtalo de nuevo en $time.';
   }
 
   @override
@@ -423,7 +469,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get giverHouseholdPaysHint =>
-      'Si lo paga la casa, cuenta en el presupuesto.';
+      'Si lo activas, sus regalos cuentan en el presupuesto de la casa.';
 
   @override
   String countdownDaysForBirthday(int count, String name) {
@@ -446,7 +492,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get obWelcomeBody =>
-      'Apunta qué regala cada uno a cada persona, para que nadie repita y a nadie le falte.';
+      'Apunta quién regala qué y a quién. Así nadie repite regalo y nadie se queda sin el suyo.';
 
   @override
   String get obWelcomePrivacy =>
@@ -457,7 +503,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get obDeviceNameHint =>
-      'Es el nombre que verá el otro móvil. Puedes cambiarlo.';
+      'Este nombre aparecerá en el otro móvil. Puedes cambiarlo.';
 
   @override
   String get obStart => 'Empezar';
@@ -480,7 +526,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String obRemove(String name) {
-    return 'Quitar a $name';
+    return 'Quitar $name';
   }
 
   @override
@@ -488,10 +534,10 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get obGiversBody =>
-      '«Nosotros» ya está creado y paga la casa. Añade a los abuelos, los tíos…';
+      '«Nosotros» ya está en la lista para los regalos que pagáis en casa. También puedes añadir a los abuelos, los tíos…';
 
   @override
-  String get obGiversSuggestions => 'Añadir rápido';
+  String get obGiversSuggestions => 'Sugerencias';
 
   @override
   String get obGiverGrandparents => 'Abuelos';
@@ -514,14 +560,14 @@ class AppLocalizationsEs extends AppLocalizations {
   String get giverEdit => 'Editar quién regala';
 
   @override
-  String get giverNameHint => 'Abuelos, Tía Marta y Jordi…';
+  String get giverNameHint => 'Abuelos, Tía Nora y Leo…';
 
   @override
   String get obOccasionsTitle => '¿Cuándo hay regalos?';
 
   @override
   String get obOccasionsBody =>
-      'Elige las fechas de siempre. Los cumpleaños salen solos de las fechas que hayas puesto.';
+      'Elige cuándo hacéis regalos. Los cumpleaños aparecen si has indicado la fecha de nacimiento de cada persona.';
 
   @override
   String get obBirthdaysSection => 'Cumpleaños (se crean solos)';
@@ -537,7 +583,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get obAddOccasion => 'Añadir otra fecha';
 
   @override
-  String get obPinTitle => 'Protege los regalos';
+  String get obPinTitle => 'Bloquea la app';
 
   @override
   String get obPinBody =>
@@ -550,7 +596,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get obFinishing => 'Preparando tu lista…';
 
   @override
-  String get obSaveError => 'No se ha podido guardar. Inténtalo otra vez.';
+  String get obSaveError => 'No se ha podido guardar. Inténtalo de nuevo.';
 
   @override
   String get personNew => 'Nueva persona';
@@ -688,7 +734,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get filterClear => 'Quitar filtros';
 
   @override
-  String get filterNoResults => 'Ningún regalo cumple los filtros.';
+  String get filterNoResults => 'Ningún regalo coincide con los filtros.';
 
   @override
   String get giftEditorNewTitle => 'Nuevo regalo';
@@ -705,7 +751,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String giftAddedNotice(String name) {
-    return 'Regalo añadido a $name';
+    return 'Regalo añadido a la lista de $name';
   }
 
   @override
@@ -796,14 +842,15 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get giftSaveError => 'No se ha podido guardar el regalo.';
+  String get giftSaveError =>
+      'No se ha podido guardar el regalo. Inténtalo de nuevo.';
 
   @override
   String get giftDuplicateTitle => 'Posible duplicado';
 
   @override
   String giftDuplicateBody(String title, String person, String giver) {
-    return '«$title» se parece a un regalo que ya está apuntado para $person ($giver).';
+    return 'Puede que este regalo ya esté en la lista de $person como «$title». Quién regala: $giver.';
   }
 
   @override
@@ -906,7 +953,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get budgetCardHint => 'Presupuesto, gastado y lo que queda';
 
   @override
-  String get occasionPeopleSection => 'Cada persona';
+  String get occasionPeopleSection => 'Por persona';
 
   @override
   String get occasionToWrap => 'por envolver';
@@ -922,7 +969,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String occasionSplitLabel(String name, String parts) {
-    return 'Reparto de $name: $parts';
+    return 'Regalos para $name por ocasión: $parts';
   }
 
   @override
@@ -930,14 +977,14 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get occasionPendingEmpty =>
-      'Nada decidido todavía. Cuando una idea pase a Decidido, aparecerá aquí agrupada por tienda.';
+      'No hay compras pendientes. Aquí aparecen los regalos con el estado «Decidido», agrupados por tienda.';
 
   @override
   String get occasionStoreNone => 'Sin tienda';
 
   @override
   String occasionMarkBought(String item) {
-    return 'Marcar $item como comprado';
+    return 'Marcar como comprado: $item';
   }
 
   @override
@@ -948,11 +995,11 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get budgetSubtitle =>
-      'Lo pones tú en cada ocasión. Gastado suma el precio real de lo que paga la casa; si algo ya está comprado y no tiene precio real, cuenta el previsto.';
+      'Puedes poner un presupuesto en cada ocasión. «Gastado» suma los precios reales de los regalos que paga la casa. Si ya se ha comprado un regalo y falta el precio real, cuenta el previsto.';
 
   @override
   String get budgetSubtitleBudgeted =>
-      'Lo pones tú en cada ocasión. Las tres cifras solo incluyen ocasiones con presupuesto. «Gastado» suma los precios reales de lo que paga la casa. Si algo ya está comprado y no tiene precio real, cuenta el previsto.';
+      'Puedes poner un presupuesto en cada ocasión. Las tres cifras solo incluyen ocasiones con presupuesto. «Gastado» suma los precios reales de los regalos que paga la casa. Si ya se ha comprado un regalo y falta el precio real, cuenta el previsto.';
 
   @override
   String get budgetPlanned => 'Previsto';
@@ -961,7 +1008,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get budgetSpent => 'Gastado';
 
   @override
-  String get budgetLeft => 'Queda';
+  String get budgetLeft => 'Disponible';
 
   @override
   String get budgetOver => 'Te pasas';
@@ -978,14 +1025,14 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get budgetEmpty =>
-      'Todavía no hay regalos que pague la casa. Marca «Paga la casa» en quien regala y pon un precio previsto.';
+      'Todavía no hay regalos que pague la casa. Activa «Paga la casa» en la ficha de quien regala y añade el precio previsto al regalo.';
 
   @override
   String get occasionBudgetField => 'Presupuesto (opcional)';
 
   @override
   String get occasionBudgetHint =>
-      'Lo que queréis gastar en esta ocasión. Déjalo vacío si no hay.';
+      'Lo que quieres gastar en esta ocasión. Déjalo vacío si no hay presupuesto.';
 
   @override
   String get budgetFigure => 'Presupuesto';
@@ -1011,7 +1058,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String budgetLeftIfBought(String amount) {
-    return 'Si compras lo que falta, te quedarán $amount';
+    return 'Si compras lo que falta, te quedarás con $amount';
   }
 
   @override
@@ -1060,7 +1107,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get aboutPrivacy =>
-      'Sin cuentas ni publicidad. Tus regalos solo salen del móvil, siempre cifrados, si conectas otro móvil o la web, creas un código de recuperación o envías una copia.';
+      'Sin cuentas ni publicidad. La lista solo sale de tu móvil si conectas otro móvil o la web, creas un código de recuperación o envías una copia. Siempre va cifrada.';
 
   @override
   String get aboutPrivacyPolicy => 'Política de privacidad';
@@ -1118,7 +1165,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get securityBiometricsFailed =>
-      'No se ha podido activar. Comprueba la huella o el rostro del móvil.';
+      'No se ha podido activar. Comprueba que la huella o el rostro estén configurados en el móvil.';
 
   @override
   String get securityDisableTitle => 'Quitar el PIN';
@@ -1158,7 +1205,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get showQrWarning =>
-      'No hagas captura ni lo compartas: este código da acceso a toda la lista. Enséñalo solo en persona.';
+      'No hagas capturas de pantalla ni lo compartas: este código da acceso a toda la lista. Enséñalo solo en persona.';
 
   @override
   String get showQrLabel => 'Código QR para conectar otro móvil';
@@ -1188,7 +1235,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get scannerFailedBody =>
-      'El móvil no ha contestado a la petición del permiso. Reintenta.';
+      'El móvil no ha contestado a la petición del permiso. Inténtalo de nuevo.';
 
   @override
   String get scannerRetry => 'Reintentar';
@@ -1201,7 +1248,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get joinConflictBody =>
-      'Si te unes a la del otro móvil, esta lista se sustituye y se pierden sus regalos. ¿Seguir?';
+      'Si te unes a la lista del otro móvil, perderás la lista de este móvil y los regalos que contiene.';
 
   @override
   String get joinReplace => 'Sustituir y unirme';
@@ -1224,7 +1271,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get incomingOtherChanges => 'Se han actualizado personas u ocasiones.';
 
   @override
-  String get incomingFailedTitle => 'No se pudo abrir el envío';
+  String get incomingFailedTitle => 'No se ha podido abrir el envío';
 
   @override
   String importAdded(int count) {
@@ -1242,8 +1289,8 @@ class AppLocalizationsEs extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count cambiados',
-      one: '$count cambiado',
+      other: '$count regalos modificados',
+      one: '$count regalo modificado',
     );
     return '$_temp0';
   }
@@ -1253,8 +1300,8 @@ class AppLocalizationsEs extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count borrados',
-      one: '$count borrado',
+      other: '$count regalos eliminados',
+      one: '$count regalo eliminado',
     );
     return '$_temp0';
   }
@@ -1273,7 +1320,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get syncStopConfirmBody =>
-      'Este móvil sale de la sincronización de la familia y deja de enviar y recibir cambios; los demás móviles siguen sincronizando entre ellos. Si es el último, también se borra la copia cifrada del servidor. Lo que hay en cada móvil se queda como está. Para volver a sincronizar, conéctalo de nuevo con otro móvil de la familia.';
+      'Este móvil dejará de enviar y recibir cambios. Los demás seguirán sincronizándose entre sí. Si este es el último móvil que sincroniza, se borrará la copia cifrada del servidor. Cada móvil conservará sus datos. Para volver a sincronizar, conecta de nuevo este móvil con otro de la familia.';
 
   @override
   String get syncStopDone => 'Sincronización apagada.';
@@ -1301,7 +1348,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get syncStatusIdle => 'Pendiente de sincronizar';
 
   @override
-  String get syncStatusWaitingPeer => 'Empezará cuando emparejes otro móvil';
+  String get syncStatusWaitingPeer =>
+      'La sincronización empezará cuando conectes otro móvil.';
 
   @override
   String get peerConnected => 'Se ha conectado otro móvil';
@@ -1333,7 +1381,7 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get syncStatusOffline => 'Sin conexión, se enviará luego';
+  String get syncStatusOffline => 'Sin conexión, los cambios se enviarán luego';
 
   @override
   String get syncStatusError => 'No se ha podido sincronizar';
@@ -1343,7 +1391,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get syncIssueClockDrift =>
-      'Otro móvil tiene la fecha y la hora mal puestas. Corrígelas en ese móvil.';
+      'El reloj de otro móvil va adelantado. Revisa la fecha y la hora en ese móvil.';
 
   @override
   String get syncIssueTooLarge =>
@@ -1376,14 +1424,14 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get inviteHowItWorks =>
-      'El enlace no lleva ninguna clave: solo sirve para pedir entrada. Te llegará la petición con un código de 6 cifras y tendrás que aceptarla tú. Caduca a las 24 horas y sirve para una sola persona.';
+      'El enlace no contiene ninguna clave. Sirve para una sola persona y caduca a las 24 horas. Cuando esa persona pida entrar, recibirás su petición con un código de 6 cifras. Tú decides si le das acceso.';
 
   @override
   String get inviteCreate => 'Crear enlace e invitar';
 
   @override
   String get inviteNeedSync =>
-      'Para invitar a distancia hace falta tener la sincronización encendida y con conexión.';
+      'Para invitar a distancia, hace falta conexión a internet y tener la sincronización encendida.';
 
   @override
   String get inviteGoToSync => 'Encender la sincronización';
@@ -1394,11 +1442,11 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get inviteWaitingTitle => 'Esperando a que abran el enlace';
+  String get inviteWaitingTitle => 'Esperando la petición';
 
   @override
   String get inviteWaitingBody =>
-      'Cuando la otra persona lo abra, aquí verás su petición. Puedes salir de esta pantalla: la invitación sigue activa hasta que caduque.';
+      'Cuando la otra persona pida entrar, verás su petición aquí. Puedes salir de esta pantalla. La invitación seguirá activa hasta que caduque.';
 
   @override
   String inviteExpires(DateTime date, DateTime time) {
@@ -1444,7 +1492,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get inviteRejectedBody =>
-      'Has rechazado la petición. El enlace ya no sirve.';
+      'La invitación se ha cancelado. El enlace ya no sirve.';
 
   @override
   String get inviteExpiredBody => 'La invitación ha caducado.';
@@ -1491,11 +1539,11 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get joinInviteUnknown =>
-      'No se ha podido completar. Inténtalo de nuevo.';
+      'No se ha podido completar la conexión. Inténtalo de nuevo.';
 
   @override
   String get joinInviteTaken =>
-      'Esta invitación ya la ha pedido otra persona. Pide un enlace nuevo.';
+      'Otra persona ya ha pedido entrar con este enlace. Pide un enlace nuevo.';
 
   @override
   String get joinInviteGone => 'La invitación ha caducado o no se ha aceptado.';
@@ -1711,17 +1759,17 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String familyNoGiverCount(int count) {
-    return '$count sin quién';
+    return '$count sin asignar';
   }
 
   @override
   String repartoSheetNobodyYet(String giver, String person) {
-    return '$giver aún no regala nada a $person';
+    return 'Aún no hay regalos de $giver para $person';
   }
 
   @override
   String repartoSheetUnassignedHint(String person) {
-    return '$person tiene regalos sin quién los regale: toca «¿Quién?» para darlos.';
+    return 'Hay regalos sin asignar para $person. Toca «Sin asignar» en un regalo para elegir quién lo regala.';
   }
 
   @override
@@ -1729,11 +1777,11 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String repartoSheetSummary(String gifts, String price) {
-    return '$gifts · $price · toca quién regala para cambiarlo';
+    return '$gifts · $price · toca un nombre para cambiar quién regala';
   }
 
   @override
-  String get repartoSheetWho => '¿Quién?';
+  String get repartoSheetWho => 'Sin asignar';
 
   @override
   String get repartoSheetNobody => 'Nadie';
@@ -1743,7 +1791,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String repartoSheetNewGiftFrom(String giver) {
-    return 'Regalo nuevo de $giver';
+    return 'Añadir regalo de $giver';
   }
 
   @override
@@ -1752,7 +1800,7 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get repartoSheetNoGiver => 'Sin quién regala';
+  String get repartoSheetNoGiver => 'Sin asignar';
 
   @override
   String repartoSheetChipLabel(String giver) {
@@ -1765,7 +1813,7 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get lockBiometricHint => 'Toca la huella para entrar';
+  String get lockBiometricHint => 'Toca el botón de la huella para desbloquear';
 
   @override
   String get repartoViewLabel => 'Vista de Reparto';
@@ -1892,23 +1940,27 @@ class AppLocalizationsEs extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Se eliminarán también sus $count regalos.',
-      one: 'Se eliminará también su regalo.',
+      other:
+          'También se eliminarán los $count regalos que hay para esta persona.',
+      one: 'También se eliminará el regalo que hay para esta persona.',
       zero: '',
     );
     return '$_temp0';
   }
 
   @override
-  String get deleteBirthdayToo => 'Su cumpleaños también desaparece.';
+  String get deleteBirthdayToo =>
+      'Su cumpleaños también se eliminará de la lista de ocasiones.';
 
   @override
   String deleteGiverGifts(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Sus $count regalos se quedarán sin quién regala.',
-      one: 'Su regalo se quedará sin quién regala.',
+      other:
+          'Sus $count regalos seguirán en la lista sin nadie asignado en «Quién regala».',
+      one:
+          'Su regalo seguirá en la lista sin nadie asignado en «Quién regala».',
       zero: '',
     );
     return '$_temp0';
@@ -1932,7 +1984,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get deleteRequestedByToo =>
-      'En los regalos que pidió, se borra quién los pidió.';
+      'Su nombre dejará de aparecer en los regalos que pidió para otras personas.';
 
   @override
   String get deleteGiverBudget =>
@@ -2031,20 +2083,20 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get eraseAllServerFailedBody =>
-      'Comprueba la conexión y reinténtalo. Si borras solo este móvil, seguirá en la lista de móviles de tu familia hasta que otro lo quite, y la copia cifrada se queda en el servidor para los demás (o hasta que caduque, si era el último).';
+      'Comprueba la conexión e inténtalo de nuevo. Si borras los datos solo aquí, este móvil seguirá en «Móviles de la familia» hasta que alguien lo quite desde otro móvil. La copia cifrada seguirá en el servidor para los demás móviles. Si este era el último, la copia se conservará hasta que caduque.';
 
   @override
   String get eraseAllRetry => 'Reintentar';
 
   @override
-  String get eraseAllLocalOnly => 'Borrar solo este móvil';
+  String get eraseAllLocalOnly => 'Borrar solo en este móvil';
 
   @override
   String get eraseAllFailed =>
       'No se ha podido borrar todo. Inténtalo de nuevo.';
 
   @override
-  String get eraseAllPinPrompt => 'Escribe tu PIN para seguir con el borrado.';
+  String get eraseAllPinPrompt => 'Escribe tu PIN para continuar.';
 
   @override
   String get eraseAllBiometricReason => 'Confirma que quieres borrar todo';
@@ -2096,7 +2148,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get archiveSubtitle =>
-      'Fuera de las listas, con sus regalos guardados.';
+      'Lo que archivas deja de aparecer en las listas, pero conserva sus regalos.';
 
   @override
   String get archiveEmpty => 'No hay nada archivado.';
@@ -2117,7 +2169,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get devicesRecoveryBody =>
-      'La lista tiene una copia cifrada que se recupera con tu código. Conecta otro móvil para verla en los dos.';
+      'Con tu código puedes recuperar la copia cifrada de la lista. Conecta otro móvil para ver la lista en los dos.';
 
   @override
   String get devicesManualTitle => 'Conectados por fichero o QR';
@@ -2168,7 +2220,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get devicesPeerHint => 'Conectado a esta familia';
 
   @override
-  String get devicesPeerNoPerson => 'Sin persona: aún no abre las sorpresas';
+  String get devicesPeerNoPerson => 'Sin persona: aún no ve las sorpresas';
 
   @override
   String get devicesListError => 'No se ha podido leer la lista de móviles.';
@@ -2212,7 +2264,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get devicesJoinOtherWarning =>
-      'Si te unes a otra familia, la lista de este móvil se sustituye y se pierden sus regalos.';
+      'Si te unes a otra familia, su lista sustituirá a la de este móvil. En este móvil perderás los regalos de la lista actual.';
 
   @override
   String get devicesScanTitle => 'Escanear su QR';
@@ -2252,7 +2304,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get backupRestoreSubtitle =>
-      'Se fusiona con lo que hay: no se pierde nada.';
+      'La copia se combina con la lista de este móvil. No se pierde nada.';
 
   @override
   String get backupPasteTitle => 'Pegar desde el portapapeles';
@@ -2266,14 +2318,14 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get backupNote =>
-      'La copia va cifrada con la clave de la familia: hoy solo se abre en un móvil que ya esté conectado.';
+      'La copia está cifrada con la clave de la familia. Solo puedes abrirla en un móvil que ya forme parte de esa familia.';
 
   @override
   String get pairingV2Preparing => 'Preparando la conexión…';
 
   @override
   String get pairingV2NoticeExpires =>
-      'El código caduca a las 24 horas y solo sirve para pedir entrada: nadie entra sin que compares un número con el otro móvil.';
+      'La invitación caduca a las 24 horas y solo sirve para pedir entrada. Antes de dar acceso, compara el número que aparece en los dos móviles.';
 
   @override
   String get pairingV2FarTitle => 'Comparte el enlace';
@@ -2287,7 +2339,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get pairingV2WaitingHere =>
-      'Esperando a que el otro móvil lea el código…';
+      'Esperando a que la otra persona pida entrar…';
 
   @override
   String get pairingV2CompareTitle => 'Compara el número';
@@ -2311,7 +2363,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get pairingV2HostDone =>
-      'Acceso enviado. El otro móvil tiene que terminar la conexión.';
+      'Acceso enviado. El otro móvil tiene que completar la conexión.';
 
   @override
   String get pairingV2VersionMismatch =>
@@ -2319,7 +2371,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get pairingV2HostCancelled =>
-      'Se ha cancelado y el código ya no sirve. Puedes empezar de nuevo.';
+      'La invitación se ha cancelado y ya no sirve. Puedes empezar de nuevo.';
 
   @override
   String get pairingV2HostFailed =>
@@ -2327,7 +2379,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get pairingV2NotReady =>
-      'Para conectar otro móvil hace falta tener la sincronización encendida y conexión a internet.';
+      'Para continuar, hace falta conexión a internet y tener la sincronización encendida.';
 
   @override
   String get pairingV2ChooseTitle => '¿De quién es este móvil?';
@@ -2361,7 +2413,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get pairingV2GuestCompareBody =>
-      'Mira el número que enseña el otro móvil. Tiene que ser el mismo que este. Si lo es, pulsa «Coinciden».';
+      'Compara este número con el que ve la otra persona. Si son iguales, pulsa «Coinciden».';
 
   @override
   String get pairingV2GuestWaitingApproval =>
@@ -2385,7 +2437,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String pairingV2ClaimTitle(String name) {
-    return 'Este móvil dice ser de $name';
+    return '¿El otro móvil es de $name?';
   }
 
   @override
@@ -2405,7 +2457,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get pairingV2MigrateBody =>
-      'Para conectar otro móvil, esta familia pasa a la sincronización nueva, más segura. No se puede deshacer: los móviles que ya estaban conectados dejan de recibir los cambios de este hasta que los vuelvas a conectar, uno a uno, con «Conectar otro móvil». No se pierde nada.';
+      'Si continúas, esta familia pasa a la sincronización nueva, más segura. No se puede deshacer. Los móviles que ya estaban conectados dejan de recibir los cambios de este hasta que los vuelvas a conectar, uno a uno, con «Conectar otro móvil». No se pierde nada.';
 
   @override
   String get pairingV2MigrateContinue => 'Continuar';
@@ -2422,7 +2474,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get devicesPeerPending => 'Espera aprobación';
 
   @override
-  String get devicesPeerFrozen => 'Congelado: espera aprobación';
+  String get devicesPeerFrozen => 'Cambios en pausa: espera aprobación';
 
   @override
   String get devicesPeerReconfirm => 'Confirma de quién es';
@@ -2474,7 +2526,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get deviceStatusPending => 'Espera aprobación';
 
   @override
-  String get deviceStatusFrozen => 'Congelado';
+  String get deviceStatusFrozen => 'Cambios en pausa';
 
   @override
   String get deviceStatusReconfirm => 'Falta confirmar de quién es';
@@ -2487,7 +2539,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get deviceRemoveTitle => 'Quitar este móvil';
 
   @override
-  String get deviceRemoveHint => 'Deja de recibir la lista nueva.';
+  String get deviceRemoveHint => 'Dejará de recibir los cambios de la lista.';
 
   @override
   String get deviceRemoveConfirmTitle => '¿Quitar este móvil?';
@@ -2500,11 +2552,11 @@ class AppLocalizationsEs extends AppLocalizations {
   String get deviceRemoveConfirmAction => 'Quitar móvil';
 
   @override
-  String get deviceRemoveWaitTitle => 'Este móvil volverá a esperar aprobación';
+  String get deviceRemoveWaitTitle => 'Tu móvil volverá a esperar aprobación';
 
   @override
   String get deviceRemoveWaitBody =>
-      'El móvil que vas a quitar es el único que aprobó el cambio de persona de este móvil. Si lo quitas, este móvil esperará la aprobación de otro de la familia y, hasta entonces, no abrirá las sorpresas.';
+      'Solo el móvil que vas a quitar aprobó el cambio de persona en el tuyo. Si lo quitas, no podrás ver las sorpresas en tu móvil hasta que otro móvil de la familia apruebe el cambio.';
 
   @override
   String get deviceRemoveWaitAction => 'Quitar igualmente';
@@ -2541,50 +2593,52 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get deviceApprovePersonChanged =>
-      'Ha cambiado de persona. Al aprobarlo, desde ahora podrá avalar a otros móviles de la familia.';
+      'Ha cambiado de persona. Si lo apruebas, podrá aprobar otros móviles de la familia.';
 
   @override
   String get deviceApproveOrphan =>
-      'Dejó de estar enlazado a este móvil. Si lo apruebas, vuelve a recibir las sorpresas que le tocan.';
+      'Hay que confirmar de nuevo de quién es. Si lo apruebas, volverá a ver las sorpresas para los demás.';
 
   @override
   String get deviceApproveDetached =>
-      'Este móvil ya no está enlazado a la familia, pero te confirmó a ti. Apruébalo solo si lo conoces.';
+      'Este móvil ya no está conectado a la familia, pero antes confirmó el tuyo. Apruébalo solo si lo reconoces.';
 
   @override
   String get deviceApproveFrozen =>
-      'Sus cambios están congelados y no se pueden limpiar los borrados hasta que lo apruebes o lo quites.';
+      'Sus cambios están en pausa hasta que lo apruebes o lo quites.';
 
   @override
   String get deviceApprovedSnack => 'Móvil aprobado';
 
   @override
-  String get deviceApproveError => 'No se ha podido aprobar el móvil.';
+  String get deviceApproveError =>
+      'No se ha podido aprobar el móvil. Inténtalo de nuevo.';
 
   @override
-  String get deviceChangedNotice => 'Este móvil ha cambiado: revisa de nuevo.';
+  String get deviceChangedNotice =>
+      'Han cambiado los datos del móvil. Revísalos de nuevo.';
 
   @override
   String get deviceRemovedPendingSnack =>
-      'Quitado de este móvil. Falta cortar su acceso: se hará en cuanto haya conexión.';
+      'Móvil quitado. Perderá el acceso en cuanto haya conexión.';
 
   @override
   String get deviceApproveCanVouch =>
-      'Su ficha ha cambiado: al aprobarlo, desde ahora podrá avalar a otros móviles de la familia.';
+      'Ha cambiado de persona: si lo apruebas, podrá aprobar otros móviles de la familia.';
 
   @override
   String get webGateConnectTitle => 'Conecta este ordenador';
 
   @override
   String get webGateConnectIntro =>
-      'Se empareja una sola vez con tu móvil. Después solo necesitarás tu PIN.';
+      'Solo hay que hacerlo una vez, con tu móvil. Después entrarás con el PIN o la frase que elijas.';
 
   @override
   String get webGateStepOpenApp => 'Abre Gift Huddle en tu móvil.';
 
   @override
   String get webGateConnectStep2 =>
-      'Ve a Móviles de la familia y toca Conectar la web.';
+      'Ve a Ajustes › Móviles de la familia y toca «Conectar la web».';
 
   @override
   String get webGateConnectStep3 => 'Escanea este código.';
@@ -2593,7 +2647,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get webGateConnectWaiting => 'Esperando al móvil…';
 
   @override
-  String get webGateCompareTitle => 'Comprueba el código';
+  String get webGateCompareTitle => 'Compara el código';
 
   @override
   String get webGateCompareLabel => 'Código de verificación';
@@ -2621,7 +2675,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get webGateFailedRejected =>
-      'El móvil ha rechazado la conexión. Empieza otra vez si quieres intentarlo de nuevo.';
+      'El móvil ha rechazado la conexión. Si quieres conectar este ordenador, empieza otra vez.';
 
   @override
   String get webGateFailedNetwork =>
@@ -2629,7 +2683,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get webGateFailedCancelled =>
-      'El móvil ha cancelado la conexión o la invitación ya no está disponible. Empieza otra vez y vuelve a conectar desde el móvil.';
+      'El móvil ha cancelado la conexión o el código ya no sirve. Empieza otra vez y escanea el código nuevo con el móvil.';
 
   @override
   String get webGateStartAgain => 'Empezar otra vez';
@@ -2641,7 +2695,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get webGateChoosePinBody =>
-      'Elige un PIN o una frase para abrirlo. Te lo pediremos cada vez que entres.';
+      'Elige un PIN o una frase para desbloquear Gift Huddle cada vez que abras la web en este ordenador.';
 
   @override
   String get webGatePinLabel => 'PIN o frase';
@@ -2680,7 +2734,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get webGateUnlockBody =>
-      'Escribe el PIN o la frase de este ordenador.';
+      'Escribe el PIN o la frase que elegiste para Gift Huddle en este ordenador.';
 
   @override
   String get webGateUnlock => 'Desbloquear';
@@ -2712,16 +2766,17 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get webGateSuspendedBody =>
-      'Desbloquéalo desde un móvil. No se ha borrado nada.';
+      'Para volver a intentarlo, permítelo antes desde un móvil. No se ha borrado nada.';
 
   @override
-  String get webGateSuspendedStep2 => 'Ve a Móviles de la familia y toca Web.';
+  String get webGateSuspendedStep2 =>
+      'Ve a Ajustes › Móviles de la familia y toca «Web».';
 
   @override
-  String get webGateSuspendedStep3 => 'Toca Permitir desbloquear otra vez.';
+  String get webGateSuspendedStep3 => 'Toca «Permitir más intentos de PIN».';
 
   @override
-  String get webGateRetry => 'Probar otra vez';
+  String get webGateRetry => 'Reintentar';
 
   @override
   String get webGateDisconnectedTitle => 'Este ordenador ya no está conectado';
@@ -2736,8 +2791,9 @@ class AppLocalizationsEs extends AppLocalizations {
       count,
       locale: localeName,
       other:
-          'Hay $count cambios sin subir guardados en este ordenador, cifrados.',
-      one: 'Hay $count cambio sin subir guardado en este ordenador, cifrado.',
+          'Hay $count cambios sin subir. Están guardados y cifrados en este ordenador.',
+      one:
+          'Hay $count cambio sin subir. Está guardado y cifrado en este ordenador.',
     );
     return '$_temp0';
   }
@@ -2746,10 +2802,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String get webGateReconnect => 'Conectar otra vez';
 
   @override
-  String get webGateErase => 'Borrar los datos de este ordenador';
+  String get webGateErase =>
+      'Borrar los datos de Gift Huddle en este ordenador';
 
   @override
-  String get webGateEraseTitle => '¿Borrar los datos de este ordenador?';
+  String get webGateEraseTitle =>
+      '¿Borrar los datos de Gift Huddle en este ordenador?';
 
   @override
   String get webGateEraseBody =>
@@ -2760,15 +2818,16 @@ class AppLocalizationsEs extends AppLocalizations {
       'Se borra todo lo que Gift Huddle guarda aquí, también los cambios sin subir. No se puede deshacer.';
 
   @override
-  String get webGateDamagedTitle => 'Los datos de este ordenador están dañados';
+  String get webGateDamagedTitle =>
+      'Los datos de Gift Huddle en este ordenador están dañados';
 
   @override
   String get webGateDamagedBody =>
-      'No se pueden leer de forma segura. Para seguir, bórralos y vuelve a conectar este ordenador desde un móvil. Los cambios que no se hubieran subido se perderán.';
+      'No se pueden leer de forma segura. Para seguir, bórralos y vuelve a conectar este ordenador desde un móvil. Perderás los cambios que no se hayan subido.';
 
   @override
   String get webGateDamagedPhoneHint =>
-      'En el móvil, quita la web anterior en Móviles de la familia.';
+      'En el móvil, ve a Ajustes › Móviles de la familia y quita la web anterior.';
 
   @override
   String get webGateOtherTabTitle => 'Gift Huddle está abierto en otra pestaña';
@@ -2807,14 +2866,14 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get webSettingsCurrentWrong =>
-      'El PIN o la frase actual no es correcto.';
+      'Comprueba que has escrito bien el PIN o la frase actual.';
 
   @override
   String get webSettingsChangeFailed =>
-      'No se ha podido cambiar. Inténtalo otra vez.';
+      'No se ha podido cambiar. Inténtalo de nuevo.';
 
   @override
-  String get webSettingsPinChanged => 'PIN cambiado.';
+  String get webSettingsPinChanged => 'Se ha cambiado el PIN o la frase.';
 
   @override
   String get webSettingsLockNow => 'Bloquear ahora';
@@ -2824,21 +2883,21 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get webSettingsForgetHint =>
-      'Sale de la familia y borra lo guardado en él.';
+      'Saldrá de la familia y se borrarán los datos de Gift Huddle guardados en él.';
 
   @override
   String get webSettingsForgetTitle => '¿Olvidar este ordenador?';
 
   @override
   String get webSettingsForgetBody =>
-      'Este ordenador saldrá de la familia y se borrará lo que Gift Huddle guarda en él, también los cambios sin subir. En tus móviles no cambia nada. Para volver a usarlo tendrás que conectarlo otra vez.';
+      'Este ordenador saldrá de la familia. Se borrarán los datos de Gift Huddle guardados aquí, incluidos los cambios sin subir. En tus móviles no cambia nada. Para volver a usar Gift Huddle aquí, tendrás que conectar el ordenador de nuevo.';
 
   @override
   String get webSettingsForgetConfirm => 'Olvidar';
 
   @override
   String get webSettingsPersistenceDenied =>
-      'El navegador podría borrar los datos de este ordenador si le falta espacio.';
+      'Si queda poco espacio, el navegador podría borrar los datos que Gift Huddle guarda aquí.';
 
   @override
   String webSetAsideNotice(int count) {
@@ -2855,7 +2914,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get webGateChoosePinCheck =>
-      'Si tu móvil no mostró el mismo código, no sigas: toca Empezar otra vez.';
+      'Si los códigos no coincidían, no sigas: pulsa «Empezar otra vez».';
 
   @override
   String get webGateRestartTitle => '¿Empezar otra vez?';
@@ -2873,9 +2932,9 @@ class AppLocalizationsEs extends AppLocalizations {
       count,
       locale: localeName,
       other:
-          'Hubo $count intentos fallidos de desbloquear este ordenador desde la última vez. Si no fuiste tú, cambia el PIN.',
+          'Ha habido $count intentos fallidos desde la última vez que se desbloqueó Gift Huddle aquí. Si no has sido tú, cambia el PIN.',
       one:
-          'Hubo $count intento fallido de desbloquear este ordenador desde la última vez. Si no fuiste tú, cambia el PIN.',
+          'Ha habido $count intento fallido desde la última vez que se desbloqueó Gift Huddle aquí. Si no has sido tú, cambia el PIN.',
     );
     return '$_temp0';
   }
@@ -2914,7 +2973,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get connectWebWhoseBody =>
-      'Elige quién lo va a usar. El ordenador se conectará como suyo.';
+      'Elige quién va a usar la lista desde el ordenador.';
 
   @override
   String get connectWebNoPeople =>
@@ -2939,28 +2998,28 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get connectWebNewQr =>
-      'Este código ya no vale. En el ordenador, toca Empezar otra vez y escanea el nuevo.';
+      'Este código ya no vale. En el ordenador, pulsa «Empezar otra vez». Escanea el código nuevo con el móvil.';
 
   @override
   String get connectWebScanAgain => 'Escanear otro código';
 
   @override
   String get connectWebFailed =>
-      'No se ha podido conectar el ordenador. En el ordenador, toca Empezar otra vez y escanea el nuevo código.';
+      'No se ha podido conectar el ordenador. Pulsa «Empezar otra vez» en el ordenador. Escanea el código nuevo con el móvil.';
 
   @override
   String get connectWebCancelled =>
-      'Se ha cancelado y el código ya no sirve. En el ordenador, toca Empezar otra vez.';
+      'Se ha cancelado la conexión y el código ya no sirve. En el ordenador, pulsa «Empezar otra vez».';
 
   @override
-  String get deviceWebResume => 'Permitir desbloquear otra vez';
+  String get deviceWebResume => 'Permitir más intentos de PIN';
 
   @override
   String get deviceWebResumeHint =>
-      'Si el ordenador se suspendió por demasiados intentos de PIN. No se borra nada.';
+      'Si la web ya no acepta el PIN tras demasiados intentos fallidos. No se borra nada.';
 
   @override
-  String get deviceWebResumeTitle => '¿Permitir desbloquear otra vez?';
+  String get deviceWebResumeTitle => '¿Permitir más intentos de PIN?';
 
   @override
   String get deviceWebResumeBody =>
@@ -2970,19 +3029,18 @@ class AppLocalizationsEs extends AppLocalizations {
   String get deviceWebResumeConfirm => 'Permitir';
 
   @override
-  String get deviceWebResumeDone =>
-      'Listo. El ordenador ya puede volver a desbloquearse.';
+  String get deviceWebResumeDone => 'Listo. La web vuelve a aceptar el PIN.';
 
   @override
   String get deviceWebResumeError =>
-      'No se ha podido. Comprueba la conexión e inténtalo otra vez.';
+      'No se han podido permitir más intentos de PIN. Comprueba la conexión e inténtalo de nuevo.';
 
   @override
   String get deviceRemoveWebTitle => 'Quitar esta web';
 
   @override
   String get deviceRemoveWebHint =>
-      'Este ordenador deja de recibir la lista nueva.';
+      'Este ordenador dejará de recibir los cambios de la lista.';
 
   @override
   String get deviceRemoveWebConfirmTitle => '¿Quitar esta web?';
@@ -2999,7 +3057,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get deviceRemovedWebPendingSnack =>
-      'Quitada de este móvil. Falta cortar su acceso: se hará en cuanto haya conexión.';
+      'Web quitada. El ordenador perderá el acceso en cuanto haya conexión.';
 
   @override
   String get deviceRemoveWebError =>
@@ -3013,7 +3071,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get webSyncAwaitingConfirm =>
-      'Este ordenador espera a que un móvil lo confirme';
+      'Pendiente de confirmación desde un móvil';
 
   @override
   String get webOperationUnavailable =>
@@ -3024,12 +3082,12 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String selfChangeConfirmIntro(String name) {
-    return 'Vas a decir que este móvil es de $name. Eso cambia lo que puede ver, no solo el nombre.';
+    return 'Vas a decir que este móvil es de $name. Esto cambia qué regalos y sorpresas puedes ver en él.';
   }
 
   @override
   String get selfChangeConfirmIntroNobody =>
-      'Vas a dejar este móvil sin persona. Eso cambia lo que puede ver, no solo el nombre.';
+      'Vas a dejar este móvil sin una persona asignada. Esto cambia qué regalos y sorpresas puedes ver en él.';
 
   @override
   String selfChangeEffectHides(String name) {
@@ -3042,11 +3100,11 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get selfChangeEffectWait =>
-      'Hasta que otro móvil de la familia lo apruebe, este móvil no verá las sorpresas de nadie.';
+      'Hasta que se apruebe el cambio desde otro móvil de la familia, en este no verás las sorpresas de nadie.';
 
   @override
   String get selfChangeEffectReconfirm =>
-      'Los móviles que este había aprobado pueden tener que confirmarse otra vez.';
+      'Puede que tengas que volver a confirmar algunos móviles que aprobaste desde este.';
 
   @override
   String get selfChangeConfirmAction => 'Cambiar de persona';
@@ -3073,17 +3131,17 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get selfChangeExhaustedBody =>
-      'Ha usado todos los cambios que permite la lista de móviles. Puede volver a conectarse a la familia como un móvil nuevo, en persona, desde otro móvil.';
+      'Has llegado al límite de cambios de persona en este móvil. Para elegir a otra persona, vuelve a conectarlo a la familia como un móvil nuevo. Necesitarás tener a mano otro móvil de la familia.';
 
   @override
   String get selfWaitingHint => 'Esperando aprobación de otro móvil';
 
   @override
-  String get healthRevokedTitle => 'Otro móvil de la familia ha quitado este';
+  String get healthRevokedTitle => 'Han quitado este móvil de la familia';
 
   @override
   String get healthRevokedBody =>
-      'Lo que tienes guardado sigue en este móvil, pero ya no se sincroniza. Reintentar no sirve: hay que volver a conectarlo con otro móvil de la familia, en persona.';
+      'Tus datos siguen en este móvil. Para que vuelva a sincronizarse, conéctalo de nuevo en persona con otro móvil de la familia.';
 
   @override
   String get healthRevokedAction => 'Conectar otra vez';
@@ -3112,7 +3170,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get healthResolveSection => 'Por resolver';
 
   @override
-  String get healthUnbackedTitle => 'Acceso sin respaldo';
+  String get healthUnbackedTitle => 'Acceso sin identificar';
 
   @override
   String get healthUnbackedBody =>
@@ -3177,13 +3235,13 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get protectionStatusOff => 'Desactivado';
+  String get protectionStatusOff => 'Desactivados';
 
   @override
-  String get protectionStatusRequested => 'Pedido';
+  String get protectionStatusRequested => 'Por confirmar';
 
   @override
-  String get protectionStatusActive => 'Activo';
+  String get protectionStatusActive => 'Activos';
 
   @override
   String protectionSheetTitle(String name) {
@@ -3192,7 +3250,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String protectionIntro(String name) {
-    return 'Con los regalos en secreto activados, el móvil de $name no muestra ningún regalo para $name, ni cuántos hay. El resto de la familia los sigue viendo.';
+    return 'Con la protección activa, $name no ve en su móvil qué regalos hay para $name ni cuántos son.';
   }
 
   @override
@@ -3201,7 +3259,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String protectionEffectKept(String name) {
-    return 'Los regalos que el móvil de $name ya recibió antes de activarla no se pueden retirar de él.';
+    return 'La protección no puede retirar los regalos que ya habían llegado al móvil de $name.';
   }
 
   @override
@@ -3240,7 +3298,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String protectionDeactivateTitle(String name) {
-    return '¿Desactivar los regalos en secreto de $name?';
+    return '¿Desactivar los regalos en secreto para $name?';
   }
 
   @override
@@ -3261,6 +3319,40 @@ class AppLocalizationsEs extends AppLocalizations {
       'No se ha podido cambiar la protección. No se ha modificado nada.';
 
   @override
+  String protectionNeedConfirmer(String name) {
+    return 'Para proteger los regalos de $name hace falta un móvil de otra persona de la familia. En Ajustes, elige de quién es este móvil en «Este móvil es de». Aprueba el cambio desde otro móvil o conecta otro móvil a la familia. Si ya lo has hecho, sincroniza.';
+  }
+
+  @override
+  String protectionNeedConfirmerOwn(String name) {
+    return 'Desde este móvil no se pueden proteger los regalos de $name. Pide a otra persona de la familia que lo haga desde el suyo.';
+  }
+
+  @override
+  String protectionRequesterPending(String name) {
+    return 'Falta que alguien de la familia apruebe desde otro móvil el cambio en «Este móvil es de». Hasta entonces no puedes pedir protección para los regalos de $name.';
+  }
+
+  @override
+  String protectionRequesterRevoked(String name) {
+    return 'Este móvil ya no forma parte de la familia, así que no puede pedir la protección de los regalos de $name.';
+  }
+
+  @override
+  String protectionRequesterAmbiguous(String name) {
+    return 'No se sabe con seguridad de quién es este móvil, así que no puede pedir la protección de los regalos de $name. Sincroniza e inténtalo de nuevo.';
+  }
+
+  @override
+  String protectionRecipientUnavailable(String name) {
+    return '$name ya no está en la lista. No se puede pedir protección para sus regalos.';
+  }
+
+  @override
+  String get protectionRegistryUnavailable =>
+      'Este móvil todavía no está al día con la familia. Sincroniza e inténtalo de nuevo.';
+
+  @override
   String secretBlockTitle(String name) {
     return 'Regalos en secreto para $name';
   }
@@ -3275,12 +3367,12 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String protectionReason_noEntitlement(String name) {
-    return 'Este móvil no tiene permiso para los regalos en secreto de $name. Pide ayuda a otro móvil de la familia con permiso.';
+    return 'Este móvil no tiene acceso a los regalos en secreto para $name. Pide ayuda a alguien de la familia que tenga un móvil con permiso.';
   }
 
   @override
   String protectionReason_ownRequestsRestricted(String name) {
-    return 'Este móvil es de $name: aquí no se pueden crear ni ver sus regalos mientras estén en secreto.';
+    return 'Este móvil es de $name. Aquí no puedes crear ni ver regalos en secreto para $name.';
   }
 
   @override
@@ -3300,22 +3392,22 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String protectionReason_blockFull(String name) {
-    return 'Los regalos en secreto de $name han llegado al límite. Borra alguno para poder añadir más.';
+    return 'Has llegado al límite de regalos en secreto para $name. Elimina alguno para poder añadir más.';
   }
 
   @override
   String protectionReason_giftTooLarge(String name) {
-    return 'Este regalo es demasiado grande para guardarlo en secreto. Acorta las notas.';
+    return 'Acorta las notas para poder guardar este regalo en secreto.';
   }
 
   @override
   String protectionReason_writerSlotsFull(String name) {
-    return 'Este móvil ya no tiene sitio para guardar más regalos en secreto. Pide a otro móvil con permiso que los añada.';
+    return 'Este móvil ha llegado a su límite de regalos en secreto. Pide a alguien que añada los nuevos desde otro móvil con permiso.';
   }
 
   @override
   String protectionReason_slotsFull(String name) {
-    return 'Ahora mismo no cabe más en los regalos en secreto de la familia.';
+    return 'Ahora mismo no se pueden añadir más regalos en secreto a la lista de la familia.';
   }
 
   @override
@@ -3328,21 +3420,21 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get giftSavedLocally =>
-      'Guardado solo en este móvil. Queda pendiente de guardar y compartir.';
+      'Guardado solo en este móvil. Aún falta añadirlo a la lista y compartirlo.';
 
   @override
   String get giftSavedLocallyAction => 'Ver pendientes';
 
   @override
   String get giftOwnRequestRestricted =>
-      'Mientras la protección esté activa, este móvil no puede crear ni ver regalos para su propia persona. Pídelo a otra persona de la familia.';
+      'Con la protección activa, no puedes añadir ni ver regalos para ti en este móvil. Pide a otra persona de la familia que apunte el regalo.';
 
   @override
   String get pendingGiftsTitle => 'Regalos pendientes';
 
   @override
   String get pendingGiftsIntro =>
-      'Estos regalos están guardados cifrados solo en este móvil. Hasta que se guarden y se compartan con la familia, los demás móviles no los ven. Si pierdes este móvil antes, se pierden.';
+      'Estos regalos están cifrados y solo se guardan en este móvil. Aún no aparecen en la lista compartida de la familia. Si pierdes el móvil antes de que se añadan a la lista, perderás también estos regalos.';
 
   @override
   String get pendingGiftsRetry => 'Reintentar';
@@ -3352,7 +3444,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get pendingGiftsStill =>
-      'Todavía no cabe. No se ha publicado nada y los regalos se conservan en este móvil.';
+      'Todavía no hay sitio. Los regalos siguen guardados solo en este móvil.';
 
   @override
   String get pendingGiftsRetryError =>
@@ -3387,7 +3479,13 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String occasionGiftsBoughtShort(int done, int total) {
-    return '$done de $total comprados';
+    String _temp0 = intl.Intl.pluralLogic(
+      total,
+      locale: localeName,
+      other: 'comprados',
+      one: 'comprado',
+    );
+    return '$done de $total $_temp0';
   }
 
   @override
@@ -3427,12 +3525,12 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String boardMoveTo(String lane) {
-    return 'Mover a $lane';
+    return 'Mover a «$lane»';
   }
 
   @override
   String boardLaneAdd(String lane) {
-    return 'Añadir regalo en $lane';
+    return 'Añadir regalo a «$lane»';
   }
 
   @override
@@ -3494,7 +3592,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get boardColSize => 'Talla';
 
   @override
-  String get boardRepartoNoGiver => 'Sin quién regala';
+  String get boardRepartoNoGiver => 'Sin asignar';
 
   @override
   String get boardRepartoNoGiverNone =>
@@ -3527,7 +3625,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get tour1Body =>
-      'Elige a quién, para qué ocasión y quién lo regala. Con una idea basta.';
+      'Elige para quién es el regalo, la ocasión y quién lo regala. Con una idea basta.';
 
   @override
   String get tour2Title => 'Márcalo como comprado';
@@ -3541,7 +3639,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get tour3Body =>
-      'Cada persona tiene su lista. Navidad, Reyes y cumpleaños la ordenan, y el reparto dice quién paga qué.';
+      'La lista de cada persona agrupa los regalos por ocasión, como Navidad, Reyes o cumpleaños. En «Reparto» ves quién paga cada regalo.';
 
   @override
   String get tour4Title => 'La familia comparte la lista';
@@ -3555,14 +3653,14 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get tour5Body =>
-      'El móvil de cada persona no ve sus propios regalos. Con PIN o biometría, sin cuentas ni anuncios.';
+      'En tu móvil no se muestran los regalos que son para ti. Puedes bloquear la app con PIN o biometría. Sin cuentas ni anuncios.';
 
   @override
   String get tour6Title => 'También en el ordenador';
 
   @override
   String get tour6Body =>
-      'Conecta el navegador una vez y tendrás la lista en una pantalla grande.';
+      'Conecta la web una vez y tendrás la lista en una pantalla grande.';
 
   @override
   String get tourDemoScooter => 'Patinete';
@@ -3586,7 +3684,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get tourDemoEncrypted => 'Cifrado';
 
   @override
-  String get tourDemoHidden => 'Regalos ocultos';
+  String get tourDemoHidden => 'Regalos en secreto';
 
   @override
   String get settingsRecovery => 'Código de recuperación';
@@ -3608,13 +3706,13 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryUnconfirmedBody =>
-      'El código aún no cuenta como guardado. Continúa para comprobar las palabras o comprueba un fichero que ya hayas guardado. Si las palabras ya se mostraron, se creará un código nuevo y el anterior dejará de valer.';
+      'El código aún no cuenta como guardado. Si guardaste un fichero, puedes comprobarlo. Si no, continúa con las palabras: si ya las viste, al continuar se creará un código nuevo y el anterior dejará de valer.';
 
   @override
   String get recoveryValueAttention => 'Revisar';
 
   @override
-  String get recoveryValueTransferred => 'Traspasada';
+  String get recoveryValueTransferred => 'Lista traspasada';
 
   @override
   String get recoverySubtitle => 'Para recuperar la lista en un móvil nuevo.';
@@ -3625,11 +3723,11 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryAbsentBody =>
-      'Con 24 palabras puedes recuperar la lista y todo lo que este móvil puede ver en otro móvil. Si solo tienes este móvil, se activa una copia cifrada en el servidor: sin las palabras, nadie puede leerla.';
+      'Con 24 palabras puedes recuperar en otro móvil la lista y todo lo que ves en este. Si solo tienes este móvil, se activa una copia cifrada en el servidor. Sin las palabras, nadie puede leerla.';
 
   @override
   String get recoveryAbsentWarn =>
-      'Quien tenga las palabras puede entrar como este móvil. No recuperan lo que nunca se llegó a sincronizar.';
+      'Quien tenga las palabras tendrá el mismo acceso a la lista que tienes en este móvil. Solo se puede recuperar lo que se haya sincronizado.';
 
   @override
   String get recoveryCreate => 'Crear código de recuperación';
@@ -3659,14 +3757,14 @@ class AppLocalizationsEs extends AppLocalizations {
       'Los ficheros y las palabras anteriores dejarán de servir.';
 
   @override
-  String get recoveryRemove => 'Quitar el código';
+  String get recoveryRemove => 'Borrar el código';
 
   @override
   String get recoveryRemoveHint =>
       'Las palabras dejarán de valer y se borra la copia.';
 
   @override
-  String get recoveryRemoveTitle => '¿Quitar el código de recuperación?';
+  String get recoveryRemoveTitle => '¿Borrar el código de recuperación?';
 
   @override
   String get recoveryRemoveBody =>
@@ -3674,13 +3772,13 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryRemoveSoloNote =>
-      'Como no hay otro móvil ni la web conectados, también se borra la copia cifrada de la lista del servidor y la lista vuelve a estar solo en este móvil.';
+      'Como no hay otro móvil ni la web conectados, también se borra del servidor la copia cifrada de la lista, y la lista vuelve a estar solo en este móvil.';
 
   @override
-  String get recoveryRemoveConfirm => 'Quitar código';
+  String get recoveryRemoveConfirm => 'Borrar código';
 
   @override
-  String get recoveryRemoved => 'Código quitado';
+  String get recoveryRemoved => 'Código borrado';
 
   @override
   String get recoveryRetry => 'Reintentar';
@@ -3693,7 +3791,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryIntroBody =>
-      'Verás 24 palabras. Con ellas puedes recuperar la lista y todo lo que este móvil puede ver en otro móvil.';
+      'Verás 24 palabras. Con ellas puedes recuperar en otro móvil la lista y todo lo que ves en este.';
 
   @override
   String get recoveryRotateBody =>
@@ -3704,7 +3802,8 @@ class AppLocalizationsEs extends AppLocalizations {
       'Apúntalas en papel o guárdalas en un gestor de contraseñas.';
 
   @override
-  String get recoveryPoint2 => 'Quien las tenga puede entrar como este móvil.';
+  String get recoveryPoint2 =>
+      'Quien las tenga tendrá el mismo acceso a la lista que tienes en este móvil.';
 
   @override
   String get recoveryPoint3 => 'No recuperan lo que nunca se sincronizó.';
@@ -3734,7 +3833,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryWordsWarn =>
-      'Quien tenga estas palabras puede entrar como este móvil. No hagas captura ni las envíes por mensaje.';
+      'Quien tenga estas palabras tendrá el mismo acceso a la lista que tienes en este móvil. No hagas capturas de pantalla ni envíes las palabras por mensaje.';
 
   @override
   String recoveryWordItem(int number, String word) {
@@ -3821,7 +3920,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryProblemOfflineBody =>
-      'No se ha podido llegar al servidor. Comprueba la conexión y reintenta; lo hecho hasta ahora se conserva.';
+      'No se ha podido conectar con el servidor. Se conserva lo que has hecho. Comprueba la conexión e inténtalo de nuevo.';
 
   @override
   String get recoveryProblemWrongTitle => 'Ese código no abre ninguna lista';
@@ -3835,7 +3934,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryProblemRetiredBody =>
-      'Se cambió o se quitó desde otro móvil. Busca el código más reciente.';
+      'Se cambió o se borró desde otro móvil. Busca el código más reciente.';
 
   @override
   String get recoveryProblemRemovedTitle =>
@@ -3843,7 +3942,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryProblemRemovedBody =>
-      'Se quitó este móvil de la lista, así que no se puede recuperar con este código.';
+      'Este código es de un móvil que se quitó de la familia. Ya no sirve para recuperar la lista.';
 
   @override
   String get recoveryProblemIncompleteTitle =>
@@ -3851,13 +3950,14 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryProblemIncompleteBody =>
-      'Falta una parte de la lista. Lo descargado se conserva. Vuelve a intentarlo con conexión o, si tienes otro móvil conectado a esta familia, abre allí la app un momento.';
+      'Falta una parte de la lista. Lo descargado se conserva. Inténtalo de nuevo cuando tengas conexión. Si tienes otro móvil conectado a esta familia, también puedes abrir allí la app un momento.';
 
   @override
   String get recoveryProblemBusyTitle => 'Hay otra operación en marcha';
 
   @override
-  String get recoveryProblemBusyBody => 'Espera un momento y reintenta.';
+  String get recoveryProblemBusyBody =>
+      'Espera un momento e inténtalo de nuevo.';
 
   @override
   String get recoveryProblemUnsupportedTitle => 'No se puede abrir esta copia';
@@ -3878,10 +3978,10 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryProblemOtherBody =>
-      'No se ha podido terminar. Reintenta; si sigue igual, prueba más tarde.';
+      'No se ha podido terminar. Inténtalo de nuevo. Si el problema continúa, prueba más tarde.';
 
   @override
-  String get obHaveRecoveryCode => 'Tengo un código de recuperación';
+  String get obHaveRecoveryCode => 'Usar el código de recuperación';
 
   @override
   String get recoverTitle => 'Recuperar la lista';
@@ -3911,24 +4011,25 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String recoverWordUnknown(int number) {
-    return 'La palabra $number no está en la lista.';
+    return 'Revisa cómo has escrito la palabra $number.';
   }
 
   @override
   String get recoverChecksum =>
-      'Las palabras no forman un código válido. Revisa el orden y que no falte ninguna.';
+      'Las palabras no forman un código válido. Comprueba que sean las de tu código y que estén en el mismo orden.';
 
   @override
   String get recoverPasteEmpty => 'No hay nada copiado.';
 
   @override
-  String get recoverPasteWrong => 'Lo copiado no tiene 24 palabras.';
+  String get recoverPasteWrong =>
+      'Lo copiado no tiene 24 palabras. Copia el código entero y pégalo de nuevo.';
 
   @override
   String get recoverQrWrong => 'Ese QR no es un código de recuperación.';
 
   @override
-  String get recoverScanTitle => 'Escanear el QR del código';
+  String get recoverScanTitle => 'Escanear el QR';
 
   @override
   String get recoverScanBody =>
@@ -3951,7 +4052,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get recoverStepDownload => 'Descargando la lista';
 
   @override
-  String get recoverStepInstall => 'Instalando en este móvil';
+  String get recoverStepInstall => 'Guardando la lista en este móvil';
 
   @override
   String get recoverDoneTitle => 'Lista recuperada';
@@ -3963,7 +4064,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoverDoneNoSelf =>
-      'Este móvil no tiene persona asignada. Puedes elegirla en Ajustes.';
+      'Falta indicar de quién es este móvil. Puedes hacerlo en Ajustes.';
 
   @override
   String recoverDonePeople(int count) {
@@ -3983,11 +4084,11 @@ class AppLocalizationsEs extends AppLocalizations {
   String get recoverOtherCode => 'Escribir otro código';
 
   @override
-  String get transferredTitle => 'Esta lista se ha pasado a otro móvil';
+  String get transferredTitle => 'Esta lista se ha traspasado';
 
   @override
   String get transferredBody =>
-      'Tu lista ahora está en otro móvil o en otra app, y esta app ya no se usa para ella. Lo que ves aquí es una copia de solo lectura: no se ha borrado nada.';
+      'Tu lista está ahora en otro móvil o en otra app. Aquí puedes consultarla, pero ya no puedes editarla. No se ha borrado nada.';
 
   @override
   String get transferredReadOnly => 'Solo lectura';
@@ -4004,14 +4105,14 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryProblemNotReadyBody =>
-      'No se ha podido dejar la copia cifrada en el servidor, así que no se enseñan las palabras. Reintenta con conexión.';
+      'No se ha podido guardar la copia cifrada en el servidor. Por eso aún no puedes ver las palabras. Inténtalo de nuevo cuando tengas conexión.';
 
   @override
   String get recoverReplaceTitle => '¿Sustituir la lista de este móvil?';
 
   @override
   String get recoverReplaceBody =>
-      'Este código es de otra familia. Si continúas, la lista de esa familia sustituirá a la que tienes en este móvil. La lista anterior se conserva en el móvil, pero deja de verse.';
+      'Este código es de otra familia. Si continúas, verás su lista en este móvil. La que usas ahora seguirá guardada aquí, pero ya no la verás.';
 
   @override
   String get recoverReplaceConfirm => 'Sustituir';
@@ -4024,7 +4125,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoverAbandonBody =>
-      'Se descartan los datos temporales de esta recuperación en este móvil. Cancelar no reactiva el móvil anterior si ya quedó en solo lectura. Podrás volver a introducir el código.';
+      'Si cancelas, este móvil borrará los datos temporales de la recuperación. Si en el móvil anterior ya solo podías consultar la lista, seguirá así. Podrás volver a usar el código.';
 
   @override
   String get recoverAbandonConfirm => 'Cancelar recuperación';
@@ -4034,11 +4135,11 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoverAbandonFailed =>
-      'No se ha podido cancelar. Reintenta en un momento.';
+      'Algo no ha salido bien. Inténtalo de nuevo en un momento.';
 
   @override
   String get recoverAbandonBodyClaimed =>
-      'La lista ya se ha pasado a este código y el otro móvil se ha quedado en solo lectura; cancelar no lo deshace. Para usarla tendrás que escribir el código otra vez.';
+      'En el otro móvil ya solo puedes consultar la lista. Si cancelas, seguirá así. Para recuperar la lista tendrás que volver a usar este código.';
 
   @override
   String get recoveryWordsWarnNoBlock =>
@@ -4049,10 +4150,10 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoverLeaveBody =>
-      'Se queda a medias en este móvil. Podrás reanudarla o cancelarla desde la pantalla de bienvenida.';
+      'La recuperación quedará pendiente en este móvil. Podrás reanudarla o cancelarla más tarde.';
 
   @override
-  String get recoverPendingTitle => 'Hay una recuperación en curso';
+  String get recoverPendingTitle => 'Recuperación pendiente';
 
   @override
   String get recoverPendingBody =>
@@ -4083,17 +4184,17 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryRemoveAuthMessage =>
-      'Escribe tu PIN para quitar el código.';
+      'Escribe tu PIN para borrar el código.';
 
   @override
   String get recoveryRemoveBiometric =>
-      'Confirma que quieres quitar el código de recuperación';
+      'Confirma que quieres borrar el código de recuperación';
 
   @override
   String get transferredRecover => 'Recuperar con mi código';
 
   @override
-  String get transferredErase => 'Borrar todo de este móvil';
+  String get transferredErase => 'Borrar los datos de esta app';
 
   @override
   String get recoverStepDoneValue => 'hecho';
@@ -4109,7 +4210,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryFileBody =>
-      'Además de las palabras, puedes guardar el código en un fichero. Quien tenga el fichero puede recuperar la lista y entrar como este móvil.';
+      'También puedes guardar el código en un fichero. Quien pueda abrirlo podrá recuperar la lista con el mismo acceso que tienes en este móvil.';
 
   @override
   String get recoveryFilePersonal =>
@@ -4145,7 +4246,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryFilePasswordForgot =>
-      'Si olvidas la contraseña, el fichero no sirve para nada. Las 24 palabras seguirán valiendo.';
+      'Si olvidas la contraseña, no podrás abrir el fichero. Aún podrás recuperar la lista con las 24 palabras.';
 
   @override
   String recoveryFilePwTooShort(int min) {
@@ -4158,7 +4259,7 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get recoveryFilePwRepeated => 'Repite un mismo carácter o bloque.';
+  String get recoveryFilePwRepeated => 'Se repite un mismo carácter o bloque.';
 
   @override
   String get recoveryFilePwDigits => 'No puede ser solo números.';
@@ -4192,11 +4293,11 @@ class AppLocalizationsEs extends AppLocalizations {
   String get recoveryFileStem => 'gift-huddle-recuperacion';
 
   @override
-  String get recoveryFileDerivingTitle => 'Protegiendo el fichero…';
+  String get recoveryFileDerivingTitle => 'Procesando el fichero…';
 
   @override
   String get recoveryFileDerivingBody =>
-      'Se prepara la clave de la contraseña. Tarda unos segundos; no cierres la app.';
+      'Mantén la app abierta. Este paso tarda unos segundos.';
 
   @override
   String get recoveryFileSavedTitle => 'Fichero guardado';
@@ -4211,7 +4312,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryFileProblemVerifyBody =>
-      'Lo que se ha leído del destino no coincide. Guárdalo de nuevo, quizá en otro sitio.';
+      'El fichero no se ha guardado bien. Guárdalo de nuevo, quizá en otro sitio.';
 
   @override
   String get recoveryFileProblemUnreadableTitle =>
@@ -4219,7 +4320,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryFileProblemUnreadableBody =>
-      'Comprueba que el fichero está disponible en este móvil e inténtalo otra vez.';
+      'Comprueba que el fichero está disponible en este móvil e inténtalo de nuevo.';
 
   @override
   String get recoveryFileProblemUnavailableTitle =>
@@ -4227,14 +4328,15 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryFileProblemUnavailableBody =>
-      'Prueba con Compartir o usa las 24 palabras.';
+      'Prueba con «Compartir» o usa las 24 palabras.';
 
   @override
-  String get recoveryFileProblemPickerBusyTitle => 'Ya hay un selector abierto';
+  String get recoveryFileProblemPickerBusyTitle =>
+      'Ya hay un selector de ficheros abierto';
 
   @override
   String get recoveryFileProblemPickerBusyBody =>
-      'Ciérralo y vuelve a intentarlo.';
+      'Ciérralo e inténtalo de nuevo.';
 
   @override
   String get recoveryFileProblemNotFileTitle =>
@@ -4250,7 +4352,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryFileProblemNewerBody =>
-      'Actualiza la app y vuelve a intentarlo.';
+      'Actualiza la app e inténtalo de nuevo.';
 
   @override
   String get recoveryFileProblemPasswordTitle =>
@@ -4266,7 +4368,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryFileProblemNotCurrentBody =>
-      'Se guardó con un código anterior y ya no vale. Busca uno más reciente o cambia el código.';
+      'Este fichero contiene un código anterior y ya no sirve. Busca un fichero más reciente o cambia el código.';
 
   @override
   String get recoveryFileProblemHasFamilyTitle =>
@@ -4274,7 +4376,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryFileProblemHasFamilyBody =>
-      'El fichero de recuperación sirve para un móvil vacío. No se ha usado.';
+      'El fichero de recuperación solo sirve en un móvil sin lista. No se ha usado.';
 
   @override
   String get recoveryCheckFileAction => 'Comprobar un fichero';
@@ -4284,7 +4386,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryCheckFileBody =>
-      'Elige el fichero de recuperación que guardaste. Si abre el código de este móvil, queda comprobado. No se guarda ni se envía nada.';
+      'Elige el fichero de recuperación que guardaste. La app comprobará si contiene el código de este móvil. No se guarda ni se envía nada.';
 
   @override
   String get recoveryFilePick => 'Elegir fichero';
@@ -4310,10 +4412,10 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryCheckFileOkBody =>
-      'El fichero abre el código de este móvil. Si pierdes el móvil, podrás recuperar la lista con él.';
+      'El fichero contiene el código de este móvil. Si pierdes el móvil, podrás usar el fichero para recuperar la lista.';
 
   @override
-  String get obRecoverWithFile => 'Recuperar con fichero';
+  String get obRecoverWithFile => 'Usar el fichero de recuperación';
 
   @override
   String get recoverFileTitle => 'Recuperar con un fichero';
@@ -4330,31 +4432,31 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoverFileConfirmBody =>
-      'Este móvil recuperará la lista y entrará como el móvil que guardó el código. Si no es tu fichero, no continúes.';
+      'Este móvil recuperará la lista y ocupará en la familia el lugar del móvil que guardó el código. Continúa solo si el fichero es tuyo.';
 
   @override
   String get recoverFileOther => 'Elegir otro fichero';
 
   @override
-  String get recoverFileWaitingTitle => 'Ha llegado otro fichero';
+  String get recoverFileWaitingTitle => '¿Cambiar de fichero?';
 
   @override
   String get recoverFileWaitingBody =>
-      'Estabas con otro fichero de recuperación. ¿Quieres cambiar a este?';
+      'Ha llegado un nuevo fichero de recuperación mientras usabas otro.';
 
   @override
-  String get recoverFileWaitingSwitch => 'Cambiar de fichero';
+  String get recoverFileWaitingSwitch => 'Usar el nuevo';
 
   @override
   String get recoverFileWaitingKeep => 'Seguir con el actual';
 
   @override
   String get recoveryProblemPersonTitle =>
-      'Este código ya no es el de tu persona actual';
+      'El código ya no vale para la persona elegida';
 
   @override
   String get recoveryProblemPersonBody =>
-      'Cambió la persona de este móvil o hay un cambio pendiente. Crea un código nuevo y guarda ese.';
+      'Ha cambiado la persona elegida en «Este móvil es de» o hay un cambio pendiente. Crea un código nuevo y guárdalo.';
 
   @override
   String get recoveryFileProblemStorageTitle =>
@@ -4362,11 +4464,11 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryFileProblemStorageBody =>
-      'El fichero sigue a la espera. Vuelve a intentarlo: antes de recuperar, la app tiene que comprobar que este móvil no tiene ya una lista.';
+      'El fichero sigue pendiente de abrir. La app necesita comprobar si ya hay una lista en este móvil. Inténtalo de nuevo.';
 
   @override
   String get cameraRestricted =>
-      'La cámara está restringida en este dispositivo (por ejemplo, con Tiempo de uso). Puedes permitirla en Ajustes > Tiempo de uso > Restricciones de contenido y privacidad.';
+      'Este móvil tiene restringido el acceso a la cámara. Si usas Tiempo de uso, revisa Ajustes > Tiempo de uso > Restricciones de contenido y privacidad.';
 
   @override
   String get obJoinFamily => 'Unirme a una familia';
@@ -4376,16 +4478,18 @@ class AppLocalizationsEs extends AppLocalizations {
       'Elige cómo conectarte con el móvil que ya tiene la lista.';
 
   @override
-  String get obJoinQrHint => 'Está contigo: escanea su código.';
+  String get obJoinQrHint =>
+      'Si tienes el otro móvil a mano, escanea su código QR.';
 
   @override
-  String get obJoinLinkHint => 'Está lejos: pega el enlace que te envió.';
+  String get obJoinLinkHint =>
+      'Si el otro móvil está lejos, pega el enlace que te han enviado.';
 
   @override
-  String get obRestoreBackup => 'Restaurar una copia';
+  String get obRestoreBackup => 'Recuperar una copia';
 
   @override
-  String get obRestoreBackupHint => 'Elige con qué recuperas la lista.';
+  String get obRestoreBackupHint => 'Elige cómo recuperar la lista.';
 
   @override
   String get obRestoreCodeHint => 'Escribe las 24 palabras que guardaste.';
@@ -4398,29 +4502,29 @@ class AppLocalizationsEs extends AppLocalizations {
   String get giverPeopleSection => 'Personas';
 
   @override
-  String get giverPeopleHintAdd => 'Antes se añade como quién regala';
+  String get giverPeopleHintAdd => 'Primero se añade a quienes regalan';
 
   @override
-  String get giverPeopleHintRecover => 'Se recupera como quién regala';
+  String get giverPeopleHintRecover => 'Volverá a la lista de quienes regalan';
 
   @override
   String giverPersonAddTitle(String name) {
-    return '¿Añadir a $name como quién regala?';
+    return '¿Añadir a $name a la lista de quienes regalan?';
   }
 
   @override
   String giverPersonAddBody(String name) {
-    return 'Este regalo es una sorpresa. Para no delatarla, primero hay que añadir a $name como quién regala para toda la familia, y se verá en todos los móviles sin relación con este regalo. Después podrás elegir a $name aquí.';
+    return 'Este regalo es una sorpresa. Primero, añade a $name a la lista de quienes regalan. Toda la familia verá su nombre en esa lista, sin ninguna referencia al regalo. Después podrás elegir a $name aquí.';
   }
 
   @override
   String giverPersonAddConfirm(String name) {
-    return 'Añadir a $name como quién regala';
+    return 'Añadir a $name';
   }
 
   @override
   String giverPersonAddFailed(String name) {
-    return 'No se ha podido añadir a $name como quién regala.';
+    return 'No se ha podido añadir a $name a la lista de quienes regalan. Inténtalo de nuevo.';
   }
 
   @override
@@ -4432,7 +4536,7 @@ class AppLocalizationsEs extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Se eliminan estos $count registros: $names.',
+      other: 'Se eliminan estos $count nombres: $names.',
       one: 'Se elimina $names.',
     );
     return '$_temp0';
@@ -4451,16 +4555,16 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String deleteGiverLinkedNote(String name) {
-    return '$name sigue en Personas: solo se elimina como quién regala.';
+    return '$name seguirá en «Personas». Solo se eliminará de «Quién regala».';
   }
 
   @override
   String get deleteImpactChanged =>
-      'Ha cambiado mientras tenías el aviso abierto. Esto es lo que se eliminaría ahora:';
+      'La lista ha cambiado. Antes de confirmar, revisa qué se eliminará.';
 
   @override
   String get deletePersonLinkedGiver =>
-      'Su nombre seguirá apareciendo en los regalos que dio, como quién regala.';
+      'Su nombre seguirá en «Quién regala» en los regalos que hace a otras personas.';
 
   @override
   String devicePersonBlockedThisTitle(String name) {
@@ -4469,7 +4573,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String devicePersonBlockedThisBody(String name) {
-    return '$name es la persona de este móvil, así que no se puede eliminar ni archivar desde aquí. Para hacerlo, elige antes a otra persona en «Este móvil es de», en Ajustes.';
+    return 'Para eliminar o archivar a $name, ve a Ajustes y elige primero a otra persona en «Este móvil es de».';
   }
 
   @override
@@ -4500,7 +4604,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get giverLinkExistingHint =>
-      'Ya es quién regala: se unirán en una columna';
+      'Ya regala. Las dos columnas de Reparto se unirán en una.';
 
   @override
   String giverLinkConfirmTitle(String name) {
@@ -4509,7 +4613,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String giverLinkConfirmBody(String giver, String name) {
-    return '«$giver» pasará a llamarse $name, con su color, y seguirá los cambios de $name en Personas. Sus regalos se mantienen.';
+    return '«$giver» usará el nombre y el color de $name. Si los cambias en la ficha de $name en Personas, también cambiarán aquí. Se conservarán los regalos.';
   }
 
   @override
@@ -4525,7 +4629,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String giverUnlinkConfirmBody(String name) {
-    return 'Seguirá como quién regala con el nombre y el color de ahora, pero ya no cambiará con $name. Sus regalos se mantienen.';
+    return 'Seguirá en la lista de quienes regalan con su nombre, su color y sus regalos actuales. Los cambios que hagas en la ficha de $name ya no se aplicarán aquí.';
   }
 
   @override
@@ -4541,7 +4645,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get giftWriteRecipientGone =>
-      'No se ha guardado: la persona a la que va el regalo ya no existe.';
+      'No se ha guardado: la persona que iba a recibir el regalo ya no está en la lista.';
 
   @override
   String get giftWriteInvalidPair =>
@@ -4549,7 +4653,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get giftWriteGiverGone =>
-      'No se ha guardado: quien regala ya no existe.';
+      'No se ha guardado: quien regala ya no está en la lista.';
 
   @override
   String get giftWriteGiverArchived =>
@@ -4557,7 +4661,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get giftWritePersonGone =>
-      'No se ha guardado: esa persona ya no existe.';
+      'No se ha guardado: esa persona ya no está en la lista.';
 
   @override
   String get giftWritePersonArchived =>
@@ -4570,7 +4674,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get deleteImpactUnavailable =>
-      'No se ha podido comprobar qué se elimina. Vuelve a abrir el aviso.';
+      'No se ha podido comprobar qué se eliminaría. Inténtalo de nuevo.';
 
   @override
   String get deleteImpactChecking => 'Comprobando lo que se elimina…';

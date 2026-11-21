@@ -356,6 +356,47 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
 
   bool get _isNew => widget.gift == null;
 
+  /// Si cerrar ahora perdería cambios que la persona hizo y aún no ha
+  /// guardado. Guardando, borrando, ya cerrándose o con el acceso retirado
+  /// (otro móvil movió el regalo) no se pregunta nada.
+  bool get _needsConfirm =>
+      _dirty && !_busy && !_deleting && !_closing && !_revoked;
+
+  /// Mientras se guarda o se borra no se cierra nada a petición de la persona:
+  /// la operación decide (si falla, el borrador sigue ahí; si acaba, ella cierra
+  /// una sola vez).
+  bool get _closeBlocked => _busy || _deleting || _closing || _saved;
+
+  /// El cierre que pide la persona (flecha, «Cerrar», «Cancelar», Esc, el
+  /// gesto de volver, arrastrar la hoja o tocar fuera): con cambios sin
+  /// guardar pregunta antes de descartarlos.
+
+  Future<void> _requestClose() async {
+    if (_closeBlocked) {
+      return;
+    }
+    if (_needsConfirm && !await _confirmDiscard()) {
+      return;
+    }
+    if (!mounted || _closeBlocked || _revoked) {
+      return;
+    }
+    _close();
+  }
+
+  Future<bool> _confirmDiscard() {
+    final l10n = AppLocalizations.of(context);
+    return _trackedDialog(
+      () => showRegalosConfirm(
+        context,
+        title: l10n.giftDiscardTitle,
+        body: l10n.giftDiscardBody,
+        confirmLabel: l10n.actionDiscard,
+        cancelLabel: l10n.giftKeepEditing,
+      ),
+    );
+  }
+
   /// Cierra el editor: baja la hoja o el diálogo, o avisa al panel.
   void _close([String? result]) {
     _closing = true;
@@ -440,6 +481,7 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
     if (widget.asPanel && _panelRef == null) {
       final panel = ref.read(giftEditorPanelProvider);
       panel.dirtyCheck = _isDirty;
+      panel.closeRequest = _requestClose;
       _panelRef = panel;
     }
   }
@@ -450,6 +492,7 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
     final panel = _panelRef;
     if (panel != null && panel.dirtyCheck == _isDirty) {
       panel.dirtyCheck = null;
+      panel.closeRequest = null;
     }
     for (final c in [
       _title,
@@ -581,7 +624,7 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
   }
 
   Future<void> _save() async {
-    if (_busy) {
+    if (_busy || _deleting) {
       return;
     }
     final access = {
@@ -959,7 +1002,7 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
   Future<void> _delete() async {
     final l10n = AppLocalizations.of(context);
     final gift = widget.gift;
-    if (gift == null) {
+    if (gift == null || _busy || _deleting || _saved) {
       return;
     }
     final ok = await _trackedDialog(
@@ -971,7 +1014,7 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
         cancelLabel: l10n.actionCancel,
       ),
     );
-    if (!ok || !mounted) {
+    if (!ok || !mounted || _busy || _deleting || _saved || _closing) {
       return;
     }
     // El regalo desaparece al momento y la fila se pliega con la salida de
@@ -1001,7 +1044,7 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
     );
     ref.read(hapticsProvider).medium();
     ref.read(recentlyDeletedProvider.notifier).add(gift.id);
-    _deleting = true;
+    setState(() => _deleting = true);
     var hidden = false;
     try {
       hidden = await controller.deleteGiftWithUndo(gift.id);
@@ -1016,9 +1059,11 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
       if (!hidden) {
         // Falló o no borró nada: el regalo sigue ahí y se vuelve a mirar si
         // sigue autorizado.
-        _deleting = false;
         if (mounted) {
+          setState(() => _deleting = false);
           _scheduleAuthorizationCheck();
+        } else {
+          _deleting = false;
         }
       }
     }
@@ -1242,7 +1287,12 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
     final title = _isNew ? l10n.giftEditorNewTitle : l10n.giftEditorEditTitle;
     // Ya guardado el botón se queda con su color: el visto sigue
     // dibujándose mientras baja la tarjeta.
-    final VoidCallback? onSave = _saved ? () {} : (_busy ? null : _save);
+    final VoidCallback? onSave = _saved
+        ? () {}
+        : (_busy || _deleting ? null : _save);
+    // Guardar y borrar no se solapan: mientras una está en curso, la otra no
+    // responde (en la hoja, el panel y el diálogo).
+    final VoidCallback? onDelete = _busy || _saved || _deleting ? null : _delete;
     final saveChild = _saved
         ? DrawnCheck(color: t.onFill, size: 22, strokeWidth: 2.4)
         : Text(l10n.actionSave);
@@ -1579,7 +1629,7 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
           // final de la lista se cortaba con el pie al desplazarse.
           if (!_isNew && !panel && !dialog) ...[
             const SizedBox(height: 24),
-            DangerButton(label: l10n.giftDelete, onPressed: _delete),
+            DangerButton(label: l10n.giftDelete, onPressed: onDelete),
           ],
         ];
         return ListView(
@@ -1624,161 +1674,172 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
     // tocando fuera: tiene datos sin guardar). Ya guardado o guardando, no. El
     // foco es de la tarjeta desde que se abre (en un regalo nuevo lo toma el
     // título): así Esc llega aunque no se haya tocado nada.
-    return Focus(
-      autofocus: !(_isNew && (!_choosing || _recipientId.isNotEmpty)),
-      skipTraversal: true,
-      // Sin nodo de accesibilidad propio: uniría lo de debajo en uno solo.
-      includeSemantics: false,
-      onKeyEvent: (node, event) {
-        if (event is! KeyDownEvent ||
-            event.logicalKey != LogicalKeyboardKey.escape ||
-            _busy ||
-            _saved) {
-          return KeyEventResult.ignored;
+    // Volver (gesto, botón del sistema, Esc, arrastrar la hoja o tocar fuera)
+    // pasa por aquí: con cambios sin guardar se pregunta antes de descartarlos.
+    // El panel de la web no es una ruta: no hay nada que interceptar.
+    return PopScope(
+      canPop: widget.asPanel,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          unawaited(_requestClose());
         }
-        if (widget.asPanel) {
-          _close();
-        } else {
-          unawaited(Navigator.of(context).maybePop());
-        }
-        return KeyEventResult.handled;
       },
-      child: panel
-          // Panel fijo de la derecha del tablero de la web: cabecera con su
-          // «x», el formulario ocupando el alto y «Cancelar» y «Guardar»
-          // abajo a la derecha. No tapa nada: la pantalla de al lado se
-          // estrecha.
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ScreenHeader(
-                  title: title,
-                  compactTitle: true,
-                  actions: [
-                    Semantics(
-                      button: true,
-                      label: l10n.actionClose,
-                      excludeSemantics: true,
-                      onTap: _busy || _saved ? null : _close,
-                      child: Tooltip(
-                        message: l10n.actionClose,
-                        excludeFromSemantics: true,
-                        child: SizedBox.square(
-                          dimension: 44,
-                          child: InkResponse(
-                            onTap: _busy || _saved ? null : _close,
-                            radius: 22,
-                            child: Center(
-                              child: StrokeIcon(
-                                AppIcons.close,
-                                size: 22,
-                                color: t.text,
+      child: Focus(
+        autofocus: !(_isNew && (!_choosing || _recipientId.isNotEmpty)),
+        skipTraversal: true,
+        // Sin nodo de accesibilidad propio: uniría lo de debajo en uno solo.
+        includeSemantics: false,
+        onKeyEvent: (node, event) {
+          if (event is! KeyDownEvent ||
+              event.logicalKey != LogicalKeyboardKey.escape ||
+              _busy ||
+              _saved) {
+            return KeyEventResult.ignored;
+          }
+          if (widget.asPanel) {
+            unawaited(_requestClose());
+          } else {
+            unawaited(Navigator.of(context).maybePop());
+          }
+          return KeyEventResult.handled;
+        },
+        child: panel
+            // Panel fijo de la derecha del tablero de la web: cabecera con su
+            // «x», el formulario ocupando el alto y «Cancelar» y «Guardar»
+            // abajo a la derecha. No tapa nada: la pantalla de al lado se
+            // estrecha.
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ScreenHeader(
+                    title: title,
+                    compactTitle: true,
+                    actions: [
+                      Semantics(
+                        button: true,
+                        label: l10n.actionClose,
+                        excludeSemantics: true,
+                        onTap: _busy || _saved ? null : _requestClose,
+                        child: Tooltip(
+                          message: l10n.actionClose,
+                          excludeFromSemantics: true,
+                          child: SizedBox.square(
+                            dimension: 44,
+                            child: InkResponse(
+                              onTap: _busy || _saved ? null : _requestClose,
+                              radius: 22,
+                              child: Center(
+                                child: StrokeIcon(
+                                  AppIcons.close,
+                                  size: 22,
+                                  color: t.text,
+                                ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                Expanded(child: body),
-                Container(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                  decoration: BoxDecoration(
-                    border: Border(top: BorderSide(color: t.separator)),
+                    ],
                   ),
-                  child: EditorFooterRow(
-                    start: _isNew
-                        ? null
-                        : DangerButton(
-                            label: l10n.giftDelete,
-                            onPressed: _delete,
-                            compact: true,
+                  Expanded(child: body),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                    decoration: BoxDecoration(
+                      border: Border(top: BorderSide(color: t.separator)),
+                    ),
+                    child: EditorFooterRow(
+                      start: _isNew
+                          ? null
+                          : DangerButton(
+                              label: l10n.giftDelete,
+                              onPressed: onDelete,
+                              compact: true,
+                            ),
+                      end: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextButton(
+                            onPressed: _busy || _saved ? null : _requestClose,
+                            child: Text(l10n.actionCancel),
                           ),
-                    end: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextButton(
-                          onPressed: _busy || _saved ? null : _close,
-                          child: Text(l10n.actionCancel),
-                        ),
-                        const SizedBox(width: 8),
-                        FilledButton(onPressed: onSave, child: saveChild),
-                      ],
+                          const SizedBox(width: 8),
+                          FilledButton(onPressed: onSave, child: saveChild),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
-            )
-          : dialog
-          // En escritorio es un diálogo: cabecera sin flecha, el formulario
-          // con el alto de su contenido (y desplazable si no cabe) y
-          // «Cancelar» y «Guardar» abajo a la derecha.
-          ? Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ScreenHeader(title: title, compactTitle: true),
-                Flexible(child: body),
-                Container(
-                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
-                  decoration: BoxDecoration(
-                    border: Border(top: BorderSide(color: t.separator)),
-                  ),
-                  child: EditorFooterRow(
-                    start: _isNew
-                        ? null
-                        : DangerButton(
-                            label: l10n.giftDelete,
-                            onPressed: _delete,
-                            compact: true,
+                ],
+              )
+            : dialog
+            // En escritorio es un diálogo: cabecera sin flecha, el formulario
+            // con el alto de su contenido (y desplazable si no cabe) y
+            // «Cancelar» y «Guardar» abajo a la derecha.
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ScreenHeader(title: title, compactTitle: true),
+                  Flexible(child: body),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+                    decoration: BoxDecoration(
+                      border: Border(top: BorderSide(color: t.separator)),
+                    ),
+                    child: EditorFooterRow(
+                      start: _isNew
+                          ? null
+                          : DangerButton(
+                              label: l10n.giftDelete,
+                              onPressed: onDelete,
+                              compact: true,
+                            ),
+                      end: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextButton(
+                            onPressed: _busy || _saved ? null : _requestClose,
+                            child: Text(l10n.actionCancel),
                           ),
-                    end: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextButton(
-                          onPressed: _busy || _saved ? null : _close,
-                          child: Text(l10n.actionCancel),
-                        ),
-                        const SizedBox(width: 8),
-                        FilledButton(onPressed: onSave, child: saveChild),
-                      ],
+                          const SizedBox(width: 8),
+                          FilledButton(onPressed: onSave, child: saveChild),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
-            )
-          : Scaffold(
-              body: SafeArea(
-                top: false,
-                child: Column(
-                  children: [
-                    CardSheetHandle(
-                      child: ScreenHeader(
-                        title: title,
-                        onBack: () => Navigator.of(context).pop(),
-                        backLabel: l10n.actionClose,
-                        compactTitle: true,
-                      ),
-                    ),
-                    Expanded(child: body),
-                    Container(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                      decoration: BoxDecoration(
-                        border: Border(top: BorderSide(color: t.separator)),
-                      ),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          onPressed: onSave,
-                          child: saveChild,
+                ],
+              )
+            : Scaffold(
+                body: SafeArea(
+                  top: false,
+                  child: Column(
+                    children: [
+                      CardSheetHandle(
+                        child: ScreenHeader(
+                          title: title,
+                          onBack: () => unawaited(_requestClose()),
+                          backLabel: l10n.actionClose,
+                          compactTitle: true,
                         ),
                       ),
-                    ),
-                  ],
+                      Expanded(child: body),
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                        decoration: BoxDecoration(
+                          border: Border(top: BorderSide(color: t.separator)),
+                        ),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            onPressed: onSave,
+                            child: saveChild,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+      ),
     );
   }
 }

@@ -121,15 +121,18 @@ class FakeWorkerV2 {
   };
 
   /// Registra a mano una credencial (un móvil que aprobó un revocado y nunca
-  /// se publicó en el registro).
+  /// se publicó en el registro). [advanceVersion] reproduce el cambio de ETag
+  /// de un alta real.
   void addCredentialForTesting(
     String syncId,
     String deviceId,
     Uint8List credential, {
     String? approvedBy,
     String role = 'device',
+    bool advanceVersion = false,
   }) {
-    _lists[syncId]!.credentials.add(
+    final list = _lists[syncId]!;
+    list.credentials.add(
       _Credential(
         deviceId,
         _verifier(credential),
@@ -137,6 +140,7 @@ class FakeWorkerV2 {
         role: role,
       ),
     );
+    if (advanceVersion) list.version++;
   }
 
   /// Llena la generación de una lista hasta [credentials] credenciales y

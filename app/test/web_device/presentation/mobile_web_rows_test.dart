@@ -174,10 +174,10 @@ void main() {
         'quitar', (tester) async {
       await _open(tester, rows: const [_self, _webNora]);
       await _tapText(tester, 'Web de Nora');
-      expect(find.text('Permitir desbloquear otra vez'), findsOneWidget);
+      expect(find.text('Permitir más intentos de PIN'), findsOneWidget);
       expect(find.text('Quitar esta web'), findsOneWidget);
       expect(
-        find.text('Este ordenador deja de recibir la lista nueva.'),
+        find.text('Este ordenador dejará de recibir los cambios de la lista.'),
         findsOneWidget,
       );
       expect(find.text('Quitar este móvil'), findsNothing);
@@ -236,8 +236,8 @@ void main() {
         'hace nada', (tester) async {
       final (_, host) = await _open(tester, rows: const [_self, _webNora]);
       await _tapText(tester, 'Web de Nora');
-      await _tapText(tester, 'Permitir desbloquear otra vez');
-      expect(find.text('¿Permitir desbloquear otra vez?'), findsOneWidget);
+      await _tapText(tester, 'Permitir más intentos de PIN');
+      expect(find.text('¿Permitir más intentos de PIN?'), findsOneWidget);
       await _tapText(tester, 'Cancelar');
       expect(host.calls, isNot(contains('resume:w')));
       expect(find.textContaining('Listo.'), findsNothing);
@@ -249,11 +249,11 @@ void main() {
     ) async {
       final (_, host) = await _open(tester, rows: const [_self, _webNora]);
       await _tapText(tester, 'Web de Nora');
-      await _tapText(tester, 'Permitir desbloquear otra vez');
+      await _tapText(tester, 'Permitir más intentos de PIN');
       await _tapText(tester, 'Permitir');
       expect(host.calls, contains('resume:w'));
       expect(
-        find.text('Listo. El ordenador ya puede volver a desbloquearse.'),
+        find.text('Listo. La web vuelve a aceptar el PIN.'),
         findsOneWidget,
       );
       await tester.pumpWidget(const SizedBox());
@@ -263,11 +263,11 @@ void main() {
       final (_, host) = await _open(tester, rows: const [_self, _webNora]);
       host.resumeError = StateError('sin red');
       await _tapText(tester, 'Web de Nora');
-      await _tapText(tester, 'Permitir desbloquear otra vez');
+      await _tapText(tester, 'Permitir más intentos de PIN');
       await _tapText(tester, 'Permitir');
       expect(
         find.text(
-          'No se ha podido. Comprueba la conexión e inténtalo otra vez.',
+          'No se han podido permitir más intentos de PIN. Comprueba la conexión e inténtalo de nuevo.',
         ),
         findsOneWidget,
       );
@@ -278,7 +278,7 @@ void main() {
     testWidgets('la hoja de un móvil no ofrece desbloquear', (tester) async {
       await _open(tester, rows: const [_self, _phoneNora]);
       await _tapText(tester, 'Nora');
-      expect(find.text('Permitir desbloquear otra vez'), findsNothing);
+      expect(find.text('Permitir más intentos de PIN'), findsNothing);
       expect(find.text('Quitar este móvil'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     });

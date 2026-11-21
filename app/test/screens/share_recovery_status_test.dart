@@ -32,8 +32,8 @@ void main() {
         expect(find.text('Solo en este móvil'), findsNothing);
         expect(
           find.text(
-            'La lista tiene una copia cifrada que se recupera con tu código. '
-            'Conecta otro móvil para verla en los dos.',
+            'Con tu código puedes recuperar la copia cifrada de la lista. '
+            'Conecta otro móvil para ver la lista en los dos.',
           ),
           findsOneWidget,
         );

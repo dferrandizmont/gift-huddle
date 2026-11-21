@@ -49,7 +49,7 @@ class _Phone {
       phone.container.read(familyControllerProvider).value!.doc;
 
   Future<AuthorizedProjection> projection() async {
-    phone.container.invalidate(localRegistryViewProvider);
+    phone.container.invalidate(localRegistryReadProvider);
     phone.container.invalidate(authorizedProjectionProvider);
     final projection = await phone.container.read(
       authorizedProjectionProvider.future,
@@ -534,7 +534,7 @@ void main() {
 
   group('una vuelta entre dos móviles', () {
     test('el móvil de la persona protegida no guarda ningún regalo ni sabe '
-        'cuántos hay', () async {
+        'ni cuántos son', () async {
       final a = await install(family.aritz, withKey: true);
       await a.controller.upsertGift(gift('old', title: 'Antiguo'));
       await a.controller.activateProtection('nora');

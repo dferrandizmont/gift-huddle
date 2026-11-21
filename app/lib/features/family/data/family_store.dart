@@ -169,6 +169,18 @@ class StoredFamily {
   final FamilyDoc doc;
 }
 
+typedef VerifiedRegistry = ({
+  DeviceRegistry registry,
+  RegistryView view,
+  DeviceKeys keys,
+});
+
+typedef LocalRegistryRead = ({
+  bool hasV2Identity,
+  VerifiedRegistry? snapshot,
+  RegistryException? viewError,
+});
+
 /// Guardado local de la familia.
 ///
 /// El documento va cifrado (AES-256-GCM) en un fichero privado con una clave
@@ -632,25 +644,47 @@ class FamilyStore {
         }
       });
 
-  /// Loads the signed registry anchored to this device and this list.
-  Future<({RegistryView view, DeviceKeys keys})?> readVerifiedRegistry(
-    FamilyDoc doc,
-  ) async {
+  /// Loads the signed registry and its view anchored to this device and list.
+  Future<VerifiedRegistry?> readVerifiedRegistry(FamilyDoc doc) async =>
+      (await readLocalRegistry(doc)).snapshot;
+
+  /// Distinguishes a v1 installation from a v2 identity missing its registry.
+  Future<LocalRegistryRead> readLocalRegistry(FamilyDoc doc) =>
+      supportsSecretScopes
+      ? _inGeneration(() => _readLocalRegistry(doc))
+      : _readLocalRegistry(doc);
+
+  Future<LocalRegistryRead> _readLocalRegistry(FamilyDoc doc) async {
     final v2 = await readSyncV2();
-    if (v2 == null || v2.listId != doc.listId) return null;
+    if (v2 == null) {
+      return (hasV2Identity: false, snapshot: null, viewError: null);
+    }
+    const unavailable = (hasV2Identity: true, snapshot: null, viewError: null);
+    if (v2.listId != doc.listId) return unavailable;
     final keys = await _deviceKeys.read();
-    if (keys == null) return null;
+    if (keys == null) return unavailable;
     final signing = keys.publicKeys.signing;
     final registry = await readRegistry(
       anchor: RegistryAnchor(deviceId: v2.deviceId, signingKey: signing),
     );
-    if (registry == null) return null;
+    if (registry == null) {
+      return (
+        hasV2Identity: true,
+        snapshot: null,
+        viewError: const RegistryException('este móvil no está en el registro'),
+      );
+    }
+    if (registry.listId != doc.listId) return unavailable;
     final view = await registry.viewFor(
       me: v2.deviceId,
       mySigningKey: signing,
       livePeople: livePeopleOf(doc),
     );
-    return (view: view, keys: keys);
+    return (
+      hasV2Identity: true,
+      snapshot: (registry: registry, view: view, keys: keys),
+      viewError: null,
+    );
   }
 
   /// Guarda los slots de sorpresas (ya verificados) que tiene este móvil.
@@ -757,31 +791,29 @@ class FamilyStore {
   );
 
   /// Capture before load(), which can finish a person-change journal.
-  Future<({bool person, bool protection, bool resources})> recoveryBlockers() =>
-      _inGeneration(() async {
-        final pendingRetained = await _pendingRetained();
-        var resources =
-            (await readOrphans()).isNotEmpty || pendingRetained.isNotEmpty;
-        if (pendingRetained.isEmpty) {
-          final retained = await readRetainedCommons();
-          resources |=
-              retained is List &&
-              retained.any((r) => r is Map && r['b'] == true);
-        }
-        for (final person in await _scopePeople()) {
-          // Keep the await out of bool |=: dart2wasm emits an invalid stack type.
-          final overflow = await readOverflow(person);
-          resources = resources | overflow.isNotEmpty;
-        }
-        return (
-          person:
-              await _secrets.read(_selfPersonChangeKey) != null ||
-              await _secrets.read('family.recoveryPersonInvalidation') ==
-                  'true',
-          protection: await _files.read('family.protection') != null,
-          resources: resources,
-        );
-      });
+  Future<({bool person, bool protection, bool resources})>
+  recoveryBlockers() => _inGeneration(() async {
+    final pendingRetained = await _pendingRetained();
+    var resources =
+        (await readOrphans()).isNotEmpty || pendingRetained.isNotEmpty;
+    if (pendingRetained.isEmpty) {
+      final retained = await readRetainedCommons();
+      resources |=
+          retained is List && retained.any((r) => r is Map && r['b'] == true);
+    }
+    for (final person in await _scopePeople()) {
+      // Keep the await out of bool |=: dart2wasm emits an invalid stack type.
+      final overflow = await readOverflow(person);
+      resources = resources | overflow.isNotEmpty;
+    }
+    return (
+      person:
+          await _secrets.read(_selfPersonChangeKey) != null ||
+          await _secrets.read('family.recoveryPersonInvalidation') == 'true',
+      protection: await _files.read('family.protection') != null,
+      resources: resources,
+    );
+  });
 
   Future<void> configureRecovery() =>
       _inGeneration(() => _secrets.write('family.recoveryConfigured', 'true'));

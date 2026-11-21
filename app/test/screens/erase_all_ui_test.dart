@@ -1,18 +1,26 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' show Provider;
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/core/platform/document_exchange.dart'
     show tempDirectoryProvider;
 import 'package:regalos/core/theme/regalos_tokens.dart';
 import 'package:regalos/core/widgets/confirm_dialog.dart';
+import 'package:regalos/features/family/data/family_store.dart';
 import 'package:regalos/features/lock/application/lock_controller.dart';
 import 'package:regalos/features/settings/presentation/erase_all_dialog.dart';
 import 'package:regalos/features/settings/presentation/pin_verify_screen.dart';
+import 'package:regalos/features/sync/application/pairing_v2_controller.dart';
+import 'package:regalos/features/sync/application/sync_controller.dart';
 import 'package:regalos/features/sync/data/sync_config.dart';
+import 'package:regalos/features/sync/data/sync_transport_common.dart';
+import 'package:regalos/features/sync/data/sync_transport_v2.dart';
 
 import '../helpers/fake_sync_server.dart';
+import '../helpers/fake_worker_v2.dart';
 import '../helpers/memory_stores.dart' show FakePhone;
 import '../helpers/screens.dart';
 import '../sync/sync_harness.dart' show kFastTiming, kTestHost;
@@ -47,6 +55,20 @@ void main() {
     syncTransportProvider.overrideWithValue(transport),
     syncTimingProvider.overrideWithValue(kFastTiming),
   ];
+
+  final prepareV2 = Provider((ref) => () => ensureV2Family(ref));
+
+  Future<void> seedSyncedSample(
+    WidgetTester tester,
+    FakePhone phone, {
+    bool pin = false,
+  }) async {
+    await seedSample(tester, phone, pin: pin);
+    await tester.runAsync(() async {
+      await familyOf(phone).markPaired(peerName: 'Nora');
+      await phone.container.read(syncControllerProvider.notifier).syncNow();
+    });
+  }
 
   Future<void> openSettings(WidgetTester tester) async {
     await tester.tap(find.text('Ajustes').last);
@@ -230,7 +252,7 @@ void main() {
       expect(find.byType(EraseAllDialog), findsNothing);
       expect(find.byType(PinVerifyScreen), findsOneWidget);
       expect(
-        find.text('Escribe tu PIN para seguir con el borrado.'),
+        find.text('Escribe tu PIN para continuar.'),
         findsOneWidget,
       );
       expect(phone.biometrics.prompts, 0);
@@ -318,7 +340,7 @@ void main() {
       'con sincronización: lo dice en el primer diálogo, borra primero la '
       'copia del servidor y después lo de este móvil',
       (tester, phone) async {
-        await seedSample(tester, phone);
+        await seedSyncedSample(tester, phone);
         await pumpRegalos(tester, phone);
         await openSettings(tester);
         await tapText(tester, 'Borrar todo');
@@ -342,7 +364,7 @@ void main() {
       'sin red avisa y deja elegir: cancelar no borra nada y reintentar con '
       'red lo borra todo',
       (tester, phone) async {
-        await seedSample(tester, phone);
+        await seedSyncedSample(tester, phone);
         await pumpRegalos(tester, phone);
         transport.offline = true;
         await toLastStep(tester);
@@ -353,12 +375,12 @@ void main() {
         expect(find.byType(EraseAllDialog), findsOneWidget);
         expect(find.text(failedTitle), findsOneWidget);
         expect(
-          find.textContaining('la copia cifrada se queda en el servidor'),
+          find.textContaining('La copia cifrada seguirá en el servidor'),
           findsOneWidget,
         );
         for (final label in [
           'Reintentar',
-          'Borrar solo este móvil',
+          'Borrar solo en este móvil',
           'Cancelar',
         ]) {
           expect(find.text(label), findsOneWidget, reason: label);
@@ -392,18 +414,77 @@ void main() {
   }
 
   {
+    final worker = FakeWorkerV2();
+    String? stoppedPath;
+    var reads = 0;
+    var deletes = 0;
+    final client = SyncV2Client(
+      base: Uri.parse('https://sync.test'),
+      openSocket: worker.socket,
+      sendRequest: (method, uri, {body, headers = const {}}) async {
+        if (uri.path == stoppedPath && method == 'GET') reads++;
+        if (uri.path == stoppedPath && method == 'DELETE' && ++deletes <= 3) {
+          return SyncResponse(412, const {'etag': '"9"'}, Uint8List(0));
+        }
+        return worker.send(method, uri, body: body, headers: headers);
+      },
+    );
+    screenTest(
+      'tras tres 412 conserva las claves y Ajustes permite reintentar',
+      (tester, phone) async {
+        await seedSample(tester, phone);
+        final syncId = (await tester.runAsync(() async {
+          final container = phone.container;
+          final sync = container.read(syncControllerProvider.notifier);
+          final local = await container.read(prepareV2)();
+          final store = container.read(familyStoreProvider);
+          await store.enableRemoteSync();
+          await sync.syncNow();
+          return local.identity.syncId;
+        }))!;
+        expect(worker.hasList(syncId), isTrue);
+        await pumpRegalos(tester, phone);
+        await toLastStep(tester);
+        stoppedPath = '/v2/lists/$syncId';
+        final familyKey = familyOf(phone).familyKey;
+        await confirm(tester);
+
+        expect(deletes, 3);
+        expect(reads, 3);
+        expect(worker.hasList(syncId), isTrue);
+        expect(familyOf(phone).familyKey, familyKey);
+        expect((await familyState(tester, phone)).hasFamily, isTrue);
+        expect(find.text(failedTitle), findsOneWidget);
+        expect(find.text('Reintentar'), findsOneWidget);
+
+        await tapText(tester, 'Reintentar');
+        await settleSaved(tester);
+        expect(deletes, 4);
+        expect(worker.hasList(syncId), isFalse);
+        await expectFirstUse(tester, phone);
+      },
+      size: tall,
+      overrides: [
+        ...withServer(FakeSyncServer().connect()),
+        syncV2TransportProvider.overrideWithValue(client),
+      ],
+      syncHost: null,
+    );
+  }
+
+  {
     final server = FakeSyncServer();
     final transport = server.connect();
     screenTest(
       'sin red se puede borrar solo este móvil',
       (tester, phone) async {
-        await seedSample(tester, phone, pin: true);
+        await seedSyncedSample(tester, phone, pin: true);
         await pumpRegalos(tester, phone);
         transport.offline = true;
         await toLastStep(tester, pin: '1234');
         await confirm(tester);
         expect(find.text(failedTitle), findsOneWidget);
-        await tapText(tester, 'Borrar solo este móvil');
+        await tapText(tester, 'Borrar solo en este móvil');
         // El servidor solo recibió el intento que falló.
         expect(server.calls['delete'], 1);
         await expectFirstUse(tester, phone);

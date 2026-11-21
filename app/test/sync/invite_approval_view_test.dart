@@ -143,14 +143,14 @@ void main() {
         await tester.pumpWidget(screenApp(a.c, const InviteScreen()));
         await tester.pump();
         expect(find.text('Crear enlace e invitar'), findsOneWidget);
-        expect(find.textContaining('no lleva ninguna clave'), findsOneWidget);
+        expect(find.textContaining('no contiene ninguna clave'), findsOneWidget);
 
         await tester.runAsync(() async {
           await tester.tap(find.text('Crear enlace e invitar'));
           await eventually(() => a.c.read(inviteHostProvider).link != null);
         });
         await tester.pump();
-        expect(find.text('Esperando a que abran el enlace'), findsOneWidget);
+        expect(find.text('Esperando la petición'), findsOneWidget);
         final link = a.c.read(inviteHostProvider).link!;
 
         final sub = b.c.listen(inviteGuestProvider, (_, _) {});
@@ -291,7 +291,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 700));
         expect(find.text('Solo en este móvil'), findsOneWidget);
         expect(
-          find.text('Empezará cuando emparejes otro móvil'),
+          find.text('La sincronización empezará cuando conectes otro móvil.'),
           findsOneWidget,
         );
         expect(find.text('Todo al día'), findsNothing);
@@ -308,7 +308,7 @@ void main() {
         );
         await tester.pump();
         expect(
-          find.text('Empezará cuando emparejes otro móvil'),
+          find.text('La sincronización empezará cuando conectes otro móvil.'),
           findsOneWidget,
         );
         expect(server.calls, isEmpty);

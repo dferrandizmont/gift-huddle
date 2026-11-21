@@ -824,6 +824,37 @@ void main() {
     return (a, b);
   }
 
+  test(
+    'rejoining the same list and node keeps the name the person sent',
+    () async {
+      final a = await phone();
+      final fam = a.container.read(familyControllerProvider.notifier);
+      await a.container.read(familyControllerProvider.future);
+      await fam.createFamily(deviceName: 'Viejo');
+      final stored = (await a.container.read(familyStoreProvider).load())!;
+      final id = stored.identity;
+      Future<String> install(String name) async {
+        await fam.installV2(
+          listId: id.listId,
+          node: id.node,
+          key: stored.key,
+          doc: stored.doc,
+          deviceName: name,
+          paired: true,
+        );
+        return a.container
+            .read(familyControllerProvider)
+            .value!
+            .identity!
+            .deviceName;
+      }
+
+      // Sin nombre nuevo, queda el anterior; con uno escrito, gana el escrito.
+      expect(await install(''), 'Viejo');
+      expect(await install('Pixel de Nora'), 'Pixel de Nora');
+    },
+  );
+
   test('link pairing publishes the name confirmed before joining', () async {
     final (a, b) = await pairedV2(
       guestDeviceModel: 'Unconfirmed model',
@@ -1603,17 +1634,72 @@ void main() {
       'este; la lista sigue para los demás', () async {
     final (a, b) = await pairedV2();
     final storeB = b.container.read(familyStoreProvider);
-    final sync = (await storeB.readSyncV2())!.syncId;
+    final identityB = (await storeB.readSyncV2())!;
+    final sync = identityB.syncId;
     final idA = a.container.read(familyControllerProvider).value!.identity!;
+    // B sigue sincronizando aunque se quede solo, como al activar recuperación.
+    await storeB.enableRemoteSync();
+    expect(worker.devicesOf(sync), {
+      idA.node: false,
+      identityB.deviceId: false,
+    });
     await a.container.read(eraseAllProvider).eraseServerCopy();
     expect(worker.hasList(sync), isTrue);
-    expect(worker.devicesOf(sync)[idA.node], isTrue);
+    expect(worker.devicesOf(sync), {idA.node: true, identityB.deviceId: false});
+    expect(worker.calls['DELETE list'], isNull);
     await b.container.read(syncControllerProvider.notifier).syncNow();
-    expect(
-      b.container.read(syncControllerProvider).phase,
-      SyncPhase.waitingForPeer,
+    expect(b.container.read(syncControllerProvider).phase, SyncPhase.synced);
+    expect((await storeB.readSyncV2())!.syncId, sync);
+    expect(worker.hasList(sync), isTrue);
+  });
+
+  test('«Borrar todo» relee tras un 412 y sale si entró otro móvil', () async {
+    String? stoppedPath;
+    final steps = <(String, int)>[];
+    final transport = SyncV2Client(
+      base: Uri.parse('https://sync.test'),
+      openSocket: worker.socket,
+      sendRequest: (method, uri, {body, headers = const {}}) async {
+        if (method == 'DELETE' &&
+            uri.path == stoppedPath &&
+            steps.length == 1) {
+          worker.addCredentialForTesting(
+            uri.pathSegments.last,
+            'nora-phone',
+            Uint8List.fromList(List.filled(32, 77)),
+            advanceVersion: true,
+          );
+        }
+        final response = await worker.send(
+          method,
+          uri,
+          body: body,
+          headers: headers,
+        );
+        if (uri.path == stoppedPath || uri.path == '$stoppedPath/revoke') {
+          steps.add((method, response.status));
+        }
+        return response;
+      },
     );
-    expect(worker.hasList(sync), isFalse);
+    final a = await phone(transport: transport);
+    await a.container
+        .read(familyControllerProvider.notifier)
+        .createFamily(deviceName: 'Aritz');
+    await a.container.read(pairingV2HostProvider.notifier).start();
+    final old = (await a.container.read(familyStoreProvider).readSyncV2())!;
+    expect(worker.devicesOf(old.syncId), {old.deviceId: false});
+    await a.container.read(syncControllerProvider.notifier).setEnabled(false);
+    stoppedPath = '/v2/lists/${old.syncId}';
+
+    await a.container.read(eraseAllProvider).eraseServerCopy();
+
+    expect(steps, [('GET', 200), ('DELETE', 412), ('GET', 200), ('POST', 200)]);
+    expect(worker.hasList(old.syncId), isTrue);
+    expect(worker.devicesOf(old.syncId), {
+      old.deviceId: true,
+      'nora-phone': false,
+    });
   });
 
   test('ataque (hallazgo 7): una migración a medias nunca usa como clave v2 '

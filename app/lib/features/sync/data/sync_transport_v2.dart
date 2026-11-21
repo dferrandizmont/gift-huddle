@@ -645,7 +645,12 @@ abstract interface class SyncV2Transport {
   Future<V2WriteResult> createList(V2Auth auth, V2SnapshotUpload body);
 
   /// `GET S`, con `If-None-Match` si se da [ifNoneMatch].
-  Future<V2GetResult> getList(V2Auth auth, {int? ifNoneMatch});
+  /// Con [requireWorkerError], se valida el cuerpo de `401`, `404` y `410`.
+  Future<V2GetResult> getList(
+    V2Auth auth, {
+    int? ifNoneMatch,
+    bool requireWorkerError = false,
+  });
 
   /// `GET S/slots/{personId}/{deviceId}` con `If-Match: "version"`.
   Future<V2SlotResult> getSlot(
@@ -663,10 +668,12 @@ abstract interface class SyncV2Transport {
   });
 
   /// `DELETE S` con `If-Match: "version"`.
+  /// Con [requireWorkerError], se valida el cuerpo de `401`, `404` y `410`.
   Future<V2WriteResult> deleteList(
     V2Auth auth, {
     required int version,
     bool automaticRetirement = false,
+    bool requireWorkerError = false,
   });
 
   /// `POST S/capability {commonFormat}` (ADR 0005, B4): este móvil anuncia
@@ -831,6 +838,16 @@ class SyncV2Client implements SyncV2Transport {
     } on SyncTransportException {
       return null;
     }
+  }
+
+  static void _checkWorkerError(SyncResponse r) {
+    final expected = switch (r.status) {
+      401 => 'unauthorized',
+      404 => 'not_found',
+      410 => 'retired',
+      _ => null,
+    };
+    if (expected != null) r.requireWorkerError(expected);
   }
 
   /// Los fallos comunes a todas las rutas.
@@ -1233,7 +1250,11 @@ class SyncV2Client implements SyncV2Transport {
   }
 
   @override
-  Future<V2GetResult> getList(V2Auth auth, {int? ifNoneMatch}) async {
+  Future<V2GetResult> getList(
+    V2Auth auth, {
+    int? ifNoneMatch,
+    bool requireWorkerError = false,
+  }) async {
     final r = await sendRequest(
       'GET',
       _uri(_list(auth)),
@@ -1241,6 +1262,7 @@ class SyncV2Client implements SyncV2Transport {
         if (ifNoneMatch != null) 'If-None-Match': _etag(ifNoneMatch),
       }),
     );
+    if (requireWorkerError) _checkWorkerError(r);
     switch (r.status) {
       case 200:
         final json = r.json();
@@ -1449,6 +1471,7 @@ class SyncV2Client implements SyncV2Transport {
     V2Auth auth, {
     required int version,
     bool automaticRetirement = false,
+    bool requireWorkerError = false,
   }) async {
     final r = await sendRequest(
       'DELETE',
@@ -1459,6 +1482,7 @@ class SyncV2Client implements SyncV2Transport {
       }),
     );
     if (r.status == 204) return V2WriteOk(version);
+    if (requireWorkerError) _checkWorkerError(r);
     return _write(r);
   }
 
@@ -1486,6 +1510,7 @@ class SyncV2Client implements SyncV2Transport {
       }),
     );
     if (r.status == 200) return _versioned(r, r.json());
+    if (deviceId == auth.deviceId) _checkWorkerError(r);
     if (r.status == 412 && ifVersion != null) {
       throw const V2RevokeStaleException();
     }

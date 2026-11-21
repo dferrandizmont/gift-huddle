@@ -60,13 +60,13 @@ void main() {
       expect(find.bySemanticsLabel('2 por llegar'), findsOneWidget);
 
       // Cada persona con lo que recibe y el reparto entre Tió, Navidad, Reyes.
-      expect(find.text('Cada persona'), findsOneWidget);
+      expect(find.text('Por persona'), findsOneWidget);
       expect(find.text('Estación de bomberos de bloques'), findsOneWidget);
       expect(find.text('Tren de madera'), findsOneWidget);
       expect(find.text('0 · 2 · 2'), findsOneWidget); // Nora
       expect(find.text('2 · 0 · 3'), findsOneWidget); // Aritz
       expect(
-        find.bySemanticsLabel('Reparto de Nora: Tió 0, Navidad 2, Reyes 2'),
+        find.bySemanticsLabel('Regalos para Nora por ocasión: Tió 0, Navidad 2, Reyes 2'),
         findsOneWidget,
       );
 
@@ -75,7 +75,7 @@ void main() {
       expect(find.text('Decathlon'), findsOneWidget);
       expect(find.text('Juguetería del barrio'), findsNothing); // solo ideas
       await tester.tap(
-        find.bySemanticsLabel('Marcar Bici de 20" con cambios como comprado'),
+        find.bySemanticsLabel('Marcar como comprado: Bici de 20" con cambios'),
       );
       await settle(tester);
       final state = await familyState(tester, phone);
@@ -84,7 +84,7 @@ void main() {
         GiftStatus.bought,
       );
       expect(find.text('Decathlon'), findsNothing);
-      expect(find.textContaining('Nada decidido todavía'), findsOneWidget);
+      expect(find.textContaining('No hay compras pendientes'), findsOneWidget);
       expect(find.bySemanticsLabel('3 por llegar'), findsOneWidget);
     },
     size: tall,
@@ -159,7 +159,7 @@ void main() {
     await pumpRegalos(tester, phone);
     await openOccasions(tester);
     await tapText(tester, 'Presupuesto de la casa');
-    expect(find.textContaining('Lo pones tú en cada ocasión'), findsOneWidget);
+    expect(find.textContaining('Puedes poner un presupuesto en cada ocasión'), findsOneWidget);
     expect(find.text(eur('450 €')), findsWidgets); // presupuesto
     // Solo las ocasiones con presupuesto; los 24 € de Tió van aparte.
     expect(find.text(eur('145,49 €')), findsWidgets); // gastado
@@ -175,7 +175,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('Queda'), findsOneWidget);
+    expect(find.text('Disponible'), findsOneWidget);
     // Los 180 € de los yayos son un regalo, no un gasto de la casa.
     expect(find.textContaining('180'), findsNothing);
     expect(find.text('Por persona'), findsOneWidget);
@@ -197,7 +197,7 @@ void main() {
     await pumpRegalos(tester, phone);
     phone.container.read(routerProvider).go('/occasions/budget');
     await settle(tester);
-    expect(find.textContaining('Marca «Paga la casa»'), findsOneWidget);
+    expect(find.textContaining('Activa «Paga la casa»'), findsOneWidget);
   });
 
   screenTest(

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +11,8 @@ import '../../../core/widgets/screen_header.dart';
 import '../../../core/widgets/settings_row.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../lock/application/lock_controller.dart';
+import '../../lock/data/biometrics.dart';
+import '../../lock/presentation/biometric_labels.dart';
 import '../../lock/presentation/pin_setup_screen.dart';
 import '../../review/application/review_providers.dart';
 import 'pin_verify_screen.dart';
@@ -19,6 +22,12 @@ import '../../../core/widgets/regalos_snack_bar.dart';
 /// Si el móvil puede usar huella o rostro.
 final biometricsAvailableProvider = FutureProvider.autoDispose<bool>(
   (ref) => ref.read(lockControllerProvider.notifier).biometricsAvailable(),
+);
+
+/// Qué biometría tiene el móvil, consultada de nuevo cada vez que se abre
+/// Seguridad (se pudo dar de alta Face ID o Touch ID desde la última vez).
+final securityBiometricKindProvider = FutureProvider.autoDispose<BiometricKind>(
+  (ref) => ref.read(biometricAuthenticatorProvider).kind(),
 );
 
 /// Ajustes › Bloqueo: activar o quitar el PIN, cambiarlo y la huella o el
@@ -120,11 +129,15 @@ class SecurityScreen extends ConsumerWidget {
     required bool on,
   }) async {
     final l10n = AppLocalizations.of(context);
+    final kind =
+        ref.read(securityBiometricKindProvider).value ?? BiometricKind.generic;
     final ok = await ref
         .read(lockControllerProvider.notifier)
         .setBiometrics(on, reason: l10n.lockBiometricReason);
+    // Con la biometría ya activada, el bloqueo la nombra bien desde ya.
+    if (context.mounted) ref.invalidate(biometricKindProvider);
     if (!ok && on && context.mounted) {
-      _say(context, l10n.securityBiometricsFailed);
+      _say(context, kind.failed(l10n));
     }
   }
 
@@ -134,6 +147,11 @@ class SecurityScreen extends ConsumerWidget {
     final t = RegalosTokens.of(context);
     final lock = ref.watch(lockControllerProvider).value;
     final available = ref.watch(biometricsAvailableProvider).value ?? false;
+    final kind =
+        ref.watch(securityBiometricKindProvider).value ?? BiometricKind.generic;
+    final unavailableText = defaultTargetPlatform == TargetPlatform.iOS
+        ? l10n.securityBiometricsUnavailableIos
+        : l10n.securityBiometricsUnavailable;
     final pinOn = (lock?.enabled ?? false) && (lock?.pinSet ?? false);
     final bioOn = lock?.biometrics ?? false;
 
@@ -180,13 +198,13 @@ class SecurityScreen extends ConsumerWidget {
               StaggerItem(
                 index: order++,
                 child: SettingsRow(
-                  title: l10n.securityBiometrics,
+                  title: kind.settingTitle(l10n),
                   hint: available
                       ? l10n.securityBiometricsHint
-                      : l10n.securityBiometricsUnavailable,
+                      : unavailableText,
                   trailing: RegalosSwitch(
                     value: bioOn,
-                    semanticLabel: l10n.securityBiometrics,
+                    semanticLabel: kind.settingTitle(l10n),
                     onChanged: pinOn && available
                         ? (v) => _toggleBiometrics(context, ref, on: v)
                         : null,

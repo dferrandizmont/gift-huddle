@@ -210,7 +210,7 @@ void main() {
         ),
       );
       await _pumpHost(tester, host);
-      expect(find.text('Este móvil dice ser de Nora'), findsOneWidget);
+      expect(find.text('¿El otro móvil es de Nora?'), findsOneWidget);
       expect(find.text('Coinciden'), findsNothing);
       await tester.tap(find.text('Sí, es de Nora'));
       await tester.pump();
@@ -227,7 +227,7 @@ void main() {
         ),
       );
       await tester.pump(const Duration(milliseconds: 600));
-      expect(find.text('Este móvil dice ser de Nora'), findsOneWidget);
+      expect(find.text('¿El otro móvil es de Nora?'), findsOneWidget);
       expect(find.text('Sí, es de Nora'), findsNothing);
     });
 
@@ -260,7 +260,7 @@ void main() {
         const PairingV2HostState(PairingV2HostPhase.cancelled),
       );
       await _pumpHost(tester, host);
-      expect(find.textContaining('el código ya no sirve'), findsOneWidget);
+      expect(find.textContaining('se ha cancelado y ya no sirve'), findsOneWidget);
       await tester.tap(find.text('Volver a empezar'));
       await tester.pump();
       expect(host.calls, contains('start'));
@@ -273,7 +273,7 @@ void main() {
       await _pumpHost(tester, host);
       expect(
         find.text(
-          'Acceso enviado. El otro móvil tiene que terminar la conexión.',
+          'Acceso enviado. El otro móvil tiene que completar la conexión.',
         ),
         findsOneWidget,
       );
@@ -347,7 +347,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.text('No se ha podido completar. Inténtalo de nuevo.'),
+        find.text('No se ha podido completar la conexión. Inténtalo de nuevo.'),
         findsNothing,
       );
     });
@@ -370,7 +370,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.text('No se ha podido completar. Inténtalo de nuevo.'),
+        find.text('No se ha podido completar la conexión. Inténtalo de nuevo.'),
         findsNothing,
       );
     });

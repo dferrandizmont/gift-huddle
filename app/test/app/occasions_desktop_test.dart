@@ -257,7 +257,7 @@ void main() {
         findsNWidgets(2),
       );
       expect(find.byKey(const ValueKey<String>('tile-wrap')), findsNothing);
-      expect(find.text('Cada persona'), findsNothing);
+      expect(find.text('Por persona'), findsNothing);
       expect(tester.takeException(), isNull);
     }, size: _desktop);
   });

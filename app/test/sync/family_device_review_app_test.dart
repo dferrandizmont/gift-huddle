@@ -453,7 +453,7 @@ void main() {
               syncId: SyncIdentityV2.newSyncId(),
             ),
           );
-      a.container.invalidate(localRegistryViewProvider);
+      a.container.invalidate(localRegistryReadProvider);
       expect(
         (await a.container.read(deviceReviewProvider.future)).isEmpty,
         isTrue,
@@ -465,7 +465,7 @@ void main() {
       );
       // Volver a la identidad anterior no los resucita.
       await a.container.read(familyStoreProvider).saveSyncV2(current);
-      a.container.invalidate(localRegistryViewProvider);
+      a.container.invalidate(localRegistryReadProvider);
       expect(
         (await a.container.read(deviceReviewProvider.future)).isEmpty,
         isTrue,

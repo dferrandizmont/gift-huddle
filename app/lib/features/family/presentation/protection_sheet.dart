@@ -6,6 +6,8 @@ import '../../../core/motion/sheet_motion.dart';
 import '../../../core/motion/step_segments.dart';
 import '../../../core/motion/unfold_section.dart';
 import '../../../core/motion/value_switcher.dart';
+import '../../../core/sync/pairing_v2.dart'
+    show kSyncProtocolV2, syncProtocolOf;
 import '../../../core/sync/protected_doc.dart';
 import '../../../core/theme/regalos_shape.dart';
 import '../../../core/theme/regalos_tokens.dart';
@@ -14,7 +16,11 @@ import '../../../core/widgets/settings_icons.dart';
 import '../../../core/widgets/sheet_parts.dart';
 import '../../../core/widgets/stroke_icon.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../sync/application/sync_controller.dart'
+    show localRegistryReadProvider;
+import '../application/family_controller.dart' show familyControllerProvider;
 import '../application/family_providers.dart';
+import '../data/family_store.dart' show familyStoreProvider;
 import 'protection_actions.dart';
 import 'protection_texts.dart';
 
@@ -39,11 +45,16 @@ Future<void> showProtectionSheet(
   builder: (_) => ProtectionSheet(personId: personId),
 );
 
-/// Si la familia admite regalos en secreto en este móvil: hay proyección
-/// autorizada (con la sincronización nueva). En la v1 no se ofrece nada.
-final protectionAvailableProvider = Provider<bool>(
-  (ref) => ref.watch(authorizedProjectionProvider).value != null,
-);
+/// Ofrece la hoja en familias móviles v2 aunque falle la verificación.
+final protectionAvailableProvider = Provider<bool>((ref) {
+  if (!ref.read(familyStoreProvider).supportsSecretScopes) return false;
+  final family = ref.watch(familyControllerProvider).value;
+  if (family?.identity == null) return false;
+  final registry = ref.watch(localRegistryReadProvider);
+  return syncProtocolOf(family!.doc) == kSyncProtocolV2 ||
+      registry.hasError ||
+      registry.value?.hasV2Identity == true;
+});
 
 /// La fila «Regalos en secreto» de la hoja de una persona y de su lista: el
 /// estado de ahora a la derecha y, al tocarla, la hoja de protección. No sale
@@ -189,6 +200,7 @@ class _ProtectionSheetState extends ConsumerState<ProtectionSheet> {
     Future<void> Function(ProtectionActions actions) action, {
     required String name,
     required bool success,
+    bool ownPhone = false,
   }) async {
     if (_busy) return;
     final l10n = AppLocalizations.of(context);
@@ -206,7 +218,7 @@ class _ProtectionSheetState extends ConsumerState<ProtectionSheet> {
         haptics.medium();
       }
     } on ProtectedPersonException catch (e) {
-      error = protectionReasonText(l10n, e.reason, name);
+      error = protectionReasonText(l10n, e.reason, name, ownPhone: ownPhone);
       haptics.error();
     } on Object {
       error = l10n.protectionChangeFailed;
@@ -243,9 +255,11 @@ class _ProtectionSheetState extends ConsumerState<ProtectionSheet> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final t = RegalosTokens.of(context);
-    final access = ref
-        .watch(giftRecipientAccessProvider)
-        .value
+    final accessAsync = ref.watch(giftRecipientAccessProvider);
+    // Mientras se vuelve a leer (por ejemplo, tras un rechazo) el valor
+    // anterior sigue a la vista, pero sus acciones no se pueden pulsar.
+    final reloading = accessAsync.isLoading;
+    final access = accessAsync.value
         ?.where((a) => a.recipient.id == widget.personId)
         .firstOrNull;
     if (access == null) {
@@ -280,7 +294,7 @@ class _ProtectionSheetState extends ConsumerState<ProtectionSheet> {
             minimumSize: const Size(44, 48),
             shape: _buttonShape,
           ),
-          onPressed: _busy ? null : onPressed,
+          onPressed: _busy || reloading ? null : onPressed,
           child: Text(label),
         );
 
@@ -302,12 +316,29 @@ class _ProtectionSheetState extends ConsumerState<ProtectionSheet> {
     };
 
     final Widget action = switch (status) {
-      PersonProtectionStatus.unprotected => primary(
-        l10n.protectionRequest,
-        () =>
-            _run((a) => a.request(widget.personId), name: name, success: true),
-        key: const ValueKey<String>('protectionRequest'),
-      ),
+      PersonProtectionStatus.unprotected =>
+        access.canRequest
+            ? primary(
+                l10n.protectionRequest,
+                () => _run(
+                  (a) => a.request(widget.personId),
+                  name: name,
+                  success: true,
+                  ownPhone: access.viewerIsRecipient,
+                ),
+                key: const ValueKey<String>('protectionRequest'),
+              )
+            : Text(
+                protectionReasonText(
+                  l10n,
+                  access.requestReason ??
+                      ProtectedPersonReason.registryUnavailable,
+                  name,
+                  ownPhone: access.viewerIsRecipient,
+                ),
+                key: const ValueKey<String>('protectionRequestHelp'),
+                style: t.styles.meta,
+              ),
       PersonProtectionStatus.requested =>
         access.canConfirm
             ? primary(
@@ -330,7 +361,7 @@ class _ProtectionSheetState extends ConsumerState<ProtectionSheet> {
                   side: BorderSide(color: t.controlBorder),
                   shape: _buttonShape,
                 ),
-                onPressed: _busy ? null : () => _deactivate(name),
+                onPressed: _busy || reloading ? null : () => _deactivate(name),
                 child: Text(l10n.protectionDeactivate),
               )
             : Text(l10n.protectionCannotDeactivate(name), style: t.styles.meta),

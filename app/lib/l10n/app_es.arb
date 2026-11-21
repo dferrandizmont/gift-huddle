@@ -36,11 +36,11 @@
   "@emptyPeopleMessage": {
     "description": "Explicación del estado vacío de la pantalla Personas."
   },
-  "emptyFamilyTitle": "Nadie ha apuntado regalos",
+  "emptyFamilyTitle": "Faltan personas",
   "@emptyFamilyTitle": {
     "description": "Título del estado vacío de la pantalla Familia."
   },
-  "emptyFamilyMessage": "Aquí verás quién regala qué a cada persona.",
+  "emptyFamilyMessage": "Para ver el reparto, hace falta al menos una persona que regale y una que reciba.",
   "@emptyFamilyMessage": {
     "description": "Explicación del estado vacío de la pantalla Familia."
   },
@@ -118,7 +118,7 @@
   "@appearanceOccasionTitle": {
     "description": "Interruptor que activa los temas de ocasión."
   },
-  "appearanceOccasionHint": "La lista de una ocasión cambia de acento y cabecera.",
+  "appearanceOccasionHint": "El color y la cabecera de la lista cambian según la ocasión.",
   "@appearanceOccasionHint": {
     "description": "Explicación bajo el interruptor de temas de ocasión."
   },
@@ -126,7 +126,7 @@
   "@appearanceHapticsTitle": {
     "description": "Interruptor que activa las vibraciones suaves al tocar."
   },
-  "appearanceHapticsHint": "Pequeños toques al marcar, elegir o cuando algo llega.",
+  "appearanceHapticsHint": "El móvil vibra suavemente, por ejemplo, al marcar una casilla o elegir una opción.",
   "@appearanceHapticsHint": {
     "description": "Explicación bajo el interruptor de vibraciones."
   },
@@ -245,7 +245,7 @@
   "@previewOccasion": {
     "description": "Ocasión de ejemplo de la cuenta atrás de la vista previa."
   },
-  "shareEnvelopeText": "Cambios de Gift Huddle: ábrelo con la app.",
+  "shareEnvelopeText": "Abre el fichero con Gift Huddle para ver los cambios en la lista.",
   "@shareEnvelopeText": {
     "description": "Texto que acompaña al fichero .gifthuddle al compartirlo por WhatsApp, correo u otra app."
   },
@@ -291,15 +291,15 @@
   "@shareErrorNoFamily": {
     "description": "Error al importar: este móvil todavía no tiene familia."
   },
-  "shareErrorClockDrift": "El otro móvil tiene la fecha y la hora mal puestas. Corrígelas y vuelve a enviarlo.",
+  "shareErrorClockDrift": "El reloj del otro móvil va adelantado. Revisa la fecha y la hora en ese móvil y vuelve a enviar la lista desde él.",
   "@shareErrorClockDrift": {
     "description": "Error al importar: el reloj del otro móvil va más de un día adelantado."
   },
-  "shareErrorLegacyFile": "Este fichero es de una versión anterior de Gift Huddle y ya no se abre. Guárdalo y pide que te lo envíen de nuevo desde un móvil actualizado.",
+  "shareErrorLegacyFile": "Este fichero es de una versión anterior de Gift Huddle. Guárdalo y pide que te envíen uno nuevo creado con la app actualizada.",
   "@shareErrorLegacyFile": {
     "description": "Error al importar: un fichero .gifthuddle antiguo (sin firma) en una familia que ya usa el formato nuevo."
   },
-  "shareErrorNotReady": "Este móvil todavía no está al día con la familia. Sincroniza y vuelve a abrir el fichero.",
+  "shareErrorNotReady": "Este móvil todavía no está al día con la familia. Sincroniza e inténtalo de nuevo.",
   "@shareErrorNotReady": {
     "description": "Error al importar o guardar: el móvil aún no ha pasado al formato nuevo de la familia."
   },
@@ -311,7 +311,7 @@
   "@shareErrorRevokedWriter": {
     "description": "Error al importar: el autor del fichero está revocado."
   },
-  "shareErrorMissingKey": "Todavía no se puede abrir este fichero. Se ha guardado y se abrirá solo cuando sincronices.",
+  "shareErrorMissingKey": "Todavía no se puede abrir este fichero. Se ha guardado y se volverá a intentar cuando sincronices.",
   "@shareErrorMissingKey": {
     "description": "Error al importar: falta la clave del fichero; queda guardado y se vuelve a probar al sincronizar."
   },
@@ -365,6 +365,74 @@
   "@lockBiometricNotice": {
     "description": "Aviso bajo el ajuste de desbloqueo con huella o rostro: avisa de que sirve cualquier huella o cara dada de alta en el móvil."
   },
+  "lockBiometricNamed": "Usar {name}",
+  "@lockBiometricNamed": {
+    "description": "Etiqueta accesible del botón de desbloqueo biométrico en iOS; {name} es Face ID o Touch ID.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Face ID"
+      }
+    }
+  },
+  "lockBiometricHintNamed": "Toca el botón de {name} para desbloquear la app",
+  "@lockBiometricHintNamed": {
+    "description": "Pista bajo el teclado de bloqueo en iOS; {name} es Face ID o Touch ID.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Face ID"
+      }
+    }
+  },
+  "lockBiometricNoticeFace": "Cualquier persona que tenga la cara registrada en Face ID podrá abrir la app.",
+  "@lockBiometricNoticeFace": {
+    "description": "Aviso bajo el ajuste de desbloqueo con Face ID (iOS)."
+  },
+  "lockBiometricNoticeTouch": "Cualquier persona que tenga una huella registrada en Touch ID podrá abrir la app.",
+  "@lockBiometricNoticeTouch": {
+    "description": "Aviso bajo el ajuste de desbloqueo con Touch ID (iOS)."
+  },
+  "pinBiometricOfferTitleNamed": "¿Activar {name}?",
+  "@pinBiometricOfferTitleNamed": {
+    "description": "Título del aviso tras crear el PIN en iOS; {name} es Face ID o Touch ID.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Face ID"
+      }
+    }
+  },
+  "securityBiometricsUnavailableIos": "Este móvil no tiene Face ID ni Touch ID configurados.",
+  "@securityBiometricsUnavailableIos": {
+    "description": "Aviso en iOS cuando no hay Face ID ni Touch ID configurados."
+  },
+  "securityBiometricsFailedNamed": "No se ha podido activar. Comprueba que {name} esté configurado en los Ajustes del móvil.",
+  "@securityBiometricsFailedNamed": {
+    "description": "Error al activar la biometría en iOS; {name} es Face ID o Touch ID.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Face ID"
+      }
+    }
+  },
+  "giftDiscardTitle": "¿Descartar los cambios?",
+  "@giftDiscardTitle": {
+    "description": "Título del aviso al cerrar el editor de regalos con cambios sin guardar."
+  },
+  "giftDiscardBody": "Los cambios de este regalo todavía no se han guardado.",
+  "@giftDiscardBody": {
+    "description": "Cuerpo del aviso al cerrar el editor de regalos con cambios sin guardar."
+  },
+  "actionDiscard": "Descartar",
+  "@actionDiscard": {
+    "description": "Botón destructivo que descarta los cambios sin guardar."
+  },
+  "giftKeepEditing": "Seguir editando",
+  "@giftKeepEditing": {
+    "description": "Botón que cierra el aviso y deja seguir editando el regalo."
+  },
   "lockLoadError": "No se ha podido comprobar el bloqueo.",
   "@lockLoadError": {
     "description": "Mensaje de la pantalla que tapa la app cuando falla la lectura del estado del bloqueo."
@@ -387,7 +455,7 @@
   "@lockWrongPinNow": {
     "description": "Aviso tras un PIN equivocado cuando ya toca esperar."
   },
-  "lockWait": "Demasiados intentos. Vuelve a probar en {time}.",
+  "lockWait": "Demasiados intentos. Inténtalo de nuevo en {time}.",
   "@lockWait": {
     "description": "Aviso de espera tras demasiados fallos; {time} es el tiempo que falta, como 0:30.",
     "placeholders": {
@@ -531,7 +599,7 @@
   "@giverHouseholdPays": {
     "description": "Etiqueta y campo: lo que regala esta persona lo paga la casa y cuenta en el presupuesto."
   },
-  "giverHouseholdPaysHint": "Si lo paga la casa, cuenta en el presupuesto.",
+  "giverHouseholdPaysHint": "Si lo activas, sus regalos cuentan en el presupuesto de la casa.",
   "@giverHouseholdPaysHint": {
     "description": "Explicación bajo el interruptor «Paga la casa»."
   },
@@ -563,7 +631,7 @@
   "@obWelcomeTitle": {
     "description": "Título de la primera pantalla del primer uso."
   },
-  "obWelcomeBody": "Apunta qué regala cada uno a cada persona, para que nadie repita y a nadie le falte.",
+  "obWelcomeBody": "Apunta quién regala qué y a quién. Así nadie repite regalo y nadie se queda sin el suyo.",
   "@obWelcomeBody": {
     "description": "Qué es la app, en una frase."
   },
@@ -575,7 +643,7 @@
   "@obDeviceNameLabel": {
     "description": "Campo con el nombre de este móvil."
   },
-  "obDeviceNameHint": "Es el nombre que verá el otro móvil. Puedes cambiarlo.",
+  "obDeviceNameHint": "Este nombre aparecerá en el otro móvil. Puedes cambiarlo.",
   "@obDeviceNameHint": {
     "description": "Explicación del nombre de este móvil."
   },
@@ -603,7 +671,7 @@
   "@obPeopleNeedOne": {
     "description": "Aviso cuando no hay ninguna persona en el primer uso."
   },
-  "obRemove": "Quitar a {name}",
+  "obRemove": "Quitar {name}",
   "@obRemove": {
     "description": "Etiqueta accesible del botón de quitar de la lista del primer uso.",
     "placeholders": {
@@ -616,11 +684,11 @@
   "@obGiversTitle": {
     "description": "Título del paso de quién regala."
   },
-  "obGiversBody": "«Nosotros» ya está creado y paga la casa. Añade a los abuelos, los tíos…",
+  "obGiversBody": "«Nosotros» ya está en la lista para los regalos que pagáis en casa. También puedes añadir a los abuelos, los tíos…",
   "@obGiversBody": {
     "description": "Explicación del paso de quién regala."
   },
-  "obGiversSuggestions": "Añadir rápido",
+  "obGiversSuggestions": "Sugerencias",
   "@obGiversSuggestions": {
     "description": "Título de los botones de sugerencia."
   },
@@ -653,7 +721,7 @@
   "@giverEdit": {
     "description": "Título de la hoja para cambiar a quien regala."
   },
-  "giverNameHint": "Abuelos, Tía Marta y Jordi…",
+  "giverNameHint": "Abuelos, Tía Nora y Leo…",
   "@giverNameHint": {
     "description": "Ejemplo en el campo del nombre de quien regala."
   },
@@ -661,7 +729,7 @@
   "@obOccasionsTitle": {
     "description": "Título del paso de ocasiones."
   },
-  "obOccasionsBody": "Elige las fechas de siempre. Los cumpleaños salen solos de las fechas que hayas puesto.",
+  "obOccasionsBody": "Elige cuándo hacéis regalos. Los cumpleaños aparecen si has indicado la fecha de nacimiento de cada persona.",
   "@obOccasionsBody": {
     "description": "Explicación del paso de ocasiones."
   },
@@ -681,7 +749,7 @@
   "@obAddOccasion": {
     "description": "Botón para añadir una ocasión en el primer uso."
   },
-  "obPinTitle": "Protege los regalos",
+  "obPinTitle": "Bloquea la app",
   "@obPinTitle": {
     "description": "Título del paso del PIN."
   },
@@ -697,7 +765,7 @@
   "@obFinishing": {
     "description": "Texto del botón mientras se guarda todo."
   },
-  "obSaveError": "No se ha podido guardar. Inténtalo otra vez.",
+  "obSaveError": "No se ha podido guardar. Inténtalo de nuevo.",
   "@obSaveError": {
     "description": "Error al terminar el primer uso."
   },
@@ -904,7 +972,7 @@
   "@filterClear": {
     "description": "Botón que quita todos los filtros."
   },
-  "filterNoResults": "Ningún regalo cumple los filtros.",
+  "filterNoResults": "Ningún regalo coincide con los filtros.",
   "@filterNoResults": {
     "description": "Aviso cuando los filtros no dejan ningún regalo."
   },
@@ -924,7 +992,7 @@
   "@giftRecipientRequired": {
     "description": "Error del editor de regalo cuando se intenta guardar sin haber elegido persona."
   },
-  "giftAddedNotice": "Regalo añadido a {name}",
+  "giftAddedNotice": "Regalo añadido a la lista de {name}",
   "@giftAddedNotice": {
     "description": "Aviso tras guardar un regalo nuevo desde el botón Añadir regalo de Personas u Ocasiones.",
     "placeholders": {
@@ -1058,7 +1126,7 @@
       }
     }
   },
-  "giftSaveError": "No se ha podido guardar el regalo.",
+  "giftSaveError": "No se ha podido guardar el regalo. Inténtalo de nuevo.",
   "@giftSaveError": {
     "description": "Error al guardar un regalo."
   },
@@ -1066,7 +1134,7 @@
   "@giftDuplicateTitle": {
     "description": "Título del aviso de duplicado al guardar."
   },
-  "giftDuplicateBody": "«{title}» se parece a un regalo que ya está apuntado para {person} ({giver}).",
+  "giftDuplicateBody": "Puede que este regalo ya esté en la lista de {person} como «{title}». Quién regala: {giver}.",
   "@giftDuplicateBody": {
     "description": "Texto del aviso de duplicado al guardar.",
     "placeholders": {
@@ -1224,7 +1292,7 @@
   "@budgetCardHint": {
     "description": "Descripción de la fila del presupuesto."
   },
-  "occasionPeopleSection": "Cada persona",
+  "occasionPeopleSection": "Por persona",
   "@occasionPeopleSection": {
     "description": "Cabecera de la lista de personas en una ocasión."
   },
@@ -1244,7 +1312,7 @@
   "@occasionNoGiftsYet": {
     "description": "Una persona sin regalos en una ocasión."
   },
-  "occasionSplitLabel": "Reparto de {name}: {parts}",
+  "occasionSplitLabel": "Regalos para {name} por ocasión: {parts}",
   "@occasionSplitLabel": {
     "description": "Etiqueta accesible de la barra de reparto entre ocasiones.",
     "placeholders": {
@@ -1260,7 +1328,7 @@
   "@occasionPendingBuySection": {
     "description": "Cabecera de lo decidido sin comprar, agrupado por tienda."
   },
-  "occasionPendingEmpty": "Nada decidido todavía. Cuando una idea pase a Decidido, aparecerá aquí agrupada por tienda.",
+  "occasionPendingEmpty": "No hay compras pendientes. Aquí aparecen los regalos con el estado «Decidido», agrupados por tienda.",
   "@occasionPendingEmpty": {
     "description": "Aviso cuando no hay nada pendiente de comprar."
   },
@@ -1268,7 +1336,7 @@
   "@occasionStoreNone": {
     "description": "Grupo de regalos sin tienda."
   },
-  "occasionMarkBought": "Marcar {item} como comprado",
+  "occasionMarkBought": "Marcar como comprado: {item}",
   "@occasionMarkBought": {
     "description": "Etiqueta accesible del botón de comprado.",
     "placeholders": {
@@ -1285,11 +1353,11 @@
   "@budgetTitle": {
     "description": "Título de la pantalla del presupuesto."
   },
-  "budgetSubtitle": "Lo pones tú en cada ocasión. Gastado suma el precio real de lo que paga la casa; si algo ya está comprado y no tiene precio real, cuenta el previsto.",
+  "budgetSubtitle": "Puedes poner un presupuesto en cada ocasión. «Gastado» suma los precios reales de los regalos que paga la casa. Si ya se ha comprado un regalo y falta el precio real, cuenta el previsto.",
   "@budgetSubtitle": {
     "description": "Subtítulo del presupuesto cuando ninguna ocasión tiene presupuesto."
   },
-  "budgetSubtitleBudgeted": "Lo pones tú en cada ocasión. Las tres cifras solo incluyen ocasiones con presupuesto. «Gastado» suma los precios reales de lo que paga la casa. Si algo ya está comprado y no tiene precio real, cuenta el previsto.",
+  "budgetSubtitleBudgeted": "Puedes poner un presupuesto en cada ocasión. Las tres cifras solo incluyen ocasiones con presupuesto. «Gastado» suma los precios reales de los regalos que paga la casa. Si ya se ha comprado un regalo y falta el precio real, cuenta el previsto.",
   "@budgetSubtitleBudgeted": {
     "description": "Subtítulo del presupuesto cuando alguna ocasión tiene presupuesto: las tres cifras solo cuentan esas."
   },
@@ -1301,7 +1369,7 @@
   "@budgetSpent": {
     "description": "Número grande del presupuesto: lo gastado."
   },
-  "budgetLeft": "Queda",
+  "budgetLeft": "Disponible",
   "@budgetLeft": {
     "description": "Número grande del presupuesto: lo que queda."
   },
@@ -1321,7 +1389,7 @@
   "@budgetNote": {
     "description": "Nota al pie del presupuesto."
   },
-  "budgetEmpty": "Todavía no hay regalos que pague la casa. Marca «Paga la casa» en quien regala y pon un precio previsto.",
+  "budgetEmpty": "Todavía no hay regalos que pague la casa. Activa «Paga la casa» en la ficha de quien regala y añade el precio previsto al regalo.",
   "@budgetEmpty": {
     "description": "Estado vacío del presupuesto."
   },
@@ -1329,7 +1397,7 @@
   "@occasionBudgetField": {
     "description": "Campo opcional del editor de ocasión."
   },
-  "occasionBudgetHint": "Lo que queréis gastar en esta ocasión. Déjalo vacío si no hay.",
+  "occasionBudgetHint": "Lo que quieres gastar en esta ocasión. Déjalo vacío si no hay presupuesto.",
   "@occasionBudgetHint": {
     "description": "Ayuda bajo el campo de presupuesto del editor de ocasión."
   },
@@ -1367,7 +1435,7 @@
       }
     }
   },
-  "budgetLeftIfBought": "Si compras lo que falta, te quedarán {amount}",
+  "budgetLeftIfBought": "Si compras lo que falta, te quedarás con {amount}",
   "@budgetLeftIfBought": {
     "description": "Línea bajo las cifras: lo que quedaría si se compra lo que falta.",
     "placeholders": {
@@ -1444,7 +1512,7 @@
       }
     }
   },
-  "aboutPrivacy": "Sin cuentas ni publicidad. Tus regalos solo salen del móvil, siempre cifrados, si conectas otro móvil o la web, creas un código de recuperación o envías una copia.",
+  "aboutPrivacy": "Sin cuentas ni publicidad. La lista solo sale de tu móvil si conectas otro móvil o la web, creas un código de recuperación o envías una copia. Siempre va cifrada.",
   "@aboutPrivacy": {
     "description": "Texto de privacidad de Acerca de."
   },
@@ -1523,7 +1591,7 @@
   "@securityBiometricsUnavailable": {
     "description": "Aviso cuando no hay biometría disponible."
   },
-  "securityBiometricsFailed": "No se ha podido activar. Comprueba la huella o el rostro del móvil.",
+  "securityBiometricsFailed": "No se ha podido activar. Comprueba que la huella o el rostro estén configurados en el móvil.",
   "@securityBiometricsFailed": {
     "description": "Error al activar la biometría."
   },
@@ -1571,7 +1639,7 @@
   "@showQrIntro": {
     "description": "Explicación de la pantalla del QR."
   },
-  "showQrWarning": "No hagas captura ni lo compartas: este código da acceso a toda la lista. Enséñalo solo en persona.",
+  "showQrWarning": "No hagas capturas de pantalla ni lo compartas: este código da acceso a toda la lista. Enséñalo solo en persona.",
   "@showQrWarning": {
     "description": "Aviso de no hacer captura del QR."
   },
@@ -1607,7 +1675,7 @@
   "@scannerFailedTitle": {
     "description": "Título del aviso del lector de QR cuando el sistema no contestó a la petición de la cámara."
   },
-  "scannerFailedBody": "El móvil no ha contestado a la petición del permiso. Reintenta.",
+  "scannerFailedBody": "El móvil no ha contestado a la petición del permiso. Inténtalo de nuevo.",
   "@scannerFailedBody": {
     "description": "Explicación cuando el sistema no contestó: se puede volver a intentar."
   },
@@ -1623,7 +1691,7 @@
   "@joinConflictTitle": {
     "description": "Título del aviso al unirse a otra familia teniendo datos."
   },
-  "joinConflictBody": "Si te unes a la del otro móvil, esta lista se sustituye y se pierden sus regalos. ¿Seguir?",
+  "joinConflictBody": "Si te unes a la lista del otro móvil, perderás la lista de este móvil y los regalos que contiene.",
   "@joinConflictBody": {
     "description": "Texto del aviso al unirse a otra familia teniendo datos."
   },
@@ -1656,7 +1724,7 @@
   "@incomingOtherChanges": {
     "description": "Resumen cuando solo cambian personas u ocasiones."
   },
-  "incomingFailedTitle": "No se pudo abrir el envío",
+  "incomingFailedTitle": "No se ha podido abrir el envío",
   "@incomingFailedTitle": {
     "description": "Título del aviso de error al importar."
   },
@@ -1669,7 +1737,7 @@
       }
     }
   },
-  "importChanged": "{count, plural, one{{count} cambiado} other{{count} cambiados}}",
+  "importChanged": "{count, plural, one{{count} regalo modificado} other{{count} regalos modificados}}",
   "@importChanged": {
     "description": "Parte del resumen de un envío: regalos cambiados.",
     "placeholders": {
@@ -1678,7 +1746,7 @@
       }
     }
   },
-  "importDeleted": "{count, plural, one{{count} borrado} other{{count} borrados}}",
+  "importDeleted": "{count, plural, one{{count} regalo eliminado} other{{count} regalos eliminados}}",
   "@importDeleted": {
     "description": "Parte del resumen de un envío: regalos borrados.",
     "placeholders": {
@@ -1703,7 +1771,7 @@
   "@syncStopConfirmTitle": {
     "description": "Título del aviso de confirmación de Dejar de sincronizar."
   },
-  "syncStopConfirmBody": "Este móvil sale de la sincronización de la familia y deja de enviar y recibir cambios; los demás móviles siguen sincronizando entre ellos. Si es el último, también se borra la copia cifrada del servidor. Lo que hay en cada móvil se queda como está. Para volver a sincronizar, conéctalo de nuevo con otro móvil de la familia.",
+  "syncStopConfirmBody": "Este móvil dejará de enviar y recibir cambios. Los demás seguirán sincronizándose entre sí. Si este es el último móvil que sincroniza, se borrará la copia cifrada del servidor. Cada móvil conservará sus datos. Para volver a sincronizar, conecta de nuevo este móvil con otro de la familia.",
   "@syncStopConfirmBody": {
     "description": "Texto del aviso de confirmación de Dejar de sincronizar."
   },
@@ -1735,7 +1803,7 @@
   "@syncStatusIdle": {
     "description": "Estado: encendida, todavía sin sincronizar."
   },
-  "syncStatusWaitingPeer": "Empezará cuando emparejes otro móvil",
+  "syncStatusWaitingPeer": "La sincronización empezará cuando conectes otro móvil.",
   "@syncStatusWaitingPeer": {
     "description": "Estado: encendida, pero la familia aún no tiene un segundo móvil emparejado; hasta entonces no se sube nada al servidor."
   },
@@ -1787,7 +1855,7 @@
       }
     }
   },
-  "syncStatusOffline": "Sin conexión, se enviará luego",
+  "syncStatusOffline": "Sin conexión, los cambios se enviarán luego",
   "@syncStatusOffline": {
     "description": "Estado: no hay red; los cambios están guardados en el móvil."
   },
@@ -1799,7 +1867,7 @@
   "@syncIssueAuth": {
     "description": "Detalle del error: autenticación rechazada."
   },
-  "syncIssueClockDrift": "Otro móvil tiene la fecha y la hora mal puestas. Corrígelas en ese móvil.",
+  "syncIssueClockDrift": "El reloj de otro móvil va adelantado. Revisa la fecha y la hora en ese móvil.",
   "@syncIssueClockDrift": {
     "description": "Detalle del error: el reloj del otro móvil va más de un día adelantado."
   },
@@ -1835,7 +1903,7 @@
   "@inviteIntro": {
     "description": "Texto principal de la pantalla Invitar a alguien."
   },
-  "inviteHowItWorks": "El enlace no lleva ninguna clave: solo sirve para pedir entrada. Te llegará la petición con un código de 6 cifras y tendrás que aceptarla tú. Caduca a las 24 horas y sirve para una sola persona.",
+  "inviteHowItWorks": "El enlace no contiene ninguna clave. Sirve para una sola persona y caduca a las 24 horas. Cuando esa persona pida entrar, recibirás su petición con un código de 6 cifras. Tú decides si le das acceso.",
   "@inviteHowItWorks": {
     "description": "Explicación de que hará falta aprobar la petición."
   },
@@ -1843,7 +1911,7 @@
   "@inviteCreate": {
     "description": "Botón que crea la invitación y abre la hoja de compartir."
   },
-  "inviteNeedSync": "Para invitar a distancia hace falta tener la sincronización encendida y con conexión.",
+  "inviteNeedSync": "Para invitar a distancia, hace falta conexión a internet y tener la sincronización encendida.",
   "@inviteNeedSync": {
     "description": "Aviso cuando no se puede invitar porque la sincronización no está lista."
   },
@@ -1860,11 +1928,11 @@
       }
     }
   },
-  "inviteWaitingTitle": "Esperando a que abran el enlace",
+  "inviteWaitingTitle": "Esperando la petición",
   "@inviteWaitingTitle": {
     "description": "Título mientras nadie ha pedido entrar."
   },
-  "inviteWaitingBody": "Cuando la otra persona lo abra, aquí verás su petición. Puedes salir de esta pantalla: la invitación sigue activa hasta que caduque.",
+  "inviteWaitingBody": "Cuando la otra persona pida entrar, verás su petición aquí. Puedes salir de esta pantalla. La invitación seguirá activa hasta que caduque.",
   "@inviteWaitingBody": {
     "description": "Texto mientras nadie ha pedido entrar."
   },
@@ -1928,7 +1996,7 @@
       }
     }
   },
-  "inviteRejectedBody": "Has rechazado la petición. El enlace ya no sirve.",
+  "inviteRejectedBody": "La invitación se ha cancelado. El enlace ya no sirve.",
   "@inviteRejectedBody": {
     "description": "Texto tras rechazar o cancelar."
   },
@@ -1980,11 +2048,11 @@
   "@joinInviteTampered": {
     "description": "Error: el paquete cifrado no se pudo abrir."
   },
-  "joinInviteUnknown": "No se ha podido completar. Inténtalo de nuevo.",
+  "joinInviteUnknown": "No se ha podido completar la conexión. Inténtalo de nuevo.",
   "@joinInviteUnknown": {
     "description": "Otro error al unirse con un enlace."
   },
-  "joinInviteTaken": "Esta invitación ya la ha pedido otra persona. Pide un enlace nuevo.",
+  "joinInviteTaken": "Otra persona ya ha pedido entrar con este enlace. Pide un enlace nuevo.",
   "@joinInviteTaken": {
     "description": "Error: la invitación ya tiene una petición."
   },
@@ -2276,7 +2344,7 @@
   "@familyLegendToBuy": {
     "description": "Leyenda de la rejilla: hay regalos y falta comprar alguno."
   },
-  "familyNoGiverCount": "{count} sin quién",
+  "familyNoGiverCount": "{count} sin asignar",
   "@familyNoGiverCount": {
     "description": "Bajo el nombre de una persona: cuántos regalos suyos no tienen quién los regale.",
     "placeholders": {
@@ -2285,7 +2353,7 @@
       }
     }
   },
-  "repartoSheetNobodyYet": "{giver} aún no regala nada a {person}",
+  "repartoSheetNobodyYet": "Aún no hay regalos de {giver} para {person}",
   "@repartoSheetNobodyYet": {
     "description": "Título de la hoja de una celda vacía.",
     "placeholders": {
@@ -2297,7 +2365,7 @@
       }
     }
   },
-  "repartoSheetUnassignedHint": "{person} tiene regalos sin quién los regale: toca «¿Quién?» para darlos.",
+  "repartoSheetUnassignedHint": "Hay regalos sin asignar para {person}. Toca «Sin asignar» en un regalo para elegir quién lo regala.",
   "@repartoSheetUnassignedHint": {
     "description": "Texto de la hoja de una celda vacía cuando la persona tiene regalos sin quién regala.",
     "placeholders": {
@@ -2310,7 +2378,7 @@
   "@repartoSheetStartHint": {
     "description": "Texto de la hoja de una celda vacía cuando no hay nada que repartir."
   },
-  "repartoSheetSummary": "{gifts} · {price} · toca quién regala para cambiarlo",
+  "repartoSheetSummary": "{gifts} · {price} · toca un nombre para cambiar quién regala",
   "@repartoSheetSummary": {
     "description": "Resumen bajo el título de la hoja de una celda con regalos.",
     "placeholders": {
@@ -2322,7 +2390,7 @@
       }
     }
   },
-  "repartoSheetWho": "¿Quién?",
+  "repartoSheetWho": "Sin asignar",
   "@repartoSheetWho": {
     "description": "Chip de un regalo que aún no tiene quién lo regale."
   },
@@ -2334,7 +2402,7 @@
   "@repartoSheetAddGift": {
     "description": "Botón de la hoja de una celda con regalos."
   },
-  "repartoSheetNewGiftFrom": "Regalo nuevo de {giver}",
+  "repartoSheetNewGiftFrom": "Añadir regalo de {giver}",
   "@repartoSheetNewGiftFrom": {
     "description": "Botón de la hoja de una celda vacía.",
     "placeholders": {
@@ -2352,7 +2420,7 @@
       }
     }
   },
-  "repartoSheetNoGiver": "Sin quién regala",
+  "repartoSheetNoGiver": "Sin asignar",
   "@repartoSheetNoGiver": {
     "description": "Título de la hoja con los regalos de una persona que nadie ha asumido."
   },
@@ -2377,7 +2445,7 @@
       }
     }
   },
-  "lockBiometricHint": "Toca la huella para entrar",
+  "lockBiometricHint": "Toca el botón de la huella para desbloquear",
   "@lockBiometricHint": {
     "description": "Pista bajo el teclado de bloqueo cuando la huella o el rostro están activados."
   },
@@ -2566,7 +2634,7 @@
       }
     }
   },
-  "deletePersonGifts": "{count, plural, =0{} one{Se eliminará también su regalo.} other{Se eliminarán también sus {count} regalos.}}",
+  "deletePersonGifts": "{count, plural, =0{} one{También se eliminará el regalo que hay para esta persona.} other{También se eliminarán los {count} regalos que hay para esta persona.}}",
   "@deletePersonGifts": {
     "description": "Consecuencia de eliminar a una persona: sus regalos se eliminan con ella. Vacío si no tiene.",
     "placeholders": {
@@ -2575,11 +2643,11 @@
       }
     }
   },
-  "deleteBirthdayToo": "Su cumpleaños también desaparece.",
+  "deleteBirthdayToo": "Su cumpleaños también se eliminará de la lista de ocasiones.",
   "@deleteBirthdayToo": {
     "description": "Consecuencia de eliminar a una persona que tiene ocasión de cumpleaños."
   },
-  "deleteGiverGifts": "{count, plural, =0{} one{Su regalo se quedará sin quién regala.} other{Sus {count} regalos se quedarán sin quién regala.}}",
+  "deleteGiverGifts": "{count, plural, =0{} one{Su regalo seguirá en la lista sin nadie asignado en «Quién regala».} other{Sus {count} regalos seguirán en la lista sin nadie asignado en «Quién regala».}}",
   "@deleteGiverGifts": {
     "description": "Consecuencia de eliminar a quien regala: sus regalos no se borran. Vacío si no tiene.",
     "placeholders": {
@@ -2601,7 +2669,7 @@
   "@deleteIrreversible": {
     "description": "Aviso final de todo diálogo de eliminar."
   },
-  "deleteRequestedByToo": "En los regalos que pidió, se borra quién los pidió.",
+  "deleteRequestedByToo": "Su nombre dejará de aparecer en los regalos que pidió para otras personas.",
   "@deleteRequestedByToo": {
     "description": "Consecuencia de eliminar a una persona que había pedido regalos para otras."
   },
@@ -2727,7 +2795,7 @@
   "@eraseAllServerFailedTitle": {
     "description": "Título del diálogo de Borrar todo cuando el servidor no responde."
   },
-  "eraseAllServerFailedBody": "Comprueba la conexión y reinténtalo. Si borras solo este móvil, seguirá en la lista de móviles de tu familia hasta que otro lo quite, y la copia cifrada se queda en el servidor para los demás (o hasta que caduque, si era el último).",
+  "eraseAllServerFailedBody": "Comprueba la conexión e inténtalo de nuevo. Si borras los datos solo aquí, este móvil seguirá en «Móviles de la familia» hasta que alguien lo quite desde otro móvil. La copia cifrada seguirá en el servidor para los demás móviles. Si este era el último, la copia se conservará hasta que caduque.",
   "@eraseAllServerFailedBody": {
     "description": "Texto del diálogo de Borrar todo cuando el servidor no responde: qué pasa si se borra solo lo local."
   },
@@ -2735,7 +2803,7 @@
   "@eraseAllRetry": {
     "description": "Botón del diálogo de Borrar todo cuando el servidor no responde: lo intenta otra vez."
   },
-  "eraseAllLocalOnly": "Borrar solo este móvil",
+  "eraseAllLocalOnly": "Borrar solo en este móvil",
   "@eraseAllLocalOnly": {
     "description": "Botón del diálogo de Borrar todo cuando el servidor no responde: borra lo local y deja la copia del servidor."
   },
@@ -2743,7 +2811,7 @@
   "@eraseAllFailed": {
     "description": "Aviso cuando falla el borrado de los datos de este móvil."
   },
-  "eraseAllPinPrompt": "Escribe tu PIN para seguir con el borrado.",
+  "eraseAllPinPrompt": "Escribe tu PIN para continuar.",
   "@eraseAllPinPrompt": {
     "description": "Explicación de la pantalla que pide el PIN entre el primer diálogo de Borrar todo y el último paso."
   },
@@ -2829,7 +2897,7 @@
   "@syncShortOff": {
     "description": "Estado de la sincronización en minúsculas, tras el número de móviles."
   },
-  "archiveSubtitle": "Fuera de las listas, con sus regalos guardados.",
+  "archiveSubtitle": "Lo que archivas deja de aparecer en las listas, pero conserva sus regalos.",
   "@archiveSubtitle": {
     "description": "Subtítulo de la pantalla Archivo."
   },
@@ -2853,7 +2921,7 @@
   "@devicesRecoveryTitle": {
     "description": "Título de la tarjeta de estado cuando no hay otro móvil conectado pero hay un código de recuperación activo: la lista tiene una copia cifrada en el servidor."
   },
-  "devicesRecoveryBody": "La lista tiene una copia cifrada que se recupera con tu código. Conecta otro móvil para verla en los dos.",
+  "devicesRecoveryBody": "Con tu código puedes recuperar la copia cifrada de la lista. Conecta otro móvil para ver la lista en los dos.",
   "@devicesRecoveryBody": {
     "description": "Frase de la tarjeta de estado con un código de recuperación activo y ningún otro móvil conectado."
   },
@@ -2923,7 +2991,7 @@
   "@devicesPeerHint": {
     "description": "Frase bajo el nombre del otro móvil en la lista de conectados."
   },
-  "devicesPeerNoPerson": "Sin persona: aún no abre las sorpresas",
+  "devicesPeerNoPerson": "Sin persona: aún no ve las sorpresas",
   "@devicesPeerNoPerson": {
     "description": "Frase bajo un móvil conectado que se unió con «Elegir después» y todavía no tiene persona."
   },
@@ -2979,7 +3047,7 @@
   "@devicesJoinOtherHint": {
     "description": "Frase de la fila Unir este móvil a otra familia."
   },
-  "devicesJoinOtherWarning": "Si te unes a otra familia, la lista de este móvil se sustituye y se pierden sus regalos.",
+  "devicesJoinOtherWarning": "Si te unes a otra familia, su lista sustituirá a la de este móvil. En este móvil perderás los regalos de la lista actual.",
   "@devicesJoinOtherWarning": {
     "description": "Aviso del paso Unir este móvil a otra familia."
   },
@@ -3027,7 +3095,7 @@
   "@backupRestoreHint": {
     "description": "Frase de la fila Recuperar una copia."
   },
-  "backupRestoreSubtitle": "Se fusiona con lo que hay: no se pierde nada.",
+  "backupRestoreSubtitle": "La copia se combina con la lista de este móvil. No se pierde nada.",
   "@backupRestoreSubtitle": {
     "description": "Subtítulo de la hoja Recuperar una copia."
   },
@@ -3043,7 +3111,7 @@
   "@backupFileNote": {
     "description": "Nota de la hoja Recuperar una copia: cómo se abre un fichero."
   },
-  "backupNote": "La copia va cifrada con la clave de la familia: hoy solo se abre en un móvil que ya esté conectado.",
+  "backupNote": "La copia está cifrada con la clave de la familia. Solo puedes abrirla en un móvil que ya forme parte de esa familia.",
   "@backupNote": {
     "description": "Nota al pie de la pantalla Copia de seguridad."
   },
@@ -3051,7 +3119,7 @@
   "@pairingV2Preparing": {
     "description": "Texto mientras se prepara la conexión de otro móvil."
   },
-  "pairingV2NoticeExpires": "El código caduca a las 24 horas y solo sirve para pedir entrada: nadie entra sin que compares un número con el otro móvil.",
+  "pairingV2NoticeExpires": "La invitación caduca a las 24 horas y solo sirve para pedir entrada. Antes de dar acceso, compara el número que aparece en los dos móviles.",
   "@pairingV2NoticeExpires": {
     "description": "Aviso bajo el QR o el enlace: caduca y no da acceso por sí solo."
   },
@@ -3067,7 +3135,7 @@
   "@pairingV2Share": {
     "description": "Botón que abre la hoja de compartir con el enlace."
   },
-  "pairingV2WaitingHere": "Esperando a que el otro móvil lea el código…",
+  "pairingV2WaitingHere": "Esperando a que la otra persona pida entrar…",
   "@pairingV2WaitingHere": {
     "description": "Estado mientras nadie ha respondido a la invitación."
   },
@@ -3095,7 +3163,7 @@
   "@pairingV2Approving": {
     "description": "Progreso al aprobar."
   },
-  "pairingV2HostDone": "Acceso enviado. El otro móvil tiene que terminar la conexión.",
+  "pairingV2HostDone": "Acceso enviado. El otro móvil tiene que completar la conexión.",
   "@pairingV2HostDone": {
     "description": "El anfitrión solo sabe que envió la aprobación, no si el invitado terminó."
   },
@@ -3103,7 +3171,7 @@
   "@pairingV2VersionMismatch": {
     "description": "La versión de la aprobación no es compatible con este móvil."
   },
-  "pairingV2HostCancelled": "Se ha cancelado y el código ya no sirve. Puedes empezar de nuevo.",
+  "pairingV2HostCancelled": "La invitación se ha cancelado y ya no sirve. Puedes empezar de nuevo.",
   "@pairingV2HostCancelled": {
     "description": "Mensaje cuando se cancela o caduca la conexión en el móvil que invita."
   },
@@ -3111,7 +3179,7 @@
   "@pairingV2HostFailed": {
     "description": "Error genérico en el móvil que invita."
   },
-  "pairingV2NotReady": "Para conectar otro móvil hace falta tener la sincronización encendida y conexión a internet.",
+  "pairingV2NotReady": "Para continuar, hace falta conexión a internet y tener la sincronización encendida.",
   "@pairingV2NotReady": {
     "description": "Error cuando no hay servidor, sincronización apagada o red."
   },
@@ -3153,7 +3221,7 @@
   "@pairingV2GuestWaitingCode": {
     "description": "Estado del invitado antes de ver el número."
   },
-  "pairingV2GuestCompareBody": "Mira el número que enseña el otro móvil. Tiene que ser el mismo que este. Si lo es, pulsa «Coinciden».",
+  "pairingV2GuestCompareBody": "Compara este número con el que ve la otra persona. Si son iguales, pulsa «Coinciden».",
   "@pairingV2GuestCompareBody": {
     "description": "Explicación en el móvil invitado al comparar."
   },
@@ -3177,7 +3245,7 @@
   "@pairingV2ReconnectBody": {
     "description": "Explicación del aviso de volver a conectar."
   },
-  "pairingV2ClaimTitle": "Este móvil dice ser de {name}",
+  "pairingV2ClaimTitle": "¿El otro móvil es de {name}?",
   "@pairingV2ClaimTitle": {
     "description": "Título del paso del móvil que invita donde se confirma aparte de quién dice ser el móvil nuevo; name es la persona que eligió.",
     "placeholders": {
@@ -3209,7 +3277,7 @@
   "@pairingV2MigrateTitle": {
     "description": "Título del aviso antes de pasar la familia de la sincronización antigua a la nueva al conectar otro móvil."
   },
-  "pairingV2MigrateBody": "Para conectar otro móvil, esta familia pasa a la sincronización nueva, más segura. No se puede deshacer: los móviles que ya estaban conectados dejan de recibir los cambios de este hasta que los vuelvas a conectar, uno a uno, con «Conectar otro móvil». No se pierde nada.",
+  "pairingV2MigrateBody": "Si continúas, esta familia pasa a la sincronización nueva, más segura. No se puede deshacer. Los móviles que ya estaban conectados dejan de recibir los cambios de este hasta que los vuelvas a conectar, uno a uno, con «Conectar otro móvil». No se pierde nada.",
   "@pairingV2MigrateBody": {
     "description": "Texto del aviso antes de pasar la familia a la sincronización nueva: no se puede deshacer y hay que volver a conectar los demás móviles."
   },
@@ -3229,7 +3297,7 @@
   "@devicesPeerPending": {
     "description": "Frase bajo un móvil de la lista que espera que otro lo apruebe."
   },
-  "devicesPeerFrozen": "Congelado: espera aprobación",
+  "devicesPeerFrozen": "Cambios en pausa: espera aprobación",
   "@devicesPeerFrozen": {
     "description": "Frase bajo un móvil cuyos cambios están congelados hasta que se apruebe o se quite."
   },
@@ -3298,7 +3366,7 @@
   "@deviceStatusPending": {
     "description": "Estado de un móvil que otro tiene que aprobar."
   },
-  "deviceStatusFrozen": "Congelado",
+  "deviceStatusFrozen": "Cambios en pausa",
   "@deviceStatusFrozen": {
     "description": "Estado de un móvil congelado."
   },
@@ -3314,7 +3382,7 @@
   "@deviceRemoveTitle": {
     "description": "Botón de la hoja de un móvil que lo saca de la familia."
   },
-  "deviceRemoveHint": "Deja de recibir la lista nueva.",
+  "deviceRemoveHint": "Dejará de recibir los cambios de la lista.",
   "@deviceRemoveHint": {
     "description": "Frase del botón Quitar este móvil."
   },
@@ -3330,11 +3398,11 @@
   "@deviceRemoveConfirmAction": {
     "description": "Botón de confirmar que quita el móvil."
   },
-  "deviceRemoveWaitTitle": "Este móvil volverá a esperar aprobación",
+  "deviceRemoveWaitTitle": "Tu móvil volverá a esperar aprobación",
   "@deviceRemoveWaitTitle": {
     "description": "Título del aviso al quitar el único móvil que aprobó el cambio de persona de este."
   },
-  "deviceRemoveWaitBody": "El móvil que vas a quitar es el único que aprobó el cambio de persona de este móvil. Si lo quitas, este móvil esperará la aprobación de otro de la familia y, hasta entonces, no abrirá las sorpresas.",
+  "deviceRemoveWaitBody": "Solo el móvil que vas a quitar aprobó el cambio de persona en el tuyo. Si lo quitas, no podrás ver las sorpresas en tu móvil hasta que otro móvil de la familia apruebe el cambio.",
   "@deviceRemoveWaitBody": {
     "description": "Cuerpo del aviso N7 al quitar un móvil."
   },
@@ -3384,19 +3452,19 @@
   "@deviceApproveNewcomer": {
     "description": "Explicación al aprobar un móvil recién llegado."
   },
-  "deviceApprovePersonChanged": "Ha cambiado de persona. Al aprobarlo, desde ahora podrá avalar a otros móviles de la familia.",
+  "deviceApprovePersonChanged": "Ha cambiado de persona. Si lo apruebas, podrá aprobar otros móviles de la familia.",
   "@deviceApprovePersonChanged": {
     "description": "Explicación al aprobar un móvil que cambió de persona."
   },
-  "deviceApproveOrphan": "Dejó de estar enlazado a este móvil. Si lo apruebas, vuelve a recibir las sorpresas que le tocan.",
+  "deviceApproveOrphan": "Hay que confirmar de nuevo de quién es. Si lo apruebas, volverá a ver las sorpresas para los demás.",
   "@deviceApproveOrphan": {
     "description": "Explicación al confirmar un huérfano."
   },
-  "deviceApproveDetached": "Este móvil ya no está enlazado a la familia, pero te confirmó a ti. Apruébalo solo si lo conoces.",
+  "deviceApproveDetached": "Este móvil ya no está conectado a la familia, pero antes confirmó el tuyo. Apruébalo solo si lo reconoces.",
   "@deviceApproveDetached": {
     "description": "Explicación al confirmar de vuelta un móvil desenlazado."
   },
-  "deviceApproveFrozen": "Sus cambios están congelados y no se pueden limpiar los borrados hasta que lo apruebes o lo quites.",
+  "deviceApproveFrozen": "Sus cambios están en pausa hasta que lo apruebes o lo quites.",
   "@deviceApproveFrozen": {
     "description": "Explicación al revisar un móvil congelado."
   },
@@ -3404,19 +3472,19 @@
   "@deviceApprovedSnack": {
     "description": "Aviso tras aprobar un móvil."
   },
-  "deviceApproveError": "No se ha podido aprobar el móvil.",
+  "deviceApproveError": "No se ha podido aprobar el móvil. Inténtalo de nuevo.",
   "@deviceApproveError": {
     "description": "Error al aprobar un móvil."
   },
-  "deviceChangedNotice": "Este móvil ha cambiado: revisa de nuevo.",
+  "deviceChangedNotice": "Han cambiado los datos del móvil. Revísalos de nuevo.",
   "@deviceChangedNotice": {
     "description": "Aviso cuando la ficha de un móvil cambió mientras se revisaba."
   },
-  "deviceRemovedPendingSnack": "Quitado de este móvil. Falta cortar su acceso: se hará en cuanto haya conexión.",
+  "deviceRemovedPendingSnack": "Móvil quitado. Perderá el acceso en cuanto haya conexión.",
   "@deviceRemovedPendingSnack": {
     "description": "Aviso tras quitar un móvil cuyo acceso en el servidor aún no se ha cortado."
   },
-  "deviceApproveCanVouch": "Su ficha ha cambiado: al aprobarlo, desde ahora podrá avalar a otros móviles de la familia.",
+  "deviceApproveCanVouch": "Ha cambiado de persona: si lo apruebas, podrá aprobar otros móviles de la familia.",
   "@deviceApproveCanVouch": {
     "description": "Frase añadida a la explicación de un móvil cuya ficha ya cambió: al aprobarlo podrá avalar a otros."
   },
@@ -3424,7 +3492,7 @@
   "@webGateConnectTitle": {
     "description": "Título de la puerta de la versión web antes de emparejar el ordenador con un móvil."
   },
-  "webGateConnectIntro": "Se empareja una sola vez con tu móvil. Después solo necesitarás tu PIN.",
+  "webGateConnectIntro": "Solo hay que hacerlo una vez, con tu móvil. Después entrarás con el PIN o la frase que elijas.",
   "@webGateConnectIntro": {
     "description": "Explicación bajo el título de conectar el ordenador."
   },
@@ -3432,7 +3500,7 @@
   "@webGateStepOpenApp": {
     "description": "Primer paso de las instrucciones de la puerta web (conectar y desbloquear una web suspendida)."
   },
-  "webGateConnectStep2": "Ve a Móviles de la familia y toca Conectar la web.",
+  "webGateConnectStep2": "Ve a Ajustes › Móviles de la familia y toca «Conectar la web».",
   "@webGateConnectStep2": {
     "description": "Segundo paso de conectar la web: la ruta en el móvil."
   },
@@ -3444,7 +3512,7 @@
   "@webGateConnectWaiting": {
     "description": "Indicador discreto mientras la web espera a que el móvil escanee el QR."
   },
-  "webGateCompareTitle": "Comprueba el código",
+  "webGateCompareTitle": "Compara el código",
   "@webGateCompareTitle": {
     "description": "Título del paso en que se compara el código de seis cifras con el móvil."
   },
@@ -3476,7 +3544,7 @@
   "@webGateFailedMismatch": {
     "description": "Motivo del fallo: el código del móvil era distinto."
   },
-  "webGateFailedRejected": "El móvil ha rechazado la conexión. Empieza otra vez si quieres intentarlo de nuevo.",
+  "webGateFailedRejected": "El móvil ha rechazado la conexión. Si quieres conectar este ordenador, empieza otra vez.",
   "@webGateFailedRejected": {
     "description": "Motivo del fallo: el móvil rechazó la conexión."
   },
@@ -3484,7 +3552,7 @@
   "@webGateFailedNetwork": {
     "description": "Motivo del fallo: sin red."
   },
-  "webGateFailedCancelled": "El móvil ha cancelado la conexión o la invitación ya no está disponible. Empieza otra vez y vuelve a conectar desde el móvil.",
+  "webGateFailedCancelled": "El móvil ha cancelado la conexión o el código ya no sirve. Empieza otra vez y escanea el código nuevo con el móvil.",
   "@webGateFailedCancelled": {
     "description": "Motivo del fallo: el móvil canceló la conexión o la invitación ya no existe."
   },
@@ -3502,7 +3570,7 @@
       }
     }
   },
-  "webGateChoosePinBody": "Elige un PIN o una frase para abrirlo. Te lo pediremos cada vez que entres.",
+  "webGateChoosePinBody": "Elige un PIN o una frase para desbloquear Gift Huddle cada vez que abras la web en este ordenador.",
   "@webGateChoosePinBody": {
     "description": "Explicación al elegir el PIN o la frase de la web."
   },
@@ -3550,7 +3618,7 @@
   "@webGateUnlockTitle": {
     "description": "Título de la pantalla de desbloqueo de la web."
   },
-  "webGateUnlockBody": "Escribe el PIN o la frase de este ordenador.",
+  "webGateUnlockBody": "Escribe el PIN o la frase que elegiste para Gift Huddle en este ordenador.",
   "@webGateUnlockBody": {
     "description": "Explicación bajo el título de desbloquear la web."
   },
@@ -3590,19 +3658,19 @@
   "@webGateSuspendedTitle": {
     "description": "Título cuando la web queda suspendida por intentos fallidos."
   },
-  "webGateSuspendedBody": "Desbloquéalo desde un móvil. No se ha borrado nada.",
+  "webGateSuspendedBody": "Para volver a intentarlo, permítelo antes desde un móvil. No se ha borrado nada.",
   "@webGateSuspendedBody": {
     "description": "Explicación de la web suspendida."
   },
-  "webGateSuspendedStep2": "Ve a Móviles de la familia y toca Web.",
+  "webGateSuspendedStep2": "Ve a Ajustes › Móviles de la familia y toca «Web».",
   "@webGateSuspendedStep2": {
     "description": "Segundo paso para desbloquear una web suspendida desde el móvil."
   },
-  "webGateSuspendedStep3": "Toca Permitir desbloquear otra vez.",
+  "webGateSuspendedStep3": "Toca «Permitir más intentos de PIN».",
   "@webGateSuspendedStep3": {
     "description": "Tercer paso para desbloquear una web suspendida desde el móvil."
   },
-  "webGateRetry": "Probar otra vez",
+  "webGateRetry": "Reintentar",
   "@webGateRetry": {
     "description": "Botón que vuelve a comprobar si la web sigue suspendida."
   },
@@ -3614,7 +3682,7 @@
   "@webGateDisconnectedBody": {
     "description": "Explicación de la web desconectada."
   },
-  "webGateDisconnectedUnsent": "{count, plural, one{Hay {count} cambio sin subir guardado en este ordenador, cifrado.} other{Hay {count} cambios sin subir guardados en este ordenador, cifrados.}}",
+  "webGateDisconnectedUnsent": "{count, plural, one{Hay {count} cambio sin subir. Está guardado y cifrado en este ordenador.} other{Hay {count} cambios sin subir. Están guardados y cifrados en este ordenador.}}",
   "@webGateDisconnectedUnsent": {
     "description": "Aviso de cambios sin subir guardados en la web desconectada.",
     "placeholders": {
@@ -3628,11 +3696,11 @@
   "@webGateReconnect": {
     "description": "Botón que empareja de nuevo la web desconectada."
   },
-  "webGateErase": "Borrar los datos de este ordenador",
+  "webGateErase": "Borrar los datos de Gift Huddle en este ordenador",
   "@webGateErase": {
     "description": "Botón que borra todo lo guardado en la web desconectada."
   },
-  "webGateEraseTitle": "¿Borrar los datos de este ordenador?",
+  "webGateEraseTitle": "¿Borrar los datos de Gift Huddle en este ordenador?",
   "@webGateEraseTitle": {
     "description": "Título del diálogo que confirma borrar los datos de la web."
   },
@@ -3644,15 +3712,15 @@
   "@webGateEraseBodyUnsent": {
     "description": "Texto del diálogo de borrar los datos cuando hay cambios sin subir."
   },
-  "webGateDamagedTitle": "Los datos de este ordenador están dañados",
+  "webGateDamagedTitle": "Los datos de Gift Huddle en este ordenador están dañados",
   "@webGateDamagedTitle": {
     "description": "Título de la puerta web cuando la caja cifrada del ordenador está dañada."
   },
-  "webGateDamagedBody": "No se pueden leer de forma segura. Para seguir, bórralos y vuelve a conectar este ordenador desde un móvil. Los cambios que no se hubieran subido se perderán.",
+  "webGateDamagedBody": "No se pueden leer de forma segura. Para seguir, bórralos y vuelve a conectar este ordenador desde un móvil. Perderás los cambios que no se hayan subido.",
   "@webGateDamagedBody": {
     "description": "Explica que la caja no se puede leer y que hay que borrarla y volver a conectar el ordenador; avisa de que se pierden los cambios sin subir."
   },
-  "webGateDamagedPhoneHint": "En el móvil, quita la web anterior en Móviles de la familia.",
+  "webGateDamagedPhoneHint": "En el móvil, ve a Ajustes › Móviles de la familia y quita la web anterior.",
   "@webGateDamagedPhoneHint": {
     "description": "Línea que recomienda quitar la web anterior desde el móvil (Ajustes, Móviles de la familia)."
   },
@@ -3700,15 +3768,15 @@
   "@webSettingsNewPinRepeat": {
     "description": "Campo que repite el PIN o la frase nuevos."
   },
-  "webSettingsCurrentWrong": "El PIN o la frase actual no es correcto.",
+  "webSettingsCurrentWrong": "Comprueba que has escrito bien el PIN o la frase actual.",
   "@webSettingsCurrentWrong": {
     "description": "Error al cambiar el PIN con un actual equivocado."
   },
-  "webSettingsChangeFailed": "No se ha podido cambiar. Inténtalo otra vez.",
+  "webSettingsChangeFailed": "No se ha podido cambiar. Inténtalo de nuevo.",
   "@webSettingsChangeFailed": {
     "description": "Error genérico al cambiar el PIN de la web."
   },
-  "webSettingsPinChanged": "PIN cambiado.",
+  "webSettingsPinChanged": "Se ha cambiado el PIN o la frase.",
   "@webSettingsPinChanged": {
     "description": "Aviso tras cambiar el PIN de la web."
   },
@@ -3720,7 +3788,7 @@
   "@webSettingsForget": {
     "description": "Fila de Ajustes de la web que saca este ordenador de la familia."
   },
-  "webSettingsForgetHint": "Sale de la familia y borra lo guardado en él.",
+  "webSettingsForgetHint": "Saldrá de la familia y se borrarán los datos de Gift Huddle guardados en él.",
   "@webSettingsForgetHint": {
     "description": "Detalle de la fila Olvidar este ordenador."
   },
@@ -3728,7 +3796,7 @@
   "@webSettingsForgetTitle": {
     "description": "Título del diálogo que confirma olvidar el ordenador."
   },
-  "webSettingsForgetBody": "Este ordenador saldrá de la familia y se borrará lo que Gift Huddle guarda en él, también los cambios sin subir. En tus móviles no cambia nada. Para volver a usarlo tendrás que conectarlo otra vez.",
+  "webSettingsForgetBody": "Este ordenador saldrá de la familia. Se borrarán los datos de Gift Huddle guardados aquí, incluidos los cambios sin subir. En tus móviles no cambia nada. Para volver a usar Gift Huddle aquí, tendrás que conectar el ordenador de nuevo.",
   "@webSettingsForgetBody": {
     "description": "Texto del diálogo de olvidar el ordenador."
   },
@@ -3736,7 +3804,7 @@
   "@webSettingsForgetConfirm": {
     "description": "Botón que confirma olvidar el ordenador."
   },
-  "webSettingsPersistenceDenied": "El navegador podría borrar los datos de este ordenador si le falta espacio.",
+  "webSettingsPersistenceDenied": "Si queda poco espacio, el navegador podría borrar los datos que Gift Huddle guarda aquí.",
   "@webSettingsPersistenceDenied": {
     "description": "Aviso cuando el navegador no garantiza guardar los datos de la web."
   },
@@ -3750,7 +3818,7 @@
       }
     }
   },
-  "webGateChoosePinCheck": "Si tu móvil no mostró el mismo código, no sigas: toca Empezar otra vez.",
+  "webGateChoosePinCheck": "Si los códigos no coincidían, no sigas: pulsa «Empezar otra vez».",
   "@webGateChoosePinCheck": {
     "description": "Línea discreta al elegir el PIN: si el código no coincidía, hay que reiniciar el emparejamiento."
   },
@@ -3766,7 +3834,7 @@
   "@webGateRestartConfirm": {
     "description": "Botón que confirma reiniciar el emparejamiento."
   },
-  "webFailedAttemptsNotice": "{count, plural, one{Hubo {count} intento fallido de desbloquear este ordenador desde la última vez. Si no fuiste tú, cambia el PIN.} other{Hubo {count} intentos fallidos de desbloquear este ordenador desde la última vez. Si no fuiste tú, cambia el PIN.}}",
+  "webFailedAttemptsNotice": "{count, plural, one{Ha habido {count} intento fallido desde la última vez que se desbloqueó Gift Huddle aquí. Si no has sido tú, cambia el PIN.} other{Ha habido {count} intentos fallidos desde la última vez que se desbloqueó Gift Huddle aquí. Si no has sido tú, cambia el PIN.}}",
   "@webFailedAttemptsNotice": {
     "description": "Aviso dentro de la web, una vez por sesión, de los PIN fallidos desde el último desbloqueo correcto.",
     "placeholders": {
@@ -3818,7 +3886,7 @@
   "@connectWebWhoseTitle": {
     "description": "Pregunta de a quién pertenece el ordenador que se conecta."
   },
-  "connectWebWhoseBody": "Elige quién lo va a usar. El ordenador se conectará como suyo.",
+  "connectWebWhoseBody": "Elige quién va a usar la lista desde el ordenador.",
   "@connectWebWhoseBody": {
     "description": "Explicación bajo la pregunta de a quién pertenece el ordenador."
   },
@@ -3846,7 +3914,7 @@
   "@connectWebDoneBody": {
     "description": "Lo que falta por hacer en el ordenador al terminar."
   },
-  "connectWebNewQr": "Este código ya no vale. En el ordenador, toca Empezar otra vez y escanea el nuevo.",
+  "connectWebNewQr": "Este código ya no vale. En el ordenador, pulsa «Empezar otra vez». Escanea el código nuevo con el móvil.",
   "@connectWebNewQr": {
     "description": "Cuando el código del ordenador ya no vale y hay que pedir otro."
   },
@@ -3854,23 +3922,23 @@
   "@connectWebScanAgain": {
     "description": "Botón para volver a escanear otro código del ordenador."
   },
-  "connectWebFailed": "No se ha podido conectar el ordenador. En el ordenador, toca Empezar otra vez y escanea el nuevo código.",
+  "connectWebFailed": "No se ha podido conectar el ordenador. Pulsa «Empezar otra vez» en el ordenador. Escanea el código nuevo con el móvil.",
   "@connectWebFailed": {
     "description": "No se ha podido conectar el ordenador."
   },
-  "connectWebCancelled": "Se ha cancelado y el código ya no sirve. En el ordenador, toca Empezar otra vez.",
+  "connectWebCancelled": "Se ha cancelado la conexión y el código ya no sirve. En el ordenador, pulsa «Empezar otra vez».",
   "@connectWebCancelled": {
     "description": "Se canceló la conexión del ordenador."
   },
-  "deviceWebResume": "Permitir desbloquear otra vez",
+  "deviceWebResume": "Permitir más intentos de PIN",
   "@deviceWebResume": {
     "description": "Fila de la hoja de una web que permite desbloquear otra vez."
   },
-  "deviceWebResumeHint": "Si el ordenador se suspendió por demasiados intentos de PIN. No se borra nada.",
+  "deviceWebResumeHint": "Si la web ya no acepta el PIN tras demasiados intentos fallidos. No se borra nada.",
   "@deviceWebResumeHint": {
     "description": "Frase bajo «Permitir desbloquear otra vez»."
   },
-  "deviceWebResumeTitle": "¿Permitir desbloquear otra vez?",
+  "deviceWebResumeTitle": "¿Permitir más intentos de PIN?",
   "@deviceWebResumeTitle": {
     "description": "Título de la confirmación de permitir desbloquear otra vez."
   },
@@ -3882,11 +3950,11 @@
   "@deviceWebResumeConfirm": {
     "description": "Botón que confirma permitir desbloquear otra vez."
   },
-  "deviceWebResumeDone": "Listo. El ordenador ya puede volver a desbloquearse.",
+  "deviceWebResumeDone": "Listo. La web vuelve a aceptar el PIN.",
   "@deviceWebResumeDone": {
     "description": "Resultado de permitir desbloquear otra vez."
   },
-  "deviceWebResumeError": "No se ha podido. Comprueba la conexión e inténtalo otra vez.",
+  "deviceWebResumeError": "No se han podido permitir más intentos de PIN. Comprueba la conexión e inténtalo de nuevo.",
   "@deviceWebResumeError": {
     "description": "Fallo al permitir desbloquear otra vez."
   },
@@ -3894,7 +3962,7 @@
   "@deviceRemoveWebTitle": {
     "description": "Botón de la hoja de una web que le quita el acceso."
   },
-  "deviceRemoveWebHint": "Este ordenador deja de recibir la lista nueva.",
+  "deviceRemoveWebHint": "Este ordenador dejará de recibir los cambios de la lista.",
   "@deviceRemoveWebHint": {
     "description": "Frase del botón Quitar esta web."
   },
@@ -3914,7 +3982,7 @@
   "@deviceRemovedWebSnack": {
     "description": "Aviso tras quitar una web."
   },
-  "deviceRemovedWebPendingSnack": "Quitada de este móvil. Falta cortar su acceso: se hará en cuanto haya conexión.",
+  "deviceRemovedWebPendingSnack": "Web quitada. El ordenador perderá el acceso en cuanto haya conexión.",
   "@deviceRemovedWebPendingSnack": {
     "description": "Aviso tras quitar una web cuyo acceso en el servidor aún no se ha cortado."
   },
@@ -3930,7 +3998,7 @@
   "@webSyncOffline": {
     "description": "Estado discreto de la web: sin conexión."
   },
-  "webSyncAwaitingConfirm": "Este ordenador espera a que un móvil lo confirme",
+  "webSyncAwaitingConfirm": "Pendiente de confirmación desde un móvil",
   "@webSyncAwaitingConfirm": {
     "description": "Estado de la web cuando ningún móvil la ha confirmado."
   },
@@ -3942,7 +4010,7 @@
   "@selfChangeConfirmTitle": {
     "description": "Título de la hoja que avisa antes de cambiar «Este móvil es de» en una familia con otros móviles."
   },
-  "selfChangeConfirmIntro": "Vas a decir que este móvil es de {name}. Eso cambia lo que puede ver, no solo el nombre.",
+  "selfChangeConfirmIntro": "Vas a decir que este móvil es de {name}. Esto cambia qué regalos y sorpresas puedes ver en él.",
   "@selfChangeConfirmIntro": {
     "description": "Introducción de la hoja de cambio de persona.",
     "placeholders": {
@@ -3951,7 +4019,7 @@
       }
     }
   },
-  "selfChangeConfirmIntroNobody": "Vas a dejar este móvil sin persona. Eso cambia lo que puede ver, no solo el nombre.",
+  "selfChangeConfirmIntroNobody": "Vas a dejar este móvil sin una persona asignada. Esto cambia qué regalos y sorpresas puedes ver en él.",
   "@selfChangeConfirmIntroNobody": {
     "description": "Introducción de la hoja de cambio de persona cuando se elige Nadie."
   },
@@ -3968,11 +4036,11 @@
   "@selfChangeEffectNobody": {
     "description": "Primera consecuencia del cambio cuando se elige Nadie."
   },
-  "selfChangeEffectWait": "Hasta que otro móvil de la familia lo apruebe, este móvil no verá las sorpresas de nadie.",
+  "selfChangeEffectWait": "Hasta que se apruebe el cambio desde otro móvil de la familia, en este no verás las sorpresas de nadie.",
   "@selfChangeEffectWait": {
     "description": "Segunda consecuencia del cambio de persona."
   },
-  "selfChangeEffectReconfirm": "Los móviles que este había aprobado pueden tener que confirmarse otra vez.",
+  "selfChangeEffectReconfirm": "Puede que tengas que volver a confirmar algunos móviles que aprobaste desde este.",
   "@selfChangeEffectReconfirm": {
     "description": "Tercera consecuencia del cambio de persona."
   },
@@ -4005,7 +4073,7 @@
   "@selfChangeExhaustedTitle": {
     "description": "Título del aviso cuando se agotan los cambios de persona."
   },
-  "selfChangeExhaustedBody": "Ha usado todos los cambios que permite la lista de móviles. Puede volver a conectarse a la familia como un móvil nuevo, en persona, desde otro móvil.",
+  "selfChangeExhaustedBody": "Has llegado al límite de cambios de persona en este móvil. Para elegir a otra persona, vuelve a conectarlo a la familia como un móvil nuevo. Necesitarás tener a mano otro móvil de la familia.",
   "@selfChangeExhaustedBody": {
     "description": "Cuerpo del aviso cuando se agotan los cambios de persona."
   },
@@ -4013,11 +4081,11 @@
   "@selfWaitingHint": {
     "description": "Frase bajo la fila Este móvil es de mientras otro móvil no apruebe este."
   },
-  "healthRevokedTitle": "Otro móvil de la familia ha quitado este",
+  "healthRevokedTitle": "Han quitado este móvil de la familia",
   "@healthRevokedTitle": {
     "description": "Título del aviso persistente de Móviles de la familia cuando otro móvil ha quitado este."
   },
-  "healthRevokedBody": "Lo que tienes guardado sigue en este móvil, pero ya no se sincroniza. Reintentar no sirve: hay que volver a conectarlo con otro móvil de la familia, en persona.",
+  "healthRevokedBody": "Tus datos siguen en este móvil. Para que vuelva a sincronizarse, conéctalo de nuevo en persona con otro móvil de la familia.",
   "@healthRevokedBody": {
     "description": "Cuerpo del aviso de móvil quitado por otro."
   },
@@ -4062,7 +4130,7 @@
   "@healthResolveSection": {
     "description": "Cabecera de las filas de accesos sin respaldo y bajas a medias."
   },
-  "healthUnbackedTitle": "Acceso sin respaldo",
+  "healthUnbackedTitle": "Acceso sin identificar",
   "@healthUnbackedTitle": {
     "description": "Fila: un acceso del servidor que no figura en la lista de móviles."
   },
@@ -4149,15 +4217,15 @@
       }
     }
   },
-  "protectionStatusOff": "Desactivado",
+  "protectionStatusOff": "Desactivados",
   "@protectionStatusOff": {
     "description": "Estado de la protección: sin proteger."
   },
-  "protectionStatusRequested": "Pedido",
+  "protectionStatusRequested": "Por confirmar",
   "@protectionStatusRequested": {
     "description": "Estado de la protección: pedida, a la espera de un móvil con permiso."
   },
-  "protectionStatusActive": "Activo",
+  "protectionStatusActive": "Activos",
   "@protectionStatusActive": {
     "description": "Estado de la protección: activa."
   },
@@ -4170,7 +4238,7 @@
       }
     }
   },
-  "protectionIntro": "Con los regalos en secreto activados, el móvil de {name} no muestra ningún regalo para {name}, ni cuántos hay. El resto de la familia los sigue viendo.",
+  "protectionIntro": "Con la protección activa, {name} no ve en su móvil qué regalos hay para {name} ni cuántos son.",
   "@protectionIntro": {
     "description": "Explicación de la protección de una persona.",
     "placeholders": {
@@ -4183,7 +4251,7 @@
   "@protectionEffectOthers": {
     "description": "Primera consecuencia de activar la protección."
   },
-  "protectionEffectKept": "Los regalos que el móvil de {name} ya recibió antes de activarla no se pueden retirar de él.",
+  "protectionEffectKept": "La protección no puede retirar los regalos que ya habían llegado al móvil de {name}.",
   "@protectionEffectKept": {
     "description": "Segunda consecuencia: lo ya recibido no se retira.",
     "placeholders": {
@@ -4243,7 +4311,7 @@
   "@protectionDeactivate": {
     "description": "Botón que desactiva la protección."
   },
-  "protectionDeactivateTitle": "¿Desactivar los regalos en secreto de {name}?",
+  "protectionDeactivateTitle": "¿Desactivar los regalos en secreto para {name}?",
   "@protectionDeactivateTitle": {
     "description": "Título del diálogo de confirmación al desactivar.",
     "placeholders": {
@@ -4278,6 +4346,64 @@
   "@protectionChangeFailed": {
     "description": "Aviso cuando falla pedir, activar o desactivar la protección."
   },
+  "protectionNeedConfirmer": "Para proteger los regalos de {name} hace falta un móvil de otra persona de la familia. En Ajustes, elige de quién es este móvil en «Este móvil es de». Aprueba el cambio desde otro móvil o conecta otro móvil a la familia. Si ya lo has hecho, sincroniza.",
+  "@protectionNeedConfirmer": {
+    "description": "Aviso en la hoja de protección cuando ningún móvil de otra persona podría confirmarla y este móvil no es de la persona destinataria.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "protectionNeedConfirmerOwn": "Desde este móvil no se pueden proteger los regalos de {name}. Pide a otra persona de la familia que lo haga desde el suyo.",
+  "@protectionNeedConfirmerOwn": {
+    "description": "Aviso en la hoja de protección cuando ningún móvil de otra persona podría confirmarla y este móvil es el de la propia persona destinataria.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "protectionRequesterPending": "Falta que alguien de la familia apruebe desde otro móvil el cambio en «Este móvil es de». Hasta entonces no puedes pedir protección para los regalos de {name}.",
+  "@protectionRequesterPending": {
+    "description": "Aviso cuando este móvil aún espera la aprobación de su persona y por eso no puede pedir la protección.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "protectionRequesterRevoked": "Este móvil ya no forma parte de la familia, así que no puede pedir la protección de los regalos de {name}.",
+  "@protectionRequesterRevoked": {
+    "description": "Aviso cuando este móvil fue retirado de la familia.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "protectionRequesterAmbiguous": "No se sabe con seguridad de quién es este móvil, así que no puede pedir la protección de los regalos de {name}. Sincroniza e inténtalo de nuevo.",
+  "@protectionRequesterAmbiguous": {
+    "description": "Aviso cuando la identidad de este móvil es ambigua y no puede pedir la protección.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "protectionRecipientUnavailable": "{name} ya no está en la lista. No se puede pedir protección para sus regalos.",
+  "@protectionRecipientUnavailable": {
+    "description": "Aviso cuando la persona destinataria ya no existe o está archivada.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "protectionRegistryUnavailable": "Este móvil todavía no está al día con la familia. Sincroniza e inténtalo de nuevo.",
+  "@protectionRegistryUnavailable": {
+    "description": "Aviso cuando no se puede leer el registro de móviles de la familia."
+  },
   "secretBlockTitle": "Regalos en secreto para {name}",
   "@secretBlockTitle": {
     "description": "Bloque fijo y borroso que ocupa el lugar de los regalos de una persona protegida; sin cifras.",
@@ -4300,7 +4426,7 @@
       }
     }
   },
-  "protectionReason_noEntitlement": "Este móvil no tiene permiso para los regalos en secreto de {name}. Pide ayuda a otro móvil de la familia con permiso.",
+  "protectionReason_noEntitlement": "Este móvil no tiene acceso a los regalos en secreto para {name}. Pide ayuda a alguien de la familia que tenga un móvil con permiso.",
   "@protectionReason_noEntitlement": {
     "description": "Motivo por el que no se pueden guardar o elegir los regalos de una persona protegida.",
     "placeholders": {
@@ -4309,7 +4435,7 @@
       }
     }
   },
-  "protectionReason_ownRequestsRestricted": "Este móvil es de {name}: aquí no se pueden crear ni ver sus regalos mientras estén en secreto.",
+  "protectionReason_ownRequestsRestricted": "Este móvil es de {name}. Aquí no puedes crear ni ver regalos en secreto para {name}.",
   "@protectionReason_ownRequestsRestricted": {
     "description": "Motivo por el que no se pueden guardar o elegir los regalos de una persona protegida.",
     "placeholders": {
@@ -4345,7 +4471,7 @@
       }
     }
   },
-  "protectionReason_blockFull": "Los regalos en secreto de {name} han llegado al límite. Borra alguno para poder añadir más.",
+  "protectionReason_blockFull": "Has llegado al límite de regalos en secreto para {name}. Elimina alguno para poder añadir más.",
   "@protectionReason_blockFull": {
     "description": "Motivo por el que no se pueden guardar o elegir los regalos de una persona protegida.",
     "placeholders": {
@@ -4354,7 +4480,7 @@
       }
     }
   },
-  "protectionReason_giftTooLarge": "Este regalo es demasiado grande para guardarlo en secreto. Acorta las notas.",
+  "protectionReason_giftTooLarge": "Acorta las notas para poder guardar este regalo en secreto.",
   "@protectionReason_giftTooLarge": {
     "description": "Motivo por el que no se pueden guardar o elegir los regalos de una persona protegida.",
     "placeholders": {
@@ -4363,7 +4489,7 @@
       }
     }
   },
-  "protectionReason_writerSlotsFull": "Este móvil ya no tiene sitio para guardar más regalos en secreto. Pide a otro móvil con permiso que los añada.",
+  "protectionReason_writerSlotsFull": "Este móvil ha llegado a su límite de regalos en secreto. Pide a alguien que añada los nuevos desde otro móvil con permiso.",
   "@protectionReason_writerSlotsFull": {
     "description": "Motivo por el que no se pueden guardar o elegir los regalos de una persona protegida.",
     "placeholders": {
@@ -4372,7 +4498,7 @@
       }
     }
   },
-  "protectionReason_slotsFull": "Ahora mismo no cabe más en los regalos en secreto de la familia.",
+  "protectionReason_slotsFull": "Ahora mismo no se pueden añadir más regalos en secreto a la lista de la familia.",
   "@protectionReason_slotsFull": {
     "description": "Motivo por el que no se pueden guardar o elegir los regalos de una persona protegida.",
     "placeholders": {
@@ -4394,7 +4520,7 @@
   "@giftProtectedRejected": {
     "description": "Se añade tras el motivo cuando un regalo para una persona protegida se rechaza."
   },
-  "giftSavedLocally": "Guardado solo en este móvil. Queda pendiente de guardar y compartir.",
+  "giftSavedLocally": "Guardado solo en este móvil. Aún falta añadirlo a la lista y compartirlo.",
   "@giftSavedLocally": {
     "description": "Aviso cuando un regalo secreto se guarda cifrado en este móvil pero aún no en la lista."
   },
@@ -4402,7 +4528,7 @@
   "@giftSavedLocallyAction": {
     "description": "Acción del aviso de guardado local."
   },
-  "giftOwnRequestRestricted": "Mientras la protección esté activa, este móvil no puede crear ni ver regalos para su propia persona. Pídelo a otra persona de la familia.",
+  "giftOwnRequestRestricted": "Con la protección activa, no puedes añadir ni ver regalos para ti en este móvil. Pide a otra persona de la familia que apunte el regalo.",
   "@giftOwnRequestRestricted": {
     "description": "Explicación de la restricción de las peticiones propias en el editor."
   },
@@ -4410,7 +4536,7 @@
   "@pendingGiftsTitle": {
     "description": "Título de la hoja de regalos pendientes de guardar o compartir."
   },
-  "pendingGiftsIntro": "Estos regalos están guardados cifrados solo en este móvil. Hasta que se guarden y se compartan con la familia, los demás móviles no los ven. Si pierdes este móvil antes, se pierden.",
+  "pendingGiftsIntro": "Estos regalos están cifrados y solo se guardan en este móvil. Aún no aparecen en la lista compartida de la familia. Si pierdes el móvil antes de que se añadan a la lista, perderás también estos regalos.",
   "@pendingGiftsIntro": {
     "description": "Explicación de la hoja de regalos pendientes."
   },
@@ -4422,7 +4548,7 @@
   "@pendingGiftsRetrying": {
     "description": "Texto del botón mientras reintenta."
   },
-  "pendingGiftsStill": "Todavía no cabe. No se ha publicado nada y los regalos se conservan en este móvil.",
+  "pendingGiftsStill": "Todavía no hay sitio. Los regalos siguen guardados solo en este móvil.",
   "@pendingGiftsStill": {
     "description": "Resultado de reintentar cuando siguen pendientes."
   },
@@ -4459,7 +4585,7 @@
   "@giftsEmptyOccasionsHint": {
     "description": "Frase sobre los botones de ocasión en la lista vacía de una persona (escritorio): cada botón abre el editor con esa ocasión."
   },
-  "occasionGiftsBoughtShort": "{done} de {total} comprados",
+  "occasionGiftsBoughtShort": "{done} de {total} {total, plural, one{comprado} other{comprados}}",
   "@occasionGiftsBoughtShort": {
     "description": "Regalos comprados de una ocasión, abreviado, en las filas de 56 px de «Resumen» y de encima de la lista de Personas (escritorio).",
     "placeholders": {
@@ -4518,7 +4644,7 @@
   "@boardLaneEmpty": {
     "description": "Carril del tablero sin regalos."
   },
-  "boardMoveTo": "Mover a {lane}",
+  "boardMoveTo": "Mover a «{lane}»",
   "@boardMoveTo": {
     "description": "Acción de accesibilidad de una fila del tablero: pasar el regalo al carril indicado.",
     "placeholders": {
@@ -4527,7 +4653,7 @@
       }
     }
   },
-  "boardLaneAdd": "Añadir regalo en {lane}",
+  "boardLaneAdd": "Añadir regalo a «{lane}»",
   "@boardLaneAdd": {
     "description": "El «+» de la cabecera de un carril del tablero (ayuda y lector de pantalla).",
     "placeholders": {
@@ -4621,7 +4747,7 @@
   "@boardColSize": {
     "description": "Cabecera de la columna de la talla o la edad en la tabla de una persona (web de escritorio)."
   },
-  "boardRepartoNoGiver": "Sin quién regala",
+  "boardRepartoNoGiver": "Sin asignar",
   "@boardRepartoNoGiver": {
     "description": "Título de la columna lateral de Reparto (web de escritorio) con los regalos que todavía no tienen quién los regale."
   },
@@ -4670,7 +4796,7 @@
   "@tour1Title": {
     "description": "Guía, página 1: título."
   },
-  "tour1Body": "Elige a quién, para qué ocasión y quién lo regala. Con una idea basta.",
+  "tour1Body": "Elige para quién es el regalo, la ocasión y quién lo regala. Con una idea basta.",
   "@tour1Body": {
     "description": "Guía, página 1: una frase."
   },
@@ -4686,7 +4812,7 @@
   "@tour3Title": {
     "description": "Guía, página 3: título."
   },
-  "tour3Body": "Cada persona tiene su lista. Navidad, Reyes y cumpleaños la ordenan, y el reparto dice quién paga qué.",
+  "tour3Body": "La lista de cada persona agrupa los regalos por ocasión, como Navidad, Reyes o cumpleaños. En «Reparto» ves quién paga cada regalo.",
   "@tour3Body": {
     "description": "Guía, página 3: una frase."
   },
@@ -4702,7 +4828,7 @@
   "@tour5Title": {
     "description": "Guía, página 5: título."
   },
-  "tour5Body": "El móvil de cada persona no ve sus propios regalos. Con PIN o biometría, sin cuentas ni anuncios.",
+  "tour5Body": "En tu móvil no se muestran los regalos que son para ti. Puedes bloquear la app con PIN o biometría. Sin cuentas ni anuncios.",
   "@tour5Body": {
     "description": "Guía, página 5: una frase."
   },
@@ -4710,7 +4836,7 @@
   "@tour6Title": {
     "description": "Guía, página 6: título."
   },
-  "tour6Body": "Conecta el navegador una vez y tendrás la lista en una pantalla grande.",
+  "tour6Body": "Conecta la web una vez y tendrás la lista en una pantalla grande.",
   "@tour6Body": {
     "description": "Guía, página 6: una frase."
   },
@@ -4742,7 +4868,7 @@
   "@tourDemoEncrypted": {
     "description": "Texto de la demostración de conectar dos móviles: lo que viaja va cifrado."
   },
-  "tourDemoHidden": "Regalos ocultos",
+  "tourDemoHidden": "Regalos en secreto",
   "@tourDemoHidden": {
     "description": "Texto de la demostración de privacidad: en el móvil de Aritz no se ven sus regalos."
   },
@@ -4761,7 +4887,7 @@
   "recoveryValuePending": "Preparando",
   "recoveryValueUnconfirmed": "Sin comprobar",
   "recoveryUnconfirmedTitle": "Falta comprobar el código",
-  "recoveryUnconfirmedBody": "El código aún no cuenta como guardado. Continúa para comprobar las palabras o comprueba un fichero que ya hayas guardado. Si las palabras ya se mostraron, se creará un código nuevo y el anterior dejará de valer.",
+  "recoveryUnconfirmedBody": "El código aún no cuenta como guardado. Si guardaste un fichero, puedes comprobarlo. Si no, continúa con las palabras: si ya las viste, al continuar se creará un código nuevo y el anterior dejará de valer.",
   "@recoveryValuePending": {
     "description": "Valor de la fila Código de recuperación mientras se prepara o actualiza la copia."
   },
@@ -4769,7 +4895,7 @@
   "@recoveryValueAttention": {
     "description": "Valor de la fila Código de recuperación cuando necesita atención."
   },
-  "recoveryValueTransferred": "Traspasada",
+  "recoveryValueTransferred": "Lista traspasada",
   "@recoveryValueTransferred": {
     "description": "Valor de la fila Código de recuperación cuando la lista se ha pasado a otro móvil."
   },
@@ -4781,11 +4907,11 @@
   "@recoveryAbsentTitle": {
     "description": "Título del estado sin código en la pantalla Código de recuperación."
   },
-  "recoveryAbsentBody": "Con 24 palabras puedes recuperar la lista y todo lo que este móvil puede ver en otro móvil. Si solo tienes este móvil, se activa una copia cifrada en el servidor: sin las palabras, nadie puede leerla.",
+  "recoveryAbsentBody": "Con 24 palabras puedes recuperar en otro móvil la lista y todo lo que ves en este. Si solo tienes este móvil, se activa una copia cifrada en el servidor. Sin las palabras, nadie puede leerla.",
   "@recoveryAbsentBody": {
     "description": "Explicación del estado sin código: qué recupera y la copia cifrada con un solo móvil."
   },
-  "recoveryAbsentWarn": "Quien tenga las palabras puede entrar como este móvil. No recuperan lo que nunca se llegó a sincronizar.",
+  "recoveryAbsentWarn": "Quien tenga las palabras tendrá el mismo acceso a la lista que tienes en este móvil. Solo se puede recuperar lo que se haya sincronizado.",
   "@recoveryAbsentWarn": {
     "description": "Aviso del estado sin código."
   },
@@ -4821,7 +4947,7 @@
   "@recoveryChangeHint": {
     "description": "Frase bajo la fila Cambiar el código."
   },
-  "recoveryRemove": "Quitar el código",
+  "recoveryRemove": "Borrar el código",
   "@recoveryRemove": {
     "description": "Fila (en rojo) que borra la copia de recuperación."
   },
@@ -4829,7 +4955,7 @@
   "@recoveryRemoveHint": {
     "description": "Frase bajo la fila Quitar el código."
   },
-  "recoveryRemoveTitle": "¿Quitar el código de recuperación?",
+  "recoveryRemoveTitle": "¿Borrar el código de recuperación?",
   "@recoveryRemoveTitle": {
     "description": "Título del diálogo de confirmación al quitar el código."
   },
@@ -4837,15 +4963,15 @@
   "@recoveryRemoveBody": {
     "description": "Texto del diálogo de confirmación al quitar el código."
   },
-  "recoveryRemoveSoloNote": "Como no hay otro móvil ni la web conectados, también se borra la copia cifrada de la lista del servidor y la lista vuelve a estar solo en este móvil.",
+  "recoveryRemoveSoloNote": "Como no hay otro móvil ni la web conectados, también se borra del servidor la copia cifrada de la lista, y la lista vuelve a estar solo en este móvil.",
   "@recoveryRemoveSoloNote": {
     "description": "Aviso extra del diálogo de quitar el código cuando no queda otro móvil ni la web: también se retira la copia del servidor."
   },
-  "recoveryRemoveConfirm": "Quitar código",
+  "recoveryRemoveConfirm": "Borrar código",
   "@recoveryRemoveConfirm": {
     "description": "Botón rojo que confirma quitar el código."
   },
-  "recoveryRemoved": "Código quitado",
+  "recoveryRemoved": "Código borrado",
   "@recoveryRemoved": {
     "description": "Aviso tras quitar el código de recuperación."
   },
@@ -4861,7 +4987,7 @@
   "@recoveryRotateTitle": {
     "description": "Título del primer paso al cambiar el código de recuperación."
   },
-  "recoveryIntroBody": "Verás 24 palabras. Con ellas puedes recuperar la lista y todo lo que este móvil puede ver en otro móvil.",
+  "recoveryIntroBody": "Verás 24 palabras. Con ellas puedes recuperar en otro móvil la lista y todo lo que ves en este.",
   "@recoveryIntroBody": {
     "description": "Explicación del primer paso al crear el código."
   },
@@ -4873,7 +4999,7 @@
   "@recoveryPoint1": {
     "description": "Primera idea del aviso previo al código."
   },
-  "recoveryPoint2": "Quien las tenga puede entrar como este móvil.",
+  "recoveryPoint2": "Quien las tenga tendrá el mismo acceso a la lista que tienes en este móvil.",
   "@recoveryPoint2": {
     "description": "Segunda idea del aviso previo al código."
   },
@@ -4909,7 +5035,7 @@
   "@recoveryWordsBody": {
     "description": "Explicación del paso que enseña las palabras."
   },
-  "recoveryWordsWarn": "Quien tenga estas palabras puede entrar como este móvil. No hagas captura ni las envíes por mensaje.",
+  "recoveryWordsWarn": "Quien tenga estas palabras tendrá el mismo acceso a la lista que tienes en este móvil. No hagas capturas de pantalla ni envíes las palabras por mensaje.",
   "@recoveryWordsWarn": {
     "description": "Aviso del paso que enseña las palabras."
   },
@@ -5033,7 +5159,7 @@
   "@recoveryProblemOfflineTitle": {
     "description": "Título del problema de red al recuperar o mantener el código."
   },
-  "recoveryProblemOfflineBody": "No se ha podido llegar al servidor. Comprueba la conexión y reintenta; lo hecho hasta ahora se conserva.",
+  "recoveryProblemOfflineBody": "No se ha podido conectar con el servidor. Se conserva lo que has hecho. Comprueba la conexión e inténtalo de nuevo.",
   "@recoveryProblemOfflineBody": {
     "description": "Explicación del problema de red."
   },
@@ -5049,7 +5175,7 @@
   "@recoveryProblemRetiredTitle": {
     "description": "Título del problema de código retirado."
   },
-  "recoveryProblemRetiredBody": "Se cambió o se quitó desde otro móvil. Busca el código más reciente.",
+  "recoveryProblemRetiredBody": "Se cambió o se borró desde otro móvil. Busca el código más reciente.",
   "@recoveryProblemRetiredBody": {
     "description": "Explicación del problema de código retirado."
   },
@@ -5057,7 +5183,7 @@
   "@recoveryProblemRemovedTitle": {
     "description": "Título del problema de móvil quitado de la familia."
   },
-  "recoveryProblemRemovedBody": "Se quitó este móvil de la lista, así que no se puede recuperar con este código.",
+  "recoveryProblemRemovedBody": "Este código es de un móvil que se quitó de la familia. Ya no sirve para recuperar la lista.",
   "@recoveryProblemRemovedBody": {
     "description": "Explicación del problema de móvil quitado de la familia."
   },
@@ -5065,7 +5191,7 @@
   "@recoveryProblemIncompleteTitle": {
     "description": "Título del problema de recuperación incompleta."
   },
-  "recoveryProblemIncompleteBody": "Falta una parte de la lista. Lo descargado se conserva. Vuelve a intentarlo con conexión o, si tienes otro móvil conectado a esta familia, abre allí la app un momento.",
+  "recoveryProblemIncompleteBody": "Falta una parte de la lista. Lo descargado se conserva. Inténtalo de nuevo cuando tengas conexión. Si tienes otro móvil conectado a esta familia, también puedes abrir allí la app un momento.",
   "@recoveryProblemIncompleteBody": {
     "description": "Explicación del problema de recuperación incompleta."
   },
@@ -5073,7 +5199,7 @@
   "@recoveryProblemBusyTitle": {
     "description": "Título del problema de operación pendiente."
   },
-  "recoveryProblemBusyBody": "Espera un momento y reintenta.",
+  "recoveryProblemBusyBody": "Espera un momento e inténtalo de nuevo.",
   "@recoveryProblemBusyBody": {
     "description": "Explicación del problema de operación pendiente."
   },
@@ -5097,11 +5223,11 @@
   "@recoveryProblemOtherTitle": {
     "description": "Título del problema genérico."
   },
-  "recoveryProblemOtherBody": "No se ha podido terminar. Reintenta; si sigue igual, prueba más tarde.",
+  "recoveryProblemOtherBody": "No se ha podido terminar. Inténtalo de nuevo. Si el problema continúa, prueba más tarde.",
   "@recoveryProblemOtherBody": {
     "description": "Explicación del problema genérico."
   },
-  "obHaveRecoveryCode": "Tengo un código de recuperación",
+  "obHaveRecoveryCode": "Usar el código de recuperación",
   "@obHaveRecoveryCode": {
     "description": "Botón de la bienvenida que abre la recuperación con las 24 palabras."
   },
@@ -5143,7 +5269,7 @@
   "@recoverSubmit": {
     "description": "Botón que empieza la recuperación."
   },
-  "recoverWordUnknown": "La palabra {number} no está en la lista.",
+  "recoverWordUnknown": "Revisa cómo has escrito la palabra {number}.",
   "@recoverWordUnknown": {
     "description": "Error de una palabra que no existe.",
     "placeholders": {
@@ -5152,7 +5278,7 @@
       }
     }
   },
-  "recoverChecksum": "Las palabras no forman un código válido. Revisa el orden y que no falte ninguna.",
+  "recoverChecksum": "Las palabras no forman un código válido. Comprueba que sean las de tu código y que estén en el mismo orden.",
   "@recoverChecksum": {
     "description": "Error cuando las 24 palabras no pasan la suma de control."
   },
@@ -5160,7 +5286,7 @@
   "@recoverPasteEmpty": {
     "description": "Aviso al pegar sin texto copiado."
   },
-  "recoverPasteWrong": "Lo copiado no tiene 24 palabras.",
+  "recoverPasteWrong": "Lo copiado no tiene 24 palabras. Copia el código entero y pégalo de nuevo.",
   "@recoverPasteWrong": {
     "description": "Aviso al pegar un texto que no tiene 24 palabras."
   },
@@ -5168,7 +5294,7 @@
   "@recoverQrWrong": {
     "description": "Aviso al leer un QR que no es el código."
   },
-  "recoverScanTitle": "Escanear el QR del código",
+  "recoverScanTitle": "Escanear el QR",
   "@recoverScanTitle": {
     "description": "Título de la pantalla de la cámara."
   },
@@ -5196,7 +5322,7 @@
   "@recoverStepDownload": {
     "description": "Tercer paso del progreso de recuperación."
   },
-  "recoverStepInstall": "Instalando en este móvil",
+  "recoverStepInstall": "Guardando la lista en este móvil",
   "@recoverStepInstall": {
     "description": "Cuarto paso del progreso de recuperación."
   },
@@ -5213,7 +5339,7 @@
       }
     }
   },
-  "recoverDoneNoSelf": "Este móvil no tiene persona asignada. Puedes elegirla en Ajustes.",
+  "recoverDoneNoSelf": "Falta indicar de quién es este móvil. Puedes hacerlo en Ajustes.",
   "@recoverDoneNoSelf": {
     "description": "Resultado: el móvil recuperado no tiene persona de Yo."
   },
@@ -5234,11 +5360,11 @@
   "@recoverOtherCode": {
     "description": "Botón que vuelve a pedir las palabras tras un código que no vale."
   },
-  "transferredTitle": "Esta lista se ha pasado a otro móvil",
+  "transferredTitle": "Esta lista se ha traspasado",
   "@transferredTitle": {
     "description": "Título de la pantalla de solo lectura tras traspasar la lista."
   },
-  "transferredBody": "Tu lista ahora está en otro móvil o en otra app, y esta app ya no se usa para ella. Lo que ves aquí es una copia de solo lectura: no se ha borrado nada.",
+  "transferredBody": "Tu lista está ahora en otro móvil o en otra app. Aquí puedes consultarla, pero ya no puedes editarla. No se ha borrado nada.",
   "@transferredBody": {
     "description": "Explicación de la pantalla de solo lectura tras traspasar la lista."
   },
@@ -5258,7 +5384,7 @@
   "@recoveryProblemNotReadyTitle": {
     "description": "Título cuando la copia cifrada no ha quedado preparada."
   },
-  "recoveryProblemNotReadyBody": "No se ha podido dejar la copia cifrada en el servidor, así que no se enseñan las palabras. Reintenta con conexión.",
+  "recoveryProblemNotReadyBody": "No se ha podido guardar la copia cifrada en el servidor. Por eso aún no puedes ver las palabras. Inténtalo de nuevo cuando tengas conexión.",
   "@recoveryProblemNotReadyBody": {
     "description": "Explicación cuando la copia cifrada no ha quedado preparada."
   },
@@ -5266,7 +5392,7 @@
   "@recoverReplaceTitle": {
     "description": "Título del diálogo cuando el código es de otra familia."
   },
-  "recoverReplaceBody": "Este código es de otra familia. Si continúas, la lista de esa familia sustituirá a la que tienes en este móvil. La lista anterior se conserva en el móvil, pero deja de verse.",
+  "recoverReplaceBody": "Este código es de otra familia. Si continúas, verás su lista en este móvil. La que usas ahora seguirá guardada aquí, pero ya no la verás.",
   "@recoverReplaceBody": {
     "description": "Texto del diálogo cuando el código es de otra familia."
   },
@@ -5282,7 +5408,7 @@
   "@recoverAbandonTitle": {
     "description": "Título del diálogo al cancelar la recuperación."
   },
-  "recoverAbandonBody": "Se descartan los datos temporales de esta recuperación en este móvil. Cancelar no reactiva el móvil anterior si ya quedó en solo lectura. Podrás volver a introducir el código.",
+  "recoverAbandonBody": "Si cancelas, este móvil borrará los datos temporales de la recuperación. Si en el móvil anterior ya solo podías consultar la lista, seguirá así. Podrás volver a usar el código.",
   "@recoverAbandonBody": {
     "description": "Texto del diálogo al cancelar la recuperación."
   },
@@ -5294,11 +5420,11 @@
   "@recoverAbandonKeep": {
     "description": "Botón que no cancela la recuperación."
   },
-  "recoverAbandonFailed": "No se ha podido cancelar. Reintenta en un momento.",
+  "recoverAbandonFailed": "Algo no ha salido bien. Inténtalo de nuevo en un momento.",
   "@recoverAbandonFailed": {
     "description": "Aviso cuando cancelar la recuperación falla."
   },
-  "recoverAbandonBodyClaimed": "La lista ya se ha pasado a este código y el otro móvil se ha quedado en solo lectura; cancelar no lo deshace. Para usarla tendrás que escribir el código otra vez.",
+  "recoverAbandonBodyClaimed": "En el otro móvil ya solo puedes consultar la lista. Si cancelas, seguirá así. Para recuperar la lista tendrás que volver a usar este código.",
   "@recoverAbandonBodyClaimed": {
     "description": "Texto del diálogo al cancelar una recuperación cuya reclamación ya se envió."
   },
@@ -5310,11 +5436,11 @@
   "@recoverLeaveTitle": {
     "description": "Título del diálogo al salir de la pantalla de recuperar con una recuperación a medias."
   },
-  "recoverLeaveBody": "Se queda a medias en este móvil. Podrás reanudarla o cancelarla desde la pantalla de bienvenida.",
+  "recoverLeaveBody": "La recuperación quedará pendiente en este móvil. Podrás reanudarla o cancelarla más tarde.",
   "@recoverLeaveBody": {
     "description": "Texto del diálogo al salir de la pantalla de recuperar con una recuperación a medias."
   },
-  "recoverPendingTitle": "Hay una recuperación en curso",
+  "recoverPendingTitle": "Recuperación pendiente",
   "@recoverPendingTitle": {
     "description": "Título del aviso de la bienvenida cuando hay una recuperación a medias."
   },
@@ -5350,11 +5476,11 @@
   "@recoveryMaintCancelConfirm": {
     "description": "Botón que confirma cancelar el mantenimiento del código."
   },
-  "recoveryRemoveAuthMessage": "Escribe tu PIN para quitar el código.",
+  "recoveryRemoveAuthMessage": "Escribe tu PIN para borrar el código.",
   "@recoveryRemoveAuthMessage": {
     "description": "Frase de la pantalla que pide el PIN antes de quitar el código."
   },
-  "recoveryRemoveBiometric": "Confirma que quieres quitar el código de recuperación",
+  "recoveryRemoveBiometric": "Confirma que quieres borrar el código de recuperación",
   "@recoveryRemoveBiometric": {
     "description": "Motivo de la huella o el rostro antes de quitar el código."
   },
@@ -5362,7 +5488,7 @@
   "@transferredRecover": {
     "description": "Botón de la pantalla de solo lectura que abre la recuperación con las 24 palabras."
   },
-  "transferredErase": "Borrar todo de este móvil",
+  "transferredErase": "Borrar los datos de esta app",
   "@transferredErase": {
     "description": "Botón (en rojo) de la pantalla de solo lectura que borra todo lo de este móvil."
   },
@@ -5382,7 +5508,7 @@
   "@recoveryFileTitle": {
     "description": "Título de la pantalla para guardar el código en un fichero."
   },
-  "recoveryFileBody": "Además de las palabras, puedes guardar el código en un fichero. Quien tenga el fichero puede recuperar la lista y entrar como este móvil.",
+  "recoveryFileBody": "También puedes guardar el código en un fichero. Quien pueda abrirlo podrá recuperar la lista con el mismo acceso que tienes en este móvil.",
   "@recoveryFileBody": {
     "description": "Explicación de la pantalla para guardar el código en un fichero."
   },
@@ -5427,7 +5553,7 @@
       }
     }
   },
-  "recoveryFilePasswordForgot": "Si olvidas la contraseña, el fichero no sirve para nada. Las 24 palabras seguirán valiendo.",
+  "recoveryFilePasswordForgot": "Si olvidas la contraseña, no podrás abrir el fichero. Aún podrás recuperar la lista con las 24 palabras.",
   "@recoveryFilePasswordForgot": {
     "description": "Aviso: olvidar la contraseña inutiliza el fichero pero no las palabras."
   },
@@ -5449,7 +5575,7 @@
       }
     }
   },
-  "recoveryFilePwRepeated": "Repite un mismo carácter o bloque.",
+  "recoveryFilePwRepeated": "Se repite un mismo carácter o bloque.",
   "@recoveryFilePwRepeated": {
     "description": "Motivo: la contraseña repite un carácter o un bloque corto."
   },
@@ -5493,11 +5619,11 @@
   "@recoveryFileStem": {
     "description": "Principio del nombre del fichero guardado; se le añade la fecha y la extensión. Sin espacios, tildes ni mayúsculas."
   },
-  "recoveryFileDerivingTitle": "Protegiendo el fichero…",
+  "recoveryFileDerivingTitle": "Procesando el fichero…",
   "@recoveryFileDerivingTitle": {
     "description": "Título mientras se prepara la clave de la contraseña del fichero."
   },
-  "recoveryFileDerivingBody": "Se prepara la clave de la contraseña. Tarda unos segundos; no cierres la app.",
+  "recoveryFileDerivingBody": "Mantén la app abierta. Este paso tarda unos segundos.",
   "@recoveryFileDerivingBody": {
     "description": "Texto mientras se prepara la clave de la contraseña (unos segundos)."
   },
@@ -5513,7 +5639,7 @@
   "@recoveryFileProblemVerifyTitle": {
     "description": "Error: lo releído del destino no coincide."
   },
-  "recoveryFileProblemVerifyBody": "Lo que se ha leído del destino no coincide. Guárdalo de nuevo, quizá en otro sitio.",
+  "recoveryFileProblemVerifyBody": "El fichero no se ha guardado bien. Guárdalo de nuevo, quizá en otro sitio.",
   "@recoveryFileProblemVerifyBody": {
     "description": "Explicación del error de relectura."
   },
@@ -5521,7 +5647,7 @@
   "@recoveryFileProblemUnreadableTitle": {
     "description": "Error: no se pudo leer el fichero."
   },
-  "recoveryFileProblemUnreadableBody": "Comprueba que el fichero está disponible en este móvil e inténtalo otra vez.",
+  "recoveryFileProblemUnreadableBody": "Comprueba que el fichero está disponible en este móvil e inténtalo de nuevo.",
   "@recoveryFileProblemUnreadableBody": {
     "description": "Explicación del error de lectura."
   },
@@ -5529,15 +5655,15 @@
   "@recoveryFileProblemUnavailableTitle": {
     "description": "Error: este móvil no puede abrir el selector de ficheros."
   },
-  "recoveryFileProblemUnavailableBody": "Prueba con Compartir o usa las 24 palabras.",
+  "recoveryFileProblemUnavailableBody": "Prueba con «Compartir» o usa las 24 palabras.",
   "@recoveryFileProblemUnavailableBody": {
     "description": "Explicación del error de selector no disponible."
   },
-  "recoveryFileProblemPickerBusyTitle": "Ya hay un selector abierto",
+  "recoveryFileProblemPickerBusyTitle": "Ya hay un selector de ficheros abierto",
   "@recoveryFileProblemPickerBusyTitle": {
     "description": "Error: ya hay un selector abierto."
   },
-  "recoveryFileProblemPickerBusyBody": "Ciérralo y vuelve a intentarlo.",
+  "recoveryFileProblemPickerBusyBody": "Ciérralo e inténtalo de nuevo.",
   "@recoveryFileProblemPickerBusyBody": {
     "description": "Explicación del error de selector ocupado."
   },
@@ -5553,7 +5679,7 @@
   "@recoveryFileProblemNewerTitle": {
     "description": "Error: el fichero es de una versión más nueva."
   },
-  "recoveryFileProblemNewerBody": "Actualiza la app y vuelve a intentarlo.",
+  "recoveryFileProblemNewerBody": "Actualiza la app e inténtalo de nuevo.",
   "@recoveryFileProblemNewerBody": {
     "description": "Explicación del error de versión más nueva."
   },
@@ -5569,7 +5695,7 @@
   "@recoveryFileProblemNotCurrentTitle": {
     "description": "Error: el fichero es de otro código, no del vigente."
   },
-  "recoveryFileProblemNotCurrentBody": "Se guardó con un código anterior y ya no vale. Busca uno más reciente o cambia el código.",
+  "recoveryFileProblemNotCurrentBody": "Este fichero contiene un código anterior y ya no sirve. Busca un fichero más reciente o cambia el código.",
   "@recoveryFileProblemNotCurrentBody": {
     "description": "Explicación del error de fichero de otro código."
   },
@@ -5577,7 +5703,7 @@
   "@recoveryFileProblemHasFamilyTitle": {
     "description": "Aviso: este móvil ya tiene una lista y el fichero solo sirve para un móvil vacío."
   },
-  "recoveryFileProblemHasFamilyBody": "El fichero de recuperación sirve para un móvil vacío. No se ha usado.",
+  "recoveryFileProblemHasFamilyBody": "El fichero de recuperación solo sirve en un móvil sin lista. No se ha usado.",
   "@recoveryFileProblemHasFamilyBody": {
     "description": "Explicación del aviso de móvil con lista."
   },
@@ -5589,7 +5715,7 @@
   "@recoveryCheckFileTitle": {
     "description": "Título de la pantalla Comprobar un fichero."
   },
-  "recoveryCheckFileBody": "Elige el fichero de recuperación que guardaste. Si abre el código de este móvil, queda comprobado. No se guarda ni se envía nada.",
+  "recoveryCheckFileBody": "Elige el fichero de recuperación que guardaste. La app comprobará si contiene el código de este móvil. No se guarda ni se envía nada.",
   "@recoveryCheckFileBody": {
     "description": "Explicación de la pantalla Comprobar un fichero."
   },
@@ -5621,11 +5747,11 @@
   "@recoveryCheckFileOkTitle": {
     "description": "Título cuando un fichero abre el código vigente."
   },
-  "recoveryCheckFileOkBody": "El fichero abre el código de este móvil. Si pierdes el móvil, podrás recuperar la lista con él.",
+  "recoveryCheckFileOkBody": "El fichero contiene el código de este móvil. Si pierdes el móvil, podrás usar el fichero para recuperar la lista.",
   "@recoveryCheckFileOkBody": {
     "description": "Texto cuando un fichero abre el código vigente."
   },
-  "obRecoverWithFile": "Recuperar con fichero",
+  "obRecoverWithFile": "Usar el fichero de recuperación",
   "@obRecoverWithFile": {
     "description": "Botón de la bienvenida para recuperar la lista con un fichero de recuperación."
   },
@@ -5645,7 +5771,7 @@
   "@recoverFileConfirmTitle": {
     "description": "Título de la confirmación antes de recuperar con un fichero."
   },
-  "recoverFileConfirmBody": "Este móvil recuperará la lista y entrará como el móvil que guardó el código. Si no es tu fichero, no continúes.",
+  "recoverFileConfirmBody": "Este móvil recuperará la lista y ocupará en la familia el lugar del móvil que guardó el código. Continúa solo si el fichero es tuyo.",
   "@recoverFileConfirmBody": {
     "description": "Texto de la confirmación antes de recuperar con un fichero."
   },
@@ -5653,15 +5779,15 @@
   "@recoverFileOther": {
     "description": "Botón para elegir otro fichero de recuperación."
   },
-  "recoverFileWaitingTitle": "Ha llegado otro fichero",
+  "recoverFileWaitingTitle": "¿Cambiar de fichero?",
   "@recoverFileWaitingTitle": {
     "description": "Título del aviso cuando llega un segundo fichero de recuperación mientras se usa uno."
   },
-  "recoverFileWaitingBody": "Estabas con otro fichero de recuperación. ¿Quieres cambiar a este?",
+  "recoverFileWaitingBody": "Ha llegado un nuevo fichero de recuperación mientras usabas otro.",
   "@recoverFileWaitingBody": {
     "description": "Pregunta cuando llega un segundo fichero de recuperación."
   },
-  "recoverFileWaitingSwitch": "Cambiar de fichero",
+  "recoverFileWaitingSwitch": "Usar el nuevo",
   "@recoverFileWaitingSwitch": {
     "description": "Botón para cambiar al fichero recién llegado."
   },
@@ -5669,23 +5795,23 @@
   "@recoverFileWaitingKeep": {
     "description": "Botón para seguir con el fichero de antes."
   },
-  "recoveryProblemPersonTitle": "Este código ya no es el de tu persona actual",
+  "recoveryProblemPersonTitle": "El código ya no vale para la persona elegida",
   "@recoveryProblemPersonTitle": {
     "description": "Título del error cuando cambió la persona de «Yo» (o hay una invalidación pendiente) y el código ya no vale."
   },
-  "recoveryProblemPersonBody": "Cambió la persona de este móvil o hay un cambio pendiente. Crea un código nuevo y guarda ese.",
+  "recoveryProblemPersonBody": "Ha cambiado la persona elegida en «Este móvil es de» o hay un cambio pendiente. Crea un código nuevo y guárdalo.",
   "@recoveryProblemPersonBody": {
     "description": "Explicación del error de código que ya no es el de la persona actual."
   },
   "recoveryFileProblemStorageTitle": "No se ha podido leer la lista de este móvil",
-  "recoveryFileProblemStorageBody": "El fichero sigue a la espera. Vuelve a intentarlo: antes de recuperar, la app tiene que comprobar que este móvil no tiene ya una lista.",
+  "recoveryFileProblemStorageBody": "El fichero sigue pendiente de abrir. La app necesita comprobar si ya hay una lista en este móvil. Inténtalo de nuevo.",
   "@recoveryFileProblemStorageTitle": {
     "description": "Error al leer la familia local antes de abrir un fichero recibido."
   },
   "@recoveryFileProblemStorageBody": {
     "description": "Conserva el fichero y pide reintentar sin asumir que el móvil esté vacío."
   },
-  "cameraRestricted": "La cámara está restringida en este dispositivo (por ejemplo, con Tiempo de uso). Puedes permitirla en Ajustes > Tiempo de uso > Restricciones de contenido y privacidad.",
+  "cameraRestricted": "Este móvil tiene restringido el acceso a la cámara. Si usas Tiempo de uso, revisa Ajustes > Tiempo de uso > Restricciones de contenido y privacidad.",
   "obJoinFamily": "Unirme a una familia",
   "@obJoinFamily": {
     "description": "Botón de la bienvenida y título de su hoja: unirse a la lista de otro móvil."
@@ -5694,19 +5820,19 @@
   "@obJoinFamilyHint": {
     "description": "Frase bajo el título de la hoja «Unirme a una familia»."
   },
-  "obJoinQrHint": "Está contigo: escanea su código.",
+  "obJoinQrHint": "Si tienes el otro móvil a mano, escanea su código QR.",
   "@obJoinQrHint": {
     "description": "Frase de la opción del QR en la hoja «Unirme a una familia»."
   },
-  "obJoinLinkHint": "Está lejos: pega el enlace que te envió.",
+  "obJoinLinkHint": "Si el otro móvil está lejos, pega el enlace que te han enviado.",
   "@obJoinLinkHint": {
     "description": "Frase de la opción del enlace en la hoja «Unirme a una familia»."
   },
-  "obRestoreBackup": "Restaurar una copia",
+  "obRestoreBackup": "Recuperar una copia",
   "@obRestoreBackup": {
     "description": "Botón de la bienvenida y título de su hoja: recuperar la lista desde una copia."
   },
-  "obRestoreBackupHint": "Elige con qué recuperas la lista.",
+  "obRestoreBackupHint": "Elige cómo recuperar la lista.",
   "@obRestoreBackupHint": {
     "description": "Frase bajo el título de la hoja «Restaurar una copia»."
   },
@@ -5722,15 +5848,15 @@
   "@giverPeopleSection": {
     "description": "Cabecera de la sección del selector de quién regala con las personas de la familia que aún no son quién regala."
   },
-  "giverPeopleHintAdd": "Antes se añade como quién regala",
+  "giverPeopleHintAdd": "Primero se añade a quienes regalan",
   "@giverPeopleHintAdd": {
     "description": "Frase bajo una persona del selector de quién regala en un regalo secreto: hay que añadirla antes como quién regala."
   },
-  "giverPeopleHintRecover": "Se recupera como quién regala",
+  "giverPeopleHintRecover": "Volverá a la lista de quienes regalan",
   "@giverPeopleHintRecover": {
     "description": "Frase bajo una persona del selector cuya entrada de quién regala estaba archivada."
   },
-  "giverPersonAddTitle": "¿Añadir a {name} como quién regala?",
+  "giverPersonAddTitle": "¿Añadir a {name} a la lista de quienes regalan?",
   "@giverPersonAddTitle": {
     "description": "Título del paso previo en un regalo secreto.",
     "placeholders": {
@@ -5739,7 +5865,7 @@
       }
     }
   },
-  "giverPersonAddBody": "Este regalo es una sorpresa. Para no delatarla, primero hay que añadir a {name} como quién regala para toda la familia, y se verá en todos los móviles sin relación con este regalo. Después podrás elegir a {name} aquí.",
+  "giverPersonAddBody": "Este regalo es una sorpresa. Primero, añade a {name} a la lista de quienes regalan. Toda la familia verá su nombre en esa lista, sin ninguna referencia al regalo. Después podrás elegir a {name} aquí.",
   "@giverPersonAddBody": {
     "description": "Texto del paso previo: explica por qué hay que añadir a la persona como quién regala antes de elegirla en un regalo secreto.",
     "placeholders": {
@@ -5748,7 +5874,7 @@
       }
     }
   },
-  "giverPersonAddConfirm": "Añadir a {name} como quién regala",
+  "giverPersonAddConfirm": "Añadir a {name}",
   "@giverPersonAddConfirm": {
     "description": "Botón del paso previo: añade a la persona como quién regala para toda la familia.",
     "placeholders": {
@@ -5757,7 +5883,7 @@
       }
     }
   },
-  "giverPersonAddFailed": "No se ha podido añadir a {name} como quién regala.",
+  "giverPersonAddFailed": "No se ha podido añadir a {name} a la lista de quienes regalan. Inténtalo de nuevo.",
   "@giverPersonAddFailed": {
     "description": "Aviso cuando falla el alta de una persona como quién regala.",
     "placeholders": {
@@ -5770,7 +5896,7 @@
   "@giftNoLongerVisible": {
     "description": "Aviso cuando el editor se cierra solo porque el regalo ya no está autorizado en este móvil (otro móvil lo movió a una persona protegida, por ejemplo)."
   },
-  "deleteGiverRows": "{count, plural, =1{Se elimina {names}.} other{Se eliminan estos {count} registros: {names}.}}",
+  "deleteGiverRows": "{count, plural, =1{Se elimina {names}.} other{Se eliminan estos {count} nombres: {names}.}}",
   "@deleteGiverRows": {
     "description": "Primera frase del diálogo de eliminar a quien regala: nombra lo que se elimina.",
     "placeholders": {
@@ -5794,7 +5920,7 @@
       }
     }
   },
-  "deleteGiverLinkedNote": "{name} sigue en Personas: solo se elimina como quién regala.",
+  "deleteGiverLinkedNote": "{name} seguirá en «Personas». Solo se eliminará de «Quién regala».",
   "@deleteGiverLinkedNote": {
     "description": "Consecuencia de eliminar a quien regala si está enlazado a una persona.",
     "placeholders": {
@@ -5803,11 +5929,11 @@
       }
     }
   },
-  "deleteImpactChanged": "Ha cambiado mientras tenías el aviso abierto. Esto es lo que se eliminaría ahora:",
+  "deleteImpactChanged": "La lista ha cambiado. Antes de confirmar, revisa qué se eliminará.",
   "@deleteImpactChanged": {
     "description": "Primera frase del diálogo de eliminar cuando lo que se elimina cambió (otro móvil) y se pide confirmar de nuevo."
   },
-  "deletePersonLinkedGiver": "Su nombre seguirá apareciendo en los regalos que dio, como quién regala.",
+  "deletePersonLinkedGiver": "Su nombre seguirá en «Quién regala» en los regalos que hace a otras personas.",
   "@deletePersonLinkedGiver": {
     "description": "Consecuencia de eliminar a una persona que también es quién regala en algunos regalos."
   },
@@ -5820,7 +5946,7 @@
       }
     }
   },
-  "devicePersonBlockedThisBody": "{name} es la persona de este móvil, así que no se puede eliminar ni archivar desde aquí. Para hacerlo, elige antes a otra persona en «Este móvil es de», en Ajustes.",
+  "devicePersonBlockedThisBody": "Para eliminar o archivar a {name}, ve a Ajustes y elige primero a otra persona en «Este móvil es de».",
   "@devicePersonBlockedThisBody": {
     "description": "Texto del aviso al intentar eliminar o archivar a la persona de este móvil.",
     "placeholders": {
@@ -5868,7 +5994,7 @@
   "@giverLinkHint": {
     "description": "Frase bajo la fila de enlazar quién regala con una persona."
   },
-  "giverLinkExistingHint": "Ya es quién regala: se unirán en una columna",
+  "giverLinkExistingHint": "Ya regala. Las dos columnas de Reparto se unirán en una.",
   "@giverLinkExistingHint": {
     "description": "Frase bajo una persona de la hoja de enlazar que ya tiene su propio quién regala."
   },
@@ -5881,7 +6007,7 @@
       }
     }
   },
-  "giverLinkConfirmBody": "«{giver}» pasará a llamarse {name}, con su color, y seguirá los cambios de {name} en Personas. Sus regalos se mantienen.",
+  "giverLinkConfirmBody": "«{giver}» usará el nombre y el color de {name}. Si los cambias en la ficha de {name} en Personas, también cambiarán aquí. Se conservarán los regalos.",
   "@giverLinkConfirmBody": {
     "description": "Texto de la confirmación de enlazar quién regala con una persona.",
     "placeholders": {
@@ -5910,7 +6036,7 @@
       }
     }
   },
-  "giverUnlinkConfirmBody": "Seguirá como quién regala con el nombre y el color de ahora, pero ya no cambiará con {name}. Sus regalos se mantienen.",
+  "giverUnlinkConfirmBody": "Seguirá en la lista de quienes regalan con su nombre, su color y sus regalos actuales. Los cambios que hagas en la ficha de {name} ya no se aplicarán aquí.",
   "@giverUnlinkConfirmBody": {
     "description": "Texto de la confirmación de desenlazar quién regala.",
     "placeholders": {
@@ -5931,7 +6057,7 @@
   "@giftWriteGiftUnavailable": {
     "description": "Aviso cuando un cambio de un regalo se rechaza porque el regalo no está a la vista."
   },
-  "giftWriteRecipientGone": "No se ha guardado: la persona a la que va el regalo ya no existe.",
+  "giftWriteRecipientGone": "No se ha guardado: la persona que iba a recibir el regalo ya no está en la lista.",
   "@giftWriteRecipientGone": {
     "description": "Aviso cuando se rechaza un cambio porque la persona que recibe el regalo ya no existe."
   },
@@ -5939,7 +6065,7 @@
   "@giftWriteInvalidPair": {
     "description": "Aviso cuando quien regala y quien recibe serían la misma persona."
   },
-  "giftWriteGiverGone": "No se ha guardado: quien regala ya no existe.",
+  "giftWriteGiverGone": "No se ha guardado: quien regala ya no está en la lista.",
   "@giftWriteGiverGone": {
     "description": "Aviso cuando quien regala se eliminó mientras tanto."
   },
@@ -5947,7 +6073,7 @@
   "@giftWriteGiverArchived": {
     "description": "Aviso cuando quien regala se archivó mientras tanto."
   },
-  "giftWritePersonGone": "No se ha guardado: esa persona ya no existe.",
+  "giftWritePersonGone": "No se ha guardado: esa persona ya no está en la lista.",
   "@giftWritePersonGone": {
     "description": "Aviso cuando la persona elegida como quien regala se eliminó mientras tanto."
   },
@@ -5964,7 +6090,7 @@
       }
     }
   },
-  "deleteImpactUnavailable": "No se ha podido comprobar qué se elimina. Vuelve a abrir el aviso.",
+  "deleteImpactUnavailable": "No se ha podido comprobar qué se eliminaría. Inténtalo de nuevo.",
   "@deleteImpactUnavailable": {
     "description": "Aviso cuando el diálogo de eliminar se cierra porque no se pudo recalcular lo que se elimina."
   },

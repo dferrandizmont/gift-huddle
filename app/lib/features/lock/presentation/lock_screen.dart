@@ -10,7 +10,9 @@ import '../../../core/widgets/stroke_icon.dart';
 import '../../../core/widgets/tabler_icons.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/lock_controller.dart';
+import '../data/biometrics.dart';
 import '../data/pin_vault.dart';
+import 'biometric_labels.dart';
 import 'pin_pad.dart';
 
 /// Pantalla de bloqueo: PIN y, si está activada, huella o rostro.
@@ -162,6 +164,8 @@ class _LockScreenState extends ConsumerState<LockScreen> {
     final l10n = AppLocalizations.of(context);
     final t = RegalosTokens.of(context);
     final lock = ref.watch(lockControllerProvider).value;
+    final kind =
+        ref.watch(biometricKindProvider).value ?? BiometricKind.generic;
     final wait = _remainingWait(lock);
     if (wait != null) {
       _startTicker();
@@ -243,6 +247,7 @@ class _LockScreenState extends ConsumerState<LockScreen> {
                   }
                 }),
                 onBiometric: (lock?.biometrics ?? false) ? _biometric : null,
+                biometricKind: kind,
               ),
               if (lock?.biometrics ?? false) ...[
                 const SizedBox(height: 12),
@@ -251,7 +256,9 @@ class _LockScreenState extends ConsumerState<LockScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       StrokeIcon(
-                        tablerFingerprint,
+                        kind == BiometricKind.face
+                            ? tablerFaceId
+                            : tablerFingerprint,
                         size: 16,
                         color: t.ink,
                         strokeWidth: 1.5,
@@ -259,7 +266,7 @@ class _LockScreenState extends ConsumerState<LockScreen> {
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
-                          l10n.lockBiometricHint,
+                          kind.hint(l10n),
                           style: t.styles.meta,
                           textAlign: TextAlign.center,
                         ),

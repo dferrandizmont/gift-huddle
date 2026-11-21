@@ -60,7 +60,7 @@ void main() {
     expect(
       link,
       isNot(contains('=')),
-      reason: 'el enlace no lleva ninguna clave',
+      reason: 'el enlace no contiene ninguna clave',
     );
 
     final b = await newPhone();

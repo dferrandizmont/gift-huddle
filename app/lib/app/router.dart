@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -762,7 +764,8 @@ class _BoardFrame extends ConsumerWidget {
       // Esc cierra el editor aunque el foco no esté dentro de él; sin editor,
       // quita la marca del teclado.
       escapeEnabled: () => panel.isOpen || cursor.current != null,
-      onEscape: () => panel.isOpen ? panel.close() : cursor.clear(),
+      onEscape: () =>
+          panel.isOpen ? unawaited(panel.requestClose()) : cursor.clear(),
       openEnabled: () => cursor.current != null,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,

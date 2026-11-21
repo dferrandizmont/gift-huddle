@@ -262,6 +262,54 @@ void main() {
     );
 
     screenTest(
+      'Esc con el foco en el tablero pregunta antes de descartar cambios',
+      (tester, phone) async {
+        await _mountWeb(tester, phone);
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+        await settle(tester);
+        expect(find.byType(GiftEditorScreen), findsOneWidget);
+        await tester.enterText(
+          find
+              .descendant(
+                of: find.byType(GiftEditorScreen),
+                matching: find.byType(TextField),
+              )
+              .first,
+          'Cometa',
+        );
+        // El foco sale del editor: lo atiende el tablero.
+        final node = find
+            .descendant(
+              of: find.descendant(
+                of: find.byType(BoardSidebar),
+                matching: find.byType(InkWell),
+              ),
+              matching: find.byType(Text),
+            )
+            .evaluate()
+            .map(Focus.maybeOf)
+            .firstWhere((n) => n != null && n.canRequestFocus)!;
+        node.requestFocus();
+        await tester.pump();
+        expect(BoardEditorMarker.isInside(node.context!), isFalse);
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await settle(tester);
+        expect(find.text('¿Descartar los cambios?'), findsOneWidget);
+        expect(find.byType(GiftEditorScreen), findsOneWidget);
+        await tester.tap(find.text('Seguir editando'));
+        await settle(tester);
+        expect(find.byType(GiftEditorScreen), findsOneWidget);
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await settle(tester);
+        await tester.tap(find.widgetWithText(FilledButton, 'Descartar'));
+        await settle(tester);
+        expect(find.byType(GiftEditorScreen), findsNothing);
+      },
+      size: const Size(1280, 720),
+      overrides: _web(),
+    );
+
+    screenTest(
       '↓ y ↑ recorren los regalos; Alt con ↓ y ↑ cambia de persona',
       (tester, phone) async {
         await _mountWeb(tester, phone);

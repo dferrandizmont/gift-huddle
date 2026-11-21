@@ -401,6 +401,203 @@ void main() {
     });
   });
 
+  group('confirmador posible para pedir protección', () {
+    late Phone unassigned;
+    late DeviceRegistry pair;
+
+    setUp(() async {
+      unassigned = await Phone.create('8t', null, 5);
+      pair = await registryOf([unassigned, nora]);
+    });
+
+    Future<ProtectionRequestBlock?> blocked(
+      DeviceRegistry registry,
+      Phone requester, {
+      Set<String> people = _people,
+    }) async => protectionRequestBlock(
+      registry: registry,
+      localView: await _view(registry, requester, people: people),
+      personId: 'nora',
+    );
+
+    test('8T sin persona y Nora necesitan un móvil de otra persona', () async {
+      for (final requester in [unassigned, nora]) {
+        expect(
+          await blocked(pair, requester),
+          ProtectionRequestBlock.noConfirmer,
+        );
+      }
+      final registry = await registryOf([unassigned, nora, aritz]);
+      final view = await _view(registry, unassigned);
+      expect(view.entitledDevices('nora'), isEmpty);
+      expect(await blocked(registry, unassigned), isNull);
+      expect(await blocked(registry, nora), isNull);
+    });
+
+    test('el propio móvil con derecho basta', () async {
+      final registry = await DeviceRegistry.empty(kListId).withRecord(rAritz);
+      expect(await blocked(registry, aritz), isNull);
+    });
+
+    test('rechaza una vista de otra instantánea de la misma lista', () async {
+      final registry = await registryOf([unassigned, nora, aritz]);
+      final oldView = await _view(registry, nora);
+      expect(pair.recordByDigest(oldView.self.recordDigest), isNotNull);
+      expect(
+        await protectionRequestBlock(
+          registry: pair,
+          localView: oldView,
+          personId: 'nora',
+        ),
+        ProtectionRequestBlock.registryUnavailable,
+      );
+    });
+
+    test(
+      'reutiliza las vistas de candidatos y no cuenta las que fallan',
+      () async {
+        final registry = await registryOf([unassigned, nora, aritz]);
+        final view = await _view(registry, unassigned);
+        Future<ProtectionRequestBlock?> check(
+          Map<String, Future<RegistryView>> memo,
+        ) => protectionRequestBlock(
+          registry: registry,
+          localView: view,
+          personId: 'nora',
+          candidateViews: memo,
+        );
+        final views = <String, Future<RegistryView>>{};
+        expect(await check(views), isNull);
+        expect(views.keys, contains(aritz.id));
+        final first = views[aritz.id];
+        expect(await check(views), isNull);
+        expect(views[aritz.id], same(first));
+
+        // A candidate whose view cannot be built does not count.
+        final broken = Future<RegistryView>.error(
+          const RegistryException('vista rota'),
+        )..ignore();
+        expect(
+          await check({aritz.id: broken}),
+          ProtectionRequestBlock.noConfirmer,
+        );
+      },
+    );
+
+    test(
+      'una ficha pendiente no cuenta aunque figure activa para otro móvil',
+      () async {
+        var registry = await pair.withRecord(rAritz);
+        registry = await registry.withVouch(await _vouch(nora, rAritz));
+        final changed = await _record(aritz, person: 'leo', seq: 2);
+        registry = await registry.withRecord(changed);
+        expect((await _view(registry, nora)).pending.single.deviceId, aritz.id);
+        expect(
+          await blocked(registry, nora),
+          ProtectionRequestBlock.noConfirmer,
+        );
+
+        registry = await registry.withVouch(await _vouch(nora, changed));
+        expect((await _view(registry, nora)).member(aritz.id), isNotNull);
+        expect((await _view(registry, aritz)).selfApproved, isFalse);
+        expect(
+          await blocked(registry, nora),
+          ProtectionRequestBlock.noConfirmer,
+        );
+        expect(
+          await blocked(registry, aritz),
+          ProtectionRequestBlock.requesterPending,
+        );
+
+        registry = await registry.withVouch(
+          await _vouch(aritz, rNora, as: changed),
+        );
+        expect(await blocked(registry, nora), isNull);
+      },
+    );
+
+    test(
+      'la persona del candidato y la destinataria deben estar vivas',
+      () async {
+        final registry = await registryOf([unassigned, nora, aritz]);
+        expect(
+          await blocked(registry, unassigned, people: {'nora'}),
+          ProtectionRequestBlock.noConfirmer,
+        );
+        expect(
+          await blocked(registry, unassigned, people: {'aritz'}),
+          ProtectionRequestBlock.recipientUnavailable,
+        );
+      },
+    );
+
+    test('un navegador activo con persona no cuenta', () async {
+      final web = await DeviceRecord.create(
+        keys: aritz.keys,
+        listId: kListId,
+        deviceId: aritz.id,
+        personId: 'aritz',
+        kind: DeviceKind.web,
+      );
+      final registry = await (await pair.withRecord(web))
+          .withVouch(await _vouch(nora, web));
+      expect(
+        (await _view(registry, nora)).member(aritz.id)?.kind,
+        DeviceKind.web,
+      );
+      expect(await blocked(registry, nora), ProtectionRequestBlock.noConfirmer);
+      expect(await blocked(registry, aritz), ProtectionRequestBlock.notMobile);
+    });
+
+    test(
+      'ni un revocado ni un ambiguo cuentan como candidato o solicitante',
+      () async {
+        final registry = await registryOf([unassigned, nora, aritz]);
+        final revoked = await registry.withRevocation(
+          await _revoke(nora, aritz.id),
+        );
+        expect(
+          await blocked(revoked, unassigned),
+          ProtectionRequestBlock.noConfirmer,
+        );
+        expect(
+          await blocked(revoked, aritz),
+          ProtectionRequestBlock.requesterRevoked,
+        );
+
+        final impostor = await Phone.create(aritz.id, 'aritz', 9);
+        final record = await _record(impostor);
+        final ambiguous = await (await registry.withRecord(record))
+            .withVouch(await _vouch(nora, record));
+        expect(
+          await blocked(ambiguous, unassigned),
+          ProtectionRequestBlock.noConfirmer,
+        );
+        expect(
+          await blocked(ambiguous, aritz),
+          ProtectionRequestBlock.requesterAmbiguous,
+        );
+      },
+    );
+
+    test('un móvil huérfano tras una revocación no cuenta', () async {
+      var registry = await registryOf([unassigned, nora, leo]);
+      registry = await _vouched(await registry.withRecord(rAritz), [
+        (leo, rAritz),
+        (aritz, rLeo),
+      ]);
+      expect(await blocked(registry, unassigned), isNull);
+      registry = await registry.withRevocation(await _revoke(nora, leo.id));
+      final view = await _view(registry, unassigned);
+      expect(view.everMembers, contains(aritz.id));
+      expect(view.member(aritz.id), isNull);
+      expect(
+        await blocked(registry, unassigned),
+        ProtectionRequestBlock.noConfirmer,
+      );
+    });
+  });
+
   group('cambiar de persona (req. 4)', () {
     test(
       'exige aprobación y abre una época; los avales viejos no valen',

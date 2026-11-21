@@ -100,11 +100,14 @@ void main() {
     );
 
     screenTest(
-      '«Cancelar» lo cierra y no guarda nada',
+      '«Cancelar» lo cierra y no guarda nada (con cambios pregunta antes)',
       (tester, phone) async {
         await _openWithN(tester, phone);
         await tester.enterText(_firstField, 'Cometa');
         await tester.tap(_cancel);
+        await settle(tester);
+        expect(find.text('¿Descartar los cambios?'), findsOneWidget);
+        await tester.tap(find.widgetWithText(FilledButton, 'Descartar'));
         await settle(tester);
         expect(_editor, findsNothing);
         expect(find.text('Cometa'), findsNothing);

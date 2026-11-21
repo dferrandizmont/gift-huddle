@@ -1,15 +1,19 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/app/fresh_install.dart';
+import 'package:regalos/core/sync/envelope.dart';
 import 'package:regalos/core/sync/model.dart';
 import 'package:regalos/features/family/application/family_controller.dart';
 import 'package:regalos/features/family/application/reparto_view_provider.dart';
 import 'package:regalos/features/family/application/self_recipient_provider.dart';
 import 'package:regalos/features/family/data/device_keys_store.dart';
+import 'package:regalos/features/family/data/family_store.dart';
 import 'package:regalos/features/family/data/secure_wipe.dart';
 import 'package:regalos/features/lock/application/lock_controller.dart';
 import 'package:regalos/features/review/application/review_providers.dart';
@@ -17,13 +21,19 @@ import 'package:regalos/features/review/application/review_service.dart';
 import 'package:regalos/features/settings/application/appearance_provider.dart';
 import 'package:regalos/features/settings/application/erase_all.dart';
 import 'package:regalos/features/settings/application/locale_provider.dart';
+import 'package:regalos/features/sharing/application/pairing_service.dart';
+import 'package:regalos/features/sync/application/pairing_v2_controller.dart';
 import 'package:regalos/features/sync/application/sync_controller.dart';
 import 'package:regalos/features/sync/data/sync_config.dart';
+import 'package:regalos/features/sync/data/sync_endpoint.dart';
 import 'package:regalos/features/sync/data/sync_transport.dart';
+import 'package:regalos/features/sync/data/sync_transport_common.dart';
+import 'package:regalos/features/sync/data/sync_transport_v2.dart';
 import 'package:regalos/features/sync/domain/sync_keys.dart';
 import 'package:regalos/features/sync/domain/sync_status.dart';
 
 import '../helpers/fake_sync_server.dart';
+import '../helpers/fake_worker_v2.dart';
 import '../helpers/memory_stores.dart';
 import '../helpers/pump_app.dart';
 import '../review/review_service_test.dart' show FakeStoreReview;
@@ -54,6 +64,35 @@ class _StuckFiles extends MemoryFileStore {
     }
     await super.delete(name);
   }
+}
+
+class _RetiredV1Transport extends BaseSyncTransport {
+  _RetiredV1Transport() : super(SyncEndpoint.parse('https://sync.test')!);
+
+  final requests = <String>[];
+  String responseBody = '<html>Gone</html>';
+
+  @override
+  Future<SyncResponse> send(
+    String method,
+    Uri uri, {
+    SyncCredentials? auth,
+    Object? body,
+    Map<String, String> headers = const {},
+  }) async {
+    requests.add(method);
+    return SyncResponse(
+      410,
+      const {},
+      Uint8List.fromList(utf8.encode(responseBody)),
+    );
+  }
+
+  @override
+  Stream<SyncEvent> watch(SyncCredentials auth) => const Stream.empty();
+
+  @override
+  void close() {}
 }
 
 class _ReviewTrackingFiles extends MemoryFileStore {
@@ -103,9 +142,11 @@ void main() {
   /// Un móvil con preferencias ya usadas y, si se da [transport], con
   /// servidor de sincronización.
   Future<FakePhone> newPhone({
-    FakeSyncTransport? transport,
+    SyncTransport? transport,
+    SyncV2Transport? v2Transport,
     MemorySecretStore? secrets,
     MemoryFileStore? files,
+    SyncTiming timing = kFastTiming,
   }) async {
     final prefs = await mockPrefs({
       AppearanceNotifier.accentKey: 'sage',
@@ -125,7 +166,9 @@ void main() {
           // Las invitaciones, en el mismo origen que el servidor de pruebas.
           invitationOriginProvider.overrideWithValue(''),
           syncTransportProvider.overrideWithValue(transport),
-          syncTimingProvider.overrideWithValue(kFastTiming),
+          if (v2Transport != null)
+            syncV2TransportProvider.overrideWithValue(v2Transport),
+          syncTimingProvider.overrideWithValue(timing),
         ],
       ],
     );
@@ -323,16 +366,552 @@ void main() {
     expect(statusOf(p).phase, SyncPhase.disabled);
   });
 
-  test('con un solo móvil también pide el borrado al servidor, por si quedó '
-      'la copia de una invitación', () async {
-    final transport = server.connect();
-    final p = await newPhone(transport: transport);
-    await fill(p);
-    expect(server.calls['delete'], isNull);
-    final eraser = eraserOf(p);
-    expect(eraser.hasServerCopy, isTrue);
-    await eraser.eraseServerCopy();
+  test(
+    'una familia recién creada se borra aunque el móvil esté sin red',
+    () async {
+      final transport = server.connect();
+      final p = await newPhone(transport: transport);
+      await familyOf(p).createFamilyWith(deviceName: 'Aritz', region: 'ES');
+      transport.offline = true;
+      final eraser = eraserOf(p);
+      await eraser.eraseServerCopy();
+      expect(server.calls, isEmpty);
+      await eraser.eraseLocal();
+      await expectFirstUse(p);
+    },
+  );
+
+  test(
+    'una copia v1 que quedó de una invitación se borra del servidor',
+    () async {
+      final p = await newPhone(transport: server.connect());
+      await fill(p);
+      final sync = p.container.read(syncControllerProvider.notifier);
+      final auth = await sync.readyCredentials();
+      sync.inviteSettled();
+      expect(server.hasList(auth.syncId), isTrue);
+
+      final eraser = eraserOf(p);
+      await eraser.eraseServerCopy();
+      expect(server.hasList(auth.syncId), isFalse);
+      expect(server.calls['delete'], 1);
+      await eraser.eraseLocal();
+      await expectFirstUse(p);
+    },
+  );
+
+  final prepareV2 = Provider(
+    (ref) =>
+        () => ensureV2Family(ref),
+  );
+
+  test(
+    'borra la copia v1 que subió el otro móvil aunque caducara el sondeo',
+    () async {
+      final a = await newPhone(transport: server.connect());
+      await fill(a);
+      final qr = await a.container
+          .read(pairingServiceProvider)
+          .qrTextForPairing();
+      await a.container.read(syncControllerProvider.notifier).syncNow();
+      final syncId = await SyncKeys.syncId(familyOf(a).familyKey!);
+      expect(server.hasList(syncId), isFalse);
+      a.restart(temp: temp);
+
+      final b = await newPhone(transport: server.connect());
+      await b.container
+          .read(pairingServiceProvider)
+          .joinFromQr(qr, deviceName: 'Nora');
+      await eventually(() => statusOf(b).phase == SyncPhase.synced);
+      expect(server.hasList(syncId), isTrue);
+      b.restart(temp: temp);
+
+      final later = clock.now().add(const Duration(days: 4));
+      await withClock(Clock.fixed(later), () async {
+        final reads = server.calls['get'];
+        await a.container.read(syncControllerProvider.notifier).syncNow();
+        expect(a.prefs!.getStringList('sync.peerWait'), isNull);
+        expect(server.calls['get'], reads);
+        expect((await familyOf(a).future).paired, isFalse);
+
+        a.restart(temp: temp);
+        await a.container.read(syncControllerProvider.notifier).syncNow();
+        await eraserOf(a).eraseServerCopy();
+        expect(server.calls['delete'], 1);
+        expect(server.hasList(syncId), isFalse);
+        await eraserOf(a).eraseLocal();
+        await expectFirstUse(a);
+      });
+    },
+  );
+
+  test(
+    'una familia v2 nunca publicada se borra tras el 404 del Worker',
+    () async {
+      final worker = FakeWorkerV2();
+      final p = await newPhone(
+        transport: server.connect(),
+        v2Transport: worker.client(),
+      );
+      await fill(p);
+      final local = await p.container.read(prepareV2)();
+      expect(worker.hasList(local.identity.syncId), isFalse);
+      expect(worker.calls, isEmpty);
+      worker.tamper = (method, uri, response) {
+        expect(method, 'GET');
+        expect(uri.path, '/v2/lists/${local.identity.syncId}');
+        expect(response.status, 404);
+        expect(response.json(), {'error': 'not_found'});
+        // La respuesta ya es definitiva, aunque después falle la red.
+        worker.offline = true;
+        return response;
+      };
+
+      final eraser = eraserOf(p);
+      await eraser.eraseServerCopy();
+      expect(worker.calls, {'GET list': 1});
+      expect(server.calls, isEmpty);
+      await eraser.eraseLocal();
+      await expectFirstUse(p);
+    },
+  );
+
+  test('al actualizar se borra la copia v1 aunque la versión anterior ya '
+      'había quitado la fecha del sondeo', () async {
+    final a = await newPhone(transport: server.connect());
+    await fill(a);
+    final qr = await a.container
+        .read(pairingServiceProvider)
+        .qrTextForPairing();
+    await a.container.read(syncControllerProvider.notifier).syncNow();
+    final syncId = await SyncKeys.syncId(familyOf(a).familyKey!);
+
+    // El QR se mostró en una versión que solo guardaba la fecha del sondeo.
+    await a.prefs!.remove('sync.sharedQr');
+    await a.prefs!.remove('sync.peerWait');
+    a.restart(temp: temp);
+
+    // El invitado usa el QR después de que el anfitrión dejara de sondear.
+    final b = await newPhone(transport: server.connect());
+    await b.container
+        .read(pairingServiceProvider)
+        .joinFromQr(qr, deviceName: 'Nora');
+    await eventually(() => statusOf(b).phase == SyncPhase.synced);
+    expect(server.hasList(syncId), isTrue);
+    b.restart(temp: temp);
+
+    await a.container.read(syncControllerProvider.notifier).syncNow();
+    expect((await familyOf(a).future).paired, isFalse);
+    expect(a.prefs!.getStringList('sync.peerWait'), isNull);
+    await eraserOf(a).eraseServerCopy();
     expect(server.calls['delete'], 1);
+    expect(server.hasList(syncId), isFalse);
+  });
+
+  for (final publishV2 in [false, true]) {
+    final v2Outcome = publishV2 ? 'DELETE v2 correcto' : '404 v2';
+    test('tras $v2Outcome, un fallo al retirar la v1 se puede '
+        'reintentar tras reiniciar', () async {
+      final transport = server.connect();
+      final worker = FakeWorkerV2();
+      final p = await newPhone(
+        transport: transport,
+        v2Transport: worker.client(),
+      );
+      await fill(p, paired: true);
+      final oldSyncId = await SyncKeys.syncId(familyOf(p).familyKey!);
+      final local = await p.container.read(prepareV2)();
+      if (publishV2) {
+        final controller = p.container.read(syncControllerProvider.notifier);
+        controller.setV2Pairing(true);
+        await controller.syncNow();
+      }
+      final v2Key = familyOf(p).familyKey;
+      final store = p.container.read(familyStoreProvider);
+      final legacy = await store.readLegacyV1();
+      expect(legacy, isNotNull);
+      expect(worker.hasList(local.identity.syncId), publishV2);
+      expect(server.hasList(oldSyncId), isTrue);
+
+      transport.offline = true;
+      await expectLater(
+        eraserOf(p).eraseServerCopy(),
+        throwsA(
+          isA<SyncTransportException>().having(
+            (error) => error.failure,
+            'failure',
+            SyncFailure.network,
+          ),
+        ),
+      );
+      expect(worker.hasList(local.identity.syncId), isFalse);
+      expect(worker.calls['DELETE list'] ?? 0, publishV2 ? 1 : 0);
+      expect(await store.readLegacyV1(), legacy);
+      expect((await store.readSyncV2())!.syncId, local.identity.syncId);
+      expect(familyOf(p).familyKey, v2Key);
+
+      p.restart(temp: temp);
+      await p.container.read(syncControllerProvider.notifier).syncNow();
+      transport.offline = false;
+      transport.deleteError = const SyncTransportException(
+        SyncFailure.server,
+        '503',
+      );
+      final eraser = eraserOf(p);
+      await expectLater(
+        eraser.eraseServerCopy(),
+        throwsA(
+          isA<SyncTransportException>().having(
+            (error) => error.failure,
+            'failure',
+            SyncFailure.server,
+          ),
+        ),
+      );
+      expect(server.hasList(oldSyncId), isTrue);
+      expect(
+        await p.container.read(familyStoreProvider).readLegacyV1(),
+        legacy,
+      );
+      transport.deleteError = null;
+      await eraser.eraseServerCopy();
+      expect(server.hasList(oldSyncId), isFalse);
+      expect(
+        await p.container.read(familyStoreProvider).readLegacyV1(),
+        isNull,
+      );
+      await eraser.eraseLocal();
+      await expectFirstUse(p);
+    });
+  }
+
+  for (final (method, status, responseBody) in [
+    ('GET', 403, '{"error":"forbidden_role"}'),
+    ('DELETE', 409, '{"error":"renewal_close_pending"}'),
+    ('GET', 404, '<html>Not Found</html>'),
+    ('DELETE', 404, '{"error":"wrong_route"}'),
+    ('GET', 401, '<html>Unauthorized</html>'),
+    ('GET', 410, '{"error":"gone"}'),
+    ('DELETE', 401, '{"error":"unauthorized","extra":true}'),
+    ('DELETE', 410, ''),
+    ('POST', 401, '<html>Unauthorized</html>'),
+    ('POST', 410, '{"error":"gone"}'),
+  ]) {
+    test(
+      'Dejar de sincronizar conserva el estado tras $method $status inesperado',
+      () async {
+        final worker = FakeWorkerV2();
+        String? stoppedPath;
+        final p = await newPhone(
+          transport: server.connect(),
+          v2Transport: SyncV2Client(
+            base: Uri.parse('https://sync.test'),
+            openSocket: worker.socket,
+            sendRequest: (verb, uri, {body, headers = const {}}) async {
+              if (verb == method && uri.path == stoppedPath) {
+                return SyncResponse(
+                  status,
+                  const {},
+                  Uint8List.fromList(utf8.encode(responseBody)),
+                );
+              }
+              return worker.send(verb, uri, body: body, headers: headers);
+            },
+          ),
+        );
+        await fill(p);
+        final local = await p.container.read(prepareV2)();
+        final store = p.container.read(familyStoreProvider);
+        await store.enableRemoteSync();
+        final controller = p.container.read(syncControllerProvider.notifier);
+        await controller.syncNow();
+        final before = statusOf(p);
+        expect(before.phase, SyncPhase.synced);
+        final id = local.identity.syncId;
+        final key = familyOf(p).familyKey;
+        final proof = await store.readV1ProofKey();
+        expect(proof, isNotNull);
+        final revoking = method == 'POST';
+        if (revoking) {
+          worker.addCredentialForTesting(id, 'nora-phone', Uint8List(32));
+        }
+        stoppedPath = '/v2/lists/$id${revoking ? '/revoke' : ''}';
+
+        await expectLater(
+          controller.stopSyncing(),
+          throwsA(
+            isA<SyncTransportException>().having(
+              (error) => error.failure,
+              'failure',
+              SyncFailure.server,
+            ),
+          ),
+        );
+        expect(statusOf(p), same(before));
+        expect((await store.readSyncV2())!.syncId, id);
+        expect(familyOf(p).familyKey, key);
+        expect(await store.readV1ProofKey(), proof);
+        expect(worker.hasList(id), isTrue);
+        stoppedPath = null;
+        if (revoking) {
+          final deviceId = local.identity.deviceId;
+          expect(worker.devicesOf(id)[deviceId], isFalse);
+          expect(server.calls['delete'], isNull);
+          await controller.stopSyncing();
+          expect(worker.devicesOf(id), {deviceId: true, 'nora-phone': false});
+          expect((await store.readSyncV2())!.syncId, isNot(id));
+        } else {
+          await controller.syncNow();
+          expect(statusOf(p).phase, SyncPhase.synced);
+        }
+      },
+    );
+  }
+
+  test('un 403 inesperado deja que se suba la edición pendiente sin '
+      'pulsar Sincronizar ahora', () async {
+    final worker = FakeWorkerV2();
+    final p = await newPhone(
+      transport: server.connect(),
+      v2Transport: worker.client(),
+      timing: const SyncTiming(debounce: Duration(seconds: 1)),
+    );
+    await fill(p);
+    final local = await p.container.read(prepareV2)();
+    final id = local.identity.syncId;
+    final store = p.container.read(familyStoreProvider);
+    await store.enableRemoteSync();
+    final controller = p.container.read(syncControllerProvider.notifier);
+    await controller.syncNow();
+    final before = worker.calls['PUT list'] ?? 0;
+
+    worker.tamper = (method, uri, response) {
+      if (method != 'GET' || uri.path != '/v2/lists/$id') return response;
+      worker.tamper = null;
+      return SyncResponse(
+        403,
+        const {},
+        Uint8List.fromList(utf8.encode('{"error":"forbidden_role"}')),
+      );
+    };
+    await familyOf(p).upsertRecipient(
+      const Recipient(id: 'leo', name: 'Leo', colorIndex: 3, archived: false),
+    );
+    await expectLater(
+      controller.stopSyncing(),
+      throwsA(
+        isA<SyncTransportException>().having(
+          (error) => error.failure,
+          'failure',
+          SyncFailure.server,
+        ),
+      ),
+    );
+    expect(worker.calls['PUT list'] ?? 0, before);
+    await eventually(
+      () => (worker.calls['PUT list'] ?? 0) == before + 1,
+      reason: 'subida automática de la edición pendiente',
+    );
+    await eventually(() => statusOf(p).phase == SyncPhase.synced);
+  });
+
+  for (final (method, status, code) in [
+    ('GET', 403, 'revoked'),
+    ('GET', 403, 'credential_replaced'),
+    ('GET', 401, 'unauthorized'),
+    ('GET', 410, 'retired'),
+    ('DELETE', 410, 'retired'),
+  ]) {
+    test('retira la copia v1 tras $method $status $code', () async {
+      final worker = FakeWorkerV2();
+      final p = await newPhone(
+        transport: server.connect(),
+        v2Transport: worker.client(),
+      );
+      await fill(p, paired: true);
+      final oldSyncId = await SyncKeys.syncId(familyOf(p).familyKey!);
+      final local = await p.container.read(prepareV2)();
+      final id = local.identity.syncId;
+      final store = p.container.read(familyStoreProvider);
+      final controller = p.container.read(syncControllerProvider.notifier);
+      controller.setV2Pairing(true);
+      await controller.syncNow();
+      expect(server.hasList(oldSyncId), isTrue);
+      expect(await store.readLegacyV1(), isNotNull);
+
+      var matched = false;
+      worker.tamper = (verb, uri, response) {
+        if (verb != method || uri.path != '/v2/lists/$id') return response;
+        matched = true;
+        return SyncResponse(
+          status,
+          const {},
+          Uint8List.fromList(utf8.encode(jsonEncode({'error': code}))),
+        );
+      };
+      await controller.stopSyncing();
+      expect(matched, isTrue);
+      expect(statusOf(p).phase, SyncPhase.disabled);
+      expect(server.calls['delete'], 1);
+      expect(server.hasList(oldSyncId), isFalse);
+      expect(await store.readLegacyV1(), isNull);
+      expect((await store.readSyncV2())!.syncId, isNot(id));
+    });
+  }
+
+  test('un 410 v1 con HTML conserva la retirada pendiente tras perder '
+      'el acceso v2, hasta recibir gone del Worker', () async {
+    final worker = FakeWorkerV2();
+    final transport = _RetiredV1Transport();
+    final p = await newPhone(
+      transport: transport,
+      v2Transport: worker.client(),
+    );
+    await fill(p);
+    final controller = p.container.read(syncControllerProvider.notifier);
+    await controller.setEnabled(false);
+    await familyOf(p).markPaired(peerName: 'Nora');
+    final local = await p.container.read(prepareV2)();
+    final id = local.identity.syncId;
+    final store = p.container.read(familyStoreProvider);
+    expect(await store.readLegacyV1(), isNotNull);
+    worker.tamper = (method, uri, response) =>
+        method == 'GET' && uri.path == '/v2/lists/$id'
+        ? SyncResponse(
+            403,
+            const {},
+            Uint8List.fromList(utf8.encode('{"error":"revoked"}')),
+          )
+        : response;
+
+    await expectLater(
+      controller.stopSyncing(),
+      throwsA(
+        isA<SyncTransportException>().having(
+          (error) => error.failure,
+          'failure',
+          SyncFailure.server,
+        ),
+      ),
+    );
+    expect(transport.requests, ['GET']);
+    expect(await store.readLegacyV1(), isNotNull);
+    expect((await store.readSyncV2())!.syncId, id);
+    expect(statusOf(p).phase, SyncPhase.disabled);
+
+    transport.responseBody = '{"error":"gone"}';
+    await controller.stopSyncing();
+    expect(transport.requests, ['GET', 'GET']);
+    expect(await store.readLegacyV1(), isNull);
+    expect((await store.readSyncV2())!.syncId, isNot(id));
+    expect(statusOf(p).phase, SyncPhase.disabled);
+  });
+
+  test('un 403 revoked permite borrar este móvil', () async {
+    final worker = FakeWorkerV2();
+    final p = await newPhone(
+      transport: server.connect(),
+      v2Transport: worker.client(),
+    );
+    await fill(p);
+    await p.container.read(pairingV2HostProvider.notifier).start();
+    final local = await p.container.read(prepareV2)();
+    final syncId = local.identity.syncId;
+    worker.tamper = (method, uri, response) =>
+        method == 'GET' && uri.path == '/v2/lists/$syncId'
+        ? SyncResponse(
+            403,
+            const {},
+            Uint8List.fromList(utf8.encode('{"error":"revoked"}')),
+          )
+        : response;
+
+    final eraser = eraserOf(p);
+    await eraser.eraseServerCopy();
+    expect(worker.hasList(syncId), isTrue);
+    expect(worker.calls['DELETE list'], isNull);
+    await eraser.eraseLocal();
+    await expectFirstUse(p);
+  });
+
+  test('una credencial v2 sustituida permite borrar este móvil', () async {
+    final worker = FakeWorkerV2();
+    final p = await newPhone(
+      transport: server.connect(),
+      v2Transport: worker.client(),
+    );
+    await fill(p);
+    await p.container.read(pairingV2HostProvider.notifier).start();
+    final local = await p.container.read(prepareV2)();
+    final id = local.identity;
+    final replacement = await local.keys.withNewServiceCredential();
+    worker.replaceRecoveryCredential(
+      id.syncId,
+      id.deviceId,
+      encodeBase64Url(await replacement.serviceCredentialVerifier()),
+    );
+
+    final eraser = eraserOf(p);
+    await eraser.eraseServerCopy();
+    expect(worker.hasList(id.syncId), isTrue);
+    expect(worker.calls['DELETE list'], isNull);
+    await eraser.eraseLocal();
+    await expectFirstUse(p);
+  });
+
+  test('una invitación v2 con un solo móvil conserva el aviso sin red y '
+      'permite borrar la copia al reintentar', () async {
+    final worker = FakeWorkerV2();
+    final p = await newPhone(
+      transport: server.connect(),
+      v2Transport: worker.client(),
+    );
+    await fill(p);
+    await p.container.read(pairingV2HostProvider.notifier).start();
+    expect(
+      p.container.read(pairingV2HostProvider).phase,
+      PairingV2HostPhase.waiting,
+    );
+    final syncId =
+        (await p.container.read(familyStoreProvider).readSyncV2())!.syncId;
+    expect(worker.hasList(syncId), isTrue);
+
+    final eraser = eraserOf(p);
+    worker.offline = true;
+    await expectLater(
+      eraser.eraseServerCopy(),
+      throwsA(
+        isA<SyncTransportException>().having(
+          (error) => error.failure,
+          'failure',
+          SyncFailure.network,
+        ),
+      ),
+    );
+    expect(await hasFamily(p), isTrue);
+    expect(worker.hasList(syncId), isTrue);
+
+    worker.offline = false;
+    worker.tamper = (method, uri, response) =>
+        method == 'GET' && uri.path == '/v2/lists/$syncId'
+        ? SyncResponse(503, const {}, Uint8List(0))
+        : response;
+    await expectLater(
+      eraser.eraseServerCopy(),
+      throwsA(
+        isA<SyncTransportException>().having(
+          (error) => error.failure,
+          'failure',
+          SyncFailure.server,
+        ),
+      ),
+    );
+    expect(worker.hasList(syncId), isTrue);
+
+    worker.tamper = null;
+    await eraser.eraseServerCopy();
+    expect(worker.hasList(syncId), isFalse);
+    expect(worker.calls['DELETE list'], 1);
     await eraser.eraseLocal();
     await expectFirstUse(p);
   });

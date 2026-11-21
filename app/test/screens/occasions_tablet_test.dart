@@ -101,7 +101,7 @@ void main() {
       expect(countdown.left, column.left + 16);
       expect(countdown.right, column.right - 16);
 
-      final section = tester.getRect(find.text('Cada persona'));
+      final section = tester.getRect(find.text('Por persona'));
       expect(section.left, column.left + 16);
 
       final add = tester.getRect(find.byType(FloatingActionButton));

@@ -331,7 +331,7 @@ void main() {
       expect(find.textContaining('Mínimo 15 caracteres'), findsOneWidget);
       expect(find.textContaining('elegidas al azar'), findsOneWidget);
       expect(
-        find.textContaining('Las 24 palabras seguirán valiendo'),
+        find.textContaining('Aún podrás recuperar la lista con las 24 palabras'),
         findsOneWidget,
       );
       expect(tester.widget<FilledButton>(saveButton).onPressed, isNull);
@@ -367,13 +367,13 @@ void main() {
       await typeIn(tester, 1, _good);
       await tester.tap(saveButton);
       await spin(tester);
-      expect(find.text('Protegiendo el fichero…'), findsOneWidget);
+      expect(find.text('Procesando el fichero…'), findsOneWidget);
       expect(find.byType(LinearProgressIndicator), findsOneWidget);
       expect(saveButton, findsNothing);
       await tester.tap(find.text('Cancelar'));
       await spin(tester, 10);
       expect(slow.cancels, 1);
-      expect(find.text('Protegiendo el fichero…'), findsNothing);
+      expect(find.text('Procesando el fichero…'), findsNothing);
       expect(find.textContaining('No se ha podido'), findsNothing);
       expect(exchange.saved, isEmpty);
 
@@ -381,7 +381,7 @@ void main() {
       slow.gate = Completer<void>();
       await tester.tap(saveButton);
       await spin(tester);
-      expect(find.text('Protegiendo el fichero…'), findsOneWidget);
+      expect(find.text('Procesando el fichero…'), findsOneWidget);
       slow.gate!.complete();
       await settle(tester);
       expect(exchange.saved, hasLength(1));
@@ -479,12 +479,12 @@ void main() {
       await tester.runAsync(() => flow.receive(vectors.open));
       await spin(tester);
       expect(phone.container.read(recoveryFileProvider).waiting, isNotNull);
-      expect(find.text('Ha llegado otro fichero'), findsNothing);
+      expect(find.text('¿Cambiar de fichero?'), findsNothing);
       expect(fake.calls, contains('file'));
       fake.holdRestore!.complete();
       await spin(tester, 10);
       expect(find.text('Lista recuperada'), findsOneWidget);
-      expect(find.text('Ha llegado otro fichero'), findsNothing);
+      expect(find.text('¿Cambiar de fichero?'), findsNothing);
       expect(phone.container.read(recoveryFileProvider).waiting, isNull);
     });
 
@@ -500,13 +500,13 @@ void main() {
       final flow = phone.container.read(recoveryFileProvider.notifier);
       await tester.runAsync(() => flow.receive(vectors.open));
       await spin(tester);
-      expect(find.text('Ha llegado otro fichero'), findsNothing);
+      expect(find.text('¿Cambiar de fichero?'), findsNothing);
       fake.holdRestore!.complete();
       await spin(tester, 10);
       expect(find.text('Ese código no abre ninguna lista'), findsOneWidget);
-      expect(find.text('Ha llegado otro fichero'), findsOneWidget);
+      expect(find.text('¿Cambiar de fichero?'), findsOneWidget);
       // Aceptar el nuevo sale del error del anterior y lo adopta.
-      await tapText(tester, 'Cambiar de fichero');
+      await tapText(tester, 'Usar el nuevo');
       await spin(tester, 6);
       expect(find.text('Ese código no abre ninguna lista'), findsNothing);
       expect(find.text('¿Recuperar con este fichero?'), findsOneWidget);
@@ -538,11 +538,11 @@ void main() {
         () => flow.receive(Uint8List.fromList(List<int>.filled(9, 1))),
       );
       await spin(tester, 8);
-      await tester.tap(find.text('Cambiar de fichero'));
+      await tester.tap(find.text('Usar el nuevo'));
       await settle(tester);
       await tester.runAsync(() => flow.receive(vectors.protectedAscii));
       await spin(tester, 8);
-      await tester.tap(find.text('Cambiar de fichero'));
+      await tester.tap(find.text('Usar el nuevo'));
       await settle(tester);
       // Las dos adopciones esperan al abandono; la última es la del fichero
       // actual.
@@ -574,13 +574,13 @@ void main() {
       // B (abierto) se acepta mientras deriva A: su apertura queda pendiente.
       await tester.runAsync(() => flow.receive(vectors.open));
       await spin(tester, 2);
-      await tester.tap(find.text('Cambiar de fichero'));
+      await tester.tap(find.text('Usar el nuevo'));
       await spin(tester, 2);
       // C (protegido) sustituye a B antes de que acabe A.
       await tester.runAsync(() => flow.receive(vectors.protectedAscii));
       await spin(tester, 10);
-      expect(find.text('Ha llegado otro fichero'), findsOneWidget);
-      await tester.tap(find.text('Cambiar de fichero'));
+      expect(find.text('¿Cambiar de fichero?'), findsOneWidget);
+      await tester.tap(find.text('Usar el nuevo'));
       await spin(tester, 2);
       // Tiempo de sobra para que acabe la derivación de A y se vea si algo se
       // abre solo con la contraseña vacía.
@@ -609,11 +609,11 @@ void main() {
       await tester.pump();
       await tester.tap(find.widgetWithText(FilledButton, 'Abrir el fichero'));
       await spin(tester, 2);
-      expect(find.text('Protegiendo el fichero…'), findsOneWidget);
+      expect(find.text('Procesando el fichero…'), findsOneWidget);
       await tester.runAsync(() => flow.receive(vectors.open));
       await spin(tester, 2);
-      expect(find.text('Ha llegado otro fichero'), findsOneWidget);
-      await tester.tap(find.text('Cambiar de fichero'));
+      expect(find.text('¿Cambiar de fichero?'), findsOneWidget);
+      await tester.tap(find.text('Usar el nuevo'));
       await spin(tester, 2);
       // El protegido acaba (o se cancela) y entonces se abre el nuevo.
       for (var i = 0; i < 600; i++) {
@@ -698,7 +698,7 @@ void main() {
       await tester.tap(saveButton);
       await settle(tester);
       expect(
-        find.text('Este código ya no es el de tu persona actual'),
+        find.text('El código ya no vale para la persona elegida'),
         findsOneWidget,
       );
       expect(find.textContaining('Crea un código nuevo'), findsOneWidget);
@@ -719,7 +719,7 @@ void main() {
       exchange.picked = vectors.open;
       await tapText(tester, 'Elegir fichero');
       expect(
-        find.text('Este código ya no es el de tu persona actual'),
+        find.text('El código ya no vale para la persona elegida'),
         findsOneWidget,
       );
       expect(find.text('Código comprobado'), findsNothing);
@@ -925,7 +925,7 @@ void main() {
       await pumpRegalos(tester, phone);
       familyLoad.complete(FamilyState.noFamily());
       await settle(tester);
-      expect(find.text('Ha llegado otro fichero'), findsNothing);
+      expect(find.text('¿Cambiar de fichero?'), findsNothing);
       expect(find.text('¿Recuperar con este fichero?'), findsOneWidget);
       expect(
         phone.container.read(recoveryFileProvider).selection!.variant,
@@ -1072,7 +1072,7 @@ void main() {
             find.text(switch (variant) {
               'protected' => 'Contraseña del fichero',
               'open' => '¿Recuperar con este fichero?',
-              'garbage' => 'No se pudo abrir el envío',
+              'garbage' => 'No se ha podido abrir el envío',
               'invalid' => 'No es un fichero de recuperación',
               _ => 'Este móvil ya tiene una lista',
             }),
@@ -1106,7 +1106,7 @@ void main() {
     }
 
     Future<void> openFromWelcome(WidgetTester tester) async {
-      await tapWelcomeChoice(tester, 'Recuperar con fichero');
+      await tapWelcomeChoice(tester, 'Usar el fichero de recuperación');
     }
 
     fileTest('la bienvenida lo ofrece junto al código de palabras', (
@@ -1114,15 +1114,15 @@ void main() {
       phone,
     ) async {
       await pumpRegalos(tester, phone);
-      expect(find.text('Restaurar una copia'), findsOneWidget);
-      await openWelcomeSheet(tester, 'Recuperar con fichero');
-      expect(find.text('Tengo un código de recuperación'), findsOneWidget);
-      expect(find.text('Recuperar con fichero'), findsOneWidget);
-      await tester.tap(find.text('Recuperar con fichero'));
+      expect(find.text('Recuperar una copia'), findsOneWidget);
+      await openWelcomeSheet(tester, 'Usar el fichero de recuperación');
+      expect(find.text('Usar el código de recuperación'), findsOneWidget);
+      expect(find.text('Usar el fichero de recuperación'), findsOneWidget);
+      await tester.tap(find.text('Usar el fichero de recuperación'));
       await settle(tester);
       expect(find.text('Recuperar con un fichero'), findsOneWidget);
       await tapLabel(tester, 'Atrás');
-      expect(find.text('Restaurar una copia'), findsOneWidget);
+      expect(find.text('Recuperar una copia'), findsOneWidget);
     });
 
     fileTest('el fichero abierto pide confirmación y recupera como las '
@@ -1265,7 +1265,7 @@ void main() {
         expect(phone.container.read(recoveryFileProvider).selection, isNull);
         expect(phone.container.read(recoveryFileProvider).waiting, isNull);
         await onFile(tester, vectors.open);
-        expect(find.text('Ha llegado otro fichero'), findsNothing);
+        expect(find.text('¿Cambiar de fichero?'), findsNothing);
         expect(find.text('¿Recuperar con este fichero?'), findsOneWidget);
         expect(phone.container.read(recoveryFileScreenOpenProvider), 1);
         expect(fake.calls, isEmpty);
@@ -1309,7 +1309,7 @@ void main() {
           expect(cleared.waiting, isNull);
           expect(cleared.activity, RecoveryFileActivity.idle);
           await onFile(tester, vectors.open);
-          expect(find.text('Ha llegado otro fichero'), findsNothing);
+          expect(find.text('¿Cambiar de fichero?'), findsNothing);
           expect(find.text('¿Recuperar con este fichero?'), findsOneWidget);
           final current = phone.container.read(recoveryFileProvider).selection;
           if (deriving) {
@@ -1340,7 +1340,7 @@ void main() {
       await tester.pump();
       expect(phone.container.read(recoveryFileScreenOpenProvider), 0);
       await onFile(tester, vectors.open);
-      expect(find.text('Ha llegado otro fichero'), findsNothing);
+      expect(find.text('¿Cambiar de fichero?'), findsNothing);
       expect(find.text('¿Recuperar con este fichero?'), findsOneWidget);
       expect(
         phone.container.read(recoveryFileProvider).selection!.opened,
@@ -1403,7 +1403,7 @@ void main() {
       await confirmProtectedFile(tester);
       final current = phone.container.read(recoveryFileProvider).selection;
       await onFile(tester, vectors.open);
-      expect(find.text('Ha llegado otro fichero'), findsOneWidget);
+      expect(find.text('¿Cambiar de fichero?'), findsOneWidget);
       await tapText(tester, 'Seguir con el actual');
       expect(find.text('¿Recuperar con este fichero?'), findsOneWidget);
       expect(
@@ -1412,7 +1412,7 @@ void main() {
       );
       expect(phone.container.read(recoveryFileProvider).waiting, isNull);
       await onFile(tester, vectors.open);
-      await tapText(tester, 'Cambiar de fichero');
+      await tapText(tester, 'Usar el nuevo');
       expect(find.text('¿Recuperar con este fichero?'), findsOneWidget);
       expect(
         phone.container.read(recoveryFileProvider).selection!.variant,
@@ -1437,7 +1437,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.widgetWithText(FilledButton, 'Abrir el fichero'));
       await spin(tester, 2);
-      expect(find.text('Protegiendo el fichero…'), findsOneWidget);
+      expect(find.text('Procesando el fichero…'), findsOneWidget);
       expect(find.byType(LinearProgressIndicator), findsOneWidget);
       expect(find.text('Cancelar'), findsOneWidget);
       await untilText(tester, 'Contraseña incorrecta o fichero dañado');
@@ -1537,13 +1537,13 @@ void main() {
       await settle(tester);
       await tester.runAsync(() => flow.receive(vectors.open));
       await settle(tester);
-      expect(find.text('Ha llegado otro fichero'), findsOneWidget);
+      expect(find.text('¿Cambiar de fichero?'), findsOneWidget);
       // Seguir con el actual: nada cambia.
       await tapText(tester, 'Seguir con el actual');
       expect(find.text('Contraseña del fichero'), findsOneWidget);
       await tester.runAsync(() => flow.receive(vectors.open));
       await settle(tester);
-      await tapText(tester, 'Cambiar de fichero');
+      await tapText(tester, 'Usar el nuevo');
       expect(find.text('¿Recuperar con este fichero?'), findsOneWidget);
     });
   });
@@ -1591,7 +1591,7 @@ void main() {
 
     testWidgets('guardar en un fitxer cap sense desbordar', (tester) async {
       await pumpCa(tester, () => RecoveryFileSaveScreen(display: display));
-      final protect = find.text('Protegeix amb contrasenya');
+      final protect = find.text('Protegir amb contrasenya');
       expect(protect, findsOneWidget);
       await tester.ensureVisible(protect);
       await tester.pump();
@@ -1611,7 +1611,7 @@ void main() {
     testWidgets('recuperar amb un fitxer cap sense desbordar', (tester) async {
       await pumpCa(tester, () => const RecoveryRestoreScreen(fileMode: true));
       exchange.picked = Uint8List.fromList(List<int>.filled(12, 9));
-      await tester.tap(find.text('Tria un fitxer'));
+      await tester.tap(find.text('Triar un fitxer'));
       await settle(tester);
       expect(find.text('No és un fitxer de recuperació'), findsOneWidget);
       expect(tester.takeException(), isNull);

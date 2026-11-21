@@ -307,7 +307,7 @@ void main() {
         expect(stage.left, greaterThanOrEqualTo(margin));
         expect(title.right, lessThanOrEqualTo(size.width - margin));
         // El conjunto está centrado en la ventana.
-        final body = tester.getRect(find.textContaining('Elige a quién'));
+        final body = tester.getRect(find.textContaining('Elige para quién es el regalo'));
         final right = title.right > body.right ? title.right : body.right;
         expect(
           (stage.left + right) / 2,
@@ -324,7 +324,7 @@ void main() {
         await pumpTour(tester, size: size);
         final stage = _stageRect(tester);
         final title = tester.getRect(find.text(_titles[0]));
-        final body = tester.getRect(find.textContaining('Elige a quién'));
+        final body = tester.getRect(find.textContaining('Elige para quién es el regalo'));
         expect(stage.bottom, lessThanOrEqualTo(title.top));
         // Llena la columna de 520 si cabe en el alto, con los mismos bordes
         // que el texto.

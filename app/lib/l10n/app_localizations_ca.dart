@@ -38,10 +38,11 @@ class AppLocalizationsCa extends AppLocalizations {
       'Afegeix les persones a qui regaleu per començar les seves llistes de regals.';
 
   @override
-  String get emptyFamilyTitle => 'Ningú ha apuntat regals';
+  String get emptyFamilyTitle => 'Falten persones';
 
   @override
-  String get emptyFamilyMessage => 'Aquí veuràs qui regala què a cada persona.';
+  String get emptyFamilyMessage =>
+      'Per veure el repartiment, cal que hi hagi algú que faci regals i algú que en rebi.';
 
   @override
   String get emptyOccasionsTitle => 'Sense ocasions';
@@ -52,7 +53,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String backTo(String title) {
-    return 'Torna a $title';
+    return 'Tornar a $title';
   }
 
   @override
@@ -99,14 +100,14 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get appearanceOccasionHint =>
-      'La llista d\'una ocasió canvia d\'accent i de capçalera.';
+      'El color i la capçalera de la llista canvien segons l\'ocasió.';
 
   @override
   String get appearanceHapticsTitle => 'Vibracions';
 
   @override
   String get appearanceHapticsHint =>
-      'Petits tocs en marcar, triar o quan alguna cosa arriba.';
+      'El mòbil vibra suaument, per exemple, quan marques una casella o tries una opció.';
 
   @override
   String get appearancePreview => 'Vista prèvia';
@@ -149,7 +150,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String statusCheckboxLabel(String item, String status) {
-    return 'Canvia l\'estat de $item. Estat actual: $status';
+    return 'Canviar l\'estat de $item. Estat actual: $status';
   }
 
   @override
@@ -189,7 +190,8 @@ class AppLocalizationsCa extends AppLocalizations {
   String get previewOccasion => 'Reis';
 
   @override
-  String get shareEnvelopeText => 'Canvis de Gift Huddle: obre\'l amb l\'app.';
+  String get shareEnvelopeText =>
+      'Obre el fitxer amb Gift Huddle per veure els canvis a la llista.';
 
   @override
   String get occasionNameTio => 'Tió';
@@ -226,15 +228,15 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get shareErrorClockDrift =>
-      'L\'altre mòbil té la data i l\'hora mal posades. Corregeix-les i torna a enviar-ho.';
+      'El rellotge de l\'altre mòbil va avançat. Revisa la data i l\'hora d\'aquell mòbil i torna a enviar la llista des d\'allà.';
 
   @override
   String get shareErrorLegacyFile =>
-      'Aquest fitxer és d\'una versió anterior de Gift Huddle i ja no s\'obre. Desa\'l i demana que te\'l tornin a enviar des d\'un mòbil actualitzat.';
+      'Aquest fitxer és d\'una versió anterior de Gift Huddle. Desa\'l i demana que te n\'enviïn un de nou creat amb l\'app actualitzada.';
 
   @override
   String get shareErrorNotReady =>
-      'Aquest mòbil encara no està al dia amb la família. Sincronitza i torna a obrir el fitxer.';
+      'Aquest mòbil encara no està al dia amb la família. Sincronitza i torna-ho a provar.';
 
   @override
   String get shareErrorGeneration =>
@@ -246,7 +248,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get shareErrorMissingKey =>
-      'Encara no es pot obrir aquest fitxer. S\'ha desat i s\'obrirà sol quan sincronitzis.';
+      'Encara no es pot obrir aquest fitxer. S\'ha desat i es tornarà a provar quan sincronitzis.';
 
   @override
   String get shareErrorSyncAndReopen =>
@@ -268,13 +270,13 @@ class AppLocalizationsCa extends AppLocalizations {
   }
 
   @override
-  String get lockUnlock => 'Desbloqueja';
+  String get lockUnlock => 'Desbloquejar';
 
   @override
-  String get lockBackspace => 'Esborra';
+  String get lockBackspace => 'Esborrar';
 
   @override
-  String get lockBiometric => 'Fes servir l\'empremta o el rostre';
+  String get lockBiometric => 'Fer servir l\'empremta o el rostre';
 
   @override
   String get lockBiometricReason => 'Desbloqueja Gift Huddle';
@@ -284,10 +286,55 @@ class AppLocalizationsCa extends AppLocalizations {
       'Qualsevol empremta o cara registrada al mòbil podrà obrir l\'app.';
 
   @override
+  String lockBiometricNamed(String name) {
+    return 'Fer servir $name';
+  }
+
+  @override
+  String lockBiometricHintNamed(String name) {
+    return 'Toca el botó de $name per desbloquejar l\'app';
+  }
+
+  @override
+  String get lockBiometricNoticeFace =>
+      'Qualsevol persona que tingui la cara registrada a Face ID podrà obrir l\'app.';
+
+  @override
+  String get lockBiometricNoticeTouch =>
+      'Qualsevol persona que tingui una empremta registrada a Touch ID podrà obrir l\'app.';
+
+  @override
+  String pinBiometricOfferTitleNamed(String name) {
+    return 'Vols activar $name?';
+  }
+
+  @override
+  String get securityBiometricsUnavailableIos =>
+      'Aquest mòbil no té Face ID ni Touch ID configurats.';
+
+  @override
+  String securityBiometricsFailedNamed(String name) {
+    return 'No s\'ha pogut activar. Comprova que $name estigui configurat a la Configuració del mòbil.';
+  }
+
+  @override
+  String get giftDiscardTitle => 'Vols descartar els canvis?';
+
+  @override
+  String get giftDiscardBody =>
+      'Els canvis d\'aquest regal encara no s\'han desat.';
+
+  @override
+  String get actionDiscard => 'Descartar';
+
+  @override
+  String get giftKeepEditing => 'Continuar editant';
+
+  @override
   String get lockLoadError => 'No s\'ha pogut comprovar el bloqueig.';
 
   @override
-  String get lockRetry => 'Torna-ho a provar';
+  String get lockRetry => 'Reintentar';
 
   @override
   String lockWrongPin(int count) {
@@ -297,7 +344,7 @@ class AppLocalizationsCa extends AppLocalizations {
       other: 'Queden $count intents',
       one: 'Queda $count intent',
     );
-    return 'PIN incorrecte. $_temp0 abans de haver d\'esperar.';
+    return 'PIN incorrecte. $_temp0 abans d\'haver d\'esperar.';
   }
 
   @override
@@ -322,10 +369,10 @@ class AppLocalizationsCa extends AppLocalizations {
   String get pinMismatch => 'Els PIN no coincideixen. Torna-ho a provar.';
 
   @override
-  String get pinContinue => 'Continua';
+  String get pinContinue => 'Continuar';
 
   @override
-  String get pinSave => 'Desa el PIN';
+  String get pinSave => 'Desar el PIN';
 
   @override
   String get pinSkip => 'Ara no';
@@ -334,16 +381,16 @@ class AppLocalizationsCa extends AppLocalizations {
   String get pinBiometricOfferTitle => 'Vols activar l\'empremta o el rostre?';
 
   @override
-  String get pinBiometricOfferEnable => 'Activa';
+  String get pinBiometricOfferEnable => 'Activar';
 
   @override
-  String get actionSave => 'Desa';
+  String get actionSave => 'Desar';
 
   @override
-  String get actionCancel => 'Cancel·la';
+  String get actionCancel => 'Cancel·lar';
 
   @override
-  String get actionDelete => 'Esborra';
+  String get actionDelete => 'Esborrar';
 
   @override
   String get actionNext => 'Següent';
@@ -352,22 +399,22 @@ class AppLocalizationsCa extends AppLocalizations {
   String get actionBack => 'Enrere';
 
   @override
-  String get actionEdit => 'Edita';
+  String get actionEdit => 'Editar';
 
   @override
-  String get actionClose => 'Tanca';
+  String get actionClose => 'Tancar';
 
   @override
   String get actionDone => 'Fet';
 
   @override
-  String get actionArchive => 'Arxiva';
+  String get actionArchive => 'Arxivar';
 
   @override
-  String get actionRestore => 'Recupera';
+  String get actionRestore => 'Recuperar';
 
   @override
-  String get actionUndo => 'Desfés';
+  String get actionUndo => 'Desfer';
 
   @override
   String get fieldName => 'Nom';
@@ -421,15 +468,15 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get giverHouseholdPaysHint =>
-      'Si ho paga la casa, compta al pressupost.';
+      'Si ho actives, els seus regals compten al pressupost de la casa.';
 
   @override
   String countdownDaysForBirthday(int count, String name) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'dies per a l\'aniversari de $name',
-      one: 'dia per a l\'aniversari de $name',
+      other: 'dies perquè $name faci anys',
+      one: 'dia perquè $name faci anys',
     );
     return '$_temp0';
   }
@@ -444,7 +491,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get obWelcomeBody =>
-      'Apunta què regala cadascú a cada persona, perquè ningú repeteixi i a ningú no li falti res.';
+      'Apunta qui regala què i a qui. Així ningú repeteix regal i ningú es queda sense el seu.';
 
   @override
   String get obWelcomePrivacy =>
@@ -455,10 +502,10 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get obDeviceNameHint =>
-      'És el nom que veurà l\'altre mòbil. Pots canviar-lo.';
+      'Aquest nom apareixerà a l\'altre mòbil. El pots canviar.';
 
   @override
-  String get obStart => 'Comença';
+  String get obStart => 'Començar';
 
   @override
   String get obHaveListTitle => 'Ja teniu la llista en un altre mòbil?';
@@ -468,17 +515,17 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get obPeopleBody =>
-      'Afegeix les persones a qui regaleu: parella, germans, nebots, nens… Cal almenys una.';
+      'Afegeix les persones a qui regaleu: parella, germans, nebots, nens… En cal almenys una.';
 
   @override
-  String get obPeopleAdd => 'Afegeix una persona';
+  String get obPeopleAdd => 'Afegir una persona';
 
   @override
   String get obPeopleNeedOne => 'Afegeix almenys una persona per continuar.';
 
   @override
   String obRemove(String name) {
-    return 'Treu $name';
+    return 'Treure $name';
   }
 
   @override
@@ -486,10 +533,10 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get obGiversBody =>
-      '«Nosaltres» ja està creat i ho paga la casa. Afegeix els avis, els oncles…';
+      '«Nosaltres» ja és a la llista per als regals que pagueu a casa. També hi pots afegir els avis, els oncles…';
 
   @override
-  String get obGiversSuggestions => 'Afegeix ràpid';
+  String get obGiversSuggestions => 'Suggeriments';
 
   @override
   String get obGiverGrandparents => 'Avis';
@@ -502,17 +549,17 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String obAddNamed(String name) {
-    return 'Afegeix $name';
+    return 'Afegir $name';
   }
 
   @override
-  String get giverNew => 'Afegeix qui regala';
+  String get giverNew => 'Afegir qui regala';
 
   @override
-  String get giverEdit => 'Edita qui regala';
+  String get giverEdit => 'Editar qui regala';
 
   @override
-  String get giverNameHint => 'Avis, Tia Marta i Jordi…';
+  String get giverNameHint => 'Avis, Tia Nora i Leo…';
 
   @override
   String get obOccasionsTitle => 'Quan hi ha regals?';
@@ -532,17 +579,17 @@ class AppLocalizationsCa extends AppLocalizations {
   String get obOtherOccasions => 'Altres dates';
 
   @override
-  String get obAddOccasion => 'Afegeix una altra data';
+  String get obAddOccasion => 'Afegir una altra data';
 
   @override
-  String get obPinTitle => 'Protegeix els regals';
+  String get obPinTitle => 'Bloqueja l\'app';
 
   @override
   String get obPinBody =>
       'Crea un PIN perquè ningú vegi els regals si agafa el mòbil. Podràs canviar-lo als Ajustos.';
 
   @override
-  String get obPinCreate => 'Crea un PIN';
+  String get obPinCreate => 'Crear un PIN';
 
   @override
   String get obFinishing => 'Preparant la teva llista…';
@@ -554,7 +601,7 @@ class AppLocalizationsCa extends AppLocalizations {
   String get personNew => 'Nova persona';
 
   @override
-  String get personEdit => 'Edita la persona';
+  String get personEdit => 'Editar la persona';
 
   @override
   String get personColor => 'Color';
@@ -569,24 +616,24 @@ class AppLocalizationsCa extends AppLocalizations {
   String get personBirthday => 'Aniversari (opcional)';
 
   @override
-  String get personBirthdayPick => 'Tria una data';
+  String get personBirthdayPick => 'Triar data';
 
   @override
   String get personBirthdayNone => 'Sense data';
 
   @override
-  String get personBirthdayClear => 'Treu la data';
+  String get personBirthdayClear => 'Treure la data';
 
   @override
-  String get personBirthdayNoYear => 'No desis l\'any';
+  String get personBirthdayNoYear => 'No desar l\'any';
 
   @override
   String personPendingBuy(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'falten $count per comprar',
-      one: 'falta $count per comprar',
+      other: 'en falten $count per comprar',
+      one: 'en falta $count per comprar',
     );
     return '$_temp0';
   }
@@ -595,7 +642,7 @@ class AppLocalizationsCa extends AppLocalizations {
   String get personAllBought => 'tot comprat';
 
   @override
-  String get giftAdd => 'Afegeix un regal';
+  String get giftAdd => 'Afegir un regal';
 
   @override
   String get giftNoOccasion => 'Sense ocasió';
@@ -617,7 +664,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String giftRequestedBy(String name) {
-    return 'Ho ha demanat $name';
+    return 'L\'ha demanat $name';
   }
 
   @override
@@ -660,7 +707,7 @@ class AppLocalizationsCa extends AppLocalizations {
   String get filtersButton => 'Filtres';
 
   @override
-  String get filtersSheetTitle => 'Filtra els regals';
+  String get filtersSheetTitle => 'Filtrar regals';
 
   @override
   String get filterAnyOccasion => 'Totes';
@@ -679,20 +726,20 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String filterRemove(String name) {
-    return 'Treu el filtre $name';
+    return 'Treure el filtre $name';
   }
 
   @override
-  String get filterClear => 'Treu els filtres';
+  String get filterClear => 'Treure els filtres';
 
   @override
-  String get filterNoResults => 'Cap regal compleix els filtres.';
+  String get filterNoResults => 'Cap regal coincideix amb els filtres.';
 
   @override
   String get giftEditorNewTitle => 'Nou regal';
 
   @override
-  String get giftEditorEditTitle => 'Edita el regal';
+  String get giftEditorEditTitle => 'Editar el regal';
 
   @override
   String get giftEditorNoPeople =>
@@ -703,7 +750,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String giftAddedNotice(String name) {
-    return 'Regal afegit a $name';
+    return 'Regal afegit a la llista de $name';
   }
 
   @override
@@ -750,16 +797,16 @@ class AppLocalizationsCa extends AppLocalizations {
   String get giftFieldSize => 'Talla o edat';
 
   @override
-  String get giftRequestSwitch => 'És un encàrrec: ho ha demanat algú';
+  String get giftRequestSwitch => 'És un encàrrec: l\'ha demanat algú';
 
   @override
-  String get giftRequestedByField => 'Qui ho ha demanat';
+  String get giftRequestedByField => 'Qui l\'ha demanat';
 
   @override
   String get giftRequestedByOther => 'Una altra persona…';
 
   @override
-  String get giftRequestedByName => 'Nom de qui ho ha demanat';
+  String get giftRequestedByName => 'Nom de qui l\'ha demanat';
 
   @override
   String get giftRequestNote => 'Nota de l\'encàrrec';
@@ -769,7 +816,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get giftSurpriseHint =>
-      'Es marca perquè ningú ho expliqui davant de qui ho rep.';
+      'Es marca perquè ningú en parli davant de qui el rep.';
 
   @override
   String get giftDelete => 'Esborra el regal';
@@ -794,21 +841,22 @@ class AppLocalizationsCa extends AppLocalizations {
   }
 
   @override
-  String get giftSaveError => 'No s\'ha pogut desar el regal.';
+  String get giftSaveError =>
+      'No s\'ha pogut desar el regal. Torna-ho a provar.';
 
   @override
   String get giftDuplicateTitle => 'Possible duplicat';
 
   @override
   String giftDuplicateBody(String title, String person, String giver) {
-    return '«$title» s\'assembla a un regal que ja està apuntat per a $person ($giver).';
+    return 'Pot ser que aquest regal ja sigui a la llista de $person amb el nom «$title». Qui regala: $giver.';
   }
 
   @override
-  String get giftDuplicateSave => 'Desa igualment';
+  String get giftDuplicateSave => 'Desar igualment';
 
   @override
-  String get giftDuplicateReview => 'Revisa';
+  String get giftDuplicateReview => 'Revisar';
 
   @override
   String get familySubtitle => 'Qui regala què a cada persona';
@@ -844,7 +892,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String familyCellEmptyLabel(String giver, String person) {
-    return '$giver per a $person: res encara, afegeix un regal';
+    return '$giver per a $person: encara res, afegir un regal';
   }
 
   @override
@@ -861,7 +909,7 @@ class AppLocalizationsCa extends AppLocalizations {
   String get occasionNew => 'Nova ocasió';
 
   @override
-  String get occasionEdit => 'Edita l\'ocasió';
+  String get occasionEdit => 'Editar l\'ocasió';
 
   @override
   String get occasionNameHint => 'Comunió, final de curs…';
@@ -870,7 +918,7 @@ class AppLocalizationsCa extends AppLocalizations {
   String get occasionDate => 'Data';
 
   @override
-  String get occasionDatePick => 'Tria una data';
+  String get occasionDatePick => 'Triar una data';
 
   @override
   String get occasionDateRequired => 'Tria una data.';
@@ -904,7 +952,7 @@ class AppLocalizationsCa extends AppLocalizations {
   String get budgetCardHint => 'Pressupost, gastat i el que queda';
 
   @override
-  String get occasionPeopleSection => 'Cada persona';
+  String get occasionPeopleSection => 'Per persona';
 
   @override
   String get occasionToWrap => 'per embolicar';
@@ -916,11 +964,11 @@ class AppLocalizationsCa extends AppLocalizations {
   String get occasionNoGifts => 'Encara no hi ha regals per a aquesta ocasió.';
 
   @override
-  String get occasionNoGiftsYet => 'Encara sense regals';
+  String get occasionNoGiftsYet => 'Encara no hi ha regals';
 
   @override
   String occasionSplitLabel(String name, String parts) {
-    return 'Repartiment de $name: $parts';
+    return 'Regals per a $name per ocasió: $parts';
   }
 
   @override
@@ -928,14 +976,14 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get occasionPendingEmpty =>
-      'Encara no hi ha res decidit. Quan una idea passi a Decidit, apareixerà aquí agrupada per botiga.';
+      'No hi ha compres pendents. Aquí veuràs els regals amb l\'estat «Decidit», agrupats per botiga.';
 
   @override
   String get occasionStoreNone => 'Sense botiga';
 
   @override
   String occasionMarkBought(String item) {
-    return 'Marca $item com a comprat';
+    return 'Marcar com a comprat: $item';
   }
 
   @override
@@ -946,11 +994,11 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get budgetSubtitle =>
-      'El poses tu a cada ocasió. Gastat suma el preu real del que paga la casa; si una cosa ja està comprada i no té preu real, compta el previst.';
+      'Pots posar un pressupost a cada ocasió. «Gastat» suma els preus reals dels regals que paga la casa. Si ja s\'ha comprat un regal i hi falta el preu real, compta el previst.';
 
   @override
   String get budgetSubtitleBudgeted =>
-      'El poses tu a cada ocasió. Les tres xifres només inclouen ocasions amb pressupost. «Gastat» suma els preus reals del que paga la casa. Si una cosa ja està comprada i no té preu real, compta el previst.';
+      'Pots posar un pressupost a cada ocasió. Les tres xifres només inclouen ocasions amb pressupost. «Gastat» suma els preus reals dels regals que paga la casa. Si ja s\'ha comprat un regal i hi falta el preu real, compta el previst.';
 
   @override
   String get budgetPlanned => 'Previst';
@@ -959,7 +1007,7 @@ class AppLocalizationsCa extends AppLocalizations {
   String get budgetSpent => 'Gastat';
 
   @override
-  String get budgetLeft => 'Queda';
+  String get budgetLeft => 'Disponible';
 
   @override
   String get budgetOver => 'Et passes';
@@ -976,14 +1024,14 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get budgetEmpty =>
-      'Encara no hi ha regals que pagui la casa. Marca «Ho paga la casa» a qui regala i posa un preu previst.';
+      'Encara no hi ha regals que pagui la casa. Activa «Ho paga la casa» a la fitxa de qui regala i posa el preu previst al regal.';
 
   @override
   String get occasionBudgetField => 'Pressupost (opcional)';
 
   @override
   String get occasionBudgetHint =>
-      'El que voleu gastar en aquesta ocasió. Deixa-ho buit si no n\'hi ha.';
+      'El que vols gastar en aquesta ocasió. Deixa-ho buit si no hi ha pressupost.';
 
   @override
   String get budgetFigure => 'Pressupost';
@@ -1009,7 +1057,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String budgetLeftIfBought(String amount) {
-    return 'Si compres el que falta, et quedaran $amount';
+    return 'Si compres el que falta, et quedaràs amb $amount';
   }
 
   @override
@@ -1058,7 +1106,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get aboutPrivacy =>
-      'Sense comptes ni publicitat. Els teus regals només surten del mòbil, sempre xifrats, si connectes un altre mòbil o la web, crees un codi de recuperació o envies una còpia.';
+      'Sense comptes ni publicitat. La llista només surt del teu mòbil si connectes un altre mòbil o la web, crees un codi de recuperació o envies una còpia. Sempre va xifrada.';
 
   @override
   String get aboutPrivacyPolicy => 'Política de privadesa';
@@ -1087,12 +1135,12 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String manageArchiveLabel(String name) {
-    return 'Arxiva $name';
+    return 'Arxivar $name';
   }
 
   @override
   String manageRestoreLabel(String name) {
-    return 'Recupera $name';
+    return 'Recuperar $name';
   }
 
   @override
@@ -1102,7 +1150,7 @@ class AppLocalizationsCa extends AppLocalizations {
   String get securityPinHint => 'Demana el PIN en obrir l\'app.';
 
   @override
-  String get securityChangePin => 'Canvia el PIN';
+  String get securityChangePin => 'Canviar el PIN';
 
   @override
   String get securityBiometrics => 'Empremta o rostre';
@@ -1116,10 +1164,10 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get securityBiometricsFailed =>
-      'No s\'ha pogut activar. Comprova l\'empremta o el rostre del mòbil.';
+      'No s\'ha pogut activar. Comprova que l\'empremta o el rostre estiguin configurats al mòbil.';
 
   @override
-  String get securityDisableTitle => 'Treu el PIN';
+  String get securityDisableTitle => 'Treure el PIN';
 
   @override
   String get securityDisablePrompt =>
@@ -1190,20 +1238,20 @@ class AppLocalizationsCa extends AppLocalizations {
       'El mòbil no ha respost a la petició del permís. Torna-ho a provar.';
 
   @override
-  String get scannerRetry => 'Torna-ho a provar';
+  String get scannerRetry => 'Reintentar';
 
   @override
-  String get scannerOpenSettings => 'Obre els ajustos';
+  String get scannerOpenSettings => 'Obrir ajustos';
 
   @override
   String get joinConflictTitle => 'Aquest mòbil ja té una llista';
 
   @override
   String get joinConflictBody =>
-      'Si t\'uneixes a la de l\'altre mòbil, aquesta llista se substitueix i es perden els seus regals. Continuar?';
+      'Si t\'uneixes a la llista de l\'altre mòbil, perdràs la llista d\'aquest mòbil i els regals que conté.';
 
   @override
-  String get joinReplace => 'Substitueix i uneix-me';
+  String get joinReplace => 'Substituir i unir-m\'hi';
 
   @override
   String get joinDoneTitle => 'Mòbils connectats';
@@ -1241,8 +1289,8 @@ class AppLocalizationsCa extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count canviats',
-      one: '$count canviat',
+      other: '$count regals modificats',
+      one: '$count regal modificat',
     );
     return '$_temp0';
   }
@@ -1252,8 +1300,8 @@ class AppLocalizationsCa extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count esborrats',
-      one: '$count esborrat',
+      other: '$count regals eliminats',
+      one: '$count regal eliminat',
     );
     return '$_temp0';
   }
@@ -1272,7 +1320,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get syncStopConfirmBody =>
-      'Aquest mòbil surt de la sincronització de la família i deixa d\'enviar i rebre canvis; els altres mòbils continuen sincronitzant entre ells. Si és l\'últim, també s\'esborra la còpia xifrada del servidor. El que hi ha a cada mòbil es queda tal com està. Per tornar a sincronitzar, connecta\'l de nou amb un altre mòbil de la família.';
+      'Aquest mòbil deixarà d\'enviar i rebre canvis. Els altres continuaran sincronitzant-se entre ells. Si aquest és l\'últim mòbil que se sincronitza, s\'esborrarà la còpia xifrada del servidor. Cada mòbil conservarà les seves dades. Per tornar a sincronitzar, connecta de nou aquest mòbil amb un altre de la família.';
 
   @override
   String get syncStopDone => 'Sincronització apagada.';
@@ -1300,7 +1348,8 @@ class AppLocalizationsCa extends AppLocalizations {
   String get syncStatusIdle => 'Pendent de sincronitzar';
 
   @override
-  String get syncStatusWaitingPeer => 'Començarà quan aparellis un altre mòbil';
+  String get syncStatusWaitingPeer =>
+      'La sincronització començarà quan connectis un altre mòbil.';
 
   @override
   String get peerConnected => 'S\'ha connectat un altre mòbil';
@@ -1332,7 +1381,8 @@ class AppLocalizationsCa extends AppLocalizations {
   }
 
   @override
-  String get syncStatusOffline => 'Sense connexió, s\'enviarà després';
+  String get syncStatusOffline =>
+      'Sense connexió, els canvis s\'enviaran després';
 
   @override
   String get syncStatusError => 'No s\'ha pogut sincronitzar';
@@ -1343,7 +1393,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get syncIssueClockDrift =>
-      'Un altre mòbil té la data i l\'hora mal posades. Corregeix-les en aquell mòbil.';
+      'El rellotge d\'un altre mòbil va avançat. Revisa la data i l\'hora d\'aquell mòbil.';
 
   @override
   String get syncIssueTooLarge => 'La llista és massa gran per sincronitzar.';
@@ -1371,18 +1421,18 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get inviteIntro =>
-      'Crea un enllaç perquè una altra persona s\'uneixi a la teva família des del seu mòbil, sense ser-hi al davant.';
+      'Crea un enllaç perquè una altra persona s\'uneixi a la teva família des del seu mòbil, encara que no la tinguis al costat.';
 
   @override
   String get inviteHowItWorks =>
-      'L\'enllaç no porta cap clau: només serveix per demanar entrada. Rebràs la petició amb un codi de 6 xifres i l\'hauràs d\'acceptar tu. Caduca a les 24 hores i serveix per a una sola persona.';
+      'L\'enllaç no conté cap clau. Serveix per a una sola persona i caduca al cap de 24 hores. Quan aquesta persona demani entrar, rebràs la seva petició amb un codi de 6 xifres. Tu decideixes si li dones accés.';
 
   @override
   String get inviteCreate => 'Crear enllaç i convidar';
 
   @override
   String get inviteNeedSync =>
-      'Per convidar a distància cal tenir la sincronització encesa i amb connexió.';
+      'Per convidar a distància, cal connexió a internet i tenir la sincronització encesa.';
 
   @override
   String get inviteGoToSync => 'Encendre la sincronització';
@@ -1393,11 +1443,11 @@ class AppLocalizationsCa extends AppLocalizations {
   }
 
   @override
-  String get inviteWaitingTitle => 'Esperant que obrin l\'enllaç';
+  String get inviteWaitingTitle => 'Esperant la petició';
 
   @override
   String get inviteWaitingBody =>
-      'Quan l\'altra persona l\'obri, aquí veuràs la seva petició. Pots sortir d\'aquesta pantalla: la invitació continua activa fins que caduqui.';
+      'Quan l\'altra persona demani entrar, veuràs la seva petició aquí. Pots sortir d\'aquesta pantalla. La invitació continuarà activa fins que caduqui.';
 
   @override
   String inviteExpires(DateTime date, DateTime time) {
@@ -1410,7 +1460,7 @@ class AppLocalizationsCa extends AppLocalizations {
   }
 
   @override
-  String get inviteShareAgain => 'Compartir l\'enllaç una altra vegada';
+  String get inviteShareAgain => 'Tornar a compartir l\'enllaç';
 
   @override
   String get inviteCancel => 'Cancel·lar invitació';
@@ -1443,7 +1493,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get inviteRejectedBody =>
-      'Has rebutjat la petició. L\'enllaç ja no serveix.';
+      'S\'ha cancel·lat la invitació. L\'enllaç ja no serveix.';
 
   @override
   String get inviteExpiredBody => 'La invitació ha caducat.';
@@ -1490,11 +1540,11 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get joinInviteUnknown =>
-      'No s\'ha pogut completar. Torna-ho a provar.';
+      'No s\'ha pogut completar la connexió. Torna-ho a provar.';
 
   @override
   String get joinInviteTaken =>
-      'Aquesta invitació ja l\'ha demanada una altra persona. Demana un enllaç nou.';
+      'Una altra persona ja ha demanat entrar amb aquest enllaç. Demana un enllaç nou.';
 
   @override
   String get joinInviteGone => 'La invitació ha caducat o no s\'ha acceptat.';
@@ -1504,7 +1554,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get joinInviteWaitingBody =>
-      'Qui t\'ha convidat ha de veure la teva petició. D\'aquí uns segons veuràs aquí un codi per comparar amb aquesta persona. Pots esperar fins a 10 minuts.';
+      'Qui t\'ha convidat ha de veure la teva petició. D\'aquí a uns segons veuràs aquí un codi per comparar amb aquesta persona. Pots esperar fins a 10 minuts.';
 
   @override
   String get joinInviteConfirmTitle => 'Compara el codi';
@@ -1522,7 +1572,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String joinInviteDoneBody(String name) {
-    return 'Ja ets a la família de $name. La llista arribarà d\'aquí uns segons.';
+    return 'Ja ets a la família de $name. La llista arribarà d\'aquí a uns segons.';
   }
 
   @override
@@ -1710,17 +1760,17 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String familyNoGiverCount(int count) {
-    return '$count sense qui';
+    return '$count sense assignar';
   }
 
   @override
   String repartoSheetNobodyYet(String giver, String person) {
-    return '$giver encara no regala res a $person';
+    return 'Encara no hi ha regals de $giver per a $person';
   }
 
   @override
   String repartoSheetUnassignedHint(String person) {
-    return '$person té regals sense qui els reguli: toca «Qui?» per donar-los.';
+    return 'Hi ha regals sense assignar per a $person. Toca «Sense assignar» en un regal per triar qui el regala.';
   }
 
   @override
@@ -1728,21 +1778,21 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String repartoSheetSummary(String gifts, String price) {
-    return '$gifts · $price · toca qui regala per canviar-ho';
+    return '$gifts · $price · toca un nom per canviar qui regala';
   }
 
   @override
-  String get repartoSheetWho => 'Qui?';
+  String get repartoSheetWho => 'Sense assignar';
 
   @override
   String get repartoSheetNobody => 'Ningú';
 
   @override
-  String get repartoSheetAddGift => 'Afegeix un regal';
+  String get repartoSheetAddGift => 'Afegir un regal';
 
   @override
   String repartoSheetNewGiftFrom(String giver) {
-    return 'Regal nou de $giver';
+    return 'Afegir un regal de $giver';
   }
 
   @override
@@ -1751,11 +1801,11 @@ class AppLocalizationsCa extends AppLocalizations {
   }
 
   @override
-  String get repartoSheetNoGiver => 'Sense qui regali';
+  String get repartoSheetNoGiver => 'Sense assignar';
 
   @override
   String repartoSheetChipLabel(String giver) {
-    return 'Qui regala: $giver. Canvia';
+    return 'Qui regala: $giver. Canviar';
   }
 
   @override
@@ -1764,7 +1814,8 @@ class AppLocalizationsCa extends AppLocalizations {
   }
 
   @override
-  String get lockBiometricHint => 'Toca l\'empremta per entrar';
+  String get lockBiometricHint =>
+      'Toca el botó de l\'empremta per desbloquejar';
 
   @override
   String get repartoViewLabel => 'Vista del repartiment';
@@ -1789,7 +1840,7 @@ class AppLocalizationsCa extends AppLocalizations {
   }
 
   @override
-  String get repartoOccasionAddShort => 'Afegeix';
+  String get repartoOccasionAddShort => 'Afegir';
 
   @override
   String repartoOccasionEmptyTitle(String occasion) {
@@ -1807,7 +1858,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String repartoPersonOpen(String person) {
-    return 'Obre la fitxa de $person';
+    return 'Obrir la fitxa de $person';
   }
 
   @override
@@ -1827,10 +1878,10 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get repartoPersonInRepartoHint =>
-      'Si ho lleves, passa a «Fora del repartiment».';
+      'Si desmarques la casella, passarà a «Fora del repartiment».';
 
   @override
-  String get repartoPersonOccasions => 'Li regaleu a';
+  String get repartoPersonOccasions => 'Li regaleu per';
 
   @override
   String familyOutsideTitle(int count) {
@@ -1841,7 +1892,7 @@ class AppLocalizationsCa extends AppLocalizations {
   String get familyOutsideNote => 'No surt al repartiment';
 
   @override
-  String get familyIncludeAgain => 'Torna a incloure';
+  String get familyIncludeAgain => 'Tornar a incloure';
 
   @override
   String familyExcludedStrip(String occasion) {
@@ -1862,11 +1913,11 @@ class AppLocalizationsCa extends AppLocalizations {
   }
 
   @override
-  String get actionEliminate => 'Elimina';
+  String get actionEliminate => 'Eliminar';
 
   @override
   String manageDeleteLabel(String name) {
-    return 'Elimina $name';
+    return 'Eliminar $name';
   }
 
   @override
@@ -1891,23 +1942,26 @@ class AppLocalizationsCa extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'S\'eliminaran també els seus $count regals.',
-      one: 'S\'eliminarà també el seu regal.',
+      other:
+          'També s\'eliminaran els $count regals que hi ha per a aquesta persona.',
+      one: 'També s\'eliminarà el regal que hi ha per a aquesta persona.',
       zero: '',
     );
     return '$_temp0';
   }
 
   @override
-  String get deleteBirthdayToo => 'El seu aniversari també desapareix.';
+  String get deleteBirthdayToo =>
+      'El seu aniversari també s\'eliminarà de la llista d\'ocasions.';
 
   @override
   String deleteGiverGifts(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Els seus $count regals es quedaran sense qui regala.',
-      one: 'El seu regal es quedarà sense qui regala.',
+      other:
+          'Els seus $count regals continuaran a la llista sense ningú assignat a «Qui regala».',
+      one: 'El seu regal continuarà a la llista sense ningú assignat a «Qui regala».',
       zero: '',
     );
     return '$_temp0';
@@ -1931,7 +1985,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get deleteRequestedByToo =>
-      'Als regals que va demanar s\'esborra qui els va demanar.';
+      'El seu nom deixarà de sortir als regals que va demanar per a altres persones.';
 
   @override
   String get deleteGiverBudget =>
@@ -2004,7 +2058,7 @@ class AppLocalizationsCa extends AppLocalizations {
       'Abans, aquest mòbil surt de la sincronització de la família; si és l\'últim, també s\'esborra la còpia xifrada del servidor.';
 
   @override
-  String get eraseAllContinue => 'Continua';
+  String get eraseAllContinue => 'Continuar';
 
   @override
   String get eraseAllTypeTitle => 'Últim pas';
@@ -2029,21 +2083,20 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get eraseAllServerFailedBody =>
-      'Comprova la connexió i torna-ho a provar. Si esborres només aquest mòbil, continuarà a la llista de mòbils de la teva família fins que un altre el tregui, i la còpia xifrada es queda al servidor per als altres (o fins que caduqui, si era l\'últim).';
+      'Comprova la connexió i torna-ho a provar. Si només esborres les dades d\'aquí, aquest mòbil continuarà a «Mòbils de la família» fins que algú el tregui des d\'un altre mòbil. La còpia xifrada continuarà al servidor per als altres mòbils. Si aquest era l\'últim, la còpia s\'hi conservarà fins que caduqui.';
 
   @override
-  String get eraseAllRetry => 'Torna-ho a provar';
+  String get eraseAllRetry => 'Reintentar';
 
   @override
-  String get eraseAllLocalOnly => 'Esborra només aquest mòbil';
+  String get eraseAllLocalOnly => 'Esborrar només en aquest mòbil';
 
   @override
   String get eraseAllFailed =>
       'No s\'ha pogut esborrar tot. Torna-ho a provar.';
 
   @override
-  String get eraseAllPinPrompt =>
-      'Escriu el teu PIN per continuar amb l\'esborrat.';
+  String get eraseAllPinPrompt => 'Escriu el teu PIN per continuar.';
 
   @override
   String get eraseAllBiometricReason => 'Confirma que ho vols esborrar tot';
@@ -2095,7 +2148,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get archiveSubtitle =>
-      'Fora de les llistes, amb els seus regals guardats.';
+      'El que arxives deixa de sortir a les llistes, però conserva els regals.';
 
   @override
   String get archiveEmpty => 'No hi ha res arxivat.';
@@ -2116,7 +2169,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get devicesRecoveryBody =>
-      'La llista té una còpia xifrada que es recupera amb el teu codi. Connecta\'n un altre mòbil per veure-la en tots dos.';
+      'Amb el teu codi pots recuperar la còpia xifrada de la llista. Connecta un altre mòbil per veure la llista en tots dos.';
 
   @override
   String get devicesManualTitle => 'Connectats per fitxer o QR';
@@ -2168,7 +2221,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get devicesPeerNoPerson =>
-      'Sense persona: encara no obre les sorpreses';
+      'Sense persona: encara no veu les sorpreses';
 
   @override
   String get devicesListError => 'No s\'ha pogut llegir la llista de mòbils.';
@@ -2183,7 +2236,8 @@ class AppLocalizationsCa extends AppLocalizations {
   String get devicesHereTitle => 'És aquí';
 
   @override
-  String get devicesHereHint => 'Ensenya-li un codi QR. És el més ràpid.';
+  String get devicesHereHint =>
+      'Ensenya-li un codi QR. És la manera més ràpida.';
 
   @override
   String get devicesFarTitle => 'És lluny';
@@ -2212,7 +2266,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get devicesJoinOtherWarning =>
-      'Si t\'uneixes a una altra família, la llista d\'aquest mòbil se substitueix i se\'n perden els regals.';
+      'Si t\'uneixes a una altra família, la seva llista substituirà la d\'aquest mòbil. En aquest mòbil perdràs els regals de la llista actual.';
 
   @override
   String get devicesScanTitle => 'Escanejar el seu QR';
@@ -2251,7 +2305,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get backupRestoreSubtitle =>
-      'Es fusiona amb el que hi ha: no es perd res.';
+      'La còpia es combina amb la llista d\'aquest mòbil. No es perd res.';
 
   @override
   String get backupPasteTitle => 'Enganxar des del porta-retalls';
@@ -2265,14 +2319,14 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get backupNote =>
-      'La còpia va xifrada amb la clau de la família: avui només s\'obre en un mòbil que ja estigui connectat.';
+      'La còpia està xifrada amb la clau de la família. Només la pots obrir en un mòbil que ja formi part d\'aquesta família.';
 
   @override
   String get pairingV2Preparing => 'Preparant la connexió…';
 
   @override
   String get pairingV2NoticeExpires =>
-      'El codi caduca a les 24 hores i només serveix per demanar entrada: ningú entra sense que comparis un número amb l\'altre mòbil.';
+      'La invitació caduca al cap de 24 hores i només serveix per demanar entrada. Abans de donar accés, compara el número que apareix a tots dos mòbils.';
 
   @override
   String get pairingV2FarTitle => 'Comparteix l\'enllaç';
@@ -2286,7 +2340,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get pairingV2WaitingHere =>
-      'Esperant que l\'altre mòbil llegeixi el codi…';
+      'Esperant que l\'altra persona demani entrar…';
 
   @override
   String get pairingV2CompareTitle => 'Compara el número';
@@ -2310,7 +2364,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get pairingV2HostDone =>
-      'Accés enviat. L\'altre mòbil ha d\'acabar la connexió.';
+      'Accés enviat. L\'altre mòbil ha de completar la connexió.';
 
   @override
   String get pairingV2VersionMismatch =>
@@ -2318,7 +2372,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get pairingV2HostCancelled =>
-      'S\'ha cancel·lat i el codi ja no serveix. Pots tornar a començar.';
+      'La invitació s\'ha cancel·lat i ja no serveix. Pots tornar a començar.';
 
   @override
   String get pairingV2HostFailed =>
@@ -2326,7 +2380,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get pairingV2NotReady =>
-      'Per connectar un altre mòbil cal tenir la sincronització encesa i connexió a internet.';
+      'Per continuar, cal connexió a internet i tenir la sincronització encesa.';
 
   @override
   String get pairingV2ChooseTitle => 'De qui és aquest mòbil?';
@@ -2341,7 +2395,7 @@ class AppLocalizationsCa extends AppLocalizations {
   }
 
   @override
-  String get pairingV2ChooseContinue => 'Continua';
+  String get pairingV2ChooseContinue => 'Continuar';
 
   @override
   String get pairingV2ChooseLaterTitle => 'Triar després';
@@ -2360,7 +2414,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get pairingV2GuestCompareBody =>
-      'Mira el número que mostra l\'altre mòbil. Ha de ser el mateix que aquest. Si ho és, toca «Coincideixen».';
+      'Compara aquest número amb el que veu l\'altra persona. Si són iguals, toca «Coincideixen».';
 
   @override
   String get pairingV2GuestWaitingApproval =>
@@ -2384,7 +2438,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String pairingV2ClaimTitle(String name) {
-    return 'Aquest mòbil diu que és de $name';
+    return 'L\'altre mòbil és de $name?';
   }
 
   @override
@@ -2404,10 +2458,10 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get pairingV2MigrateBody =>
-      'Per connectar un altre mòbil, aquesta família passa a la sincronització nova, més segura. No es pot desfer: els mòbils que ja estaven connectats deixen de rebre els canvis d\'aquest fins que els tornis a connectar, un a un, amb «Connectar un altre mòbil». No es perd res.';
+      'Si continues, aquesta família passa a la sincronització nova, més segura. No es pot desfer. Els mòbils que ja estaven connectats deixen de rebre els canvis d\'aquest fins que els tornis a connectar, un per un, amb «Connectar un altre mòbil». No es perd res.';
 
   @override
-  String get pairingV2MigrateContinue => 'Continua';
+  String get pairingV2MigrateContinue => 'Continuar';
 
   @override
   String get joinReplacePinPrompt =>
@@ -2421,7 +2475,7 @@ class AppLocalizationsCa extends AppLocalizations {
   String get devicesPeerPending => 'Espera aprovació';
 
   @override
-  String get devicesPeerFrozen => 'Congelat: espera aprovació';
+  String get devicesPeerFrozen => 'Canvis en pausa: espera aprovació';
 
   @override
   String get devicesPeerReconfirm => 'Confirma de qui és';
@@ -2473,7 +2527,7 @@ class AppLocalizationsCa extends AppLocalizations {
   String get deviceStatusPending => 'Espera aprovació';
 
   @override
-  String get deviceStatusFrozen => 'Congelat';
+  String get deviceStatusFrozen => 'Canvis en pausa';
 
   @override
   String get deviceStatusReconfirm => 'Falta confirmar de qui és';
@@ -2486,7 +2540,7 @@ class AppLocalizationsCa extends AppLocalizations {
   String get deviceRemoveTitle => 'Treure aquest mòbil';
 
   @override
-  String get deviceRemoveHint => 'Deixa de rebre la llista nova.';
+  String get deviceRemoveHint => 'Deixarà de rebre els canvis de la llista.';
 
   @override
   String get deviceRemoveConfirmTitle => 'Vols treure aquest mòbil?';
@@ -2500,11 +2554,11 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get deviceRemoveWaitTitle =>
-      'Aquest mòbil tornarà a esperar aprovació';
+      'El teu mòbil tornarà a esperar aprovació';
 
   @override
   String get deviceRemoveWaitBody =>
-      'El mòbil que vas a treure és l\'únic que va aprovar el canvi de persona d\'aquest mòbil. Si el treus, aquest mòbil esperarà l\'aprovació d\'un altre de la família i, fins llavors, no obrirà les sorpreses.';
+      'Només el mòbil que vols treure ha aprovat el canvi de persona al teu mòbil. Si el treus, no podràs veure les sorpreses al teu mòbil fins que un altre mòbil de la família aprovi el canvi.';
 
   @override
   String get deviceRemoveWaitAction => 'Treure igualment';
@@ -2541,51 +2595,52 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get deviceApprovePersonChanged =>
-      'Ha canviat de persona. En aprovar-lo, a partir d\'ara podrà avalar altres mòbils de la família.';
+      'Ha canviat de persona. Si l\'aproves, podrà aprovar altres mòbils de la família.';
 
   @override
   String get deviceApproveOrphan =>
-      'Va deixar d\'estar enllaçat amb aquest mòbil. Si l\'aproves, torna a rebre les sorpreses que li toquen.';
+      'Cal tornar a confirmar de qui és. Si l\'aproves, tornarà a veure les sorpreses per als altres.';
 
   @override
   String get deviceApproveDetached =>
-      'Aquest mòbil ja no està enllaçat amb la família, però et va confirmar a tu. Aprova\'l només si el coneixes.';
+      'Aquest mòbil ja no està connectat a la família, però abans va confirmar el teu mòbil. Aprova\'l només si el reconeixes.';
 
   @override
   String get deviceApproveFrozen =>
-      'Els seus canvis estan congelats i no es poden netejar els esborrats fins que l\'aprovis o el treguis.';
+      'Els seus canvis estan en pausa fins que l\'aprovis o el treguis.';
 
   @override
   String get deviceApprovedSnack => 'Mòbil aprovat';
 
   @override
-  String get deviceApproveError => 'No s\'ha pogut aprovar el mòbil.';
+  String get deviceApproveError =>
+      'No s\'ha pogut aprovar el mòbil. Torna-ho a provar.';
 
   @override
   String get deviceChangedNotice =>
-      'Aquest mòbil ha canviat: revisa-ho de nou.';
+      'Les dades del mòbil han canviat. Torna-les a revisar.';
 
   @override
   String get deviceRemovedPendingSnack =>
-      'Tret d\'aquest mòbil. Falta tallar-ne l\'accés: es farà quan hi hagi connexió.';
+      'Mòbil tret. Perdrà l\'accés quan hi hagi connexió.';
 
   @override
   String get deviceApproveCanVouch =>
-      'La seva fitxa ha canviat: en aprovar-lo, a partir d\'ara podrà avalar altres mòbils de la família.';
+      'Ha canviat de persona: si l\'aproves, podrà aprovar altres mòbils de la família.';
 
   @override
   String get webGateConnectTitle => 'Connecta aquest ordinador';
 
   @override
   String get webGateConnectIntro =>
-      'S\'aparella una sola vegada amb el teu mòbil. Després només necessitaràs el teu PIN.';
+      'Només cal fer-ho una vegada, amb el teu mòbil. Després hi entraràs amb el PIN o la frase que triïs.';
 
   @override
   String get webGateStepOpenApp => 'Obre Gift Huddle al teu mòbil.';
 
   @override
   String get webGateConnectStep2 =>
-      'Ves a Mòbils de la família i toca Connectar la web.';
+      'Ves a Ajustos › Mòbils de la família i toca «Connectar la web».';
 
   @override
   String get webGateConnectStep3 => 'Escaneja aquest codi.';
@@ -2594,7 +2649,7 @@ class AppLocalizationsCa extends AppLocalizations {
   String get webGateConnectWaiting => 'Esperant el mòbil…';
 
   @override
-  String get webGateCompareTitle => 'Comprova el codi';
+  String get webGateCompareTitle => 'Compara el codi';
 
   @override
   String get webGateCompareLabel => 'Codi de verificació';
@@ -2604,7 +2659,8 @@ class AppLocalizationsCa extends AppLocalizations {
       'Comprova que al mòbil surt el mateix codi, confirma\'l aquí i aprova\'l també al mòbil.';
 
   @override
-  String get webGateCompareWaiting => 'Esperant que el mòbil ho aprovi…';
+  String get webGateCompareWaiting =>
+      'Esperant que toquis «Coincideixen» al mòbil…';
 
   @override
   String get webGateCompareConfirmed => 'Has confirmat el codi aquí';
@@ -2614,7 +2670,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get webGateFailedExpired =>
-      'El codi ha caducat. Comença de nou per veure\'n un de nou.';
+      'El codi ha caducat. Comença de nou per veure\'n un altre.';
 
   @override
   String get webGateFailedMismatch =>
@@ -2622,7 +2678,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get webGateFailedRejected =>
-      'El mòbil ha rebutjat la connexió. Comença de nou si ho vols tornar a provar.';
+      'El mòbil ha rebutjat la connexió. Si vols connectar aquest ordinador, comença de nou.';
 
   @override
   String get webGateFailedNetwork =>
@@ -2630,7 +2686,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get webGateFailedCancelled =>
-      'El mòbil ha cancel·lat la connexió o la invitació ja no està disponible. Comença de nou i torna a connectar des del mòbil.';
+      'El mòbil ha cancel·lat la connexió o el codi ja no serveix. Comença de nou i escaneja el codi nou amb el mòbil.';
 
   @override
   String get webGateStartAgain => 'Començar de nou';
@@ -2642,7 +2698,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get webGateChoosePinBody =>
-      'Tria un PIN o una frase per obrir-lo. Te\'l demanarem cada vegada que hi entris.';
+      'Tria un PIN o una frase per desbloquejar Gift Huddle cada vegada que obris la web en aquest ordinador.';
 
   @override
   String get webGatePinLabel => 'PIN o frase';
@@ -2651,10 +2707,10 @@ class AppLocalizationsCa extends AppLocalizations {
   String get webGatePinRepeatLabel => 'Repeteix el PIN o la frase';
 
   @override
-  String get webGatePinShow => 'Mostra';
+  String get webGatePinShow => 'Mostrar';
 
   @override
-  String get webGatePinHide => 'Amaga';
+  String get webGatePinHide => 'Amagar';
 
   @override
   String get webGatePinRule =>
@@ -2672,7 +2728,7 @@ class AppLocalizationsCa extends AppLocalizations {
       'Si l\'oblides, hauràs de tornar a connectar aquest ordinador des d\'un mòbil.';
 
   @override
-  String get webGateContinue => 'Continua';
+  String get webGateContinue => 'Continuar';
 
   @override
   String get webGateSaving => 'Desant…';
@@ -2682,10 +2738,10 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get webGateUnlockBody =>
-      'Escriu el PIN o la frase d\'aquest ordinador.';
+      'Escriu el PIN o la frase que vas triar per a Gift Huddle en aquest ordinador.';
 
   @override
-  String get webGateUnlock => 'Desbloqueja';
+  String get webGateUnlock => 'Desbloquejar';
 
   @override
   String get webGateUnlocking => 'Desbloquejant…';
@@ -2714,16 +2770,17 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get webGateSuspendedBody =>
-      'Desbloqueja\'l des d\'un mòbil. No s\'ha esborrat res.';
+      'Per tornar-ho a provar, permet-ho abans des d\'un mòbil. No s\'ha esborrat res.';
 
   @override
-  String get webGateSuspendedStep2 => 'Ves a Mòbils de la família i toca Web.';
+  String get webGateSuspendedStep2 =>
+      'Ves a Ajustos › Mòbils de la família i toca «Web».';
 
   @override
-  String get webGateSuspendedStep3 => 'Toca Permetre desbloquejar de nou.';
+  String get webGateSuspendedStep3 => 'Toca «Permetre més intents de PIN».';
 
   @override
-  String get webGateRetry => 'Torna-ho a provar';
+  String get webGateRetry => 'Reintentar';
 
   @override
   String get webGateDisconnectedTitle =>
@@ -2739,8 +2796,9 @@ class AppLocalizationsCa extends AppLocalizations {
       count,
       locale: localeName,
       other:
-          'Hi ha $count canvis sense pujar desats en aquest ordinador, xifrats.',
-      one: 'Hi ha $count canvi sense pujar desat en aquest ordinador, xifrat.',
+          'Hi ha $count canvis sense pujar. Estan desats i xifrats en aquest ordinador.',
+      one:
+          'Hi ha $count canvi sense pujar. Està desat i xifrat en aquest ordinador.',
     );
     return '$_temp0';
   }
@@ -2749,10 +2807,12 @@ class AppLocalizationsCa extends AppLocalizations {
   String get webGateReconnect => 'Tornar a connectar';
 
   @override
-  String get webGateErase => 'Esborrar les dades d\'aquest ordinador';
+  String get webGateErase =>
+      'Esborrar les dades de Gift Huddle en aquest ordinador';
 
   @override
-  String get webGateEraseTitle => 'Esborrar les dades d\'aquest ordinador?';
+  String get webGateEraseTitle =>
+      'Esborrar les dades de Gift Huddle en aquest ordinador?';
 
   @override
   String get webGateEraseBody =>
@@ -2764,15 +2824,15 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get webGateDamagedTitle =>
-      'Les dades d\'aquest ordinador estan malmeses';
+      'Les dades de Gift Huddle en aquest ordinador estan malmeses';
 
   @override
   String get webGateDamagedBody =>
-      'No es poden llegir de forma segura. Per continuar, esborra-les i torna a connectar aquest ordinador des d\'un mòbil. Els canvis que no s\'haguessin pujat es perdran.';
+      'No es poden llegir de manera segura. Per continuar, esborra-les i torna a connectar aquest ordinador des d\'un mòbil. Perdràs els canvis que no s\'hagin pujat.';
 
   @override
   String get webGateDamagedPhoneHint =>
-      'Al mòbil, treu la web anterior a Mòbils de la família.';
+      'Al mòbil, ves a Ajustos › Mòbils de la família i treu la web anterior.';
 
   @override
   String get webGateOtherTabTitle =>
@@ -2812,14 +2872,14 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get webSettingsCurrentWrong =>
-      'El PIN o la frase actual no és correcte.';
+      'Comprova que has escrit bé el PIN o la frase actual.';
 
   @override
   String get webSettingsChangeFailed =>
       'No s\'ha pogut canviar. Torna-ho a provar.';
 
   @override
-  String get webSettingsPinChanged => 'PIN canviat.';
+  String get webSettingsPinChanged => 'S\'ha canviat el PIN o la frase.';
 
   @override
   String get webSettingsLockNow => 'Bloquejar ara';
@@ -2829,21 +2889,21 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get webSettingsForgetHint =>
-      'Surt de la família i esborra el que hi ha desat.';
+      'Sortirà de la família i s\'esborraran les dades que Gift Huddle hi desa.';
 
   @override
   String get webSettingsForgetTitle => 'Oblidar aquest ordinador?';
 
   @override
   String get webSettingsForgetBody =>
-      'Aquest ordinador sortirà de la família i s\'esborrarà el que Gift Huddle hi desa, també els canvis sense pujar. Als teus mòbils no canvia res. Per tornar-lo a fer servir hauràs de connectar-lo de nou.';
+      'Aquest ordinador sortirà de la família. S\'esborraran les dades que Gift Huddle hi desa, inclosos els canvis sense pujar. Als teus mòbils no canvia res. Per tornar a fer servir Gift Huddle aquí, hauràs de connectar l\'ordinador de nou.';
 
   @override
   String get webSettingsForgetConfirm => 'Oblidar';
 
   @override
   String get webSettingsPersistenceDenied =>
-      'El navegador podria esborrar les dades d\'aquest ordinador si li falta espai.';
+      'Si queda poc espai, el navegador podria esborrar les dades que Gift Huddle desa aquí.';
 
   @override
   String webSetAsideNotice(int count) {
@@ -2860,7 +2920,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get webGateChoosePinCheck =>
-      'Si el teu mòbil no ha mostrat el mateix codi, no continuïs: toca Començar de nou.';
+      'Si els codis no coincidien, no continuïs: prem «Començar de nou».';
 
   @override
   String get webGateRestartTitle => 'Començar de nou?';
@@ -2878,9 +2938,9 @@ class AppLocalizationsCa extends AppLocalizations {
       count,
       locale: localeName,
       other:
-          'Hi va haver $count intents fallits de desbloquejar aquest ordinador des de l\'última vegada. Si no has estat tu, canvia el PIN.',
+          'Hi ha hagut $count intents fallits des de l\'últim desbloqueig de Gift Huddle en aquest ordinador. Si no has estat tu, canvia el PIN.',
       one:
-          'Hi va haver $count intent fallit de desbloquejar aquest ordinador des de l\'última vegada. Si no has estat tu, canvia el PIN.',
+          'Hi ha hagut $count intent fallit des de l\'últim desbloqueig de Gift Huddle en aquest ordinador. Si no has estat tu, canvia el PIN.',
     );
     return '$_temp0';
   }
@@ -2918,7 +2978,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get connectWebWhoseBody =>
-      'Tria qui l\'utilitzarà. L\'ordinador es connectarà com a seu.';
+      'Tria qui farà servir la llista des de l\'ordinador.';
 
   @override
   String get connectWebNoPeople =>
@@ -2929,7 +2989,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get connectWebCompareBody =>
-      'L\'ordinador mostra un codi. Ha de ser el mateix que aquest. Si ho és, prem «Coincideixen»; si no, «No coincideixen».';
+      'L\'ordinador mostra un codi. Ha de ser el mateix que aquest. Si ho és, toca «Coincideixen»; si no, «No coincideixen».';
 
   @override
   String get connectWebApproving => 'Donant accés a l\'ordinador…';
@@ -2943,28 +3003,28 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get connectWebNewQr =>
-      'Aquest codi ja no val. A l\'ordinador, toca Començar de nou i escaneja el nou.';
+      'Aquest codi ja no val. A l\'ordinador, prem «Començar de nou». Escaneja el codi nou amb el mòbil.';
 
   @override
   String get connectWebScanAgain => 'Escanejar un altre codi';
 
   @override
   String get connectWebFailed =>
-      'No s\'ha pogut connectar l\'ordinador. A l\'ordinador, toca Començar de nou i escaneja el nou codi.';
+      'No s\'ha pogut connectar l\'ordinador. Prem «Començar de nou» a l\'ordinador. Escaneja el codi nou amb el mòbil.';
 
   @override
   String get connectWebCancelled =>
-      'S\'ha cancel·lat i el codi ja no serveix. A l\'ordinador, toca Començar de nou.';
+      'S\'ha cancel·lat la connexió i el codi ja no serveix. A l\'ordinador, prem «Començar de nou».';
 
   @override
-  String get deviceWebResume => 'Permetre desbloquejar una altra vegada';
+  String get deviceWebResume => 'Permetre més intents de PIN';
 
   @override
   String get deviceWebResumeHint =>
-      'Si l\'ordinador es va suspendre per massa intents de PIN. No s\'esborra res.';
+      'Si la web ja no accepta el PIN després de massa intents fallits. No s\'esborra res.';
 
   @override
-  String get deviceWebResumeTitle => 'Permetre desbloquejar una altra vegada?';
+  String get deviceWebResumeTitle => 'Vols permetre més intents de PIN?';
 
   @override
   String get deviceWebResumeBody =>
@@ -2974,19 +3034,18 @@ class AppLocalizationsCa extends AppLocalizations {
   String get deviceWebResumeConfirm => 'Permetre';
 
   @override
-  String get deviceWebResumeDone =>
-      'Fet. L\'ordinador ja es pot tornar a desbloquejar.';
+  String get deviceWebResumeDone => 'Fet. La web torna a acceptar el PIN.';
 
   @override
   String get deviceWebResumeError =>
-      'No s\'ha pogut. Comprova la connexió i torna-ho a provar.';
+      'No s\'han pogut permetre més intents de PIN. Comprova la connexió i torna-ho a provar.';
 
   @override
   String get deviceRemoveWebTitle => 'Treure aquesta web';
 
   @override
   String get deviceRemoveWebHint =>
-      'Aquest ordinador deixa de rebre la llista nova.';
+      'Aquest ordinador deixarà de rebre els canvis de la llista.';
 
   @override
   String get deviceRemoveWebConfirmTitle => 'Vols treure aquesta web?';
@@ -3003,7 +3062,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get deviceRemovedWebPendingSnack =>
-      'Treta d\'aquest mòbil. Falta tallar-ne l\'accés: es farà quan hi hagi connexió.';
+      'Web treta. L\'ordinador perdrà l\'accés quan hi hagi connexió.';
 
   @override
   String get deviceRemoveWebError =>
@@ -3016,24 +3075,23 @@ class AppLocalizationsCa extends AppLocalizations {
   String get webSyncOffline => 'Sense connexió';
 
   @override
-  String get webSyncAwaitingConfirm =>
-      'Aquest ordinador espera que un mòbil el confirmi';
+  String get webSyncAwaitingConfirm => 'Pendent de confirmació des d\'un mòbil';
 
   @override
   String get webOperationUnavailable =>
       'Això no es pot fer des de l\'ordinador. Fes-ho des d\'un mòbil.';
 
   @override
-  String get selfChangeConfirmTitle => 'Vols canviar de qui és aquest mòbil?';
+  String get selfChangeConfirmTitle => 'Canviar de qui és aquest mòbil?';
 
   @override
   String selfChangeConfirmIntro(String name) {
-    return 'Dius que aquest mòbil és de $name. Això canvia el que pot veure, no només el nom.';
+    return 'Diràs que aquest mòbil és de $name. Això canvia quins regals i sorpreses hi pots veure.';
   }
 
   @override
   String get selfChangeConfirmIntroNobody =>
-      'Deixaràs aquest mòbil sense persona. Això canvia el que pot veure, no només el nom.';
+      'Deixaràs aquest mòbil sense cap persona assignada. Això canvia quins regals i sorpreses hi pots veure.';
 
   @override
   String selfChangeEffectHides(String name) {
@@ -3046,11 +3104,11 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get selfChangeEffectWait =>
-      'Fins que un altre mòbil de la família l\'aprovi, aquest mòbil no veurà les sorpreses de ningú.';
+      'Fins que s\'aprovi el canvi des d\'un altre mòbil de la família, en aquest no hi veuràs les sorpreses de ningú.';
 
   @override
   String get selfChangeEffectReconfirm =>
-      'Els mòbils que aquest havia aprovat potser s\'hauran de tornar a confirmar.';
+      'Potser hauràs de tornar a confirmar alguns mòbils que vas aprovar des d\'aquest.';
 
   @override
   String get selfChangeConfirmAction => 'Canviar de persona';
@@ -3066,7 +3124,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get selfChangePendingBodyNobody =>
-      'Aquest mòbil ja no té cap persona assignada i espera l’aprovació d’un altre mòbil de la família. Encara que l’aprovin, no podrà veure sorpreses mentre no tingui una persona assignada.';
+      'Aquest mòbil ja no té cap persona assignada i espera l\'aprovació d\'un altre mòbil de la família. Encara que l\'aprovin, no podrà veure sorpreses mentre no tingui una persona assignada.';
 
   @override
   String get selfChangePendingOrphans =>
@@ -3078,18 +3136,17 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get selfChangeExhaustedBody =>
-      'Ha fet servir tots els canvis que permet la llista de mòbils. Pot tornar a connectar-se a la família com un mòbil nou, en persona, des d\'un altre mòbil.';
+      'Has arribat al límit de canvis de persona en aquest mòbil. Per triar algú altre, torna\'l a connectar a la família com un mòbil nou. Cal que tinguis a mà un altre mòbil de la família.';
 
   @override
   String get selfWaitingHint => 'Esperant l\'aprovació d\'un altre mòbil';
 
   @override
-  String get healthRevokedTitle =>
-      'Un altre mòbil de la família ha tret aquest';
+  String get healthRevokedTitle => 'Han tret aquest mòbil de la família';
 
   @override
   String get healthRevokedBody =>
-      'El que tens desat continua en aquest mòbil, però ja no se sincronitza. Tornar-ho a provar no serveix: l\'has de tornar a connectar amb un altre mòbil de la família, en persona.';
+      'Les teves dades continuen en aquest mòbil. Perquè es torni a sincronitzar, connecta\'l de nou en persona amb un altre mòbil de la família.';
 
   @override
   String get healthRevokedAction => 'Tornar a connectar';
@@ -3104,7 +3161,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get healthFrozenBody =>
-      'No s’ha perdut res. Per veure les sorpreses, aquest mòbil ha de tenir una persona de la família assignada i estar aprovat per un altre mòbil de la família.';
+      'No s\'ha perdut res. Les sorpreses es tornaran a veure quan s\'hagi triat de qui és aquest mòbil i un altre mòbil de la família l\'aprovi.';
 
   @override
   String healthNamesAnd(String head, String last) {
@@ -3118,7 +3175,7 @@ class AppLocalizationsCa extends AppLocalizations {
   String get healthResolveSection => 'Per resoldre';
 
   @override
-  String get healthUnbackedTitle => 'Accés sense aval';
+  String get healthUnbackedTitle => 'Accés sense identificar';
 
   @override
   String get healthUnbackedBody =>
@@ -3130,14 +3187,14 @@ class AppLocalizationsCa extends AppLocalizations {
   }
 
   @override
-  String get healthUnbackedAction => 'Retirar l’accés';
+  String get healthUnbackedAction => 'Retirar l\'accés';
 
   @override
   String get healthUnbackedConfirmTitle => 'Vols retirar aquest accés?';
 
   @override
   String get healthUnbackedConfirmBody =>
-      'Es talla l\'accés d\'aquest mòbil al servidor de la família. Si era un mòbil teu, l\'hauràs de tornar a connectar en persona. No es pot desfer.';
+      'Es talla l\'accés d\'aquell mòbil al servidor de la família. Si era un mòbil teu, l\'hauràs de tornar a connectar en persona. No es pot desfer.';
 
   @override
   String get healthUnbackedDone => 'Accés retirat';
@@ -3165,7 +3222,7 @@ class AppLocalizationsCa extends AppLocalizations {
       'No s\'ha pogut completar. Comprova la connexió i torna-ho a provar.';
 
   @override
-  String get healthRetry => 'Torna-ho a provar';
+  String get healthRetry => 'Reintentar';
 
   @override
   String get healthUnbackedNotNeeded => 'Ja no cal treure aquest accés.';
@@ -3183,13 +3240,13 @@ class AppLocalizationsCa extends AppLocalizations {
   }
 
   @override
-  String get protectionStatusOff => 'Desactivat';
+  String get protectionStatusOff => 'Desactivats';
 
   @override
-  String get protectionStatusRequested => 'Demanat';
+  String get protectionStatusRequested => 'Per confirmar';
 
   @override
-  String get protectionStatusActive => 'Actiu';
+  String get protectionStatusActive => 'Actius';
 
   @override
   String protectionSheetTitle(String name) {
@@ -3198,7 +3255,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String protectionIntro(String name) {
-    return 'Amb els regals en secret activats, el mòbil de $name no mostra cap regal per a $name, ni quants n\'hi ha. La resta de la família els continua veient.';
+    return 'Amb la protecció activa, $name no veu al seu mòbil quins regals hi ha per a $name ni quants n\'hi ha.';
   }
 
   @override
@@ -3207,7 +3264,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String protectionEffectKept(String name) {
-    return 'Els regals que el mòbil de $name ja havia rebut abans d\'activar-la no es poden retirar d\'aquest mòbil.';
+    return 'La protecció no pot retirar els regals que ja havien arribat al mòbil de $name.';
   }
 
   @override
@@ -3246,7 +3303,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String protectionDeactivateTitle(String name) {
-    return 'Desactivar els regals en secret de $name?';
+    return 'Desactivar els regals en secret per a $name?';
   }
 
   @override
@@ -3267,6 +3324,40 @@ class AppLocalizationsCa extends AppLocalizations {
       'No s\'ha pogut canviar la protecció. No s\'ha modificat res.';
 
   @override
+  String protectionNeedConfirmer(String name) {
+    return 'Per protegir els regals de $name cal un mòbil d\'una altra persona de la família. A Ajustos, tria de qui és aquest mòbil a «Aquest mòbil és de». Aprova el canvi des d\'un altre mòbil o connecta un altre mòbil a la família. Si ja ho has fet, sincronitza.';
+  }
+
+  @override
+  String protectionNeedConfirmerOwn(String name) {
+    return 'Des d\'aquest mòbil no es poden protegir els regals de $name. Demana a una altra persona de la família que ho faci des del seu.';
+  }
+
+  @override
+  String protectionRequesterPending(String name) {
+    return 'Cal que algú de la família aprovi des d\'un altre mòbil el canvi a «Aquest mòbil és de». Fins aleshores no pots demanar protecció per als regals de $name.';
+  }
+
+  @override
+  String protectionRequesterRevoked(String name) {
+    return 'Aquest mòbil ja no forma part de la família, així que no pot demanar la protecció dels regals de $name.';
+  }
+
+  @override
+  String protectionRequesterAmbiguous(String name) {
+    return 'No se sap amb seguretat de qui és aquest mòbil, així que no pot demanar la protecció dels regals de $name. Sincronitza i torna-ho a provar.';
+  }
+
+  @override
+  String protectionRecipientUnavailable(String name) {
+    return '$name ja no és a la llista. No es pot demanar protecció per als seus regals.';
+  }
+
+  @override
+  String get protectionRegistryUnavailable =>
+      'Aquest mòbil encara no està al dia amb la família. Sincronitza i torna-ho a provar.';
+
+  @override
   String secretBlockTitle(String name) {
     return 'Regals en secret per a $name';
   }
@@ -3276,17 +3367,17 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String protectionReason_protectedPerson(String name) {
-    return 'Els regals de $name són en secret i no es poden guardar així.';
+    return 'Els regals de $name estan en secret i no es poden desar així.';
   }
 
   @override
   String protectionReason_noEntitlement(String name) {
-    return 'Aquest mòbil no té permís per als regals en secret de $name. Demana ajuda a un altre mòbil de la família amb permís.';
+    return 'Aquest mòbil no té accés als regals en secret per a $name. Demana ajuda a algú de la família que tingui un mòbil amb permís.';
   }
 
   @override
   String protectionReason_ownRequestsRestricted(String name) {
-    return 'Aquest mòbil és de $name: aquí no es poden crear ni veure els seus regals mentre siguin en secret.';
+    return 'Aquest mòbil és de $name. Aquí no pots crear ni veure regals en secret per a $name.';
   }
 
   @override
@@ -3306,22 +3397,22 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String protectionReason_blockFull(String name) {
-    return 'Els regals en secret de $name han arribat al límit. Esborra\'n algun per poder-ne afegir més.';
+    return 'Has arribat al límit de regals en secret per a $name. Elimina\'n algun per poder-ne afegir més.';
   }
 
   @override
   String protectionReason_giftTooLarge(String name) {
-    return 'Aquest regal és massa gran per guardar-lo en secret. Escurça les notes.';
+    return 'Escurça les notes per poder desar aquest regal en secret.';
   }
 
   @override
   String protectionReason_writerSlotsFull(String name) {
-    return 'Aquest mòbil ja no té lloc per guardar més regals en secret. Demana a un altre mòbil amb permís que els afegeixi.';
+    return 'Aquest mòbil ha arribat al límit de regals en secret que pot desar. Demana a algú que n\'afegeixi més des d\'un altre mòbil amb permís.';
   }
 
   @override
   String protectionReason_slotsFull(String name) {
-    return 'Ara mateix no hi cap res més als regals en secret de la família.';
+    return 'Ara mateix no es poden afegir més regals en secret a la llista de la família.';
   }
 
   @override
@@ -3330,25 +3421,25 @@ class AppLocalizationsCa extends AppLocalizations {
   }
 
   @override
-  String get giftProtectedRejected => 'No s\'ha guardat el regal.';
+  String get giftProtectedRejected => 'No s\'ha desat el regal.';
 
   @override
   String get giftSavedLocally =>
-      'Guardat només en aquest mòbil. Queda pendent de guardar i compartir.';
+      'Desat només en aquest mòbil. Encara cal afegir-lo a la llista i compartir-lo.';
 
   @override
   String get giftSavedLocallyAction => 'Veure pendents';
 
   @override
   String get giftOwnRequestRestricted =>
-      'Mentre la protecció estigui activa, aquest mòbil no pot crear ni veure regals per a la seva pròpia persona. Demana-ho a una altra persona de la família.';
+      'Amb la protecció activa, en aquest mòbil no pots afegir ni veure regals per a tu. Demana a algú altre de la família que apunti el regal.';
 
   @override
   String get pendingGiftsTitle => 'Regals pendents';
 
   @override
   String get pendingGiftsIntro =>
-      'Aquests regals estan guardats xifrats només en aquest mòbil. Fins que es guardin i es comparteixin amb la família, els altres mòbils no els veuen. Si perds aquest mòbil abans, es perden.';
+      'Aquests regals estan xifrats i només es desen en aquest mòbil. Encara no apareixen a la llista compartida de la família. Si perds el mòbil abans que s\'hi afegeixin, també perdràs aquests regals.';
 
   @override
   String get pendingGiftsRetry => 'Reintentar';
@@ -3358,14 +3449,14 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get pendingGiftsStill =>
-      'Encara no hi cap. No s\'ha publicat res i els regals es conserven en aquest mòbil.';
+      'Encara no hi ha lloc. Els regals continuen desats només en aquest mòbil.';
 
   @override
   String get pendingGiftsRetryError =>
-      'No s\'ha pogut reintentar. Els regals continuen guardats en aquest mòbil.';
+      'No s\'ha pogut reintentar. Els regals continuen desats en aquest mòbil.';
 
   @override
-  String get pendingGiftsDoneTitle => 'Tot guardat';
+  String get pendingGiftsDoneTitle => 'Tot desat';
 
   @override
   String get pendingGiftsDoneBody => 'Ja no queda cap regal pendent.';
@@ -3375,8 +3466,8 @@ class AppLocalizationsCa extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count regals pendents de guardar',
-      one: '$count regal pendent de guardar',
+      other: '$count regals pendents de desar',
+      one: '$count regal pendent de desar',
     );
     return '$_temp0';
   }
@@ -3393,7 +3484,13 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String occasionGiftsBoughtShort(int done, int total) {
-    return '$done de $total comprats';
+    String _temp0 = intl.Intl.pluralLogic(
+      total,
+      locale: localeName,
+      other: 'comprats',
+      one: 'comprat',
+    );
+    return '$done de $total $_temp0';
   }
 
   @override
@@ -3433,12 +3530,12 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String boardMoveTo(String lane) {
-    return 'Mou a $lane';
+    return 'Moure a «$lane»';
   }
 
   @override
   String boardLaneAdd(String lane) {
-    return 'Afegeix un regal a $lane';
+    return 'Afegir un regal a «$lane»';
   }
 
   @override
@@ -3447,7 +3544,7 @@ class AppLocalizationsCa extends AppLocalizations {
   }
 
   @override
-  String get boardOccasionsHint => 'Tria una ocasió per veure el seu tauler.';
+  String get boardOccasionsHint => 'Tria una ocasió per veure\'n el tauler.';
 
   @override
   String boardSeeAll(int count) {
@@ -3455,10 +3552,10 @@ class AppLocalizationsCa extends AppLocalizations {
   }
 
   @override
-  String get boardBudgetEmptyTitle => 'Res previst encara';
+  String get boardBudgetEmptyTitle => 'Encara no hi ha res previst';
 
   @override
-  String get boardChangeDate => 'Canvia la data';
+  String get boardChangeDate => 'Canviar la data';
 
   @override
   String get boardSettingsIndex => 'Apartats';
@@ -3470,13 +3567,13 @@ class AppLocalizationsCa extends AppLocalizations {
   String get boardNoGiftsYet => 'Encara sense regals';
 
   @override
-  String get boardSidebarCollapse => 'Plega la barra lateral';
+  String get boardSidebarCollapse => 'Plegar la barra lateral';
 
   @override
-  String get boardSidebarExpand => 'Desplega la barra lateral';
+  String get boardSidebarExpand => 'Desplegar la barra lateral';
 
   @override
-  String get boardSearchHint => 'Cerca un regal';
+  String get boardSearchHint => 'Cercar un regal';
 
   @override
   String get boardSearchNone => 'Cap regal coincideix';
@@ -3488,7 +3585,7 @@ class AppLocalizationsCa extends AppLocalizations {
   String get boardPersonFilterAll => 'Totes les persones';
 
   @override
-  String get searchClear => 'Esborra la cerca';
+  String get searchClear => 'Esborrar la cerca';
 
   @override
   String get boardColStatus => 'Estat';
@@ -3500,7 +3597,7 @@ class AppLocalizationsCa extends AppLocalizations {
   String get boardColSize => 'Talla';
 
   @override
-  String get boardRepartoNoGiver => 'Sense qui regali';
+  String get boardRepartoNoGiver => 'Sense assignar';
 
   @override
   String get boardRepartoNoGiverNone => 'Tots els regals tenen qui els regali.';
@@ -3520,7 +3617,7 @@ class AppLocalizationsCa extends AppLocalizations {
   String get tourTitle => 'Com funciona';
 
   @override
-  String get tourSkip => 'Omet';
+  String get tourSkip => 'Ometre';
 
   @override
   String tourPageOf(int page, int total) {
@@ -3532,7 +3629,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get tour1Body =>
-      'Tria a qui, per a quina ocasió i qui el regala. Amb una idea n\'hi ha prou.';
+      'Tria per a qui és el regal, l\'ocasió i qui el regala. Amb una idea n\'hi ha prou.';
 
   @override
   String get tour2Title => 'Marca\'l com a comprat';
@@ -3546,7 +3643,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get tour3Body =>
-      'Cada persona té la seva llista. Nadal, Reis i aniversaris l\'ordenen, i el repartiment diu qui paga què.';
+      'La llista de cada persona agrupa els regals per ocasió, com ara Nadal, Reis o aniversaris. A «Repartiment» veus qui paga cada regal.';
 
   @override
   String get tour4Title => 'La família comparteix la llista';
@@ -3560,14 +3657,14 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get tour5Body =>
-      'El mòbil de cada persona no veu els seus propis regals. Amb PIN o biometria, sense comptes ni anuncis.';
+      'Al teu mòbil no es mostren els regals que són per a tu. Pots bloquejar l\'app amb PIN o biometria. Sense comptes ni anuncis.';
 
   @override
   String get tour6Title => 'També a l\'ordinador';
 
   @override
   String get tour6Body =>
-      'Connecta el navegador una vegada i tindràs la llista en una pantalla gran.';
+      'Connecta la web una vegada i tindràs la llista en una pantalla gran.';
 
   @override
   String get tourDemoScooter => 'Patinet';
@@ -3591,7 +3688,7 @@ class AppLocalizationsCa extends AppLocalizations {
   String get tourDemoEncrypted => 'Xifrat';
 
   @override
-  String get tourDemoHidden => 'Regals ocults';
+  String get tourDemoHidden => 'Regals en secret';
 
   @override
   String get settingsRecovery => 'Codi de recuperació';
@@ -3613,13 +3710,13 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get recoveryUnconfirmedBody =>
-      'El codi encara no compta com a desat. Continua per comprovar les paraules o comprova un fitxer que ja hagis desat. Si les paraules ja s\'han mostrat, es crearà un codi nou i l\'anterior deixarà de valer.';
+      'El codi encara no compta com a desat. Si vas desar un fitxer, el pots comprovar. Si no, continua amb les paraules: si ja les has vist, en continuar es crearà un codi nou i l\'anterior deixarà de valer.';
 
   @override
   String get recoveryValueAttention => 'Revisar';
 
   @override
-  String get recoveryValueTransferred => 'Traspassada';
+  String get recoveryValueTransferred => 'Llista traspassada';
 
   @override
   String get recoverySubtitle => 'Per recuperar la llista en un mòbil nou.';
@@ -3630,14 +3727,14 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get recoveryAbsentBody =>
-      'Amb 24 paraules pots recuperar la llista i tot el que aquest mòbil pot veure en un altre mòbil. Si només tens aquest mòbil, s\'activa una còpia xifrada al servidor: sense les paraules, ningú no la pot llegir.';
+      'Amb 24 paraules pots recuperar en un altre mòbil la llista i tot el que veus en aquest. Si només tens aquest mòbil, s\'activa una còpia xifrada al servidor. Sense les paraules, ningú no la pot llegir.';
 
   @override
   String get recoveryAbsentWarn =>
-      'Qui tingui les paraules pot entrar com aquest mòbil. No recuperen el que mai no s\'ha arribat a sincronitzar.';
+      'Qui tingui les paraules tindrà el mateix accés a la llista que tens en aquest mòbil. Només es pot recuperar el que s\'hagi sincronitzat.';
 
   @override
-  String get recoveryCreate => 'Crea el codi de recuperació';
+  String get recoveryCreate => 'Crear el codi de recuperació';
 
   @override
   String get recoveryPreparedTitle => 'Codi preparat';
@@ -3657,21 +3754,21 @@ class AppLocalizationsCa extends AppLocalizations {
   String get recoveryAttentionTitle => 'Cal revisar el codi';
 
   @override
-  String get recoveryChange => 'Canvia el codi';
+  String get recoveryChange => 'Canviar el codi';
 
   @override
   String get recoveryChangeHint =>
       'Els fitxers i les paraules anteriors deixaran de servir.';
 
   @override
-  String get recoveryRemove => 'Treu el codi';
+  String get recoveryRemove => 'Esborrar el codi';
 
   @override
   String get recoveryRemoveHint =>
       'Les paraules deixaran de valer i s\'esborra la còpia.';
 
   @override
-  String get recoveryRemoveTitle => 'Vols treure el codi de recuperació?';
+  String get recoveryRemoveTitle => 'Vols esborrar el codi de recuperació?';
 
   @override
   String get recoveryRemoveBody =>
@@ -3682,23 +3779,23 @@ class AppLocalizationsCa extends AppLocalizations {
       'Com que no hi ha cap altre mòbil ni la web connectats, també s\'esborra del servidor la còpia xifrada de la llista i la llista torna a ser només en aquest mòbil.';
 
   @override
-  String get recoveryRemoveConfirm => 'Treu el codi';
+  String get recoveryRemoveConfirm => 'Esborrar el codi';
 
   @override
-  String get recoveryRemoved => 'Codi tret';
+  String get recoveryRemoved => 'Codi esborrat';
 
   @override
-  String get recoveryRetry => 'Torna-ho a provar';
+  String get recoveryRetry => 'Reintentar';
 
   @override
-  String get recoveryIntroTitle => 'Crea el codi';
+  String get recoveryIntroTitle => 'Crear el codi';
 
   @override
-  String get recoveryRotateTitle => 'Canvia el codi';
+  String get recoveryRotateTitle => 'Canviar el codi';
 
   @override
   String get recoveryIntroBody =>
-      'Veuràs 24 paraules. Amb elles pots recuperar la llista i tot el que aquest mòbil pot veure en un altre mòbil.';
+      'Veuràs 24 paraules. Et serviran per recuperar en un altre mòbil la llista i tot el que veus en aquest.';
 
   @override
   String get recoveryRotateBody =>
@@ -3709,13 +3806,14 @@ class AppLocalizationsCa extends AppLocalizations {
       'Apunta-les en paper o desa-les en un gestor de contrasenyes.';
 
   @override
-  String get recoveryPoint2 => 'Qui les tingui pot entrar com aquest mòbil.';
+  String get recoveryPoint2 =>
+      'Qui les tingui tindrà el mateix accés a la llista que tens en aquest mòbil.';
 
   @override
   String get recoveryPoint3 => 'No recuperen el que mai no es va sincronitzar.';
 
   @override
-  String get recoveryContinue => 'Continua';
+  String get recoveryContinue => 'Continuar';
 
   @override
   String get recoveryAuthTitle => 'Codi de recuperació';
@@ -3739,7 +3837,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get recoveryWordsWarn =>
-      'Qui tingui aquestes paraules pot entrar com aquest mòbil. No en facis cap captura ni les enviïs per missatge.';
+      'Qui tingui aquestes paraules tindrà el mateix accés a la llista que tens en aquest mòbil. No en facis cap captura ni les enviïs per missatge.';
 
   @override
   String recoveryWordItem(int number, String word) {
@@ -3747,10 +3845,10 @@ class AppLocalizationsCa extends AppLocalizations {
   }
 
   @override
-  String get recoveryShowQr => 'Mostra el codi QR';
+  String get recoveryShowQr => 'Veure el codi QR';
 
   @override
-  String get recoveryShowWords => 'Mostra les paraules';
+  String get recoveryShowWords => 'Veure les paraules';
 
   @override
   String get recoveryQrBody =>
@@ -3776,10 +3874,10 @@ class AppLocalizationsCa extends AppLocalizations {
       'No es tornaran a mostrar. Si surts, hauràs de canviar el codi per veure\'n unes de noves.';
 
   @override
-  String get recoveryLeaveConfirm => 'Surt';
+  String get recoveryLeaveConfirm => 'Sortir';
 
   @override
-  String get recoveryLeaveStay => 'Queda\'t aquí';
+  String get recoveryLeaveStay => 'Continuar aquí';
 
   @override
   String get recoveryCheckTitle => 'Comprova que les has desat';
@@ -3799,10 +3897,10 @@ class AppLocalizationsCa extends AppLocalizations {
       'Alguna paraula no coincideix. Torna-les a mirar.';
 
   @override
-  String get recoveryCheckBack => 'Torna a mostrar les paraules';
+  String get recoveryCheckBack => 'Tornar a veure les paraules';
 
   @override
-  String get recoveryCheckButton => 'Comprova';
+  String get recoveryCheckButton => 'Comprovar';
 
   @override
   String get recoveryDonePreparedTitle => 'Codi preparat';
@@ -3819,7 +3917,7 @@ class AppLocalizationsCa extends AppLocalizations {
   String get recoveryDoneButton => 'Fet';
 
   @override
-  String get recoveryCloseLater => 'Tanca i continua més tard';
+  String get recoveryCloseLater => 'Tancar i continuar més tard';
 
   @override
   String get recoveryProblemOfflineTitle => 'Sense connexió';
@@ -3840,7 +3938,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get recoveryProblemRetiredBody =>
-      'Es va canviar o es va treure des d\'un altre mòbil. Busca el codi més recent.';
+      'Es va canviar o es va esborrar des d\'un altre mòbil. Busca el codi més recent.';
 
   @override
   String get recoveryProblemRemovedTitle =>
@@ -3848,7 +3946,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get recoveryProblemRemovedBody =>
-      'Aquest mòbil es va treure de la llista, així que no es pot recuperar amb aquest codi.';
+      'Aquest codi és d\'un mòbil que es va treure de la família. Ja no serveix per recuperar la llista.';
 
   @override
   String get recoveryProblemIncompleteTitle =>
@@ -3886,7 +3984,7 @@ class AppLocalizationsCa extends AppLocalizations {
       'No s\'ha pogut acabar. Torna-ho a provar; si continua igual, prova-ho més tard.';
 
   @override
-  String get obHaveRecoveryCode => 'Tinc un codi de recuperació';
+  String get obHaveRecoveryCode => 'Fer servir el codi de recuperació';
 
   @override
   String get recoverTitle => 'Recupera la llista';
@@ -3906,28 +4004,29 @@ class AppLocalizationsCa extends AppLocalizations {
   }
 
   @override
-  String get recoverPaste => 'Enganxa les 24 paraules';
+  String get recoverPaste => 'Enganxar les 24 paraules';
 
   @override
-  String get recoverScan => 'Escaneja el QR';
+  String get recoverScan => 'Escanejar el QR';
 
   @override
-  String get recoverSubmit => 'Recupera la llista';
+  String get recoverSubmit => 'Recuperar la llista';
 
   @override
   String recoverWordUnknown(int number) {
-    return 'La paraula $number no és a la llista.';
+    return 'Revisa com has escrit la paraula $number.';
   }
 
   @override
   String get recoverChecksum =>
-      'Les paraules no formen un codi vàlid. Revisa l\'ordre i que no en falti cap.';
+      'Les paraules no formen un codi vàlid. Comprova que siguin les del teu codi i que estiguin en el mateix ordre.';
 
   @override
   String get recoverPasteEmpty => 'No hi ha res copiat.';
 
   @override
-  String get recoverPasteWrong => 'El que has copiat no té 24 paraules.';
+  String get recoverPasteWrong =>
+      'El que has copiat no té 24 paraules. Copia el codi sencer i torna\'l a enganxar.';
 
   @override
   String get recoverQrWrong => 'Aquest QR no és un codi de recuperació.';
@@ -3954,7 +4053,7 @@ class AppLocalizationsCa extends AppLocalizations {
   String get recoverStepDownload => 'Descarregant la llista';
 
   @override
-  String get recoverStepInstall => 'Instal·lant en aquest mòbil';
+  String get recoverStepInstall => 'Desant la llista en aquest mòbil';
 
   @override
   String get recoverDoneTitle => 'Llista recuperada';
@@ -3966,7 +4065,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get recoverDoneNoSelf =>
-      'Aquest mòbil no té cap persona assignada. La pots triar a Ajustos.';
+      'Falta indicar de qui és aquest mòbil. Ho pots fer a Ajustos.';
 
   @override
   String recoverDonePeople(int count) {
@@ -3980,17 +4079,17 @@ class AppLocalizationsCa extends AppLocalizations {
   }
 
   @override
-  String get recoverEnter => 'Entra a la llista';
+  String get recoverEnter => 'Entrar a la llista';
 
   @override
-  String get recoverOtherCode => 'Escriu un altre codi';
+  String get recoverOtherCode => 'Escriure un altre codi';
 
   @override
-  String get transferredTitle => 'Aquesta llista s\'ha passat a un altre mòbil';
+  String get transferredTitle => 'Aquesta llista s\'ha traspassat';
 
   @override
   String get transferredBody =>
-      'La teva llista ara és en un altre mòbil o en una altra app, i ja no es gestiona des d\'aquesta app. El que veus aquí és una còpia de només lectura: no s\'ha esborrat res.';
+      'Ara tens la llista en un altre mòbil o en una altra app. Aquí la pots consultar, però ja no la pots editar. No s\'ha esborrat res.';
 
   @override
   String get transferredReadOnly => 'Només lectura';
@@ -4016,34 +4115,34 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get recoverReplaceBody =>
-      'Aquest codi és d\'una altra família. Si continues, la llista d\'aquella família substituirà la que tens en aquest mòbil. La llista anterior es conserva al mòbil, però deixa de veure\'s.';
+      'Aquest codi és d\'una altra família. Si continues, veuràs la seva llista en aquest mòbil. La que fas servir ara hi continuarà desada, però ja no la veuràs.';
 
   @override
-  String get recoverReplaceConfirm => 'Substitueix';
+  String get recoverReplaceConfirm => 'Substituir';
 
   @override
-  String get recoverAbandon => 'Cancel·la la recuperació';
+  String get recoverAbandon => 'Cancel·lar la recuperació';
 
   @override
   String get recoverAbandonTitle => 'Vols cancel·lar la recuperació?';
 
   @override
   String get recoverAbandonBody =>
-      'Es descarten les dades temporals d\'aquesta recuperació en aquest mòbil. Cancel·lar no reactiva el mòbil anterior si ja havia quedat en mode de només lectura. Podràs tornar a introduir el codi.';
+      'Si cancel·les, aquest mòbil esborrarà les dades temporals de la recuperació. Si al mòbil anterior ja només podies consultar la llista, continuarà així. Podràs tornar a fer servir el codi.';
 
   @override
-  String get recoverAbandonConfirm => 'Cancel·la la recuperació';
+  String get recoverAbandonConfirm => 'Cancel·lar la recuperació';
 
   @override
-  String get recoverAbandonKeep => 'Continua';
+  String get recoverAbandonKeep => 'Continuar';
 
   @override
   String get recoverAbandonFailed =>
-      'No s\'ha pogut cancel·lar. Torna-ho a provar d\'aquí a un moment.';
+      'Alguna cosa no ha anat bé. Torna-ho a provar d\'aquí a un moment.';
 
   @override
   String get recoverAbandonBodyClaimed =>
-      'La llista ja s\'ha passat a aquest codi i l\'altre mòbil s\'ha quedat en mode de només lectura; cancel·lar no ho desfà. Per fer-la servir hauràs d\'escriure el codi un altre cop.';
+      'A l\'altre mòbil ja només pots consultar la llista. Si cancel·les, continuarà així. Per recuperar la llista hauràs de tornar a fer servir aquest codi.';
 
   @override
   String get recoveryWordsWarnNoBlock =>
@@ -4054,17 +4153,17 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get recoverLeaveBody =>
-      'Es queda a mitges en aquest mòbil. Podràs reprendre-la o cancel·lar-la des de la pantalla de benvinguda.';
+      'La recuperació quedarà pendent en aquest mòbil. Més endavant podràs reprendre-la o cancel·lar-la.';
 
   @override
-  String get recoverPendingTitle => 'Hi ha una recuperació en curs';
+  String get recoverPendingTitle => 'Recuperació pendent';
 
   @override
   String get recoverPendingBody =>
       'Es va quedar a mitges en aquest mòbil. Reprèn-la o cancel·la-la abans de crear una família o unir-te a una altra.';
 
   @override
-  String get recoverResume => 'Reprèn';
+  String get recoverResume => 'Reprendre';
 
   @override
   String get recoveryProblemPendingTitle => 'Hi ha una recuperació a mitges';
@@ -4074,7 +4173,7 @@ class AppLocalizationsCa extends AppLocalizations {
       'Reprèn-la o cancel·la-la abans de crear una família o unir-te a una altra.';
 
   @override
-  String get recoveryMaintCancel => 'Cancel·la la preparació';
+  String get recoveryMaintCancel => 'Cancel·lar la preparació';
 
   @override
   String get recoveryMaintCancelTitle =>
@@ -4085,21 +4184,21 @@ class AppLocalizationsCa extends AppLocalizations {
       'El codi que ja tinguis continua valent. Es deixa de preparar el que estava en marxa.';
 
   @override
-  String get recoveryMaintCancelConfirm => 'Cancel·la la preparació';
+  String get recoveryMaintCancelConfirm => 'Cancel·lar la preparació';
 
   @override
   String get recoveryRemoveAuthMessage =>
-      'Escriu el teu PIN per treure el codi.';
+      'Escriu el teu PIN per esborrar el codi.';
 
   @override
   String get recoveryRemoveBiometric =>
-      'Confirma que vols treure el codi de recuperació';
+      'Confirma que vols esborrar el codi de recuperació';
 
   @override
-  String get transferredRecover => 'Recupera amb el meu codi';
+  String get transferredRecover => 'Recuperar amb el meu codi';
 
   @override
-  String get transferredErase => 'Esborra-ho tot d\'aquest mòbil';
+  String get transferredErase => 'Esborrar les dades d\'aquesta app';
 
   @override
   String get recoverStepDoneValue => 'fet';
@@ -4108,21 +4207,21 @@ class AppLocalizationsCa extends AppLocalizations {
   String get recoverStepActiveValue => 'en curs';
 
   @override
-  String get recoveryFileAction => 'Desa en un fitxer';
+  String get recoveryFileAction => 'Desar en un fitxer';
 
   @override
-  String get recoveryFileTitle => 'Desa en un fitxer';
+  String get recoveryFileTitle => 'Desar en un fitxer';
 
   @override
   String get recoveryFileBody =>
-      'A més de les paraules, pots desar el codi en un fitxer. Qui tingui el fitxer pot recuperar la llista i entrar com aquest mòbil.';
+      'També pots desar el codi en un fitxer. Qui el pugui obrir podrà recuperar la llista amb el mateix accés que tens en aquest mòbil.';
 
   @override
   String get recoveryFilePersonal =>
       'És un fitxer personal: no l\'enviïs a la família. Desa\'l on puguis obrir-lo encara que perdis aquest mòbil.';
 
   @override
-  String get recoveryFileProtect => 'Protegeix amb contrasenya';
+  String get recoveryFileProtect => 'Protegir amb contrasenya';
 
   @override
   String get recoveryFileProtectOffHint =>
@@ -4139,10 +4238,10 @@ class AppLocalizationsCa extends AppLocalizations {
   String get recoveryFilePasswordRepeat => 'Repeteix la contrasenya';
 
   @override
-  String get recoveryFilePasswordShow => 'Mostra';
+  String get recoveryFilePasswordShow => 'Veure';
 
   @override
-  String get recoveryFilePasswordHide => 'Amaga';
+  String get recoveryFilePasswordHide => 'Amagar';
 
   @override
   String recoveryFilePasswordHelp(int min) {
@@ -4151,7 +4250,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get recoveryFilePasswordForgot =>
-      'Si oblides la contrasenya, el fitxer no serveix de res. Les 24 paraules continuaran valent.';
+      'Si oblides la contrasenya, no podràs obrir el fitxer. Encara podràs recuperar la llista amb les 24 paraules.';
 
   @override
   String recoveryFilePwTooShort(int min) {
@@ -4164,7 +4263,7 @@ class AppLocalizationsCa extends AppLocalizations {
   }
 
   @override
-  String get recoveryFilePwRepeated => 'Repeteix un mateix caràcter o bloc.';
+  String get recoveryFilePwRepeated => 'Es repeteix un mateix caràcter o bloc.';
 
   @override
   String get recoveryFilePwDigits => 'No pot ser només números.';
@@ -4182,13 +4281,13 @@ class AppLocalizationsCa extends AppLocalizations {
   String get recoveryFilePwMismatch => 'Les dues contrasenyes no coincideixen.';
 
   @override
-  String get recoveryFileSave => 'Desa';
+  String get recoveryFileSave => 'Desar';
 
   @override
-  String get recoveryFileSaveAgain => 'Desa\'n una altra còpia';
+  String get recoveryFileSaveAgain => 'Desar una altra còpia';
 
   @override
-  String get recoveryFileShare => 'Comparteix';
+  String get recoveryFileShare => 'Compartir';
 
   @override
   String get recoveryFileShareText =>
@@ -4198,11 +4297,11 @@ class AppLocalizationsCa extends AppLocalizations {
   String get recoveryFileStem => 'gift-huddle-recuperacio';
 
   @override
-  String get recoveryFileDerivingTitle => 'Protegint el fitxer…';
+  String get recoveryFileDerivingTitle => 'Processant el fitxer…';
 
   @override
   String get recoveryFileDerivingBody =>
-      'Es prepara la clau de la contrasenya. Triga uns segons; no tanquis l\'app.';
+      'Mantén l\'app oberta. Aquest pas triga uns segons.';
 
   @override
   String get recoveryFileSavedTitle => 'Fitxer desat';
@@ -4217,7 +4316,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get recoveryFileProblemVerifyBody =>
-      'El que s\'ha llegit de la destinació no coincideix. Torna-ho a desar, potser en un altre lloc.';
+      'El fitxer no s\'ha desat bé. Torna\'l a desar, potser en un altre lloc.';
 
   @override
   String get recoveryFileProblemUnreadableTitle =>
@@ -4225,7 +4324,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get recoveryFileProblemUnreadableBody =>
-      'Comprova que el fitxer és disponible en aquest mòbil i torna-ho a provar.';
+      'Comprova que el fitxer està disponible en aquest mòbil i torna-ho a provar.';
 
   @override
   String get recoveryFileProblemUnavailableTitle =>
@@ -4233,10 +4332,11 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get recoveryFileProblemUnavailableBody =>
-      'Prova amb Comparteix o fes servir les 24 paraules.';
+      'Prova amb «Compartir» o fes servir les 24 paraules.';
 
   @override
-  String get recoveryFileProblemPickerBusyTitle => 'Ja hi ha un selector obert';
+  String get recoveryFileProblemPickerBusyTitle =>
+      'Ja hi ha un selector de fitxers obert';
 
   @override
   String get recoveryFileProblemPickerBusyBody =>
@@ -4271,7 +4371,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get recoveryFileProblemNotCurrentBody =>
-      'Es va desar amb un codi anterior i ja no val. Busca\'n un de més recent o canvia el codi.';
+      'Aquest fitxer conté un codi anterior i ja no serveix. Busca un fitxer més recent o canvia el codi.';
 
   @override
   String get recoveryFileProblemHasFamilyTitle =>
@@ -4279,20 +4379,20 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get recoveryFileProblemHasFamilyBody =>
-      'El fitxer de recuperació serveix per a un mòbil buit. No s\'ha fet servir.';
+      'El fitxer de recuperació només serveix en un mòbil sense llista. No s\'ha fet servir.';
 
   @override
-  String get recoveryCheckFileAction => 'Comprova un fitxer';
+  String get recoveryCheckFileAction => 'Comprovar un fitxer';
 
   @override
-  String get recoveryCheckFileTitle => 'Comprova un fitxer';
+  String get recoveryCheckFileTitle => 'Comprovar un fitxer';
 
   @override
   String get recoveryCheckFileBody =>
-      'Tria el fitxer de recuperació que vas desar. Si obre el codi d\'aquest mòbil, queda comprovat. No es desa ni s\'envia res.';
+      'Tria el fitxer de recuperació que vas desar. L\'app comprovarà si conté el codi d\'aquest mòbil. No es desa ni s\'envia res.';
 
   @override
-  String get recoveryFilePick => 'Tria un fitxer';
+  String get recoveryFilePick => 'Triar un fitxer';
 
   @override
   String get recoveryFilePasswordTitle => 'Contrasenya del fitxer';
@@ -4302,7 +4402,7 @@ class AppLocalizationsCa extends AppLocalizations {
       'Aquest fitxer està protegit. Escriu la contrasenya que vas posar en desar-lo.';
 
   @override
-  String get recoveryFileOpen => 'Obre el fitxer';
+  String get recoveryFileOpen => 'Obrir el fitxer';
 
   @override
   String get recoveryFileCheckingTitle => 'Comprovant el fitxer…';
@@ -4315,10 +4415,10 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get recoveryCheckFileOkBody =>
-      'El fitxer obre el codi d\'aquest mòbil. Si perds el mòbil, podràs recuperar la llista amb ell.';
+      'El fitxer conté el codi d\'aquest mòbil. Si perds el mòbil, podràs fer servir el fitxer per recuperar la llista.';
 
   @override
-  String get obRecoverWithFile => 'Recupera amb fitxer';
+  String get obRecoverWithFile => 'Fer servir el fitxer de recuperació';
 
   @override
   String get recoverFileTitle => 'Recupera amb un fitxer';
@@ -4335,31 +4435,31 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get recoverFileConfirmBody =>
-      'Aquest mòbil recuperarà la llista i entrarà com el mòbil que va desar el codi. Si no és el teu fitxer, no continuïs.';
+      'Aquest mòbil recuperarà la llista i ocuparà dins la família el lloc del mòbil que va desar el codi. Continua només si el fitxer és teu.';
 
   @override
-  String get recoverFileOther => 'Tria un altre fitxer';
+  String get recoverFileOther => 'Triar un altre fitxer';
 
   @override
-  String get recoverFileWaitingTitle => 'Ha arribat un altre fitxer';
+  String get recoverFileWaitingTitle => 'Vols canviar de fitxer?';
 
   @override
   String get recoverFileWaitingBody =>
-      'Estaves amb un altre fitxer de recuperació. Vols canviar a aquest?';
+      'Has rebut un fitxer de recuperació mentre en feies servir un altre.';
 
   @override
-  String get recoverFileWaitingSwitch => 'Canvia de fitxer';
+  String get recoverFileWaitingSwitch => 'Triar el nou';
 
   @override
-  String get recoverFileWaitingKeep => 'Continua amb l\'actual';
+  String get recoverFileWaitingKeep => 'Continuar amb l\'actual';
 
   @override
   String get recoveryProblemPersonTitle =>
-      'Aquest codi ja no és el de la teva persona actual';
+      'El codi ja no és vàlid per a la persona triada';
 
   @override
   String get recoveryProblemPersonBody =>
-      'Ha canviat la persona d\'aquest mòbil o hi ha un canvi pendent. Crea un codi nou i desa aquell.';
+      'Ha canviat la persona triada a «Aquest mòbil és de» o hi ha un canvi pendent. Crea un codi nou i desa\'l.';
 
   @override
   String get recoveryFileProblemStorageTitle =>
@@ -4367,7 +4467,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get recoveryFileProblemStorageBody =>
-      'El fitxer continua a l\'espera. Torna-ho a provar: abans de recuperar, l\'app ha de comprovar que aquest mòbil no té ja una llista.';
+      'El fitxer encara està pendent d\'obrir. L\'app ha de comprovar si ja hi ha una llista en aquest mòbil. Torna-ho a provar.';
 
   @override
   String get cameraRestricted =>
@@ -4381,16 +4481,18 @@ class AppLocalizationsCa extends AppLocalizations {
       'Tria com connectar-te amb el mòbil que ja té la llista.';
 
   @override
-  String get obJoinQrHint => 'És amb tu: escaneja el seu codi.';
+  String get obJoinQrHint =>
+      'Si tens l\'altre mòbil a mà, escaneja\'n el codi QR.';
 
   @override
-  String get obJoinLinkHint => 'És lluny: enganxa l\'enllaç que et va enviar.';
+  String get obJoinLinkHint =>
+      'Si l\'altre mòbil és lluny, enganxa l\'enllaç que t\'han enviat.';
 
   @override
-  String get obRestoreBackup => 'Restaurar una còpia';
+  String get obRestoreBackup => 'Recuperar una còpia';
 
   @override
-  String get obRestoreBackupHint => 'Tria amb què recuperes la llista.';
+  String get obRestoreBackupHint => 'Tria com vols recuperar la llista.';
 
   @override
   String get obRestoreCodeHint => 'Escriu les 24 paraules que vas desar.';
@@ -4403,29 +4505,29 @@ class AppLocalizationsCa extends AppLocalizations {
   String get giverPeopleSection => 'Persones';
 
   @override
-  String get giverPeopleHintAdd => 'Abans s\'afegeix com a qui regala';
+  String get giverPeopleHintAdd => 'Primer s\'afegeix als qui regalen';
 
   @override
-  String get giverPeopleHintRecover => 'Es recupera com a qui regala';
+  String get giverPeopleHintRecover => 'Tornarà a la llista dels qui regalen';
 
   @override
   String giverPersonAddTitle(String name) {
-    return 'Afegir $name com a qui regala?';
+    return 'Afegir $name a la llista dels qui regalen?';
   }
 
   @override
   String giverPersonAddBody(String name) {
-    return 'Aquest regal és una sorpresa. Per no delatar-la, primer cal afegir $name com a qui regala per a tota la família, i es veurà a tots els mòbils sense relació amb aquest regal. Després podràs triar $name aquí.';
+    return 'Aquest regal és una sorpresa. Primer, afegeix $name a la llista dels qui regalen. Tota la família hi veurà el seu nom, sense cap referència al regal. Després podràs triar $name aquí.';
   }
 
   @override
   String giverPersonAddConfirm(String name) {
-    return 'Afegeix $name com a qui regala';
+    return 'Afegir $name';
   }
 
   @override
   String giverPersonAddFailed(String name) {
-    return 'No s\'ha pogut afegir $name com a qui regala.';
+    return 'No s\'ha pogut afegir $name a la llista dels qui regalen. Torna-ho a provar.';
   }
 
   @override
@@ -4437,7 +4539,7 @@ class AppLocalizationsCa extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'S\'eliminen aquests $count registres: $names.',
+      other: 'S\'eliminen aquests $count noms: $names.',
       one: 'S\'elimina $names.',
     );
     return '$_temp0';
@@ -4456,16 +4558,16 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String deleteGiverLinkedNote(String name) {
-    return '$name continua a Persones: només s\'elimina com a qui regala.';
+    return '$name continuarà a «Persones». Només s\'eliminarà de «Qui regala».';
   }
 
   @override
   String get deleteImpactChanged =>
-      'Ha canviat mentre tenies l\'avís obert. Això és el que s\'eliminaria ara:';
+      'La llista ha canviat. Abans de confirmar, revisa què s\'eliminarà.';
 
   @override
   String get deletePersonLinkedGiver =>
-      'El seu nom continuarà apareixent als regals que va fer, com a qui regala.';
+      'El seu nom continuarà a «Qui regala» als regals que fa a altres persones.';
 
   @override
   String devicePersonBlockedThisTitle(String name) {
@@ -4474,7 +4576,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String devicePersonBlockedThisBody(String name) {
-    return '$name és la persona d\'aquest mòbil, així que no es pot eliminar ni arxivar des d\'aquí. Per fer-ho, tria abans una altra persona a «Aquest mòbil és de», a Ajustos.';
+    return 'Per eliminar o arxivar $name, ves a Ajustos i tria primer una altra persona a «Aquest mòbil és de».';
   }
 
   @override
@@ -4497,7 +4599,7 @@ class AppLocalizationsCa extends AppLocalizations {
   }
 
   @override
-  String get giverLinkLabel => 'Enllaça amb una persona';
+  String get giverLinkLabel => 'Enllaçar amb una persona';
 
   @override
   String get giverLinkHint =>
@@ -4505,7 +4607,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get giverLinkExistingHint =>
-      'Ja és qui regala: s\'uniran en una columna';
+      'Ja regala. Les dues columnes de Repartiment s\'uniran en una.';
 
   @override
   String giverLinkConfirmTitle(String name) {
@@ -4514,14 +4616,14 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String giverLinkConfirmBody(String giver, String name) {
-    return '«$giver» passarà a dir-se $name, amb el seu color, i seguirà els canvis de $name a Persones. Els seus regals es mantenen.';
+    return '«$giver» tindrà el nom i el color de $name. Si els canvies a la fitxa de $name a Persones, també canviaran aquí. Els regals es conservaran.';
   }
 
   @override
-  String get giverLinkConfirm => 'Enllaça';
+  String get giverLinkConfirm => 'Enllaçar';
 
   @override
-  String get giverUnlinkLabel => 'Desenllaça de la persona';
+  String get giverUnlinkLabel => 'Desenllaçar de la persona';
 
   @override
   String giverUnlinkConfirmTitle(String name) {
@@ -4530,11 +4632,11 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String giverUnlinkConfirmBody(String name) {
-    return 'Continuarà com a qui regala amb el nom i el color d\'ara, però ja no canviarà amb $name. Els seus regals es mantenen.';
+    return 'Continuarà a la llista dels qui regalen amb el nom, el color i els regals que té ara. Els canvis que facis a la fitxa de $name ja no s\'aplicaran aquí.';
   }
 
   @override
-  String get giverUnlinkConfirm => 'Desenllaça';
+  String get giverUnlinkConfirm => 'Desenllaçar';
 
   @override
   String get giverLinkError =>
@@ -4546,14 +4648,15 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get giftWriteRecipientGone =>
-      'No s\'ha desat: la persona a qui va el regal ja no existeix.';
+      'No s\'ha desat: la persona que havia de rebre el regal ja no és a la llista.';
 
   @override
   String get giftWriteInvalidPair =>
       'No s\'ha desat: qui regala no pot ser qui rep el regal.';
 
   @override
-  String get giftWriteGiverGone => 'No s\'ha desat: qui regala ja no existeix.';
+  String get giftWriteGiverGone =>
+      'No s\'ha desat: qui regala ja no és a la llista.';
 
   @override
   String get giftWriteGiverArchived =>
@@ -4561,7 +4664,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get giftWritePersonGone =>
-      'No s\'ha desat: aquesta persona ja no existeix.';
+      'No s\'ha desat: aquesta persona ja no és a la llista.';
 
   @override
   String get giftWritePersonArchived =>
@@ -4574,7 +4677,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get deleteImpactUnavailable =>
-      'No s\'ha pogut comprovar què s\'elimina. Torna a obrir l\'avís.';
+      'No s\'ha pogut comprovar què s\'eliminaria. Torna-ho a provar.';
 
   @override
   String get deleteImpactChecking => 'Comprovant què s\'elimina…';

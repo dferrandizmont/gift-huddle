@@ -60,14 +60,22 @@ class MemoryFileStore implements ListableFileStore {
 
 /// Biometría simulada.
 class FakeBiometrics implements BiometricAuthenticator {
-  FakeBiometrics({this.available = true, this.succeeds = true});
+  FakeBiometrics({
+    this.available = true,
+    this.succeeds = true,
+    this.kindOverride = BiometricKind.generic,
+  });
 
   bool available;
+  BiometricKind kindOverride;
   bool succeeds;
   int prompts = 0;
 
   @override
   Future<bool> isAvailable() async => available;
+
+  @override
+  Future<BiometricKind> kind() async => kindOverride;
 
   @override
   Future<bool> authenticate(String reason) async {

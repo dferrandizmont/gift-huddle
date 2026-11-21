@@ -60,6 +60,21 @@ class GiftEditorPanelController extends ChangeNotifier {
   /// editor mientras está en el panel).
   bool Function()? dirtyCheck;
 
+  /// El cierre que pide la persona (Esc, «Cancelar»): lo pone el editor
+  /// mientras está en el panel y pregunta antes de descartar cambios.
+  Future<void> Function()? closeRequest;
+
+  /// Pide cerrar el panel como lo haría «Cancelar»: con cambios sin guardar se
+  /// pregunta antes. Sin editor montado, cierra sin más.
+  Future<void> requestClose() async {
+    final request = closeRequest;
+    if (request != null) {
+      await request();
+    } else {
+      close();
+    }
+  }
+
   /// Si el formulario abierto tiene cambios sin guardar.
   bool get isDirty => isOpen && (dirtyCheck?.call() ?? false);
 

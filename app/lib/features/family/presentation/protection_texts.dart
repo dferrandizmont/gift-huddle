@@ -11,13 +11,31 @@ import '../application/family_providers.dart' show PersonProtectionStatus;
 String protectionReasonText(
   AppLocalizations l10n,
   ProtectedPersonReason reason,
-  String name,
-) => switch (reason) {
+  String name, {
+  bool ownPhone = false,
+}) => switch (reason) {
   ProtectedPersonReason.protectedPerson =>
     l10n.protectionReason_protectedPerson(name),
   ProtectedPersonReason.noEntitlement => l10n.protectionReason_noEntitlement(
     name,
   ),
+  ProtectedPersonReason.noConfirmer =>
+    ownPhone
+        ? l10n.protectionNeedConfirmerOwn(name)
+        : l10n.protectionNeedConfirmer(name),
+  ProtectedPersonReason.recipientUnavailable =>
+    l10n.protectionRecipientUnavailable(name),
+  ProtectedPersonReason.requesterRevoked => l10n.protectionRequesterRevoked(
+    name,
+  ),
+  ProtectedPersonReason.requesterAmbiguous => l10n.protectionRequesterAmbiguous(
+    name,
+  ),
+  ProtectedPersonReason.requesterPending => l10n.protectionRequesterPending(
+    name,
+  ),
+  ProtectedPersonReason.registryUnavailable =>
+    l10n.protectionRegistryUnavailable,
   ProtectedPersonReason.ownRequestsRestricted =>
     l10n.protectionReason_ownRequestsRestricted(name),
   ProtectedPersonReason.missingEpochKey =>

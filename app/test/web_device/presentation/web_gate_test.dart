@@ -617,7 +617,7 @@ Future<({double mid, double end})> _titleXDuringSwitch(
     settle: Duration.zero,
   );
   await tester.pump(const Duration(milliseconds: 60));
-  final title = find.text('Comprueba el código');
+  final title = find.text('Compara el código');
   final mid = tester.getTopLeft(title).dx;
   await tester.pump(const Duration(seconds: 1));
   final end = tester.getTopLeft(title).dx;

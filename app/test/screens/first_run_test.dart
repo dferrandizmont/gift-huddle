@@ -101,7 +101,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Aritz'), findsOneWidget);
       // Quitarla pliega la fila.
-      await tester.tap(find.bySemanticsLabel('Quitar a Aritz'));
+      await tester.tap(find.bySemanticsLabel('Quitar Aritz'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 60));
       expect(find.text('Aritz'), findsOneWidget);
@@ -230,7 +230,7 @@ void main() {
     await tapText(tester, 'Siguiente');
 
     // PIN: se explica por qué y se puede dejar para luego.
-    expect(find.text('Protege los regalos'), findsOneWidget);
+    expect(find.text('Bloquea la app'), findsOneWidget);
     expect(
       find.textContaining('para que nadie vea los regalos si coge el móvil'),
       findsOneWidget,
@@ -354,7 +354,7 @@ void main() {
 
   group('los dos botones de la bienvenida', () {
     final join = find.widgetWithText(OutlinedButton, 'Unirme a una familia');
-    final restore = find.widgetWithText(OutlinedButton, 'Restaurar una copia');
+    final restore = find.widgetWithText(OutlinedButton, 'Recuperar una copia');
 
     screenTest('van lado a lado, de medio ancho y de 48 de alto como mínimo', (
       tester,
@@ -365,8 +365,8 @@ void main() {
       for (final gone in [
         'Escanear el QR',
         'Unirme con un enlace',
-        'Tengo un código de recuperación',
-        'Recuperar con fichero',
+        'Usar el código de recuperación',
+        'Usar el fichero de recuperación',
       ]) {
         expect(find.text(gone), findsNothing, reason: gone);
       }
@@ -424,7 +424,7 @@ void main() {
       await openWelcomeSheet(tester, 'Escanear el QR');
       expect(find.text('Escanear el QR'), findsOneWidget);
       expect(find.text('Unirme con un enlace'), findsOneWidget);
-      expect(find.text('Tengo un código de recuperación'), findsNothing);
+      expect(find.text('Usar el código de recuperación'), findsNothing);
       expect(find.bySemanticsLabel(RegExp('^Escanear el QR')), findsOneWidget);
       // Un toque fuera la cierra sin ir a ninguna parte.
       await tester.tapAt(const Offset(195, 40));
@@ -433,14 +433,14 @@ void main() {
       expect(find.text('Unirme a una familia'), findsOneWidget);
     });
 
-    screenTest('«Restaurar una copia» ofrece el código y el fichero', (
+    screenTest('«Recuperar una copia» ofrece el código y el fichero', (
       tester,
       phone,
     ) async {
       await pumpRegalos(tester, phone);
-      await openWelcomeSheet(tester, 'Recuperar con fichero');
-      expect(find.text('Tengo un código de recuperación'), findsOneWidget);
-      expect(find.text('Recuperar con fichero'), findsOneWidget);
+      await openWelcomeSheet(tester, 'Usar el fichero de recuperación');
+      expect(find.text('Usar el código de recuperación'), findsOneWidget);
+      expect(find.text('Usar el fichero de recuperación'), findsOneWidget);
       expect(find.text('Escanear el QR'), findsNothing);
     });
   });

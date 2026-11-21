@@ -1,7 +1,7 @@
 name: regalos
 description: "Regalos: quién regala qué a cada niño, sin cuentas."
 publish_to: 'none'
-version: 1.0.4+40
+version: 1.0.5+42
 
 environment:
   sdk: ^3.13.5

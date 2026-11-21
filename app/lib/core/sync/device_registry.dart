@@ -104,6 +104,12 @@ class RegistryException implements Exception {
   String toString() => 'RegistryException: $message';
 }
 
+/// El ancla tiene fichas incompatibles de móvil y web con la misma clave.
+class RegistryIdentityAmbiguousException extends RegistryException {
+  const RegistryIdentityAmbiguousException()
+    : super('este dispositivo tiene fichas de móvil y web');
+}
+
 List<int> _signed(String domain, Map<String, Object?> fields) => [
   ...utf8.encode(domain),
   0,
@@ -1350,6 +1356,9 @@ class DeviceRegistry {
   }) async {
     final mine = _current(me, mySigningKey);
     if (mine == null) {
+      if (_mixedKinds(_records, _nodeOf(me, mySigningKey), _typeConflicts)) {
+        throw const RegistryIdentityAmbiguousException();
+      }
       throw const RegistryException('este móvil no está en el registro');
     }
     final myNode = _recordNode(mine);
@@ -1505,6 +1514,7 @@ class DeviceRegistry {
     // Las revocaciones firmadas, aparte de los ids solo ambiguos (B6, M1).
     final explicitlyRevoked = Set<String>.unmodifiable(revoked);
     return RegistryView._(
+      registry: this,
       listId: listId,
       me: me,
       epoch: epoch,
@@ -1576,6 +1586,7 @@ class DeviceRegistry {
 /// derecho a qué.
 class RegistryView {
   RegistryView._({
+    required this.registry,
     required this.listId,
     required this.me,
     required this.epoch,
@@ -1593,6 +1604,9 @@ class RegistryView {
     required this._cleanFor,
     required this._linkedSigningKeys,
   });
+
+  /// The verified snapshot this view was built from.
+  final DeviceRegistry registry;
 
   /// Lista.
   final String listId;
@@ -1773,6 +1787,70 @@ class RegistryView {
   /// ordenados (su número es público: uno por slot).
   List<String> entitledDevices(String protectedPersonId) =>
       _entitledFor(protectedPersonId).toList()..sort();
+}
+
+enum ProtectionRequestBlock {
+  registryUnavailable,
+  notMobile,
+  recipientUnavailable,
+  requesterRevoked,
+  requesterAmbiguous,
+  requesterPending,
+  noConfirmer,
+}
+
+/// Returns the reason a request cannot be made, or null if a mobile could
+/// confirm it. [localView] must come from this verified [registry] snapshot.
+/// Pass an empty [candidateViews] map to share candidate views across the
+/// recipients in one evaluation of [localView].
+Future<ProtectionRequestBlock?> protectionRequestBlock({
+  required DeviceRegistry registry,
+  required RegistryView localView,
+  required String personId,
+  Map<String, Future<RegistryView>>? candidateViews,
+}) async {
+  if (!identical(localView.registry, registry)) {
+    return ProtectionRequestBlock.registryUnavailable;
+  }
+  if (localView.self.kind != DeviceKind.mobile) {
+    return ProtectionRequestBlock.notMobile;
+  }
+  if (!localView._validPerson(personId)) {
+    return ProtectionRequestBlock.recipientUnavailable;
+  }
+  if (localView.selfRevoked) return ProtectionRequestBlock.requesterRevoked;
+  if (localView.revokedByOthers) {
+    return ProtectionRequestBlock.requesterAmbiguous;
+  }
+  if (!localView.selfApproved) return ProtectionRequestBlock.requesterPending;
+  if (localView.selfEntitled(personId)) return null;
+
+  final views = candidateViews ?? <String, Future<RegistryView>>{};
+  for (final id in localView.members) {
+    final candidate = localView.member(id)!;
+    final person = candidate.personId;
+    if (id == localView.me ||
+        candidate.kind != DeviceKind.mobile ||
+        person == null ||
+        person == personId ||
+        !localView._validPerson(person)) {
+      continue;
+    }
+    try {
+      final view = await views.putIfAbsent(
+        id,
+        () => registry.viewFor(
+          me: id,
+          mySigningKey: candidate.signingKey,
+          livePeople: localView.livePeople,
+        ),
+      );
+      if (view.selfEntitled(personId)) return null;
+    } on RegistryException {
+      continue;
+    }
+  }
+  return ProtectionRequestBlock.noConfirmer;
 }
 
 /// Estado de una identidad web desde una raíz móvil fijada.

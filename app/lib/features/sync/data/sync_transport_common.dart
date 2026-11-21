@@ -50,6 +50,16 @@ class SyncResponse {
       'respuesta que no es un objeto JSON',
     );
   }
+
+  void requireWorkerError(String expected) {
+    try {
+      final body = json();
+      if (body.length == 1 && body['error'] == expected) return;
+    } on SyncTransportException {
+      // Un proxy puede devolver HTML u otra respuesta que no sea JSON.
+    }
+    throw SyncTransportException(SyncFailure.server, 'HTTP $status');
+  }
 }
 
 abstract class BaseSyncTransport implements SyncTransport {
@@ -130,6 +140,10 @@ abstract class BaseSyncTransport implements SyncTransport {
 
   // ---------------------------------------------------------------- lista
 
+  static void _checkListMissing(SyncResponse r) {
+    r.requireWorkerError(r.status == 404 ? 'not_found' : 'gone');
+  }
+
   @override
   Future<SyncGetResult> getList(
     SyncCredentials auth, {
@@ -152,6 +166,7 @@ abstract class BaseSyncTransport implements SyncTransport {
         return const SyncGetNotModified();
       case 404:
       case 410:
+        _checkListMissing(r);
         return const SyncGetNotFound();
       default:
         _fail(r);
@@ -200,9 +215,13 @@ abstract class BaseSyncTransport implements SyncTransport {
   @override
   Future<void> deleteList(SyncCredentials auth) async {
     final r = await send('DELETE', uri(listPath(auth)), auth: auth);
-    if (r.status >= 200 && r.status < 300 ||
-        r.status == 404 ||
-        r.status == 410) {
+    // El Worker confirma el borrado con 204; otro 2xx (un intermediario que
+    // no entregó la petición) no cuenta como borrado.
+    if (r.status == 204) {
+      return;
+    }
+    if (r.status == 404 || r.status == 410) {
+      _checkListMissing(r);
       return;
     }
     _fail(r);

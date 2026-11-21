@@ -48,9 +48,8 @@ class EraseAll {
   /// Si puede haber una copia de la lista en el servidor: la app tiene
   /// servidor de sincronización y hay una familia en este móvil.
   ///
-  /// No se sabe si este móvil llegó a subirla (con un solo móvil no sube
-  /// nada, salvo al invitar), así que se pide el borrado siempre: el servidor
-  /// contesta igual si no la tiene.
+  /// El controlador omite el borrado remoto si sabe que la lista es local.
+  /// En v2, una respuesta de lista ausente o sin acceso basta para continuar.
   bool get hasServerCopy =>
       _ref.read(syncTransportProvider) != null &&
       (_ref.read(familyStateProvider)?.hasFamily ?? false);
@@ -60,8 +59,8 @@ class EraseAll {
   /// invitaciones) y apaga la sincronización. No hace nada si
   /// [hasServerCopy] es `false`.
   ///
-  /// Lanza `SyncTransportException` si el servidor no responde; entonces
-  /// nada cambia (la sincronización sigue como estaba) y se puede repetir.
+  /// Lanza `SyncTransportException` si queda una operación remota por
+  /// confirmar. Los datos y las claves locales se conservan para reintentar.
   Future<void> eraseServerCopy() async {
     if (!hasServerCopy) {
       return;

@@ -35,7 +35,7 @@ void main() {
 
     await tester.tap(find.text('Reparto'));
     await settle(tester);
-    expect(find.text('Nadie ha apuntado regalos'), findsOneWidget);
+    expect(find.text('Faltan personas'), findsOneWidget);
 
     await tester.tap(find.text('Ocasiones'));
     await settle(tester);

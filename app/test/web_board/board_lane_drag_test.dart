@@ -367,14 +367,14 @@ void main() {
         expect(
           labels,
           unorderedEquals([
-            'Mover a Por comprar',
-            'Mover a Por llegar',
-            'Mover a Por envolver',
-            'Mover a Listo',
+            'Mover a «Por comprar»',
+            'Mover a «Por llegar»',
+            'Mover a «Por envolver»',
+            'Mover a «Listo»',
           ]),
         );
         // Pedir una la ejecuta.
-        final action = CustomSemanticsAction(label: 'Mover a Por llegar');
+        final action = CustomSemanticsAction(label: 'Mover a «Por llegar»');
         tester.semantics.performAction(
           find.semantics.byPredicate((n) => n.id == node.id),
           SemanticsAction.customAction,

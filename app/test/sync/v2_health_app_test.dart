@@ -109,7 +109,7 @@ void main() {
   )).epoch;
   Future<void> sync() async {
     await SyncV2Engine(transport: client, local: await local()).sync();
-    phone.container.invalidate(localRegistryViewProvider);
+    phone.container.invalidate(localRegistryReadProvider);
   }
 
   setUp(() async {

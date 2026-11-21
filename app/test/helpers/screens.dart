@@ -394,7 +394,7 @@ Future<void> tapText(WidgetTester tester, String text) async {
 }
 
 /// Los textos que abren una hoja de la bienvenida: cada opción vive tras
-/// «Unirme a una familia» o «Restaurar una copia».
+/// «Unirme a una familia» o «Recuperar una copia».
 const _joinChoices = ['Escanear el QR', 'Unirme con un enlace'];
 
 /// En la bienvenida, abre la hoja que contiene [choice] y la elige: la opción
@@ -411,7 +411,7 @@ Future<void> openWelcomeSheet(WidgetTester tester, String choice) async {
     OutlinedButton,
     _joinChoices.contains(choice)
         ? 'Unirme a una familia'
-        : 'Restaurar una copia',
+        : 'Recuperar una copia',
   );
   await tester.ensureVisible(opener);
   await tester.pump();

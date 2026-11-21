@@ -193,7 +193,7 @@ void main() {
       expect(find.text('Pixel de Aritz'), findsOneWidget);
       expect(find.text('Otro móvil'), findsOneWidget);
       expect(
-        find.text('Sin persona: aún no abre las sorpresas'),
+        find.text('Sin persona: aún no ve las sorpresas'),
         findsOneWidget,
       );
       expect(find.text('Conectado a esta familia'), findsNothing);
@@ -341,7 +341,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 700));
         expect(find.text('2'), findsOneWidget);
         expect(find.text('Solo en este móvil'), findsNothing);
-        expect(find.text('Empezará cuando emparejes otro móvil'), findsNothing);
+        expect(find.text('La sincronización empezará cuando conectes otro móvil.'), findsNothing);
         expect(find.text('Pendiente de sincronizar'), findsOneWidget);
         await tester.pumpWidget(const SizedBox());
       });
@@ -386,7 +386,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 700));
         expect(find.text('Solo en este móvil'), findsOneWidget);
         expect(
-          find.text('Empezará cuando emparejes otro móvil'),
+          find.text('La sincronización empezará cuando conectes otro móvil.'),
           findsOneWidget,
         );
         expect(find.text('Pendiente de sincronizar'), findsNothing);

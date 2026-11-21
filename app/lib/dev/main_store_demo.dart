@@ -144,7 +144,6 @@ Future<void> _seed(ProviderContainer container) async {
   );
 
   const shop = ['Juguetería del barrio', 'Joguina del barri', 'Local toy shop'];
-  const decathlon = ['Decathlon', 'Decathlon', 'Decathlon'];
   const books = ['Librería', 'Llibreria', 'Bookshop'];
 
   final gifts = <Gift>[
@@ -177,9 +176,9 @@ Future<void> _seed(ProviderContainer container) async {
       'g3',
       'aritz',
       [
-        'Estación de bomberos de bloques',
-        'Parc de bombers de blocs',
-        'Block fire station',
+        'Kit para montar un robot',
+        'Kit per muntar un robot',
+        'Build-your-own robot kit',
       ],
       giver: 'us',
       occasion: 'seed-santa',
@@ -191,16 +190,12 @@ Future<void> _seed(ProviderContainer container) async {
     gift(
       'g4',
       'aritz',
-      [
-        'Bici de 20" con cambios',
-        'Bici de 20" amb canvis',
-        '20" bike with gears',
-      ],
+      ['Telescopio infantil', 'Telescopi infantil', 'Children\'s telescope'],
       giver: 'grand',
       occasion: 'seed-kings',
       status: GiftStatus.decided,
       planned: 18000,
-      store: decathlon,
+      store: shop,
       surprise: true,
     ),
     gift(
@@ -233,17 +228,17 @@ Future<void> _seed(ProviderContainer container) async {
     gift(
       'g8',
       'nora',
-      ['Cocinita de madera', 'Cuineta de fusta', 'Wooden play kitchen'],
+      ['El Principito', 'El petit príncep', 'The Little Prince'],
       giver: 'us',
       occasion: 'seed-santa',
       status: GiftStatus.wrapped,
-      planned: 6450,
+      planned: 1299,
       actual: 6450,
     ),
     gift(
       'g9',
       'nora',
-      ['Disfraz de hada', 'Disfressa de fada', 'Fairy costume'],
+      ['Bloques magnéticos', 'Blocs magnètics', 'Magnetic building tiles'],
       giver: 'marta',
       occasion: 'birthday-nora',
       status: GiftStatus.bought,
@@ -307,24 +302,28 @@ Future<void> _seed(ProviderContainer container) async {
     gift(
       'g15',
       'aritz',
-      ['Zapatillas de deporte', 'Vambes esportives', 'Running shoes'],
+      ['Circuito de canicas', 'Circuit de bales', 'Marble run'],
       giver: 'marta',
       occasion: 'birthday-aritz',
       status: GiftStatus.bought,
       planned: 3900,
       actual: 3590,
-      store: decathlon,
+      store: shop,
     ),
     gift(
       'g16',
       'aritz',
-      ['Casco para la bici', 'Casc per a la bici', 'Bike helmet'],
+      [
+        'Atlas ilustrado del mundo',
+        'Atles il·lustrat del món',
+        'Illustrated world atlas',
+      ],
       giver: 'us',
       occasion: 'seed-kings',
       status: GiftStatus.wrapped,
       planned: 3500,
       actual: 3500,
-      store: decathlon,
+      store: books,
     ),
     gift(
       'g17',
@@ -356,7 +355,7 @@ Future<void> _seed(ProviderContainer container) async {
     gift(
       'g19',
       'nora',
-      ['Muñeca con carrito', 'Nina amb cotxet', 'Doll with stroller'],
+      ['Microscopio infantil', 'Microscopi infantil', 'Children\'s microscope'],
       giver: 'grand',
       occasion: 'seed-kings',
       status: GiftStatus.decided,
@@ -376,7 +375,7 @@ Future<void> _seed(ProviderContainer container) async {
     gift(
       'g21',
       'nora',
-      ['Zapatillas de ballet', 'Sabatilles de ballet', 'Ballet slippers'],
+      ['Plastilina y moldes', 'Plastilina i motlles', 'Modelling clay set'],
       giver: 'marta',
       occasion: 'seed-kings',
       planned: 2600,
@@ -409,7 +408,11 @@ Future<void> _seed(ProviderContainer container) async {
     gift(
       'g24',
       'leo',
-      ['Camión de arrastre', 'Camió d\'arrossegar', 'Pull-along truck'],
+      [
+        'Arcoíris de madera apilable',
+        'Arc de Sant Martí de fusta',
+        'Wooden stacking rainbow',
+      ],
       giver: 'pere',
       occasion: 'seed-santa',
       status: GiftStatus.arrived,

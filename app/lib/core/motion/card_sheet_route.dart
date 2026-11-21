@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -393,7 +394,28 @@ class _CardSheetPageState extends State<_CardSheetPage>
       // llega cuando la hoja toca fondo.
       _dismissing = true;
       context.haptics.light(after: RegalosCurves.sheetExitDuration);
-      Navigator.of(context).maybePop();
+      // Si la pantalla se niega a cerrarse (cambios sin guardar), la tarjeta
+      // vuelve a su sitio y se puede volver a arrastrar.
+      final route = ModalRoute.of(context);
+      unawaited(
+        Navigator.of(context).maybePop().then((_) {
+          // `maybePop` responde `true` aunque la pantalla se niegue a
+          // cerrarse: lo que cuenta es que la ruta siga ahí.
+          if (!mounted || route == null || !route.isActive) {
+            return;
+          }
+          _dismissing = false;
+          _drag.animateWith(
+            SpringSimulation(
+              RegalosSprings.snap,
+              _drag.value,
+              0,
+              0,
+              snapToEnd: true,
+            ),
+          );
+        }),
+      );
     } else if (_drag.value > 0) {
       // Soltarla a medias: vuelve con un clic cuando el muelle se asienta (un
       // roce de pocos píxeles no vibra).

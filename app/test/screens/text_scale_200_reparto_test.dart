@@ -282,7 +282,7 @@ void main() {
 
           // Ficha de persona.
           final openers = find.bySemanticsLabel(
-            RegExp('^(Abrir la ficha|Obre la fitxa|Open)'),
+            RegExp('^(Abrir la ficha|Obrir la fitxa|Open)'),
           );
           await reveal(openers);
           expect(openers, findsWidgets);

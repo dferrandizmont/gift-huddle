@@ -99,6 +99,18 @@ const _dataFingerprint = <String>[
 ];
 final StrokeIconBuilder tablerFingerprint = svgIcon(_dataFingerprint);
 
+/// `face-id` de Tabler.
+const _dataFaceId = <String>[
+  'M4 8v-2a2 2 0 0 1 2 -2h2',
+  'M4 16v2a2 2 0 0 0 2 2h2',
+  'M16 4h2a2 2 0 0 1 2 2v2',
+  'M16 20h2a2 2 0 0 0 2 -2v-2',
+  'M9 10l.01 0',
+  'M15 10l.01 0',
+  'M9.5 15a3.5 3.5 0 0 0 5 0',
+];
+final StrokeIconBuilder tablerFaceId = svgIcon(_dataFaceId);
+
 /// `backspace` de Tabler.
 const _dataBackspace = <String>[
   'M20 6a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-11l-5 -5a1.5 1.5 0 0 1 0 -2l5 -5l11 0',

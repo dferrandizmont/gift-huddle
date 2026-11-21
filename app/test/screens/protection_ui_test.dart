@@ -2,15 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:regalos/core/sync/device_registry.dart';
+import 'package:regalos/core/sync/hlc.dart';
 import 'package:regalos/core/sync/model.dart';
+import 'package:regalos/core/sync/pairing_v2.dart';
 import 'package:regalos/core/sync/protected_doc.dart';
 import 'package:regalos/features/family/application/family_controller.dart';
 import 'package:regalos/features/family/application/family_providers.dart';
 import 'package:regalos/features/family/application/self_recipient_provider.dart';
+import 'package:regalos/features/family/data/device_keys_store.dart';
+import 'package:regalos/features/family/data/family_store.dart';
 import 'package:regalos/features/family/presentation/protection_actions.dart';
 import 'package:regalos/features/family/presentation/protection_sheet.dart';
 
 import '../helpers/memory_stores.dart' show FakePhone;
+import '../helpers/other_phone.dart';
 import '../helpers/screens.dart';
 import '../helpers/tablet.dart';
 
@@ -158,14 +164,16 @@ class _Family extends FamilyController {
 List<Override> _overrides({
   bool canConfirm = true,
   bool canDeactivate = true,
-  bool available = true,
   ProtectedPersonReason? noraReason,
   bool noraSelectable = true,
+  bool canRequest = true,
+  ProtectedPersonReason? requestReason,
+  bool ownPhone = false,
   Set<String> locked = const <String>{},
 }) => [
   familyControllerProvider.overrideWith(_Family.new),
   protectionActionsProvider.overrideWith(_Actions.new),
-  protectionAvailableProvider.overrideWithValue(available),
+  protectionAvailableProvider.overrideWithValue(true),
   giftRecipientAccessProvider.overrideWith((ref) async {
     final status = ref.watch(_status);
     return [
@@ -175,6 +183,9 @@ List<Override> _overrides({
             recipient: p,
             status: status,
             canSelect: noraSelectable,
+            canRequest: canRequest,
+            requestReason: canRequest ? null : requestReason,
+            viewerIsRecipient: ownPhone,
             reason: noraSelectable ? null : noraReason,
             canConfirm:
                 canConfirm && status == PersonProtectionStatus.requested,
@@ -223,18 +234,18 @@ void main() {
         await pumpRegalos(tester, phone);
         await _openNoraSheet(tester);
         // La fila de la hoja de persona dice el estado de ahora.
-        expect(find.text('Desactivado'), findsOneWidget);
+        expect(find.text('Desactivados'), findsOneWidget);
 
         await tester.tap(find.text('Regalos en secreto'));
         await settle(tester);
         expect(find.text('Regalos en secreto para Nora'), findsOneWidget);
         // Qué significa, en llano.
         expect(
-          find.textContaining('no muestra ningún regalo para Nora'),
+          find.textContaining('Nora no ve en su móvil qué regalos hay para Nora'),
           findsOneWidget,
         );
         expect(
-          find.textContaining('ya recibió antes de activarla'),
+          find.textContaining('ya habían llegado al móvil de'),
           findsOneWidget,
         );
         expect(
@@ -261,7 +272,7 @@ void main() {
         // Desactivar pide confirmación antes de llamar.
         await tapText(tester, 'Desactivar protección');
         expect(
-          find.text('¿Desactivar los regalos en secreto de Nora?'),
+          find.text('¿Desactivar los regalos en secreto para Nora?'),
           findsOneWidget,
         );
         expect(
@@ -306,6 +317,115 @@ void main() {
     );
 
     screenTest(
+      'sin confirmador posible: no hay botón y se explica qué hacer',
+      (tester, phone) async {
+        await seedSample(tester, phone);
+        await pumpRegalos(tester, phone);
+        await _openNoraSheet(tester);
+        await tester.tap(find.text('Regalos en secreto'));
+        await settle(tester);
+        expect(
+          find.byKey(const ValueKey<String>('protectionRequest')),
+          findsNothing,
+        );
+        expect(find.text('Pedir protección'), findsNothing);
+        expect(
+          find.textContaining(
+            'Para proteger los regalos de Nora hace falta un móvil de otra '
+            'persona de la familia.',
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('elige de quién es este móvil'),
+          findsOneWidget,
+        );
+        expect(_actions(phone).calls, isEmpty);
+      },
+      size: tall,
+      overrides: _overrides(
+        canRequest: false,
+        requestReason: ProtectedPersonReason.noConfirmer,
+      ),
+    );
+
+    screenTest(
+      'sin confirmador en el móvil de Nora: no sugiere asignar este móvil',
+      (tester, phone) async {
+        await seedSample(tester, phone);
+        await pumpRegalos(tester, phone);
+        await _openNoraSheet(tester);
+        await tester.tap(find.text('Regalos en secreto'));
+        await settle(tester);
+        expect(
+          find.byKey(const ValueKey<String>('protectionRequest')),
+          findsNothing,
+        );
+        expect(
+          find.textContaining(
+            'Pide a otra persona de la familia que lo haga',
+          ),
+          findsOneWidget,
+        );
+        expect(find.textContaining('elige de quién es este móvil'), findsNothing);
+        expect(
+          find.textContaining('Desde este móvil no se pueden proteger'),
+          findsOneWidget,
+        );
+      },
+      size: tall,
+      overrides: _overrides(
+        canRequest: false,
+        requestReason: ProtectedPersonReason.noConfirmer,
+        ownPhone: true,
+      ),
+    );
+
+    screenTest(
+      'con confirmador posible el botón sigue y no sale la ayuda',
+      (tester, phone) async {
+        await seedSample(tester, phone);
+        await pumpRegalos(tester, phone);
+        await _openNoraSheet(tester);
+        await tester.tap(find.text('Regalos en secreto'));
+        await settle(tester);
+        expect(
+          find.byKey(const ValueKey<String>('protectionRequest')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey<String>('protectionRequestHelp')),
+          findsNothing,
+        );
+      },
+      size: tall,
+      overrides: _overrides(),
+    );
+
+    screenTest(
+      'el rechazo de la petición usa el texto del motivo, no el genérico',
+      (tester, phone) async {
+        await seedSample(tester, phone);
+        await pumpRegalos(tester, phone);
+        _actions(phone).failWith = ProtectedPersonReason.requesterPending;
+        await _openNoraSheet(tester);
+        await tester.tap(find.text('Regalos en secreto'));
+        await settle(tester);
+        await tapText(tester, 'Pedir protección');
+        expect(
+          find.textContaining('Falta que alguien de la familia apruebe'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('No se ha podido cambiar la protección'),
+          findsNothing,
+        );
+      },
+      size: tall,
+      overrides: _overrides(),
+    );
+
+    screenTest(
       'activa sin clave: no se puede desactivar y lo dice',
       (tester, phone) async {
         await seedSample(tester, phone);
@@ -337,7 +457,7 @@ void main() {
         await settle(tester);
         await tapText(tester, 'Pedir protección');
         expect(
-          find.textContaining('no tiene permiso para los regalos en secreto'),
+          find.textContaining('no tiene acceso a los regalos en secreto'),
           findsOneWidget,
         );
         expect(find.text('Pedir protección'), findsOneWidget);
@@ -374,18 +494,148 @@ void main() {
       overrides: _overrides(),
     );
 
+    for (final unreadableKeys in [false, true]) {
+      screenTest('la hoja abierta retira Pedir protección tras el rechazo por '
+          '${unreadableKeys ? 'claves ilegibles' : 'registro ausente'}', (
+        tester,
+        phone,
+      ) async {
+        await seedSample(tester, phone);
+        await tester.runAsync(() async {
+          final store = phone.container.read(familyStoreProvider);
+          final identity = (await store.load())!.identity;
+          final keys = await phone.container
+              .read(deviceKeysStoreProvider)
+              .create();
+          final registry = await DeviceRegistry.empty(identity.listId)
+              .withRecord(
+                await DeviceRecord.create(
+                  keys: keys,
+                  listId: identity.listId,
+                  deviceId: identity.node,
+                  personId: 'aritz',
+                ),
+              );
+          await store.saveRegistry(registry);
+          await store.saveSyncV2(
+            SyncIdentityV2(
+              listId: identity.listId,
+              deviceId: identity.node,
+              syncId: 'AAAAAAAAAAAAAAAAAAAAAA',
+            ),
+          );
+          await changedElsewhere(
+            phone,
+            (doc, clock) => doc.set(
+              clock,
+              Collections.meta,
+              kProtocolRecordId,
+              {kProtocolVersionField: kSyncProtocolV2},
+            ),
+          );
+        });
+
+        await pumpRegalos(tester, phone);
+        await _openNoraSheet(tester);
+        await tapText(tester, 'Regalos en secreto');
+        final request = find.byKey(const ValueKey<String>('protectionRequest'));
+        expect(request, findsOneWidget);
+
+        await tester.runAsync(() async {
+          if (unreadableKeys) {
+            await phone.secrets.write(kDeviceKeysSecret, 'unreadable');
+          } else {
+            await phone.files.delete('family.registry');
+          }
+        });
+        expect(request, findsOneWidget);
+        await tapText(tester, 'Pedir protección');
+        expect(find.text('Regalos en secreto para Nora'), findsOneWidget);
+        expect(request, findsNothing);
+        final help = find.byKey(
+          const ValueKey<String>('protectionRequestHelp'),
+        );
+        expect(tester.widget<Text>(help).data, contains('no está al día'));
+        expect(tester.takeException(), isNull);
+        // Deja terminar los reintentos de los proveedores dependientes.
+        for (var i = 0; i < 4; i++) {
+          await tester.pump(const Duration(seconds: 1));
+        }
+      }, size: tall);
+    }
+
     screenTest(
-      'sin la sincronización nueva la fila no sale',
+      'con identidad mixta la fila abre la explicación sin ofrecer la petición',
       (tester, phone) async {
         await seedSample(tester, phone);
+        await tester.runAsync(() async {
+          final store = phone.container.read(familyStoreProvider);
+          final stored = (await store.load())!;
+          final identity = stored.identity;
+          final keys = await phone.container
+              .read(deviceKeysStoreProvider)
+              .create();
+          await store.saveSyncV2(
+            SyncIdentityV2(
+              listId: identity.listId,
+              deviceId: identity.node,
+              syncId: 'AAAAAAAAAAAAAAAAAAAAAA',
+            ),
+          );
+          final clock = HlcClock(
+            node: identity.node,
+            last: stored.doc.maxStamp,
+          );
+          await store.saveDoc(
+            stored.doc.set(clock, Collections.meta, kProtocolRecordId, {
+              kProtocolVersionField: kSyncProtocolV2,
+            }),
+          );
+          var registry = DeviceRegistry.empty(identity.listId);
+          for (final kind in DeviceKind.values) {
+            registry = await registry.withRecord(
+              await DeviceRecord.create(
+                keys: keys,
+                listId: identity.listId,
+                deviceId: identity.node,
+                personId: null,
+                kind: kind,
+              ),
+            );
+          }
+          await store.saveRegistry(registry);
+          phone.restart();
+        });
+
         await pumpRegalos(tester, phone);
-        await tapText(tester, 'Nora');
-        await tapLabel(tester, 'Editar persona');
-        expect(find.text('Regalos en secreto'), findsNothing);
+        await _openNoraSheet(tester);
+        await tapText(tester, 'Regalos en secreto');
+        expect(find.text('Regalos en secreto para Nora'), findsOneWidget);
+        expect(
+          find.textContaining(
+            'No se sabe con seguridad de quién es este móvil',
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey<String>('protectionRequest')),
+          findsNothing,
+        );
+        expect(tester.takeException(), isNull);
       },
       size: tall,
-      overrides: _overrides(available: false),
     );
+
+    screenTest('sin la sincronización nueva la fila no sale', (
+      tester,
+      phone,
+    ) async {
+      await seedSample(tester, phone);
+      await pumpRegalos(tester, phone);
+      await tapText(tester, 'Nora');
+      await tapLabel(tester, 'Editar persona');
+      expect(find.text('Regalos en secreto'), findsNothing);
+    }, size: tall);
 
     screenTest(
       'la lista de una persona protegida enseña su estado y abre la hoja',
@@ -396,7 +646,7 @@ void main() {
             .read(_status.notifier)
             .set(PersonProtectionStatus.active);
         await tapText(tester, 'Nora');
-        expect(find.text('Activo'), findsOneWidget);
+        expect(find.text('Activos'), findsOneWidget);
         await tapText(tester, 'Regalos en secreto');
         expect(find.text('Protección activa'), findsOneWidget);
       },
@@ -577,16 +827,16 @@ void main() {
         await tester.tap(find.text('Para quién').first);
         await settle(tester);
         expect(
-          find.textContaining('no tiene permiso para los regalos en secreto'),
+          find.textContaining('no tiene acceso a los regalos en secreto'),
           findsOneWidget,
         );
         // Tocarla no la elige.
         await tester.tap(find.text('Nora').last);
         await settle(tester);
-        expect(find.textContaining('no tiene permiso'), findsWidgets);
+        expect(find.textContaining('no tiene acceso'), findsWidgets);
         await tester.tap(find.text('Leo').last);
         await settle(tester);
-        expect(find.textContaining('no tiene permiso'), findsNothing);
+        expect(find.textContaining('no tiene acceso'), findsNothing);
         expect(tester.takeException(), isNull);
       },
       size: tall,
@@ -634,7 +884,7 @@ void main() {
         await tester.enterText(find.byType(TextField).first, 'Cuento');
         await tester.tap(find.text('Guardar'));
         await settle(tester);
-        expect(find.textContaining('han llegado al límite'), findsOneWidget);
+        expect(find.textContaining('Has llegado al límite'), findsOneWidget);
         expect(
           find.textContaining('No se ha guardado el regalo.'),
           findsOneWidget,
@@ -666,7 +916,7 @@ void main() {
         expect(find.text('Nuevo regalo'), findsNothing);
         expect(
           find.text(
-            'Guardado solo en este móvil. Queda pendiente de guardar y compartir.',
+            'Guardado solo en este móvil. Aún falta añadirlo a la lista y compartirlo.',
           ),
           findsOneWidget,
         );
@@ -695,7 +945,7 @@ void main() {
         await tester.tap(find.text('Nora').last);
         await settle(tester);
         expect(
-          find.textContaining('no puede crear ni ver regalos para su propia'),
+          find.textContaining('no puedes añadir ni ver regalos para ti'),
           findsOneWidget,
         );
       },
@@ -736,7 +986,7 @@ void main() {
         await tapText(tester, 'Ver');
         expect(find.text('Regalos pendientes'), findsOneWidget);
         expect(
-          find.textContaining('Si pierdes este móvil antes, se pierden'),
+          find.textContaining('Si pierdes el móvil antes de que se añadan'),
           findsOneWidget,
         );
         expect(find.text('Cocinita de madera'), findsOneWidget);
@@ -763,7 +1013,7 @@ void main() {
         await settle(tester);
         await tapText(tester, 'Ver');
         await tapText(tester, 'Reintentar');
-        expect(find.textContaining('Todavía no cabe'), findsOneWidget);
+        expect(find.textContaining('Todavía no hay sitio'), findsOneWidget);
         expect(find.text('Cocinita de madera'), findsOneWidget);
         expect(find.text('Todo guardado'), findsNothing);
       },
@@ -796,7 +1046,7 @@ void main() {
         expect(find.text('Tren de cartón'), findsOneWidget);
         expect(find.text('Cocinita de madera'), findsNothing);
         expect(
-          find.textContaining('no tiene sitio para guardar más'),
+          find.textContaining('ha llegado a su límite de regalos en secreto'),
           findsOneWidget,
         );
         expect(tester.takeException(), isNull);

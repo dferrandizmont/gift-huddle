@@ -56,7 +56,7 @@ class V2ResolutionActions {
             try {
               await engine.sync();
             } finally {
-              _ref.invalidate(localRegistryViewProvider);
+              _ref.invalidate(localRegistryReadProvider);
             }
             final outcome = engine.unbackedOutcomes[credentialId];
             if (outcome != null) return outcome;
@@ -144,7 +144,7 @@ class V2ResolutionActions {
             },
           );
         } finally {
-          _ref.invalidate(localRegistryViewProvider);
+          _ref.invalidate(localRegistryReadProvider);
         }
       });
 }

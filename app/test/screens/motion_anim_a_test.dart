@@ -49,7 +49,7 @@ void main() {
           .height;
       final full = buyRowHeight();
       await tester.tap(
-        find.bySemanticsLabel('Marcar $title como comprado').first,
+        find.bySemanticsLabel('Marcar como comprado: $title').first,
       );
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 50)),
@@ -94,7 +94,7 @@ void main() {
       await settle(tester);
       const title = 'Bici de 20" con cambios';
       await tester.tap(
-        find.bySemanticsLabel('Marcar $title como comprado').first,
+        find.bySemanticsLabel('Marcar como comprado: $title').first,
       );
       await settle(tester);
       expect(find.text(title), findsOneWidget);

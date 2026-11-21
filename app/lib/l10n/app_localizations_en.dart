@@ -38,11 +38,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Add the people you give gifts to and start their gift lists.';
 
   @override
-  String get emptyFamilyTitle => 'No gifts noted yet';
+  String get emptyFamilyTitle => 'Add people first';
 
   @override
   String get emptyFamilyMessage =>
-      'You will see who gives what to each person here.';
+      'To see who gives what, you need someone to give gifts and someone to receive them.';
 
   @override
   String get emptyOccasionsTitle => 'No occasions';
@@ -101,14 +101,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceOccasionHint =>
-      'An occasion\'s list changes accent and header.';
+      'The list colour and header change to match the occasion.';
 
   @override
   String get appearanceHapticsTitle => 'Vibrations';
 
   @override
   String get appearanceHapticsHint =>
-      'Small taps when you tick, choose or something arrives.';
+      'Your phone vibrates gently when you do things like tick a box or choose an option.';
 
   @override
   String get appearancePreview => 'Preview';
@@ -182,7 +182,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get previewGiftName => 'Block fire station';
+  String get previewGiftName => 'Fire station building set';
 
   @override
   String get previewGiver => 'Us';
@@ -191,7 +191,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get previewOccasion => 'Three Kings\' Day';
 
   @override
-  String get shareEnvelopeText => 'Gift Huddle changes: open it with the app.';
+  String get shareEnvelopeText =>
+      'Open the file in Gift Huddle to see the changes to the list.';
 
   @override
   String get occasionNameTio => 'Tió';
@@ -213,14 +214,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get shareErrorWrongList =>
-      'This package is from another family. Connect the phones with the QR code.';
+      'This file is from another family. Connect the phones with the QR code.';
 
   @override
   String get shareErrorAuth =>
-      'This package cannot be opened. It may be damaged or from another family.';
+      'This file cannot be opened. It may be damaged or from another family.';
 
   @override
-  String get shareErrorTooLarge => 'This package is too large.';
+  String get shareErrorTooLarge => 'This file is too large.';
 
   @override
   String get shareErrorNoFamily =>
@@ -228,15 +229,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get shareErrorClockDrift =>
-      'The other phone has the wrong date or time. Fix it and send the package again.';
+      'The clock on the other phone is ahead. Check the date and time on that phone, then send the list from it again.';
 
   @override
   String get shareErrorLegacyFile =>
-      'This file is from an older version of Gift Huddle and no longer opens. Keep it and ask for it to be sent again from an updated phone.';
+      'This file is from an older version of Gift Huddle. Keep it and ask the sender to create a new file with the updated app and send it to you.';
 
   @override
   String get shareErrorNotReady =>
-      'This phone is not up to date with the family yet. Sync and open the file again.';
+      'This phone is not yet up to date with the family. Sync and try again.';
 
   @override
   String get shareErrorGeneration =>
@@ -248,7 +249,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get shareErrorMissingKey =>
-      'This file cannot be opened yet. It has been kept and will open on its own when you sync.';
+      'This file cannot be opened yet. It has been saved and the app will try again when you sync.';
 
   @override
   String get shareErrorSyncAndReopen =>
@@ -286,10 +287,54 @@ class AppLocalizationsEn extends AppLocalizations {
       'Any fingerprint or face registered on the phone can open the app.';
 
   @override
+  String lockBiometricNamed(String name) {
+    return 'Use $name';
+  }
+
+  @override
+  String lockBiometricHintNamed(String name) {
+    return 'Tap the $name button to unlock the app';
+  }
+
+  @override
+  String get lockBiometricNoticeFace =>
+      'Anyone whose face is registered with Face ID can open the app.';
+
+  @override
+  String get lockBiometricNoticeTouch =>
+      'Anyone with a fingerprint registered with Touch ID can open the app.';
+
+  @override
+  String pinBiometricOfferTitleNamed(String name) {
+    return 'Turn on $name?';
+  }
+
+  @override
+  String get securityBiometricsUnavailableIos =>
+      'Neither Face ID nor Touch ID is set up on this phone.';
+
+  @override
+  String securityBiometricsFailedNamed(String name) {
+    return 'Could not turn it on. Check that $name is set up in the phone\'s Settings.';
+  }
+
+  @override
+  String get giftDiscardTitle => 'Discard changes?';
+
+  @override
+  String get giftDiscardBody => 'You have unsaved changes to this gift.';
+
+  @override
+  String get actionDiscard => 'Discard';
+
+  @override
+  String get giftKeepEditing => 'Keep editing';
+
+  @override
   String get lockLoadError => 'The lock could not be checked.';
 
   @override
-  String get lockRetry => 'Retry';
+  String get lockRetry => 'Try again';
 
   @override
   String lockWrongPin(int count) {
@@ -318,7 +363,7 @@ class AppLocalizationsEn extends AppLocalizations {
       '4 to 6 digits. It protects your list on this phone.';
 
   @override
-  String get pinConfirmTitle => 'Repeat the PIN';
+  String get pinConfirmTitle => 'Re-enter your PIN';
 
   @override
   String get pinMismatch => 'The PINs do not match. Try again.';
@@ -333,7 +378,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get pinSkip => 'Not now';
 
   @override
-  String get pinBiometricOfferTitle => 'Turn on fingerprint or face?';
+  String get pinBiometricOfferTitle => 'Turn on fingerprint or face unlock?';
 
   @override
   String get pinBiometricOfferEnable => 'Turn on';
@@ -381,7 +426,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get fieldFor => 'For';
 
   @override
-  String get fieldGiver => 'Who gives it';
+  String get fieldGiver => 'Giver';
 
   @override
   String get fieldOccasion => 'Occasion';
@@ -419,11 +464,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get giverUs => 'Us';
 
   @override
-  String get giverHouseholdPays => 'Paid by the household';
+  String get giverHouseholdPays => 'Household pays';
 
   @override
   String get giverHouseholdPaysHint =>
-      'If the household pays for it, it counts in the budget.';
+      'Turn this on to count this giver\'s gifts towards the household budget.';
 
   @override
   String countdownDaysForBirthday(int count, String name) {
@@ -446,18 +491,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get obWelcomeBody =>
-      'Note who gives what to each person, so nobody doubles up and nobody is left out.';
+      'Keep track of who gives what to whom. That way, nobody gets the same gift twice and nobody is left out.';
 
   @override
   String get obWelcomePrivacy =>
-      'No accounts. If you sync two phones, the list travels encrypted and only your phones can read it.';
+      'No accounts. When you sync two phones, your list is encrypted so only your phones can read it.';
 
   @override
   String get obDeviceNameLabel => 'Name of this phone';
 
   @override
   String get obDeviceNameHint =>
-      'This is the name the other phone will see. You can change it.';
+      'This name will appear on the other phone. You can change it.';
 
   @override
   String get obStart => 'Get started';
@@ -470,7 +515,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get obPeopleBody =>
-      'Add the people you give gifts to: partner, siblings, nephews, kids… At least one is needed.';
+      'Add the people you give gifts to: partner, siblings, nieces and nephews, kids… You need at least one.';
 
   @override
   String get obPeopleAdd => 'Add a person';
@@ -488,10 +533,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get obGiversBody =>
-      '\"Us\" is already created and paid by the household. Add grandparents, aunts and uncles…';
+      '\"Us\" is already on the list for gifts your household pays for. You can also add grandparents, aunts and uncles.';
 
   @override
-  String get obGiversSuggestions => 'Quick add';
+  String get obGiversSuggestions => 'Suggestions';
 
   @override
   String get obGiverGrandparents => 'Grandparents';
@@ -514,14 +559,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get giverEdit => 'Edit giver';
 
   @override
-  String get giverNameHint => 'Grandparents, Aunt Marta and Jordi…';
+  String get giverNameHint => 'Grandparents, Aunt Nora and Leo…';
 
   @override
   String get obOccasionsTitle => 'When are the gifts?';
 
   @override
   String get obOccasionsBody =>
-      'Pick the usual dates. Birthdays come from the dates you entered.';
+      'Choose when you give gifts. Birthdays appear automatically for anyone whose date of birth you entered.';
 
   @override
   String get obBirthdaysSection => 'Birthdays (created automatically)';
@@ -537,7 +582,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get obAddOccasion => 'Add another date';
 
   @override
-  String get obPinTitle => 'Protect the gifts';
+  String get obPinTitle => 'Lock the app';
 
   @override
   String get obPinBody =>
@@ -550,7 +595,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get obFinishing => 'Setting up your list…';
 
   @override
-  String get obSaveError => 'Could not save. Please try again.';
+  String get obSaveError => 'Could not save. Try again.';
 
   @override
   String get personNew => 'New person';
@@ -698,7 +743,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get giftEditorNoPeople =>
-      'Add the person who will receive the gift first.';
+      'First, add the person who will receive the gift.';
 
   @override
   String get giftRecipientRequired => 'Choose who the gift is for.';
@@ -718,7 +763,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get giftFieldTitleHint => 'Astronaut pyjamas, size 8';
 
   @override
-  String get giftFieldTitleRequired => 'Enter what the gift is.';
+  String get giftFieldTitleRequired => 'Enter a name for the gift.';
 
   @override
   String get giftPriceSection => 'Price';
@@ -742,7 +787,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get giftLinkOpen => 'Open link';
 
   @override
-  String get giftLinkCopied => 'The browser could not be opened. Link copied.';
+  String get giftLinkCopied => 'Could not open the browser. Link copied.';
 
   @override
   String get giftFieldNote => 'Note';
@@ -760,7 +805,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get giftRequestedByOther => 'Someone else…';
 
   @override
-  String get giftRequestedByName => 'Name of who asked';
+  String get giftRequestedByName => 'Their name';
 
   @override
   String get giftRequestNote => 'Request note';
@@ -777,12 +822,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String confirmDeleteTitle(String name) {
-    return 'Delete “$name”?';
+    return 'Delete \"$name\"?';
   }
 
   @override
   String get confirmDeleteBody =>
-      'It is also deleted on your family\'s phones.';
+      'This will also delete the gift from your family\'s other phones.';
 
   @override
   String personCompletionProgress(String occasion, int done, int total) {
@@ -795,14 +840,14 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get giftSaveError => 'Could not save the gift.';
+  String get giftSaveError => 'Could not save the gift. Try again.';
 
   @override
   String get giftDuplicateTitle => 'Possible duplicate';
 
   @override
   String giftDuplicateBody(String title, String person, String giver) {
-    return '\"$title\" looks like a gift already noted for $person ($giver).';
+    return 'This gift may already be on the list for $person as \"$title\". Giver: $giver.';
   }
 
   @override
@@ -850,7 +895,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String familyDuplicateBanner(String person, String title) {
-    return 'Possible duplicate: “$title” for $person';
+    return 'Possible duplicate: \"$title\" for $person';
   }
 
   @override
@@ -905,7 +950,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get budgetCardHint => 'Budget, spent and what is left';
 
   @override
-  String get occasionPeopleSection => 'Each person';
+  String get occasionPeopleSection => 'By person';
 
   @override
   String get occasionToWrap => 'to wrap';
@@ -921,7 +966,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String occasionSplitLabel(String name, String parts) {
-    return '$name\'s split: $parts';
+    return 'Gifts for $name by occasion: $parts';
   }
 
   @override
@@ -929,7 +974,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get occasionPendingEmpty =>
-      'Nothing decided yet. When an idea becomes Decided, it will show up here grouped by store.';
+      'Nothing to buy right now. Gifts marked \"Decided\" appear here, grouped by store.';
 
   @override
   String get occasionStoreNone => 'No store';
@@ -947,7 +992,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get budgetSubtitle =>
-      'You set it for each occasion. Spent adds up the actual price of what the household pays; if something is already bought without an actual price, the planned one counts.';
+      'You can set a budget for each occasion. \"Spent\" adds up the actual prices of gifts the household pays for. If a gift has been bought and its actual price is missing, its planned price counts.';
 
   @override
   String get budgetSubtitleBudgeted =>
@@ -977,14 +1022,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get budgetEmpty =>
-      'There are no household-paid gifts yet. Turn on \"Paid by the household\" for a giver and enter a planned price.';
+      'No gifts count towards the household budget yet. Turn on \"Household pays\" for a giver and add a planned price to the gift.';
 
   @override
   String get occasionBudgetField => 'Budget (optional)';
 
   @override
   String get occasionBudgetHint =>
-      'What you want to spend on this occasion. Leave it empty if there is none.';
+      'What you want to spend on this occasion. Leave it empty if there is no budget.';
 
   @override
   String get budgetFigure => 'Budget';
@@ -1010,7 +1055,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String budgetLeftIfBought(String amount) {
-    return 'If you buy what is left, you will have $amount left';
+    return 'If you buy the remaining gifts, you will have $amount left';
   }
 
   @override
@@ -1020,7 +1065,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String budgetOverIfBought(String amount) {
-    return 'If you buy what is left, you will go over by $amount';
+    return 'If you buy the remaining gifts, you will go over by $amount';
   }
 
   @override
@@ -1041,7 +1086,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get budgetCreateOccasion => 'Create an occasion';
 
   @override
-  String get settingsGivers => 'Who gives';
+  String get settingsGivers => 'Givers';
 
   @override
   String get settingsSecurity => 'Lock';
@@ -1059,7 +1104,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aboutPrivacy =>
-      'No accounts and no ads. Your gifts only leave the phone, always encrypted, if you connect another phone or the web, create a recovery code or send a copy.';
+      'No accounts or ads. Your list only leaves your phone if you connect another phone or the web, create a recovery code or send a copy. It is always encrypted when it leaves your phone.';
 
   @override
   String get aboutPrivacyPolicy => 'Privacy policy';
@@ -1117,7 +1162,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get securityBiometricsFailed =>
-      'Could not turn it on. Check the phone\'s fingerprint or face.';
+      'Could not turn it on. Check that fingerprint or face is set up on the phone.';
 
   @override
   String get securityDisableTitle => 'Turn off the PIN';
@@ -1169,7 +1214,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get scannerWaitingPermission => 'Waiting for camera permission…';
 
   @override
-  String get scannerDeniedTitle => 'The camera is needed';
+  String get scannerDeniedTitle => 'Camera access needed';
 
   @override
   String get scannerDeniedBody =>
@@ -1200,7 +1245,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get joinConflictBody =>
-      'If you join the other phone\'s list, this one is replaced and its gifts are lost. Continue?';
+      'If you join the other phone\'s list, you will lose the list on this phone and all the gifts in it.';
 
   @override
   String get joinReplace => 'Replace and join';
@@ -1241,8 +1286,8 @@ class AppLocalizationsEn extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count changed',
-      one: '$count changed',
+      other: '$count gifts updated',
+      one: '$count gift updated',
     );
     return '$_temp0';
   }
@@ -1252,8 +1297,8 @@ class AppLocalizationsEn extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count deleted',
-      one: '$count deleted',
+      other: '$count gifts deleted',
+      one: '$count gift deleted',
     );
     return '$_temp0';
   }
@@ -1272,7 +1317,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get syncStopConfirmBody =>
-      'This phone leaves the family\'s sync and stops sending and receiving changes; the other phones keep syncing with each other. If it is the last one, the encrypted copy on the server is deleted too. What is on each phone stays as it is. To sync again, connect it once more with another phone of the family.';
+      'This phone will stop sending and receiving changes. The other phones will keep syncing with each other. If this is the last phone still syncing, the app will delete the encrypted copy on the server. Each phone will keep its data. To sync again, reconnect this phone to another phone in the family.';
 
   @override
   String get syncStopDone => 'Sync turned off.';
@@ -1299,7 +1344,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncStatusIdle => 'Waiting to sync';
 
   @override
-  String get syncStatusWaitingPeer => 'Starts when you pair another phone';
+  String get syncStatusWaitingPeer =>
+      'Sync starts when you connect another phone.';
 
   @override
   String get peerConnected => 'Another phone has connected';
@@ -1331,7 +1377,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get syncStatusOffline => 'Offline, it will be sent later';
+  String get syncStatusOffline => 'Offline, changes will be sent later';
 
   @override
   String get syncStatusError => 'Could not sync';
@@ -1341,25 +1387,26 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get syncIssueClockDrift =>
-      'Another phone has the wrong date and time. Fix them on that phone.';
+      'The clock on another phone is ahead. Check the date and time on that phone.';
 
   @override
   String get syncIssueTooLarge => 'The list is too large to sync.';
 
   @override
   String get syncIssueServer =>
-      'The server is not responding properly. It will try again.';
+      'The server is not responding properly. The app will try again.';
 
   @override
   String get syncIssueRateLimited =>
-      'Too many requests in a row. It will try again in a moment.';
+      'Too many sync attempts. The app will try again in a moment.';
 
   @override
   String get syncIssueUnreadable =>
       'The data on the server cannot be opened with this family\'s key.';
 
   @override
-  String get syncIssueUnknown => 'Something went wrong. It will try again.';
+  String get syncIssueUnknown =>
+      'Something went wrong. The app will try again.';
 
   @override
   String get inviteRowTitle => 'Invite someone';
@@ -1373,14 +1420,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get inviteHowItWorks =>
-      'The link carries no key: it only lets someone ask to join. You will get the request with a 6-digit code and you have to accept it. It expires after 24 hours and works for one person.';
+      'The link contains no key. It works for one person and expires after 24 hours. When they ask to join, you will receive their request with a 6-digit code. You decide whether to give them access.';
 
   @override
   String get inviteCreate => 'Create link and invite';
 
   @override
   String get inviteNeedSync =>
-      'To invite remotely, sync must be on and connected.';
+      'To invite someone remotely, you need an internet connection and sync must be on.';
 
   @override
   String get inviteGoToSync => 'Turn sync on';
@@ -1391,11 +1438,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get inviteWaitingTitle => 'Waiting for the link to be opened';
+  String get inviteWaitingTitle => 'Waiting for a request';
 
   @override
   String get inviteWaitingBody =>
-      'When the other person opens it, you will see their request here. You can leave this screen: the invitation stays active until it expires.';
+      'When the other person asks to join, you will see their request here. You can leave this screen. The invitation will stay active until it expires.';
 
   @override
   String inviteExpires(DateTime date, DateTime time) {
@@ -1441,7 +1488,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get inviteRejectedBody =>
-      'You rejected the request. The link no longer works.';
+      'The invitation has been cancelled. The link no longer works.';
 
   @override
   String get inviteExpiredBody => 'The invitation has expired.';
@@ -1486,11 +1533,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'The invitation could not be opened. Ask for a new link.';
 
   @override
-  String get joinInviteUnknown => 'It could not be completed. Try again.';
+  String get joinInviteUnknown => 'Could not finish connecting. Try again.';
 
   @override
   String get joinInviteTaken =>
-      'Someone else has already used this invitation. Ask for a new link.';
+      'Someone else has already asked to join using this link. Ask for a new link.';
 
   @override
   String get joinInviteGone =>
@@ -1712,12 +1759,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String repartoSheetNobodyYet(String giver, String person) {
-    return '$giver is not giving $person anything yet';
+    return 'No gifts from $giver for $person yet';
   }
 
   @override
   String repartoSheetUnassignedHint(String person) {
-    return '$person has gifts with nobody to give them: tap \"Who?\" to assign them.';
+    return 'Some gifts for $person are unassigned. Tap \"Unassigned\" on a gift to choose who gives it.';
   }
 
   @override
@@ -1725,11 +1772,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String repartoSheetSummary(String gifts, String price) {
-    return '$gifts · $price · tap who gives it to change it';
+    return '$gifts · $price · tap a name to change the giver';
   }
 
   @override
-  String get repartoSheetWho => 'Who?';
+  String get repartoSheetWho => 'Unassigned';
 
   @override
   String get repartoSheetNobody => 'Nobody';
@@ -1739,7 +1786,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String repartoSheetNewGiftFrom(String giver) {
-    return 'New gift from $giver';
+    return 'Add gift from $giver';
   }
 
   @override
@@ -1761,7 +1808,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get lockBiometricHint => 'Tap the fingerprint to sign in';
+  String get lockBiometricHint => 'Tap the fingerprint button to unlock';
 
   @override
   String get repartoViewLabel => 'Who gives what view';
@@ -1773,7 +1820,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get repartoViewOccasion => 'By occasion';
 
   @override
-  String get repartoOccasionPackets => 'How many gifts each one opens';
+  String get repartoOccasionPackets => 'Gifts per person';
 
   @override
   String repartoOccasionToBuy(int count) {
@@ -1795,7 +1842,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get repartoOccasionEmptyMessage =>
-      'When you add a gift for this day, you will see here who brings it and how many each person opens.';
+      'Add a gift for this occasion to see who is bringing it and how many gifts each person will open.';
 
   @override
   String repartoPersonSheetLabel(String person) {
@@ -1842,7 +1889,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String familyExcludedStrip(String occasion) {
-    return 'No gifts for $occasion';
+    return 'Not receiving gifts for $occasion';
   }
 
   @override
@@ -1851,11 +1898,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get familyLegendExcluded => 'No gifts';
+  String get familyLegendExcluded => 'Not receiving gifts';
 
   @override
   String repartoOccasionNotGiving(String occasion) {
-    return 'No gifts for $occasion';
+    return 'Not receiving gifts for $occasion';
   }
 
   @override
@@ -1880,7 +1927,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String deleteOccasionTitle(String name) {
-    return 'Delete “$name”?';
+    return 'Delete \"$name\"?';
   }
 
   @override
@@ -1888,23 +1935,25 @@ class AppLocalizationsEn extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Their $count gifts will be deleted too.',
-      one: 'Their gift will be deleted too.',
+      other: 'The $count gifts for this person will also be deleted.',
+      one: 'The gift for this person will also be deleted.',
       zero: '',
     );
     return '$_temp0';
   }
 
   @override
-  String get deleteBirthdayToo => 'Their birthday goes too.';
+  String get deleteBirthdayToo =>
+      'Their birthday will also be removed from the list of occasions.';
 
   @override
   String deleteGiverGifts(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Their $count gifts will be left without a giver.',
-      one: 'Their gift will be left without a giver.',
+      other:
+          'Their $count gifts will stay on the list without an assigned giver.',
+      one: 'Their gift will stay on the list without an assigned giver.',
       zero: '',
     );
     return '$_temp0';
@@ -1928,7 +1977,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get deleteRequestedByToo =>
-      'On the gifts they asked for, who asked is cleared.';
+      'Their name will be removed from the gifts they requested for others.';
 
   @override
   String get deleteGiverBudget =>
@@ -1943,7 +1992,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String giftDeletedNotice(String name) {
-    return '“$name” deleted';
+    return '\"$name\" deleted';
   }
 
   @override
@@ -2026,20 +2075,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get eraseAllServerFailedBody =>
-      'Check the connection and try again. If you delete only this phone, it stays in your family\'s list of phones until another phone removes it, and the encrypted copy stays on the server for the others (or until it expires, if it was the last one).';
+      'Check your connection and try again. If you delete the data on this phone only, the phone will stay in \"Family phones\" until someone removes it from another phone. The server keeps the encrypted copy for the other phones. If this was the last phone, the copy stays there until it expires.';
 
   @override
-  String get eraseAllRetry => 'Retry';
+  String get eraseAllRetry => 'Try again';
 
   @override
-  String get eraseAllLocalOnly => 'Delete this phone only';
+  String get eraseAllLocalOnly => 'Delete on this phone only';
 
   @override
   String get eraseAllFailed => 'Not everything could be deleted. Try again.';
 
   @override
-  String get eraseAllPinPrompt =>
-      'Enter your PIN to continue with the deletion.';
+  String get eraseAllPinPrompt => 'Enter your PIN to continue.';
 
   @override
   String get eraseAllBiometricReason =>
@@ -2091,14 +2139,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncShortOff => 'off';
 
   @override
-  String get archiveSubtitle => 'Off the lists, with their gifts kept.';
+  String get archiveSubtitle =>
+      'Anything you archive comes off the lists but keeps its gifts.';
 
   @override
   String get archiveEmpty => 'Nothing is archived.';
 
   @override
-  String get archiveNote =>
-      'Archiving deletes nothing. Deleting does, for good.';
+  String get archiveNote => 'Archiving deletes nothing. Deleting is permanent.';
 
   @override
   String get devicesSoloTitle => 'Only on this phone';
@@ -2112,7 +2160,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get devicesRecoveryBody =>
-      'The list has an encrypted copy you can restore with your code. Connect another phone to see it on both.';
+      'You can restore an encrypted copy of your list with your code. Connect another phone to see the list on both.';
 
   @override
   String get devicesManualTitle => 'Connected by file or QR';
@@ -2148,7 +2196,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get devicesOfflineTitle => 'Offline';
 
   @override
-  String get devicesOfflineBody => 'Changes will be sent when it is back.';
+  String get devicesOfflineBody =>
+      'Your changes will sync when you are back online.';
 
   @override
   String get devicesConnected => 'Connected';
@@ -2163,7 +2212,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get devicesPeerHint => 'Connected to this family';
 
   @override
-  String get devicesPeerNoPerson => 'No person yet: it does not open surprises';
+  String get devicesPeerNoPerson => 'No person yet: it cannot see surprises';
 
   @override
   String get devicesListError => 'The list of phones could not be read.';
@@ -2178,7 +2227,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get devicesHereTitle => 'It is here';
 
   @override
-  String get devicesHereHint => 'Show it a QR code. It is the quickest way.';
+  String get devicesHereHint =>
+      'Scan a QR code with it. It is the quickest way.';
 
   @override
   String get devicesFarTitle => 'It is far away';
@@ -2199,17 +2249,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get devicesMoreHint => 'Join another family, stop syncing';
 
   @override
-  String get devicesJoinOther => 'Join this phone to another family';
+  String get devicesJoinOther => 'Join another family';
 
   @override
   String get devicesJoinOtherHint => 'Replaces the list on this phone.';
 
   @override
   String get devicesJoinOtherWarning =>
-      'If you join another family, the list on this phone is replaced and its gifts are lost.';
+      'If you join another family, their list will replace the one on this phone. You will lose the gifts from your current list on this phone.';
 
   @override
-  String get devicesScanTitle => 'Scan their QR';
+  String get devicesScanTitle => 'Scan their QR code';
 
   @override
   String get devicesScanHint =>
@@ -2246,7 +2296,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get backupRestoreSubtitle =>
-      'It is merged with what is there: nothing is lost.';
+      'The copy is merged with the list on this phone. Nothing is lost.';
 
   @override
   String get backupPasteTitle => 'Paste from the clipboard';
@@ -2260,14 +2310,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get backupNote =>
-      'The copy is encrypted with the family key: for now it only opens on a phone that is already connected.';
+      'The copy is encrypted with the family key. You can only open it on a phone that is already part of the family.';
 
   @override
   String get pairingV2Preparing => 'Getting the connection ready…';
 
   @override
   String get pairingV2NoticeExpires =>
-      'The code expires after 24 hours and only lets someone ask to join: nobody gets in unless you compare a number with the other phone.';
+      'The invitation expires after 24 hours and only lets someone ask to join. Before giving access, compare the numbers shown on both phones.';
 
   @override
   String get pairingV2FarTitle => 'Share the link';
@@ -2281,7 +2331,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pairingV2WaitingHere =>
-      'Waiting for the other phone to read the code…';
+      'Waiting for the other person to ask to join…';
 
   @override
   String get pairingV2CompareTitle => 'Compare the number';
@@ -2313,7 +2363,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pairingV2HostCancelled =>
-      'It was cancelled and the code no longer works. You can start again.';
+      'The invitation was cancelled and no longer works. You can start again.';
 
   @override
   String get pairingV2HostFailed =>
@@ -2321,7 +2371,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pairingV2NotReady =>
-      'To connect another phone, sync must be on and you need an internet connection.';
+      'To continue, you need an internet connection and sync must be on.';
 
   @override
   String get pairingV2ChooseTitle => 'Whose phone is this?';
@@ -2355,7 +2405,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pairingV2GuestCompareBody =>
-      'Look at the number the other phone shows. It has to be the same as this one. If it is, tap \"They match\".';
+      'Compare this number with the one the other person sees. If they are the same, tap \"They match\".';
 
   @override
   String get pairingV2GuestWaitingApproval =>
@@ -2379,7 +2429,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String pairingV2ClaimTitle(String name) {
-    return 'This phone says it belongs to $name';
+    return 'Is the other phone $name\'s?';
   }
 
   @override
@@ -2399,7 +2449,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pairingV2MigrateBody =>
-      'To connect another phone, this family switches to the new, safer sync. This cannot be undone: the phones that were already connected stop receiving this phone\'s changes until you connect them again, one by one, with \"Connect another phone\". Nothing is lost.';
+      'If you continue, this family switches to the new, safer sync. This cannot be undone. The phones that were already connected stop receiving this phone\'s changes until you connect them again, one by one, with \"Connect another phone\". Nothing is lost.';
 
   @override
   String get pairingV2MigrateContinue => 'Continue';
@@ -2416,7 +2466,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get devicesPeerPending => 'Waiting for approval';
 
   @override
-  String get devicesPeerFrozen => 'Frozen: waiting for approval';
+  String get devicesPeerFrozen => 'Changes on hold: waiting for approval';
 
   @override
   String get devicesPeerReconfirm => 'Confirm whose it is';
@@ -2450,7 +2500,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get deviceReviewDoneBody => 'No phones are left to confirm.';
 
   @override
-  String get deviceDetailOwner => 'Whose it is';
+  String get deviceDetailOwner => 'Belongs to';
 
   @override
   String get deviceDetailNoPerson => 'No person';
@@ -2468,20 +2518,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get deviceStatusPending => 'Waiting for approval';
 
   @override
-  String get deviceStatusFrozen => 'Frozen';
+  String get deviceStatusFrozen => 'Changes on hold';
 
   @override
-  String get deviceStatusReconfirm => 'Needs to be confirmed again';
+  String get deviceStatusReconfirm => 'Owner to be confirmed';
 
   @override
   String get deviceDetailSelfNote =>
-      'This is your phone. To stop syncing it, use “Stop syncing” in “More options”.';
+      'This is your phone. To stop syncing it, use \"Stop syncing\" in \"More options\".';
 
   @override
   String get deviceRemoveTitle => 'Remove this phone';
 
   @override
-  String get deviceRemoveHint => 'It stops receiving the new list.';
+  String get deviceRemoveHint => 'It will stop receiving changes to the list.';
 
   @override
   String get deviceRemoveConfirmTitle => 'Remove this phone?';
@@ -2494,11 +2544,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get deviceRemoveConfirmAction => 'Remove phone';
 
   @override
-  String get deviceRemoveWaitTitle => 'This phone will wait for approval again';
+  String get deviceRemoveWaitTitle => 'Your phone will wait for approval again';
 
   @override
   String get deviceRemoveWaitBody =>
-      'The phone you are about to remove is the only one that approved this phone\'s change of person. If you remove it, this phone will wait for another one in the family to approve it and, until then, it will not open surprises.';
+      'Only the phone you are removing approved the change of person on your phone. If you remove it, you will not see surprises on your phone until another phone in the family approves the change.';
 
   @override
   String get deviceRemoveWaitAction => 'Remove anyway';
@@ -2535,50 +2585,52 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get deviceApprovePersonChanged =>
-      'It changed person. By approving it, it will be able to vouch for other phones in the family from now on.';
+      'The person assigned to this phone has changed. If you approve it, it will be able to approve other phones in the family.';
 
   @override
   String get deviceApproveOrphan =>
-      'It stopped being linked to this phone. If you approve it, it receives the surprises meant for it again.';
+      'You need to confirm again whose it is. If you approve it, it will see the surprises for everyone else again.';
 
   @override
   String get deviceApproveDetached =>
-      'This phone is no longer linked to the family, but it confirmed you. Approve it only if you know it.';
+      'This phone is no longer connected to the family, but it confirmed your phone earlier. Approve it only if you recognise it.';
 
   @override
   String get deviceApproveFrozen =>
-      'Its changes are frozen and deleted items cannot be cleaned up until you approve or remove it.';
+      'Its changes are on hold until you approve it or remove it.';
 
   @override
   String get deviceApprovedSnack => 'Phone approved';
 
   @override
-  String get deviceApproveError => 'The phone could not be approved.';
+  String get deviceApproveError =>
+      'The phone could not be approved. Try again.';
 
   @override
-  String get deviceChangedNotice => 'This phone has changed: review it again.';
+  String get deviceChangedNotice =>
+      'The phone\'s details have changed. Check them again.';
 
   @override
   String get deviceRemovedPendingSnack =>
-      'Removed from this phone. Its access still has to be cut: this happens as soon as there is a connection.';
+      'Phone removed. It will lose access as soon as there is a connection.';
 
   @override
   String get deviceApproveCanVouch =>
-      'Its record has changed: by approving it, it will be able to vouch for other phones in the family from now on.';
+      'The person assigned to it has changed: if you approve it, it will be able to approve other phones in the family.';
 
   @override
   String get webGateConnectTitle => 'Connect this computer';
 
   @override
   String get webGateConnectIntro =>
-      'You pair it with your phone just once. After that you only need your PIN.';
+      'You only need to do this once, with your phone. After that, you will only need the PIN or passphrase you choose.';
 
   @override
   String get webGateStepOpenApp => 'Open Gift Huddle on your phone.';
 
   @override
   String get webGateConnectStep2 =>
-      'Go to Family phones and tap Connect the web app.';
+      'Go to Settings › Family phones and tap \"Connect the web\".';
 
   @override
   String get webGateConnectStep3 => 'Scan this code.';
@@ -2587,7 +2639,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get webGateConnectWaiting => 'Waiting for your phone…';
 
   @override
-  String get webGateCompareTitle => 'Check the code';
+  String get webGateCompareTitle => 'Compare the code';
 
   @override
   String get webGateCompareLabel => 'Verification code';
@@ -2597,7 +2649,8 @@ class AppLocalizationsEn extends AppLocalizations {
       'Check that your phone shows the same code, confirm it here and approve it on your phone too.';
 
   @override
-  String get webGateCompareWaiting => 'Waiting for your phone to approve…';
+  String get webGateCompareWaiting =>
+      'Waiting for you to tap \"They match\" on your phone…';
 
   @override
   String get webGateCompareConfirmed => 'You confirmed the code here';
@@ -2615,7 +2668,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get webGateFailedRejected =>
-      'The phone declined the connection. Start again if you want to retry.';
+      'The connection was declined on your phone. To connect this computer, start again.';
 
   @override
   String get webGateFailedNetwork =>
@@ -2623,7 +2676,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get webGateFailedCancelled =>
-      'The phone cancelled the connection or the invitation is no longer available. Start again and reconnect from your phone.';
+      'The phone cancelled the connection or the code no longer works. Start again and scan the new code with your phone.';
 
   @override
   String get webGateStartAgain => 'Start again';
@@ -2635,7 +2688,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get webGateChoosePinBody =>
-      'Choose a PIN or passphrase to open it. We will ask for it every time you come in.';
+      'Choose a PIN or passphrase. You will need it each time you open Gift Huddle on this computer.';
 
   @override
   String get webGatePinLabel => 'PIN or passphrase';
@@ -2674,7 +2727,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get webGateUnlockBody =>
-      'Enter the PIN or passphrase for this computer.';
+      'Enter the PIN or passphrase you chose for Gift Huddle on this computer.';
 
   @override
   String get webGateUnlock => 'Unlock';
@@ -2706,13 +2759,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get webGateSuspendedBody =>
-      'Unlock it from a phone. Nothing has been deleted.';
+      'To try again, allow it from a phone first. Nothing has been deleted.';
 
   @override
-  String get webGateSuspendedStep2 => 'Go to Family phones and tap Web.';
+  String get webGateSuspendedStep2 =>
+      'Go to Settings › Family phones and tap \"Web\".';
 
   @override
-  String get webGateSuspendedStep3 => 'Tap Allow unlocking again.';
+  String get webGateSuspendedStep3 => 'Tap \"Allow more PIN attempts\".';
 
   @override
   String get webGateRetry => 'Try again';
@@ -2722,7 +2776,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get webGateDisconnectedBody =>
-      'It was removed from the family from a phone, or the list no longer exists.';
+      'Someone used a phone to remove this computer from the family, or the list no longer exists.';
 
   @override
   String webGateDisconnectedUnsent(int count) {
@@ -2730,9 +2784,9 @@ class AppLocalizationsEn extends AppLocalizations {
       count,
       locale: localeName,
       other:
-          '$count changes that were not uploaded are saved on this computer, encrypted.',
+          '$count changes have not been uploaded. They are stored encrypted on this computer.',
       one:
-          '$count change that was not uploaded is saved on this computer, encrypted.',
+          '$count change has not been uploaded. It is stored encrypted on this computer.',
     );
     return '$_temp0';
   }
@@ -2741,29 +2795,30 @@ class AppLocalizationsEn extends AppLocalizations {
   String get webGateReconnect => 'Connect again';
 
   @override
-  String get webGateErase => 'Erase this computer\'s data';
+  String get webGateErase => 'Delete Gift Huddle data on this computer';
 
   @override
-  String get webGateEraseTitle => 'Erase this computer\'s data?';
+  String get webGateEraseTitle => 'Delete Gift Huddle data on this computer?';
 
   @override
   String get webGateEraseBody =>
-      'Everything Gift Huddle keeps here is erased. This cannot be undone.';
+      'Everything Gift Huddle keeps on this computer will be deleted. This cannot be undone.';
 
   @override
   String get webGateEraseBodyUnsent =>
-      'Everything Gift Huddle keeps here is erased, including changes that were not uploaded. This cannot be undone.';
+      'Everything Gift Huddle keeps on this computer will be deleted, including changes that have not been uploaded. This cannot be undone.';
 
   @override
-  String get webGateDamagedTitle => 'The data on this computer is damaged';
+  String get webGateDamagedTitle =>
+      'The Gift Huddle data on this computer is damaged';
 
   @override
   String get webGateDamagedBody =>
-      'It cannot be read safely. To continue, erase it and connect this computer again from a phone. Changes that were not uploaded will be lost.';
+      'Gift Huddle cannot read it safely. To continue, delete the data and connect this computer again from a phone. You will lose any changes that have not been uploaded.';
 
   @override
   String get webGateDamagedPhoneHint =>
-      'On your phone, remove the previous web entry under Family phones.';
+      'On your phone, go to Settings › Family phones and remove the old web app.';
 
   @override
   String get webGateOtherTabTitle => 'Gift Huddle is open in another tab';
@@ -2807,7 +2862,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get webSettingsChangeFailed => 'Could not change it. Try again.';
 
   @override
-  String get webSettingsPinChanged => 'PIN changed.';
+  String get webSettingsPinChanged => 'PIN or passphrase changed.';
 
   @override
   String get webSettingsLockNow => 'Lock now';
@@ -2817,21 +2872,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get webSettingsForgetHint =>
-      'It leaves the family and its stored data is erased.';
+      'Removes this computer from the family and deletes the Gift Huddle data stored on it.';
 
   @override
   String get webSettingsForgetTitle => 'Forget this computer?';
 
   @override
   String get webSettingsForgetBody =>
-      'This computer will leave the family and everything Gift Huddle keeps on it will be erased, including changes that were not uploaded. Nothing changes on your phones. To use it again you will have to connect it again.';
+      'This computer will leave the family. Gift Huddle will delete its data on this computer, including changes that have not been uploaded. Nothing changes on your phones. To use Gift Huddle here again, you will have to reconnect this computer.';
 
   @override
   String get webSettingsForgetConfirm => 'Forget';
 
   @override
   String get webSettingsPersistenceDenied =>
-      'The browser could erase this computer\'s data if it runs low on space.';
+      'If space runs low, your browser may delete the data Gift Huddle stores here.';
 
   @override
   String webSetAsideNotice(int count) {
@@ -2848,7 +2903,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get webGateChoosePinCheck =>
-      'If your phone did not show the same code, do not continue: tap Start again.';
+      'If the codes did not match, do not continue: select \"Start again\".';
 
   @override
   String get webGateRestartTitle => 'Start again?';
@@ -2866,9 +2921,9 @@ class AppLocalizationsEn extends AppLocalizations {
       count,
       locale: localeName,
       other:
-          'There were $count failed attempts to unlock this computer since the last time. If it was not you, change the PIN.',
+          'There have been $count failed attempts since Gift Huddle was last unlocked on this computer. If that was not you, change your PIN.',
       one:
-          'There was $count failed attempt to unlock this computer since the last time. If it was not you, change the PIN.',
+          'There has been $count failed attempt since Gift Huddle was last unlocked on this computer. If that was not you, change your PIN.',
     );
     return '$_temp0';
   }
@@ -2906,7 +2961,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get connectWebWhoseBody =>
-      'Choose who will use it. The computer connects as theirs.';
+      'Choose who will use the list on the computer.';
 
   @override
   String get connectWebNoPeople =>
@@ -2917,7 +2972,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get connectWebCompareBody =>
-      'The computer shows a code. It must be the same as this one. If it is, tap “They match”; if not, “They do not match”.';
+      'The computer shows a code. It must be the same as this one. If it is, tap \"They match\"; if not, \"They do not match\".';
 
   @override
   String get connectWebApproving => 'Giving the computer access…';
@@ -2931,28 +2986,28 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get connectWebNewQr =>
-      'This code is no longer valid. On the computer, tap Start again and scan the new one.';
+      'This code is no longer valid. On the computer, select \"Start again\". Scan the new code with your phone.';
 
   @override
   String get connectWebScanAgain => 'Scan another code';
 
   @override
   String get connectWebFailed =>
-      'The computer could not be connected. On the computer, tap Start again and scan the new code.';
+      'The computer could not be connected. Select \"Start again\" on the computer. Scan the new code with your phone.';
 
   @override
   String get connectWebCancelled =>
-      'It was cancelled and the code no longer works. On the computer, tap Start again.';
+      'The connection was cancelled and the code no longer works. On the computer, select \"Start again\".';
 
   @override
-  String get deviceWebResume => 'Allow unlocking again';
+  String get deviceWebResume => 'Allow more PIN attempts';
 
   @override
   String get deviceWebResumeHint =>
-      'If the computer was suspended after too many PIN attempts. Nothing is deleted.';
+      'If the web app no longer accepts the PIN after too many failed attempts. Nothing is deleted.';
 
   @override
-  String get deviceWebResumeTitle => 'Allow unlocking again?';
+  String get deviceWebResumeTitle => 'Allow more PIN attempts?';
 
   @override
   String get deviceWebResumeBody =>
@@ -2962,18 +3017,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get deviceWebResumeConfirm => 'Allow';
 
   @override
-  String get deviceWebResumeDone => 'Done. The computer can be unlocked again.';
+  String get deviceWebResumeDone => 'Done. The web app accepts the PIN again.';
 
   @override
   String get deviceWebResumeError =>
-      'That did not work. Check your connection and try again.';
+      'Could not allow more PIN attempts. Check your connection and try again.';
 
   @override
   String get deviceRemoveWebTitle => 'Remove this web app';
 
   @override
   String get deviceRemoveWebHint =>
-      'This computer stops receiving the new list.';
+      'This computer will stop receiving changes to the list.';
 
   @override
   String get deviceRemoveWebConfirmTitle => 'Remove this web app?';
@@ -2990,7 +3045,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get deviceRemovedWebPendingSnack =>
-      'Removed from this phone. Its access still has to be cut: this happens as soon as there is a connection.';
+      'Web app removed. The computer will lose access as soon as there is a connection.';
 
   @override
   String get deviceRemoveWebError =>
@@ -3003,8 +3058,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get webSyncOffline => 'Offline';
 
   @override
-  String get webSyncAwaitingConfirm =>
-      'This computer is waiting for a phone to confirm it';
+  String get webSyncAwaitingConfirm => 'Awaiting confirmation from a phone';
 
   @override
   String get webOperationUnavailable =>
@@ -3015,7 +3069,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String selfChangeConfirmIntro(String name) {
-    return 'You are about to say this phone belongs to $name. That changes what it can see, not just the name.';
+    return 'You are about to say this phone belongs to $name. This changes which gifts and surprises you can see on it.';
   }
 
   @override
@@ -3033,7 +3087,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get selfChangeEffectWait =>
-      'Until another phone in the family approves it, this phone will not see anyone\'s surprises.';
+      'You will not see anyone\'s surprises on this phone until the change is approved from another family phone.';
 
   @override
   String get selfChangeEffectReconfirm =>
@@ -3065,18 +3119,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get selfChangeExhaustedBody =>
-      'This phone has reached the limit for changing who it belongs to. To choose someone else, connect it to the family again as a new phone, using another family phone in person.';
+      'You have reached the limit for changing who this phone belongs to. To choose someone else, connect it to the family again as a new phone. You will need another family phone with you.';
 
   @override
   String get selfWaitingHint => 'Waiting for approval from another phone';
 
   @override
-  String get healthRevokedTitle =>
-      'Another phone in the family removed this one';
+  String get healthRevokedTitle => 'This phone was removed from the family';
 
   @override
   String get healthRevokedBody =>
-      'What you have saved is still on this phone, but it no longer syncs. Retrying will not help: it has to be connected again with another phone in the family, in person.';
+      'Your data is still on this phone. To sync again, reconnect it to another phone in the family in person.';
 
   @override
   String get healthRevokedAction => 'Connect again';
@@ -3091,7 +3144,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get healthFrozenBody =>
-      'Nothing has been lost. To show surprises, this phone must be assigned to someone in the family and approved by another family phone.';
+      'Nothing has been lost. The surprises will show again once you have chosen who this phone belongs to and another phone in the family has approved it.';
 
   @override
   String healthNamesAnd(String head, String last) {
@@ -3105,7 +3158,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get healthResolveSection => 'To resolve';
 
   @override
-  String get healthUnbackedTitle => 'Access with no backing';
+  String get healthUnbackedTitle => 'Unidentified access';
 
   @override
   String get healthUnbackedBody =>
@@ -3152,7 +3205,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Could not complete. Check the connection and try again.';
 
   @override
-  String get healthRetry => 'Retry';
+  String get healthRetry => 'Try again';
 
   @override
   String get healthUnbackedNotNeeded =>
@@ -3186,7 +3239,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String protectionIntro(String name) {
-    return 'With secret gifts on, $name\'s phone shows no gifts for $name, not even how many there are. The rest of the family still sees them.';
+    return 'With protection on, $name\'s phone shows no gifts for $name, not even how many there are.';
   }
 
   @override
@@ -3195,7 +3248,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String protectionEffectKept(String name) {
-    return 'Gifts that $name\'s phone already received before this was turned on cannot be removed from it.';
+    return 'Protection cannot take back gifts that had already reached $name\'s phone.';
   }
 
   @override
@@ -3255,6 +3308,40 @@ class AppLocalizationsEn extends AppLocalizations {
       'The protection could not be changed. Nothing was modified.';
 
   @override
+  String protectionNeedConfirmer(String name) {
+    return 'To protect the gifts for $name, the family needs a phone that belongs to someone else. In Settings, choose whose phone this is under \"This phone belongs to\". Then approve the change from another phone, or connect another phone to the family. If you have already done that, sync.';
+  }
+
+  @override
+  String protectionNeedConfirmerOwn(String name) {
+    return 'Protection for $name\'s gifts cannot be turned on from this phone. Ask someone else in the family to do it from theirs.';
+  }
+
+  @override
+  String protectionRequesterPending(String name) {
+    return 'Someone in the family still has to approve the change to \"This phone belongs to\" from another phone. Until then, you cannot request protection for $name\'s gifts.';
+  }
+
+  @override
+  String protectionRequesterRevoked(String name) {
+    return 'This phone is no longer part of the family, so it cannot request protection for the gifts for $name.';
+  }
+
+  @override
+  String protectionRequesterAmbiguous(String name) {
+    return 'It is not clear whose phone this is, so it cannot request protection for the gifts for $name. Sync and try again.';
+  }
+
+  @override
+  String protectionRecipientUnavailable(String name) {
+    return '$name is no longer on the list. Protection for their gifts cannot be requested.';
+  }
+
+  @override
+  String get protectionRegistryUnavailable =>
+      'This phone is not yet up to date with the family. Sync and try again.';
+
+  @override
   String secretBlockTitle(String name) {
     return 'Secret gifts for $name';
   }
@@ -3269,12 +3356,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String protectionReason_noEntitlement(String name) {
-    return 'This phone has no permission for $name\'s secret gifts. Ask another family phone that has permission.';
+    return 'This phone cannot access the secret gifts for $name. Ask for help from someone in the family whose phone has permission.';
   }
 
   @override
   String protectionReason_ownRequestsRestricted(String name) {
-    return 'This phone belongs to $name: its gifts cannot be created or seen here while they are secret.';
+    return 'This phone belongs to $name. You cannot create or view secret gifts for $name here.';
   }
 
   @override
@@ -3299,17 +3386,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String protectionReason_giftTooLarge(String name) {
-    return 'This gift is too large to keep secret. Shorten the notes.';
+    return 'Shorten the notes so you can save this as a secret gift.';
   }
 
   @override
   String protectionReason_writerSlotsFull(String name) {
-    return 'This phone has no room left to store more secret gifts. Ask another phone with permission to add them.';
+    return 'This phone has reached its limit for secret gifts. Ask someone to add new gifts from another phone that has permission.';
   }
 
   @override
   String protectionReason_slotsFull(String name) {
-    return 'There is no room right now for more of the family\'s secret gifts.';
+    return 'No more secret gifts can be added to the family\'s list right now.';
   }
 
   @override
@@ -3322,21 +3409,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get giftSavedLocally =>
-      'Saved on this phone only. It is waiting to be stored and shared.';
+      'Saved on this phone only. The gift isn\'t on the list yet and hasn\'t been shared.';
 
   @override
-  String get giftSavedLocallyAction => 'See pending';
+  String get giftSavedLocallyAction => 'See pending gifts';
 
   @override
   String get giftOwnRequestRestricted =>
-      'While protection is on, this phone cannot create or see gifts for its own person. Ask someone else in the family.';
+      'While protection is on, you cannot add or view gifts for yourself on this phone. Ask someone else in the family to add the gift.';
 
   @override
   String get pendingGiftsTitle => 'Pending gifts';
 
   @override
   String get pendingGiftsIntro =>
-      'These gifts are stored encrypted on this phone only. Until they are stored and shared with the family, other phones do not see them. If you lose this phone first, they are lost.';
+      'These gifts are encrypted and saved only on this phone. They are not on the shared family list yet. If you lose the phone before they are added to the list, you will lose these gifts too.';
 
   @override
   String get pendingGiftsRetry => 'Try again';
@@ -3346,14 +3433,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pendingGiftsStill =>
-      'It still does not fit. Nothing was published and the gifts stay on this phone.';
+      'There is still no room. The gifts are still saved only on this phone.';
 
   @override
   String get pendingGiftsRetryError =>
-      'The retry failed. The gifts are still stored on this phone.';
+      'The retry failed. The gifts are still saved on this phone.';
 
   @override
-  String get pendingGiftsDoneTitle => 'All stored';
+  String get pendingGiftsDoneTitle => 'All saved';
 
   @override
   String get pendingGiftsDoneBody => 'No gifts are pending any more.';
@@ -3363,8 +3450,8 @@ class AppLocalizationsEn extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count gifts waiting to be stored',
-      one: '$count gift waiting to be stored',
+      other: '$count gifts waiting to be saved',
+      one: '$count gift waiting to be saved',
     );
     return '$_temp0';
   }
@@ -3421,12 +3508,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String boardMoveTo(String lane) {
-    return 'Move to $lane';
+    return 'Move to \"$lane\"';
   }
 
   @override
   String boardLaneAdd(String lane) {
-    return 'Add gift to $lane';
+    return 'Add gift to \"$lane\"';
   }
 
   @override
@@ -3497,7 +3584,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get boardRepartoDuplicates => 'Possible duplicates';
 
   @override
-  String get boardRepartoDuplicatesNone => 'No gift looks repeated.';
+  String get boardRepartoDuplicatesNone => 'No duplicates found.';
 
   @override
   String boardRowMore(String name) {
@@ -3520,35 +3607,35 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tour1Body =>
-      'Pick who it is for, which occasion and who gives it. An idea is enough.';
+      'Choose who the gift is for, the occasion and the giver. You can start with just an idea.';
 
   @override
   String get tour2Title => 'Mark it as bought';
 
   @override
   String get tour2Body =>
-      'Tap the checkbox and the gift leaves “Still to buy” and moves to “to arrive”. If you get it wrong, undo it right away.';
+      'Tap the checkbox and the gift leaves \"Still to buy\" and moves to \"to arrive\". If you get it wrong, undo it right away.';
 
   @override
   String get tour3Title => 'People and occasions';
 
   @override
   String get tour3Body =>
-      'Each person has their own list. Christmas, Three Kings and birthdays sort it, and the split shows who pays for what.';
+      'Each person\'s list groups gifts by occasion, such as Christmas, Three Kings Day or birthdays. \"Who gives what\" shows who pays for each gift.';
 
   @override
   String get tour4Title => 'The family shares the list';
 
   @override
   String get tour4Body =>
-      'Connect another phone with a QR code, in person. Everything travels encrypted and changes arrive on their own.';
+      'Connect another phone in person using a QR code. Changes sync automatically, and everything sent between the phones is encrypted.';
 
   @override
   String get tour5Title => 'Surprises stay safe';
 
   @override
   String get tour5Body =>
-      'Each person\'s phone cannot see their own gifts. PIN or biometrics, no accounts, no ads.';
+      'Gifts for you do not appear on your phone. You can lock the app with a PIN or biometrics. No accounts or ads.';
 
   @override
   String get tour6Title => 'On the computer too';
@@ -3564,7 +3651,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tourDemoPuzzle => 'Puzzle';
 
   @override
-  String get tourDemoPajamas => 'Pajamas';
+  String get tourDemoPajamas => 'Pyjamas';
 
   @override
   String get tourDemoChristmas => 'Christmas';
@@ -3579,7 +3666,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tourDemoEncrypted => 'Encrypted';
 
   @override
-  String get tourDemoHidden => 'Hidden gifts';
+  String get tourDemoHidden => 'Secret gifts';
 
   @override
   String get settingsRecovery => 'Recovery code';
@@ -3601,13 +3688,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoveryUnconfirmedBody =>
-      'The code does not count as saved yet. Continue to check the words, or check a file you already saved. If the words have already been shown, a new code will be created and the old one will stop working.';
+      'The code does not count as saved yet. If you saved a file, you can check it. Otherwise, continue with the words: if you have already seen them, continuing will create a new code and the old one will stop working.';
 
   @override
   String get recoveryValueAttention => 'Check';
 
   @override
-  String get recoveryValueTransferred => 'Moved';
+  String get recoveryValueTransferred => 'List moved';
 
   @override
   String get recoverySubtitle => 'To get the list back on a new phone.';
@@ -3618,7 +3705,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoveryAbsentBody =>
-      'With 24 words you can get the list, and everything this phone can see, back on another phone. If this is your only phone, an encrypted copy is saved on the server: without the words, nobody can read it.';
+      'With 24 words, you can recover the list on another phone, including everything you can see on this one. If this is your only phone, an encrypted copy is saved on the server. No one can read it without the words.';
 
   @override
   String get recoveryAbsentWarn =>
@@ -3651,14 +3738,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get recoveryChangeHint => 'Earlier files and words will stop working.';
 
   @override
-  String get recoveryRemove => 'Remove the code';
+  String get recoveryRemove => 'Delete the code';
 
   @override
   String get recoveryRemoveHint =>
       'The words will stop working and the copy is deleted.';
 
   @override
-  String get recoveryRemoveTitle => 'Remove the recovery code?';
+  String get recoveryRemoveTitle => 'Delete the recovery code?';
 
   @override
   String get recoveryRemoveBody =>
@@ -3669,10 +3756,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Since no other phone or web app is connected, the encrypted copy of the list is also deleted from the server and the list is only on this phone again.';
 
   @override
-  String get recoveryRemoveConfirm => 'Remove code';
+  String get recoveryRemoveConfirm => 'Delete code';
 
   @override
-  String get recoveryRemoved => 'Code removed';
+  String get recoveryRemoved => 'Code deleted';
 
   @override
   String get recoveryRetry => 'Try again';
@@ -3685,7 +3772,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoveryIntroBody =>
-      'You will see 24 words. With them you can get the list, and everything this phone can see, back on another phone.';
+      'You will see 24 words. You can use them to recover the list on another phone, including everything you can see on this one.';
 
   @override
   String get recoveryRotateBody =>
@@ -3813,7 +3900,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoveryProblemOfflineBody =>
-      'The server could not be reached. Check your connection and try again; what was done so far is kept.';
+      'The app could not reach the server. Your progress is saved. Check your connection and try again.';
 
   @override
   String get recoveryProblemWrongTitle => 'That code does not open any list';
@@ -3827,7 +3914,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoveryProblemRetiredBody =>
-      'It was changed or removed from another phone. Look for the latest code.';
+      'It was changed or deleted from another phone. Look for the latest code.';
 
   @override
   String get recoveryProblemRemovedTitle =>
@@ -3835,7 +3922,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoveryProblemRemovedBody =>
-      'This phone was removed from the list, so it cannot be recovered with this code.';
+      'This code is from a phone that was removed from the family. It can no longer be used to recover the list.';
 
   @override
   String get recoveryProblemIncompleteTitle => 'The recovery stopped halfway';
@@ -3869,10 +3956,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoveryProblemOtherBody =>
-      'It could not be finished. Try again; if it stays the same, try later.';
+      'Try again. If the problem continues, try again later.';
 
   @override
-  String get obHaveRecoveryCode => 'I have a recovery code';
+  String get obHaveRecoveryCode => 'Use a recovery code';
 
   @override
   String get recoverTitle => 'Get the list back';
@@ -3902,18 +3989,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String recoverWordUnknown(int number) {
-    return 'Word $number is not on the list.';
+    return 'Check the spelling of word $number.';
   }
 
   @override
   String get recoverChecksum =>
-      'The words do not make a valid code. Check the order and that none is missing.';
+      'These words do not form a valid code. Check that the words and their order match your recovery code.';
 
   @override
-  String get recoverPasteEmpty => 'Nothing is copied.';
+  String get recoverPasteEmpty => 'There is no text to paste.';
 
   @override
-  String get recoverPasteWrong => 'What is copied does not have 24 words.';
+  String get recoverPasteWrong =>
+      'The copied text does not have 24 words. Copy the whole code and paste it again.';
 
   @override
   String get recoverQrWrong => 'That QR is not a recovery code.';
@@ -3941,14 +4029,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get recoverStepDownload => 'Downloading the list';
 
   @override
-  String get recoverStepInstall => 'Setting up this phone';
+  String get recoverStepInstall => 'Saving the list on this phone';
 
   @override
   String get recoverDoneTitle => 'List recovered';
 
   @override
   String recoverDoneSelf(String name) {
-    return 'This phone is $name\'s.';
+    return 'This phone belongs to $name.';
   }
 
   @override
@@ -3973,11 +4061,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get recoverOtherCode => 'Enter another code';
 
   @override
-  String get transferredTitle => 'This list has moved to another phone';
+  String get transferredTitle => 'This list has moved';
 
   @override
   String get transferredBody =>
-      'Your list is now on another phone or in another app, and this app is no longer used for it. What you see here is a read-only copy: nothing has been deleted.';
+      'Your list is now on another phone or in another app. You can still view it here, but you can no longer edit it. Nothing has been deleted.';
 
   @override
   String get transferredReadOnly => 'Read only';
@@ -4002,7 +4090,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoverReplaceBody =>
-      'This code belongs to another family. If you continue, that family\'s list will replace the list on this phone. The previous list is kept on the phone, but it stops being shown.';
+      'This code belongs to another family. If you continue, you will see their list on this phone. Your current list will stay on the phone, but you will no longer see it.';
 
   @override
   String get recoverReplaceConfirm => 'Replace';
@@ -4015,7 +4103,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoverAbandonBody =>
-      'Temporary data from this recovery will be discarded on this phone. Cancelling will not reactivate the previous phone if it has already become read-only. You can enter the code again.';
+      'If you cancel, this phone will delete the temporary recovery data. If the list is already read-only on your previous phone, it will stay that way. You can use the code again.';
 
   @override
   String get recoverAbandonConfirm => 'Cancel recovery';
@@ -4025,11 +4113,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoverAbandonFailed =>
-      'It could not be cancelled. Try again in a moment.';
+      'Something went wrong. Try again in a moment.';
 
   @override
   String get recoverAbandonBodyClaimed =>
-      'The list has already moved to this code and the other phone has become read-only; cancelling does not undo that. To use it you will have to enter the code again.';
+      'The list is already read-only on the other phone. It will stay that way if you cancel. To recover the list, you will need to use this code again.';
 
   @override
   String get recoveryWordsWarnNoBlock =>
@@ -4043,11 +4131,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'It stays half done on this phone. You can resume or cancel it from the welcome screen.';
 
   @override
-  String get recoverPendingTitle => 'A recovery is in progress';
+  String get recoverPendingTitle => 'Recovery paused';
 
   @override
   String get recoverPendingBody =>
-      'It was left half done on this phone. Resume or cancel it before creating a family or joining another.';
+      'You have an unfinished recovery on this phone. Resume or cancel it before creating a family or joining another.';
 
   @override
   String get recoverResume => 'Resume';
@@ -4073,17 +4161,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get recoveryMaintCancelConfirm => 'Cancel preparation';
 
   @override
-  String get recoveryRemoveAuthMessage => 'Enter your PIN to remove the code.';
+  String get recoveryRemoveAuthMessage => 'Enter your PIN to delete the code.';
 
   @override
   String get recoveryRemoveBiometric =>
-      'Confirm you want to remove the recovery code';
+      'Confirm you want to delete the recovery code';
 
   @override
   String get transferredRecover => 'Recover with my code';
 
   @override
-  String get transferredErase => 'Erase everything on this phone';
+  String get transferredErase => 'Delete this app\'s data';
 
   @override
   String get recoverStepDoneValue => 'done';
@@ -4099,7 +4187,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoveryFileBody =>
-      'As well as the words, you can save the code in a file. Whoever has the file can get the list back and sign in as this phone.';
+      'You can also save the code in a file. Anyone who can open it can recover the list with the same access you have on this phone.';
 
   @override
   String get recoveryFilePersonal =>
@@ -4135,7 +4223,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoveryFilePasswordForgot =>
-      'If you forget the password, the file is useless. The 24 words will still work.';
+      'If you forget the password, you will not be able to open the file. You can still recover the list with the 24 words.';
 
   @override
   String recoveryFilePwTooShort(int min) {
@@ -4184,11 +4272,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get recoveryFileStem => 'gift-huddle-recovery';
 
   @override
-  String get recoveryFileDerivingTitle => 'Protecting the file…';
+  String get recoveryFileDerivingTitle => 'Processing the file…';
 
   @override
   String get recoveryFileDerivingBody =>
-      'The password key is being prepared. It takes a few seconds; do not close the app.';
+      'Keep the app open. This step takes a few seconds.';
 
   @override
   String get recoveryFileSavedTitle => 'File saved';
@@ -4203,7 +4291,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoveryFileProblemVerifyBody =>
-      'What was read back does not match. Save it again, maybe somewhere else.';
+      'The file was not saved correctly. Save it again, maybe somewhere else.';
 
   @override
   String get recoveryFileProblemUnreadableTitle => 'The file could not be read';
@@ -4218,10 +4306,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoveryFileProblemUnavailableBody =>
-      'Try Share or use the 24 words.';
+      'Try \"Share\" or use the 24 words.';
 
   @override
-  String get recoveryFileProblemPickerBusyTitle => 'A picker is already open';
+  String get recoveryFileProblemPickerBusyTitle =>
+      'A file picker is already open';
 
   @override
   String get recoveryFileProblemPickerBusyBody => 'Close it and try again.';
@@ -4253,7 +4342,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoveryFileProblemNotCurrentBody =>
-      'It was saved with an earlier code and no longer works. Look for a newer one or change the code.';
+      'This file contains an old code and no longer works. Look for a newer file or change the code.';
 
   @override
   String get recoveryFileProblemHasFamilyTitle =>
@@ -4261,7 +4350,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoveryFileProblemHasFamilyBody =>
-      'A recovery file is for an empty phone. It was not used.';
+      'A recovery file only works on a phone that has no list yet. The file was not used.';
 
   @override
   String get recoveryCheckFileAction => 'Check a file';
@@ -4271,7 +4360,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoveryCheckFileBody =>
-      'Choose the recovery file you saved. If it opens this phone\'s code, the code is checked. Nothing is saved or sent.';
+      'Choose the recovery file you saved. The app will check whether it contains this phone\'s recovery code. Nothing is saved or sent.';
 
   @override
   String get recoveryFilePick => 'Choose file';
@@ -4297,10 +4386,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoveryCheckFileOkBody =>
-      'The file opens this phone\'s code. If you lose the phone, you can get the list back with it.';
+      'The file contains this phone\'s recovery code. If you lose the phone, you can use the file to get the list back.';
 
   @override
-  String get obRecoverWithFile => 'Recover with a file';
+  String get obRecoverWithFile => 'Use a recovery file';
 
   @override
   String get recoverFileTitle => 'Recover with a file';
@@ -4317,31 +4406,31 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoverFileConfirmBody =>
-      'This phone will get the list back and sign in as the phone that saved the code. If it is not your file, do not continue.';
+      'This phone will recover the list and take the place of the phone that saved the code. Continue only if this is your file.';
 
   @override
   String get recoverFileOther => 'Choose another file';
 
   @override
-  String get recoverFileWaitingTitle => 'Another file arrived';
+  String get recoverFileWaitingTitle => 'Switch files?';
 
   @override
   String get recoverFileWaitingBody =>
-      'You were using another recovery file. Switch to this one?';
+      'A new recovery file arrived while you were using another one.';
 
   @override
-  String get recoverFileWaitingSwitch => 'Switch file';
+  String get recoverFileWaitingSwitch => 'Use the new file';
 
   @override
   String get recoverFileWaitingKeep => 'Keep the current one';
 
   @override
   String get recoveryProblemPersonTitle =>
-      'This code is no longer your current person\'s';
+      'This code no longer works for the selected person';
 
   @override
   String get recoveryProblemPersonBody =>
-      'This phone\'s person changed or a change is pending. Create a new code and keep that one.';
+      'The person selected under \"This phone belongs to\" has changed, or a change is pending. Create a new code and save it.';
 
   @override
   String get recoveryFileProblemStorageTitle =>
@@ -4349,11 +4438,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoveryFileProblemStorageBody =>
-      'The file is still waiting. Try again: before recovering, the app has to check that this phone does not already have a list.';
+      'The file is still waiting to be opened. The app needs to check whether there is already a list on this phone. Try again.';
 
   @override
   String get cameraRestricted =>
-      'The camera is restricted on this device (for example by Screen Time). You can allow it in Settings > Screen Time > Content & Privacy Restrictions.';
+      'Camera access is restricted on this phone. If you use Screen Time, check Settings > Screen Time > Content & Privacy Restrictions.';
 
   @override
   String get obJoinFamily => 'Join a family';
@@ -4363,16 +4452,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'Choose how to connect with the phone that already has the list.';
 
   @override
-  String get obJoinQrHint => 'It is with you: scan its code.';
+  String get obJoinQrHint =>
+      'If you have the other phone handy, scan its QR code.';
 
   @override
-  String get obJoinLinkHint => 'It is far away: paste the link they sent you.';
+  String get obJoinLinkHint =>
+      'If the other phone is far away, paste the link you received.';
 
   @override
-  String get obRestoreBackup => 'Restore a backup';
+  String get obRestoreBackup => 'Restore a copy';
 
   @override
-  String get obRestoreBackupHint => 'Choose what you recover the list with.';
+  String get obRestoreBackupHint => 'Choose how to restore your list.';
 
   @override
   String get obRestoreCodeHint => 'Type the 24 words you saved.';
@@ -4384,10 +4475,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get giverPeopleSection => 'People';
 
   @override
-  String get giverPeopleHintAdd => 'Added as a giver first';
+  String get giverPeopleHintAdd => 'Will be added as a giver first';
 
   @override
-  String get giverPeopleHintRecover => 'Restored as a giver';
+  String get giverPeopleHintRecover => 'Will return to the list of givers';
 
   @override
   String giverPersonAddTitle(String name) {
@@ -4396,7 +4487,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String giverPersonAddBody(String name) {
-    return 'This gift is a surprise. To avoid giving it away, $name first has to be added as a giver for the whole family, shown on every phone with no link to this gift. Then you can pick $name here.';
+    return 'This gift is a surprise. First, add $name to the list of givers. Everyone in the family will see their name on that list, with no mention of the gift. Then you can choose $name here.';
   }
 
   @override
@@ -4406,19 +4497,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String giverPersonAddFailed(String name) {
-    return 'Couldn\'t add $name as a giver.';
+    return 'Could not add $name as a giver. Try again.';
   }
 
   @override
   String get giftNoLongerVisible =>
-      'This gift can no longer be seen on this phone.';
+      'You can no longer view this gift on this phone.';
 
   @override
   String deleteGiverRows(int count, String names) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'These $count records will be deleted: $names.',
+      other: 'These $count names will be deleted: $names.',
       one: '$names will be deleted.',
     );
     return '$_temp0';
@@ -4437,16 +4528,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String deleteGiverLinkedNote(String name) {
-    return '$name stays in People: only the giver is deleted.';
+    return '$name will stay in \"People\". Only their entry in \"Givers\" will be deleted.';
   }
 
   @override
   String get deleteImpactChanged =>
-      'This changed while the notice was open. This is what would be deleted now:';
+      'The list has changed. Before you confirm, check what will be deleted.';
 
   @override
   String get deletePersonLinkedGiver =>
-      'Their name will stay on the gifts they gave, as the giver.';
+      'Their name will stay as the giver on the gifts they give to others.';
 
   @override
   String devicePersonBlockedThisTitle(String name) {
@@ -4455,7 +4546,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String devicePersonBlockedThisBody(String name) {
-    return '$name is the person of this phone, so they can\'t be deleted or archived from here. To do it, first choose someone else in \"This phone belongs to\" in Settings.';
+    return 'To delete or archive $name, go to Settings and choose someone else under \"This phone belongs to\".';
   }
 
   @override
@@ -4485,7 +4576,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get giverLinkExistingHint =>
-      'Already a giver: they merge into one column';
+      'Already a giver. The two columns in Who gives what will merge into one.';
 
   @override
   String giverLinkConfirmTitle(String name) {
@@ -4494,7 +4585,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String giverLinkConfirmBody(String giver, String name) {
-    return '\"$giver\" will be renamed $name, with their colour, and will follow $name\'s changes in People. Its gifts stay as they are.';
+    return '\"$giver\" will use $name\'s name and colour. If you change them in People, they will change here too. All gifts will be kept.';
   }
 
   @override
@@ -4510,14 +4601,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String giverUnlinkConfirmBody(String name) {
-    return 'It will stay as a giver with its current name and colour, but will no longer change with $name. Its gifts stay as they are.';
+    return 'The giver will keep their current name, colour and gifts. Changes you make to $name in People will no longer apply here.';
   }
 
   @override
   String get giverUnlinkConfirm => 'Unlink';
 
   @override
-  String get giverLinkError => 'Couldn\'t change the link. Try again.';
+  String get giverLinkError => 'Could not change the link. Try again.';
 
   @override
   String get giftWriteGiftUnavailable =>
@@ -4525,20 +4616,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get giftWriteRecipientGone =>
-      'Not saved: the person this gift is for no longer exists.';
+      'Not saved: the person receiving this gift is no longer on the list.';
 
   @override
   String get giftWriteInvalidPair =>
       'Not saved: the giver can\'t be the person receiving the gift.';
 
   @override
-  String get giftWriteGiverGone => 'Not saved: that giver no longer exists.';
+  String get giftWriteGiverGone =>
+      'Not saved: that giver is no longer on the list.';
 
   @override
   String get giftWriteGiverArchived => 'Not saved: that giver is archived.';
 
   @override
-  String get giftWritePersonGone => 'Not saved: that person no longer exists.';
+  String get giftWritePersonGone =>
+      'Not saved: that person is no longer on the list.';
 
   @override
   String get giftWritePersonArchived => 'Not saved: that person is archived.';
@@ -4550,7 +4643,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get deleteImpactUnavailable =>
-      'Couldn\'t check what would be deleted. Open the notice again.';
+      'Could not check what would be deleted. Try again.';
 
   @override
   String get deleteImpactChecking => 'Checking what will be deleted…';

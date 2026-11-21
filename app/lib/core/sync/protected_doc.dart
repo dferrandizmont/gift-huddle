@@ -1059,6 +1059,12 @@ class ProtectedPersonException implements Exception {
 enum ProtectedPersonReason {
   protectedPerson,
   noEntitlement,
+  noConfirmer,
+  recipientUnavailable,
+  requesterRevoked,
+  requesterAmbiguous,
+  requesterPending,
+  registryUnavailable,
   ownRequestsRestricted,
   missingEpochKey,
   protectionPending,

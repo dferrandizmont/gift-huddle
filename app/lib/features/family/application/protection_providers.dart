@@ -9,7 +9,7 @@ import '../../../core/sync/pairing_v2.dart'
 import '../../../core/sync/protected_doc.dart';
 import '../../../core/sync/protected_envelope.dart';
 import '../../sync/application/sync_controller.dart'
-    show localRegistryViewProvider;
+    show localRegistryReadProvider, localRegistryViewProvider;
 import '../../sync/data/sync_transport_v2.dart' show kV2MaxSlotsPerWriter;
 import '../data/device_keys_store.dart';
 import '../data/family_store.dart';
@@ -23,6 +23,9 @@ class GiftRecipientAccess {
     required this.status,
     required this.canSelect,
     this.reason,
+    this.canRequest = false,
+    this.requestReason,
+    this.viewerIsRecipient = false,
     this.canConfirm = false,
     this.canDeactivate = false,
   });
@@ -30,6 +33,13 @@ class GiftRecipientAccess {
   final PersonProtectionStatus status;
   final bool canSelect;
   final ProtectedPersonReason? reason;
+  final bool canRequest;
+
+  /// Why an unprotected recipient cannot have protection requested here.
+  final ProtectedPersonReason? requestReason;
+
+  /// Whether this phone is the one assigned to the recipient (display only).
+  final bool viewerIsRecipient;
   final bool canConfirm;
   final bool canDeactivate;
   bool get isProtected => status != PersonProtectionStatus.unprotected;
@@ -140,43 +150,88 @@ final giftRecipientAccessProvider = FutureProvider<List<GiftRecipientAccess>>((
 ) async {
   final family = ref.watch(familyControllerProvider).value;
   if (family == null) return const [];
-  final projection = await ref.watch(authorizedProjectionProvider.future);
-  final view = ref.read(familyStoreProvider).supportsSecretScopes
-      ? await ref.watch(localRegistryViewProvider.future)
+  final store = ref.read(familyStoreProvider);
+  // Share the projection's verified snapshot for policy and eligibility.
+  VerifiedRegistry? snapshot;
+  ProtectedPersonReason? registryFailure;
+  if (store.supportsSecretScopes) {
+    try {
+      final registry = await ref.watch(localRegistryReadProvider.future);
+      snapshot = registry.snapshot;
+      if (snapshot == null &&
+          (registry.hasV2Identity ||
+              syncProtocolOf(family.doc) == kSyncProtocolV2)) {
+        registryFailure = ProtectedPersonReason.registryUnavailable;
+      }
+    } on Object catch (error) {
+      registryFailure = protectionRegistryFailureReason(error);
+    }
+  }
+  final view = snapshot?.view;
+  final projection = view != null
+      ? await ref.watch(authorizedProjectionProvider.future)
       : null;
   final keyring = view == null
       ? SurpriseKeyring.empty
       : await ref.read(deviceKeysStoreProvider).readKeyring(family.doc.listId);
-  final slots = await ref.read(familyStoreProvider).readSlots();
-  return [
+  final slots = view == null ? SlotSet.empty : await store.readSlots();
+  final candidateViews = <String, Future<RegistryView>>{};
+  return Future.wait([
     for (final person in FamilyView.fromDoc(family.doc).recipients)
       _accessFor(
         person,
         family.doc,
         projection,
-        view,
+        snapshot,
         keyring,
         view == null ? null : slots.authenticatedPolicy(person.id, view),
+        registryFailure,
+        candidateViews,
       ),
-  ];
+  ]);
 });
 
-GiftRecipientAccess _accessFor(
+Future<GiftRecipientAccess> _accessFor(
   Recipient person,
   FamilyDoc doc,
   AuthorizedProjection? projection,
-  RegistryView? view,
+  VerifiedRegistry? snapshot,
   SurpriseKeyring keyring,
   PolicyState? authenticated,
-) {
+  ProtectedPersonReason? registryFailure,
+  Map<String, Future<RegistryView>> candidateViews,
+) async {
+  final view = snapshot?.view;
   final policy = projection?.policies[person.id];
   final blocked =
       policy?.hideOwnGifts ?? (publishedPolicy(doc, person.id) != null);
+  final viewerIsRecipient = view?.myPerson == person.id;
+  if (registryFailure != null) {
+    return GiftRecipientAccess(
+      recipient: person,
+      status: blocked
+          ? PersonProtectionStatus.requested
+          : PersonProtectionStatus.unprotected,
+      canSelect: false,
+      reason: registryFailure,
+      requestReason: registryFailure,
+    );
+  }
   if (!blocked) {
+    final requestReason = snapshot == null
+        ? ProtectedPersonReason.requiresV2
+        : await protectionRequestReason(
+            snapshot,
+            person.id,
+            candidateViews: candidateViews,
+          );
     return GiftRecipientAccess(
       recipient: person,
       status: PersonProtectionStatus.unprotected,
       canSelect: true,
+      canRequest: requestReason == null,
+      requestReason: requestReason,
+      viewerIsRecipient: viewerIsRecipient,
     );
   }
   final status =
@@ -209,6 +264,7 @@ GiftRecipientAccess _accessFor(
     status: status,
     canSelect: reason == null,
     reason: reason,
+    viewerIsRecipient: viewerIsRecipient,
     canConfirm:
         view?.selfEntitled(person.id) == true &&
         status == PersonProtectionStatus.requested,

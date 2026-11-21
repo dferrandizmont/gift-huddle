@@ -84,7 +84,7 @@ void main() {
         expect(
           find.descendant(
             of: find.byType(TransferredScreen),
-            matching: find.text('Esta lista se ha pasado a otro móvil'),
+            matching: find.text('Esta lista se ha traspasado'),
           ),
           findsOneWidget,
         );
@@ -98,7 +98,7 @@ void main() {
     ) async {
       await seedSample(tester, phone);
       await pumpRegalos(tester, phone);
-      await tester.tap(find.text('Borrar todo de este móvil'));
+      await tester.tap(find.text('Borrar los datos de esta app'));
       await settle(tester);
       expect(find.text('¿Borrar todo?'), findsOneWidget);
       expect(find.text('Continuar'), findsOneWidget);
@@ -110,7 +110,7 @@ void main() {
       'avisa, no deja crear ni unirse y reanuda en la pantalla de recuperar',
       (tester, phone) async {
         await pumpRegalos(tester, phone);
-        expect(find.text('Hay una recuperación en curso'), findsOneWidget);
+        expect(find.text('Recuperación pendiente'), findsOneWidget);
         expect(
           tester
               .widget<FilledButton>(
@@ -140,11 +140,11 @@ void main() {
         await tester.tap(cancel);
         await settle(tester);
         expect(find.textContaining('datos temporales'), findsOneWidget);
-        expect(find.textContaining('ya se ha pasado'), findsNothing);
+        expect(find.textContaining('ya solo puedes consultar la lista'), findsNothing);
         await tester.tap(find.text('Cancelar recuperación'));
         await settle(tester);
         expect(fake.calls, contains('abandon'));
-        expect(find.text('Hay una recuperación en curso'), findsNothing);
+        expect(find.text('Recuperación pendiente'), findsNothing);
       },
       initial: _pendingNotClaimed,
     );
@@ -159,7 +159,7 @@ void main() {
       await tester.pump();
       await tester.tap(cancel);
       await settle(tester);
-      expect(find.textContaining('cancelar no lo deshace'), findsOneWidget);
+      expect(find.textContaining('Si cancelas, seguirá así'), findsOneWidget);
       expect(find.textContaining('datos temporales'), findsNothing);
     }, initial: _pendingClaimed);
 
@@ -183,7 +183,7 @@ void main() {
         await tester.tap(find.text('Salir'));
         await settle(tester);
         // Vuelve a la bienvenida, con el aviso todavía.
-        expect(find.text('Hay una recuperación en curso'), findsOneWidget);
+        expect(find.text('Recuperación pendiente'), findsOneWidget);
         expect(fake.calls, isNot(contains('abandon')));
       },
       initial: _pendingNotClaimed,
@@ -273,7 +273,7 @@ void main() {
       await spin(tester, 10);
       expect(find.text('¿Sustituir la lista de este móvil?'), findsOneWidget);
       expect(
-        find.textContaining('se conserva en el móvil, pero deja de verse'),
+        find.textContaining('seguirá guardada aquí, pero ya no la verás'),
         findsOneWidget,
       );
       fake.restoreFinal = const RecoveryStatus(RecoveryReadiness.prepared);
@@ -298,11 +298,11 @@ void main() {
       await seedSample(tester, phone, pin: true);
       await pumpRegalos(tester, phone);
       await openRecoveryRow(tester);
-      await tapText(tester, 'Quitar el código');
-      await tapText(tester, 'Quitar código');
+      await tapText(tester, 'Borrar el código');
+      await tapText(tester, 'Borrar código');
       await real(tester);
       expect(
-        find.text('Escribe tu PIN para quitar el código.'),
+        find.text('Escribe tu PIN para borrar el código.'),
         findsOneWidget,
       );
       expect(fake.calls, isNot(contains('retire')));
@@ -356,7 +356,7 @@ void main() {
         expect(find.text('Cancelar la recuperación'), findsOneWidget);
         await tester.tap(find.text('Cancelar la recuperación'));
         await settle(tester);
-        expect(find.textContaining('cancelar no lo deshace'), findsOneWidget);
+        expect(find.textContaining('Si cancelas, seguirá así'), findsOneWidget);
         await tester.tap(find.text('Cancelar recuperación'));
         await settle(tester);
         expect(fake.calls, contains('abandon'));

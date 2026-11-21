@@ -96,11 +96,24 @@ void main() {
     expect(await transport.getList(auth), isA<SyncGetNotFound>());
   });
 
-  test('B5 HTTP 410 means the v1 list is retired on GET and DELETE', () async {
-    handler = (r, b) => reply(r, 410, {'error': 'retired'});
-    expect(await transport.getList(auth), isA<SyncGetNotFound>());
-    await transport.deleteList(auth);
-  });
+  for (final (status, expected) in [(404, 'not_found'), (410, 'gone')]) {
+    test('GET y DELETE v1 validan el cuerpo de un $status', () async {
+      final serverFailure = throwsA(
+        isA<SyncTransportException>().having(
+          (error) => error.failure,
+          'failure',
+          SyncFailure.server,
+        ),
+      );
+      handler = (r, b) => reply(r, status, {'error': 'retired'});
+      await expectLater(transport.getList(auth), serverFailure);
+      await expectLater(transport.deleteList(auth), serverFailure);
+
+      handler = (r, b) => reply(r, status, {'error': expected});
+      expect(await transport.getList(auth), isA<SyncGetNotFound>());
+      await transport.deleteList(auth);
+    });
+  }
 
   test('PUT: cuerpo JSON, ok, 409 con sobre, 409 exists y 404', () async {
     handler = (r, b) => reply(r, 201, {'version': 1});

@@ -13,6 +13,7 @@ import '../../recovery/application/recovery_hold.dart';
 import '../../review/application/review_providers.dart';
 import '../application/lock_controller.dart';
 import '../application/lock_gate_state.dart';
+import '../data/biometrics.dart';
 import 'lock_screen.dart';
 import 'pin_setup_screen.dart';
 
@@ -159,6 +160,10 @@ class _LockGateState extends ConsumerState<LockGate>
     ref.listen(lockControllerProvider, (previous, next) {
       if (next.value?.locked == true && previous?.value?.locked != true) {
         _clearSnackBars();
+        // Cada bloqueo vuelve a mirar si hay Face ID o Touch ID (se pudo dar de
+        // alta con la app abierta). La puerta sigue montada entre bloqueos; la
+        // pantalla de bloqueo no.
+        refreshBiometricKind(ref, () => mounted);
       }
     });
     final family = ref.watch(familyControllerProvider);

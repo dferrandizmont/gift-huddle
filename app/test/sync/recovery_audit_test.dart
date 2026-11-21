@@ -84,7 +84,11 @@ class _RetiredV1Transport extends BaseSyncTransport {
     Map<String, String> headers = const {},
   }) async {
     requests++;
-    return SyncResponse(410, const {}, Uint8List(0));
+    return SyncResponse(
+      410,
+      const {},
+      Uint8List.fromList(utf8.encode('{"error":"gone"}')),
+    );
   }
 
   @override

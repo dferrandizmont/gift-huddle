@@ -308,7 +308,7 @@ void main() {
               .first,
         );
         expect(
-          find.textContaining('Lo pones tú en cada ocasión'),
+          find.textContaining('Puedes poner un presupuesto en cada ocasión'),
           findsOneWidget,
         );
         // El contenido empieza en el mismo margen que la cabecera.
@@ -321,7 +321,7 @@ void main() {
         // tarjetas de ocasión y de persona.
         expect(find.text('Sin presupuesto'), findsWidgets);
         expect(find.text('Gastado'), findsWidgets);
-        expect(find.text('Queda'), findsOneWidget);
+        expect(find.text('Disponible'), findsOneWidget);
         expect(find.text('Por ocasión'), findsOneWidget);
         expect(find.text('Por persona'), findsOneWidget);
         expect(tester.getTopLeft(find.text('Por ocasión')).dx, title.dx);
@@ -406,7 +406,7 @@ void main() {
           expect(find.byType(BudgetScreen), findsNothing);
           expect(_navSelected(tester), 3);
           expect(
-            find.textContaining('Lo pones tú en cada ocasión'),
+            find.textContaining('Puedes poner un presupuesto en cada ocasión'),
             findsOneWidget,
           );
 

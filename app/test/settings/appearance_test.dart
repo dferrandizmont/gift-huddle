@@ -173,7 +173,7 @@ void main() {
           ),
         );
         expect(find.text('Preview'), findsOneWidget);
-        expect(find.text('Block fire station'), findsOneWidget);
+        expect(find.text('Fire station building set'), findsOneWidget);
         handle.dispose();
       },
     );

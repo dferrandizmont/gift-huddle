@@ -14,6 +14,8 @@ import '../../../core/widgets/stroke_icon.dart';
 import '../../../core/widgets/tabler_icons.dart';
 import '../../../l10n/app_localizations.dart';
 import '../data/pin_vault.dart';
+import '../data/biometrics.dart';
+import 'biometric_labels.dart';
 
 /// Máximo de dígitos del PIN.
 const int kPinMaxLength = kPinMaxDigits;
@@ -457,6 +459,7 @@ class PinPad extends StatelessWidget {
     required this.onDigit,
     required this.onBackspace,
     this.onBiometric,
+    this.biometricKind = BiometricKind.generic,
     this.enabled = true,
   });
 
@@ -468,6 +471,9 @@ class PinPad extends StatelessWidget {
 
   /// Se pulsa el botón biométrico; sin él no hay botón.
   final VoidCallback? onBiometric;
+
+  /// Qué biometría tiene el dispositivo: pone nombre e icono al botón.
+  final BiometricKind biometricKind;
 
   /// Si las teclas responden.
   final bool enabled;
@@ -508,11 +514,13 @@ class PinPad extends StatelessWidget {
           children: [
             if (onBiometric != null)
               _Key(
-                label: l10n.lockBiometric,
+                label: biometricKind.button(l10n),
                 onTap: enabled ? onBiometric : null,
                 filled: true,
                 child: StrokeIcon(
-                  tablerFingerprint,
+                  biometricKind == BiometricKind.face
+                      ? tablerFaceId
+                      : tablerFingerprint,
                   size: 30,
                   color: t.ink,
                   strokeWidth: 1.5,

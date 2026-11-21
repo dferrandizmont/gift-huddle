@@ -237,11 +237,11 @@ void main() {
         V2Health(revokedByOthers: true, frozenPeople: const ['nora']),
       );
       expect(
-        find.text('Otro móvil de la familia ha quitado este'),
+        find.text('Han quitado este móvil de la familia'),
         findsOneWidget,
       );
-      expect(find.textContaining('sigue en este móvil'), findsOneWidget);
-      expect(find.textContaining('Reintentar no sirve'), findsOneWidget);
+      expect(find.textContaining('siguen en este móvil'), findsOneWidget);
+      expect(find.textContaining('conéctalo de nuevo en persona'), findsOneWidget);
       // Lo congelado es consecuencia de esto: no sale aparte.
       expect(find.textContaining('Sorpresas en pausa'), findsNothing);
       // No se confunde con un fallo de conexión.
@@ -266,7 +266,7 @@ void main() {
       expect(find.text('Sorpresas en pausa para Leo y Nora'), findsOneWidget);
       expect(find.textContaining('No se ha perdido nada'), findsOneWidget);
       expect(
-        find.text('Otro móvil de la familia ha quitado este'),
+        find.text('Han quitado este móvil de la familia'),
         findsNothing,
       );
       await _tapText(tester, 'Revisar móviles');
@@ -293,7 +293,7 @@ void main() {
     testWidgets('sin nada que avisar no sale ningún aviso', (tester) async {
       await _open(tester, V2Health());
       expect(find.textContaining('Sorpresas en pausa'), findsNothing);
-      expect(find.textContaining('ha quitado este'), findsNothing);
+      expect(find.textContaining('Han quitado este'), findsNothing);
       expect(find.text('Por resolver'), findsNothing);
       await tester.pumpWidget(const SizedBox());
     });
@@ -311,7 +311,7 @@ void main() {
         brightness: Brightness.dark,
       );
       expect(find.text('Conectar otra vez'), findsOneWidget);
-      expect(find.text('Acceso sin respaldo'), findsNothing);
+      expect(find.text('Acceso sin identificar'), findsNothing);
       await tester.pumpWidget(const SizedBox());
     });
   });
@@ -325,7 +325,7 @@ void main() {
         V2Health(unbackedCredentials: const ['cred-1234567890']),
       );
       expect(find.text('Por resolver'), findsOneWidget);
-      expect(find.text('Acceso sin respaldo'), findsOneWidget);
+      expect(find.text('Acceso sin identificar'), findsOneWidget);
       expect(find.text('Referencia: cred-123'), findsOneWidget);
 
       await _tapText(tester, 'Retirar acceso');
@@ -349,7 +349,7 @@ void main() {
       // Se queda un instante a la vista y luego se pliega.
       await tester.pump(const Duration(seconds: 2));
       await _settle(tester);
-      expect(find.text('Acceso sin respaldo'), findsNothing);
+      expect(find.text('Acceso sin identificar'), findsNothing);
       expect(find.text('Por resolver'), findsNothing);
       await tester.pumpWidget(const SizedBox());
     });
@@ -458,13 +458,13 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
     expect(find.text('Acceso retirado'), findsOneWidget);
-    expect(find.text('Acceso sin respaldo'), findsOneWidget);
+    expect(find.text('Acceso sin identificar'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 600));
     expect(find.text('Acceso retirado'), findsOneWidget);
     await tester.pump(const Duration(seconds: 2));
     await _settle(tester);
     expect(find.text('Acceso retirado'), findsNothing);
-    expect(find.text('Acceso sin respaldo'), findsNothing);
+    expect(find.text('Acceso sin identificar'), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -553,7 +553,7 @@ void main() {
       preview.selfWouldWait = true;
       await _tapText(tester, 'Completar la baja');
       expect(
-        find.text('Este móvil volverá a esperar aprobación'),
+        find.text('Tu móvil volverá a esperar aprobación'),
         findsOneWidget,
       );
       expect(resolution.calls, isEmpty);

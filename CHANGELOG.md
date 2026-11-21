@@ -2,6 +2,23 @@
 
 All notable changes to Gift Huddle are listed here. Store versions may skip numbers.
 
+## Unreleased
+
+## 1.0.5 · 2026-11-21
+
+- Texts reviewed in Spanish, Catalan and English: clearer wording and consistent terms.
+- Secret gifts no longer offers "Request protection" when no phone in the family could confirm it, and explains what to do instead.
+- On iPhone and iPad the lock settings, the PIN screen and the unlock button now say "Face ID" or "Touch ID" (whichever the device has) instead of "fingerprint or face"; Android keeps the generic wording.
+- Closing the gift form with unsaved changes now asks "Discard changes?" (back arrow, Close, Cancel, the back gesture, Esc or dragging the sheet down); without changes it closes straight away, and a form that closes itself because the gift is no longer visible still does not ask.
+- The sheet drag-to-close now springs back if the screen refuses to close.
+- Joining with an invitation link now asks for this phone's name (proposed from its model, editable) before sending the request, so the other phones no longer list it as "Another phone"; a link opened straight from a message shows that step instead of skipping it.
+- Pairing: after sending access, the host phone now says the other phone has to complete the connection (Spanish and Catalan used a verb that could read as ending it).
+- Delete everything no longer shows a false "server could not be reached" error on a phone whose list was never shared.
+- Sharing shows a retryable error and keeps sync on if the server unexpectedly rejects a request to stop syncing.
+- Stopping sync checks for old copies from invitations and pairing codes after an app update. If cleanup is interrupted, you can retry from Sharing while sync is off.
+- Pending edits upload automatically after a failed stop request, and a pairing QR appears only after the app records that it can be shared.
+- Stopping sync keeps unconfirmed remote cleanup retryable if an intermediary sends an unexpected response. A failed attempt to show a pairing QR still lets you delete a local-only family offline.
+
 ## 1.0.4 · 2026-11-20
 
 - Secret gifts: the explanation at the top of the sheet now names what it refers to ("With secret gifts on, …") instead of starting with "When this is on".

@@ -14,9 +14,11 @@ import '../../../core/sync/family_doc.dart';
 import '../../../core/sync/pairing_v2.dart';
 import '../../../core/sync/recovery.dart';
 import '../../family/application/family_controller.dart';
+import '../../family/data/device_keys_store.dart';
 import '../../family/data/family_store.dart';
 import '../../family/data/generation_store.dart';
 import '../../family/data/recovery_store.dart';
+import '../../family/data/storage_providers.dart';
 import '../../family/domain/family_errors.dart';
 import '../data/sync_config.dart';
 import '../data/recovery_transport.dart';
@@ -27,10 +29,8 @@ import '../domain/sync_status.dart';
 import 'app_sync_v2_local.dart';
 import 'common_v2_cutover.dart' show kCommonFormatLatest;
 import 'family_device_actions.dart' as device_actions;
-import 'family_devices.dart' show devicePersonIds, localView;
-import 'family_devices.dart'
-    as family_devices
-    show leaveFamily, othersHaveAccess, removeDevice;
+import 'family_devices.dart' show devicePersonIds;
+import 'family_devices.dart' as family_devices show leaveFamily, removeDevice;
 import 'family_snapshot.dart';
 import 'generation_v2.dart';
 import 'migration_v2.dart';
@@ -48,6 +48,12 @@ const _offListsKey = 'sync.offLists';
 /// Listas cuyo QR de emparejar se enseñó en este móvil y que siguen esperando
 /// al segundo móvil (preferencias): `"<ms desde 1970>:<listId>"`.
 const _peerWaitKey = 'sync.peerWait';
+
+/// Listas cuyo QR pudo llegar a otro móvil, aunque ya haya acabado el sondeo.
+const _sharedQrKey = 'sync.sharedQr';
+
+/// Lista v1 creada aquí que aún no pudo publicarse ni compartir su clave.
+const _neverSharedKey = 'sync.neverShared';
 
 /// La invitación viva de este móvil (preferencias), como JSON
 /// `{"l": listId, "i": id de la invitación, "e": caduca, en ms}`. La escribe
@@ -137,6 +143,9 @@ class SyncController extends Notifier<SyncStatus> {
 
   /// Si la familia ya tenía otro móvil emparejado la última vez que se miró.
   bool _wasPaired = false;
+
+  Future<void> _rememberingLocalList = Future<void>.value();
+  Future<void> _writingSharedQr = Future<void>.value();
 
   /// Si el ciclo en marcha puede subir aunque no haya segundo móvil: lo pide
   /// quien va a crear una invitación.
@@ -257,6 +266,7 @@ class SyncController extends Notifier<SyncStatus> {
     _again = false;
     _resetSession();
     await _running;
+    await _rememberingLocalList;
     if (ref.mounted) _resetSession();
   }
 
@@ -304,7 +314,7 @@ class SyncController extends Notifier<SyncStatus> {
       _v2Auth = null;
       await startNewGenerationV2(ref);
       if (ref.mounted) {
-        ref.invalidate(localRegistryViewProvider);
+        ref.invalidate(localRegistryReadProvider);
         state = SyncStatus(
           SyncPhase.waitingForPeer,
           lastSyncAt: state.lastSyncAt,
@@ -392,7 +402,7 @@ class SyncController extends Notifier<SyncStatus> {
       _v2Auth = null;
       await startNewGenerationV2(ref);
       if (ref.mounted) {
-        ref.invalidate(localRegistryViewProvider);
+        ref.invalidate(localRegistryReadProvider);
         state = SyncStatus(
           SyncPhase.waitingForPeer,
           lastSyncAt: state.lastSyncAt,
@@ -413,19 +423,21 @@ class SyncController extends Notifier<SyncStatus> {
       return;
     }
     await _writeEnabled(listId, enabled);
+    if (!ref.mounted) return;
     if (enabled) {
       state = SyncStatus(SyncPhase.idle, lastSyncAt: state.lastSyncAt);
       await syncNow();
     } else {
       await _running;
+      if (!ref.mounted) return;
       _resetSession();
       state = SyncStatus(SyncPhase.disabled, lastSyncAt: state.lastSyncAt);
     }
   }
 
   /// «Dejar de sincronizar»: borra la copia del servidor (`DELETE`) y apaga la
-  /// sincronización. Lanza [SyncTransportException] si el servidor no responde
-  /// (y no apaga nada: se puede repetir).
+  /// sincronización. Lanza [SyncTransportException] si queda una operación
+  /// remota por confirmar. Se puede reintentar con las mismas claves.
   ///
   /// Otro móvil de la familia que siga sincronizando volverá a subir la lista
   /// al ver el `404` o el cierre 4404 del WebSocket (ADR 0002, caducidad).
@@ -439,56 +451,99 @@ class SyncController extends Notifier<SyncStatus> {
   /// ([startNewGenerationV2]): para volver hay que conectarlo otra vez.
   Future<void> stopSyncing() async {
     final transport = _transport;
-    if (transport == null || _listId == null) {
+    if (transport == null) {
       return;
     }
     await _running;
+    if (!ref.mounted) return;
     final listId = _listId;
     if (listId == null) {
       return;
     }
     final v2 = await AppSyncV2Local.load(ref);
-    // Fuera de la familia (o sin sincronizar) ya no hay invitaciones que
-    // tengan que probar la clave v1 (hallazgo 6).
-    await ref.read(familyStoreProvider).saveV1ProofKey(null);
     if (!ref.mounted) {
       return;
     }
+    final store = ref.read(familyStoreProvider);
     final v2Transport = ref.read(syncV2TransportProvider);
     if (v2 != null && v2Transport != null) {
       final wasOn = _isEnabled(listId);
+      final before = state;
+      final wasWatching = _watch != null || _watchRetry != null;
+      final wasRetrying = _retry != null;
+      final wasDebouncing = _debounce != null;
+      final familyBefore = ref.read(familyControllerProvider).value;
       await _writeEnabled(listId, false);
+      if (!ref.mounted) return;
       _resetSession();
-      state = SyncStatus(SyncPhase.disabled, lastSyncAt: state.lastSyncAt);
+      state = SyncStatus(SyncPhase.disabled, lastSyncAt: before.lastSyncAt);
+      var retireLegacy = false;
       try {
-        final alone = !await family_devices.othersHaveAccess(
-          transport: v2Transport,
-          local: v2,
-        );
-        if (alone) {
-          await _stopV2(v2, v2Transport);
-        } else {
-          await family_devices.leaveFamily(transport: v2Transport, local: v2);
-        }
-      } on SyncTransportException catch (e) {
-        // Sin acceso ya (este móvil salió en un intento anterior que se
-        // cortó, o lo revocaron): está fuera, y se sigue.
-        if (e.failure != SyncFailure.unauthorized) {
-          if (wasOn) {
-            await setEnabled(true);
+        retireLegacy = await _stopV2(v2, v2Transport);
+      } on Object catch (error, stack) {
+        final failure = switch (error) {
+          V2ForbiddenException(code: 'credential_replaced' || 'revoked') ||
+          SyncTransportException(failure: SyncFailure.unauthorized) => null,
+          V2ForbiddenException(:final code) ||
+          V2RenewalConflictException(
+            :final code,
+          ) => SyncTransportException(SyncFailure.server, code),
+          SyncTransportException() => error,
+          _ => Error.throwWithStackTrace(error, stack),
+        };
+        if (failure != null) {
+          if (wasOn && ref.mounted) {
+            await _writeEnabled(listId, true);
+            if (ref.mounted) {
+              state = before;
+              if (wasWatching) _ensureWatch();
+              final familyNow = ref.read(familyControllerProvider).value;
+              if (wasDebouncing ||
+                  !identical(familyBefore?.doc, familyNow?.doc) ||
+                  familyBefore?.protectionRevision !=
+                      familyNow?.protectionRevision) {
+                _scheduleUpload();
+              } else if (wasRetrying) {
+                _scheduleRetry(_timing.backoffFor(1));
+              }
+            }
           }
-          rethrow;
+          Error.throwWithStackTrace(failure, stack);
         }
+        retireLegacy = true;
       }
+      if (!ref.mounted) return;
+      // Si falla la retirada v1, se conserva la generación con la
+      // sincronización apagada para poder reintentar.
+      if (retireLegacy) await _retireLegacyV1(v2, force: true);
+      if (!ref.mounted) return;
       _v2Auth = null;
       // Bajo el cerrojo v2, como la migración y la instalación del invitado:
       // una vuelta que llegue a la vez (y que, al ver la lista borrada,
       // estrenaría otra) espera a que esta generación quede entera. Quien
       // llama aquí (Compartir, «Borrar todo») no tiene el cerrojo.
-      await ref
-          .read(v2FamilyLockProvider)
-          .run(() => startNewGenerationV2(ref));
-      if (ref.mounted) ref.invalidate(localRegistryViewProvider);
+      await ref.read(v2FamilyLockProvider).run(() async {
+        if (!ref.mounted) return;
+        // Fuera de la familia ya no hay invitaciones que prueben la clave v1.
+        await store.saveV1ProofKey(null);
+        if (ref.mounted) await startNewGenerationV2(ref);
+      });
+      if (ref.mounted) ref.invalidate(localRegistryReadProvider);
+      return;
+    }
+    // La ausencia de un sondeo no prueba que el QR nunca se enseñara:
+    // versiones anteriores borraban su fecha al caducar.
+    final neverShared = !_wasPaired && await _neverShared(listId);
+    if (!ref.mounted || _listId != listId) return;
+    if (neverShared &&
+        !_wasPaired &&
+        !_inviting &&
+        !_hasInviteCopy(listId) &&
+        !_hasLiveInvite(listId) &&
+        !_hasSharedQr(listId) &&
+        _peerWaitSince(listId) == null) {
+      await setEnabled(false);
+      await store.saveV1ProofKey(null);
       return;
     }
     // Primero se apaga, antes de pedir las credenciales: al borrar la lista
@@ -500,15 +555,17 @@ class SyncController extends Notifier<SyncStatus> {
     // si falla, se queda apagada como estaba.
     final wasEnabled = _isEnabled(listId);
     await _writeEnabled(listId, false);
+    if (!ref.mounted) return;
     final SyncCredentials? auth;
     try {
       auth = await _credentials();
     } on Object {
-      if (wasEnabled) {
+      if (wasEnabled && ref.mounted) {
         await _writeEnabled(listId, true);
       }
       rethrow;
     }
+    if (!ref.mounted) return;
     if (auth == null || _listId != listId) {
       if (wasEnabled) {
         await _writeEnabled(listId, true);
@@ -520,17 +577,84 @@ class SyncController extends Notifier<SyncStatus> {
     try {
       await transport.deleteList(auth);
     } on SyncTransportException {
-      if (wasEnabled) {
+      if (wasEnabled && ref.mounted) {
         await setEnabled(true);
       }
       rethrow;
     }
+    await store.saveV1ProofKey(null);
   }
 
   // ------------------------------------------- a la espera del segundo móvil
 
-  /// Desde cuándo espera [listId] a que entre el móvil que leyó su QR, o
-  /// `null` si no se ha enseñado.
+  void _rememberLocalList(String listId) {
+    final secrets = ref.read(secretStoreProvider);
+    _rememberingLocalList = _rememberingLocalList.then((_) async {
+      try {
+        await secrets.write(_neverSharedKey, listId);
+      } on Object {
+        // Sin la marca, «Borrar todo» confirma el borrado con el servidor.
+      }
+    });
+  }
+
+  Future<bool> _neverShared(String listId) async {
+    final secrets = ref.read(secretStoreProvider);
+    await _rememberingLocalList;
+    try {
+      return await secrets.read(_neverSharedKey) == listId;
+    } on Object {
+      return false;
+    }
+  }
+
+  Future<void> _forgetLocalList(String listId) async {
+    final secrets = ref.read(secretStoreProvider);
+    await _rememberingLocalList;
+    if (await secrets.read(_neverSharedKey) == listId) {
+      await secrets.delete(_neverSharedKey);
+    }
+  }
+
+  bool _hasSharedQr(String listId) =>
+      ref
+          .read(sharedPreferencesProvider)
+          .getStringList(_sharedQrKey)
+          ?.contains(listId) ??
+      false;
+
+  Future<void> _markQrShared(String listId) async {
+    final prefs = ref.read(sharedPreferencesProvider);
+    final previousWrite = _writingSharedQr;
+    final write = Completer<void>();
+    _writingSharedQr = write.future;
+    await previousWrite;
+    try {
+      final previous = prefs.getStringList(_sharedQrKey);
+      final lists = {...?previous, listId};
+      try {
+        if (!await prefs.setStringList(_sharedQrKey, lists.toList())) {
+          throw StateError('no se pudo guardar la señal del QR');
+        }
+      } on Object {
+        // SharedPreferences cambia la caché antes de escribir en disco.
+        try {
+          if (previous == null) {
+            await prefs.remove(_sharedQrKey);
+          } else {
+            await prefs.setStringList(_sharedQrKey, previous);
+          }
+        } on Object {
+          // La caché ya se restauró. Se propaga el fallo de escritura original.
+        }
+        rethrow;
+      }
+    } finally {
+      write.complete();
+    }
+  }
+
+  /// Desde cuándo espera [listId] a que entre el móvil que leyó su QR.
   DateTime? _peerWaitSince(String listId) {
     final entries = ref
         .read(sharedPreferencesProvider)
@@ -555,6 +679,11 @@ class SyncController extends Notifier<SyncStatus> {
 
   /// Apunta que [listId] espera desde [since], o lo borra con `null`.
   Future<void> _writePeerWait(String listId, DateTime? since) async {
+    // Una versión anterior solo guardaba la fecha del sondeo.
+    if (since == null && _peerWaitSince(listId) != null) {
+      await _markQrShared(listId);
+      if (!ref.mounted) return;
+    }
     final prefs = ref.read(sharedPreferencesProvider);
     final entries = [
       for (final entry in prefs.getStringList(_peerWaitKey) ?? const <String>[])
@@ -576,18 +705,21 @@ class SyncController extends Notifier<SyncStatus> {
   /// sincronizar. Mientras tanto sigue sin subir nada y sin WebSocket. No hace
   /// nada sin servidor, sin familia o si ya hay otro móvil emparejado.
   Future<void> expectPeer() async {
-    if (_transport == null) {
-      return;
-    }
+    if (_transport == null) return;
+    final identity = (await familySnapshot(ref)).identity;
+    if (identity == null || !ref.mounted) return;
+    await _markQrShared(identity.listId);
+    if (!ref.mounted) return;
     try {
-      final identity = (await familySnapshot(ref)).identity;
-      if (identity == null || identity.paired || !ref.mounted) {
-        return;
-      }
+      await _forgetLocalList(identity.listId);
+    } on Object {
+      // La marca persistente del QR basta para descartar el atajo local.
+    }
+    if (identity.paired || !ref.mounted) return;
+    try {
       await _writePeerWait(identity.listId, clock.now());
     } on Object {
-      // Sin la marca solo se pierde la comprobación automática: el QR se
-      // enseña igual.
+      // La señal del QR ya se guardó. El sondeo es de mejor esfuerzo.
       return;
     }
     if (ref.mounted) {
@@ -858,7 +990,7 @@ class SyncController extends Notifier<SyncStatus> {
     // Clearing an obsolete invitation marker leaves the registry unchanged.
     // Invalidating it can cancel an in-flight review read during startup.
     if (generationChanged && ref.mounted) {
-      ref.invalidate(localRegistryViewProvider);
+      ref.invalidate(localRegistryReadProvider);
     }
   }
 
@@ -945,6 +1077,14 @@ class SyncController extends Notifier<SyncStatus> {
       if (listId == null) {
         state = const SyncStatus(SyncPhase.noFamily);
         return;
+      }
+      // La carga inicial llega desde AsyncLoading. Las altas locales de v1
+      // publican otra lista desde AsyncData y los invitados llegan emparejados.
+      if (previous is AsyncData<FamilyState> &&
+          previous.value.listId != listId &&
+          !paired &&
+          syncProtocolOf(fam.doc) == 1) {
+        _rememberLocalList(listId);
       }
       if (!_isEnabled(listId)) {
         state = const SyncStatus(SyncPhase.disabled);
@@ -1140,10 +1280,14 @@ class SyncController extends Notifier<SyncStatus> {
     final upload = identity.paired || _inviteUpload;
     _pollOnly = !upload;
     if (!upload && !_awaitsPeer(listId)) {
-      // Un solo móvil: ni una petición. Si la espera del QR ya caducó, su
-      // marca se borra: no queda apuntado para siempre que se enseñó.
+      // Un solo móvil: ni una petición. Al caducar solo se borra el sondeo.
       if (_peerWaitSince(listId) != null) {
-        await _writePeerWait(listId, null);
+        try {
+          await _writePeerWait(listId, null);
+        } on Object {
+          // Se conserva la fecha caducada si falla guardar la señal del QR.
+        }
+        if (!ref.mounted) return true;
       }
       _closeWatch();
       state = SyncStatus(
@@ -1369,7 +1513,7 @@ class SyncController extends Notifier<SyncStatus> {
       // Terminada la vuelta, el registro puede haber cambiado (otro móvil
       // entró o salió): se vuelve a leer, una vez por vuelta.
       registryTouched = false;
-      ref.invalidate(localRegistryViewProvider);
+      ref.invalidate(localRegistryReadProvider);
       state = SyncStatus(SyncPhase.synced, lastSyncAt: clock.now());
       if (out.view.paired || await familyStore.remoteSyncEnabled()) {
         _ensureWatch();
@@ -1399,7 +1543,7 @@ class SyncController extends Notifier<SyncStatus> {
         return false;
       }
       if (!ref.mounted) return true;
-      ref.invalidate(localRegistryViewProvider);
+      ref.invalidate(localRegistryReadProvider);
       state = SyncStatus(
         SyncPhase.waitingForPeer,
         lastSyncAt: state.lastSyncAt,
@@ -1442,16 +1586,12 @@ class SyncController extends Notifier<SyncStatus> {
       _fail(SyncIssue.unknown, retry: true);
     } finally {
       if (registryTouched && ref.mounted) {
-        ref.invalidate(localRegistryViewProvider);
+        ref.invalidate(localRegistryReadProvider);
       }
     }
     return false;
   }
 
-  /// La copia v1 que queda tras migrar: se fusiona lo que hayan escrito los
-  /// móviles que siguen en v1 y se borra del servidor cuando todos los que
-  /// escribieron en ella están en el registro v2 (o con [force], «Dejar de
-  /// sincronizar»). No lanza: si falla, se mira en la siguiente sesión.
   Future<void> _maintainRecoveryWithinLock() async {
     try {
       await (await recoveryMaintenanceWithinLock(ref))?.maintain();
@@ -1465,7 +1605,10 @@ class SyncController extends Notifier<SyncStatus> {
     }
   }
 
-  Future<bool> _retireLegacyV1(
+  /// La copia v1 que queda tras migrar se fusiona y se borra cuando ya han
+  /// migrado todos los móviles que escribieron en ella. Con [force] se
+  /// retira también al dejar de sincronizar y los fallos llegan a la pantalla.
+  Future<void> _retireLegacyV1(
     AppSyncV2Local local, {
     required bool force,
   }) async {
@@ -1473,7 +1616,7 @@ class SyncController extends Notifier<SyncStatus> {
     final store = ref.read(familyStoreProvider);
     try {
       final raw = await store.readLegacyV1();
-      if (raw == null || v1 == null) return true;
+      if (raw == null || v1 == null) return;
       final legacy = LegacyV1.fromJson(raw);
       final result = await retireV1(
         transport: v1,
@@ -1492,16 +1635,20 @@ class SyncController extends Notifier<SyncStatus> {
         await store.saveLegacyV1(null);
         if (ref.mounted) ref.invalidate(syncReconnectNeededProvider);
       }
-      return true;
-    } on Object {
-      return false;
+    } on Object catch (error) {
+      if (!force) return;
+      if (error is SyncTransportException) rethrow;
+      throw const SyncTransportException(
+        SyncFailure.protocol,
+        'no se pudo retirar la copia v1',
+      );
     }
   }
 
   /// v2: este móvil sale de la familia (revoca su propia credencial, retira
   /// sus slots y deja de sincronizar) sin borrar la lista para los demás.
-  /// Lo local se queda. Lanza [SyncTransportException] si el servidor no
-  /// responde (y la sincronización vuelve a quedar como estaba).
+  /// Lo local se queda. Lanza [SyncTransportException] si queda una
+  /// operación remota por confirmar.
   Future<void> leaveFamily() => stopSyncing();
 
   /// v2: quita el móvil [deviceId] de la familia (registro firmado y
@@ -1545,7 +1692,7 @@ class SyncController extends Notifier<SyncStatus> {
         if (outcome != null) await _retireUnsharedListWithinLock(v2, outcome!);
         return change;
       } finally {
-        if (ref.mounted) ref.invalidate(localRegistryViewProvider);
+        if (ref.mounted) ref.invalidate(localRegistryReadProvider);
       }
     });
   }
@@ -1592,28 +1739,40 @@ class SyncController extends Notifier<SyncStatus> {
         );
       });
     } finally {
-      if (ref.mounted) ref.invalidate(localRegistryViewProvider);
+      if (ref.mounted) ref.invalidate(localRegistryReadProvider);
     }
   }
 
-  /// «Dejar de sincronizar» en v2: `DELETE` condicional con la versión que
-  /// se acaba de leer, y la copia v1 que quedara.
-  Future<void> _stopV2(AppSyncV2Local local, SyncV2Transport transport) async {
+  /// Devuelve si la lista v2 ya no existe y se puede retirar su copia v1.
+  /// Si quedan otros móviles, solo revoca la credencial de este móvil.
+  Future<bool> _stopV2(AppSyncV2Local local, SyncV2Transport transport) async {
     final auth = V2Auth(
       syncId: local.identity.syncId,
       deviceId: local.identity.deviceId,
       credential: local.keys.serviceCredential,
     );
     for (var attempt = 0; attempt < 3; attempt++) {
-      final got = await transport.getList(auth);
-      if (got is! V2GetOk) break;
-      final deleted = await transport.deleteList(
-        auth,
-        version: got.snapshot.version,
-      );
-      if (deleted is! V2WriteStale) break;
+      final got = await transport.getList(auth, requireWorkerError: true);
+      if (got is V2GetOk) {
+        if (got.snapshot.devices.any(
+          (d) => !d.revoked && d.deviceId != auth.deviceId,
+        )) {
+          await family_devices.leaveFamily(transport: transport, local: local);
+          return false;
+        }
+        final deleted = await transport.deleteList(
+          auth,
+          version: got.snapshot.version,
+          requireWorkerError: true,
+        );
+        if (deleted is V2WriteStale) continue;
+      }
+      return true;
     }
-    await _retireLegacyV1(local, force: true);
+    throw const SyncTransportException(
+      SyncFailure.server,
+      'la lista cambió durante el borrado',
+    );
   }
 
   void _onTransportFailure(SyncTransportException e) {
@@ -1729,6 +1888,7 @@ class SyncController extends Notifier<SyncStatus> {
         return;
       }
       final envelope = await _sealOffThread(doc, identity, key);
+      await _forgetLocalList(listId);
       // Si la sincronización se apagó a mitad de ciclo («Dejar de
       // sincronizar», «Borrar todo»), este ciclo ya no sube: su `PUT` podría
       // llegar después del `DELETE` y dejar otra vez la lista en el servidor.
@@ -1925,7 +2085,7 @@ class SyncController extends Notifier<SyncStatus> {
       );
     }
     if (!ref.mounted) return;
-    ref.invalidate(localRegistryViewProvider);
+    ref.invalidate(localRegistryReadProvider);
     state = SyncStatus(SyncPhase.removed, lastSyncAt: state.lastSyncAt);
   }
 
@@ -2005,20 +2165,39 @@ Future<Uint8List> _sealOffThread(
   );
 }
 
-/// El registro de móviles de la familia v2 visto desde este móvil (lectura
-/// verificada de lo local, ADR 0004), o null si la familia sigue en v1 o no
-/// hay familia v2 local. Una sola lectura de la que derivan
-/// [devicePersonIdsProvider] y la lista de móviles de Ajustes.
+/// Lectura compartida del registro local tras recuperar la operación pendiente.
 ///
 /// Se vuelve a leer cuando cambia la familia y cuando se invalida a mano:
 /// al terminar una vuelta de sincronización v2 (solo ahí, no en cada fase),
 /// al quitar un móvil, al salir y al terminar un emparejamiento. No depende
 /// de `syncControllerProvider` (que la invalida).
+final localRegistryReadProvider = FutureProvider<LocalRegistryRead>(
+  (ref) async {
+    await ref.watch(familyControllerProvider.future);
+    final store = ref.read(familyStoreProvider);
+    // Como AppSyncV2Local.load: sin identidad v2 no hay operación de
+    // protección que recuperar, y entrar en la cola de la familia aquí
+    // bloquea a quien ya la tiene (createFamily en v1).
+    if (await store.readSyncV2() == null) {
+      return (hasV2Identity: false, snapshot: null, viewError: null);
+    }
+    await ref
+        .read(familyControllerProvider.notifier)
+        .recoverProtectionWithinLock();
+    final family = await familySnapshot(ref);
+    return store.readLocalRegistry(family.doc);
+  },
+  retry: (count, error) =>
+      error is RegistryException || error is DeviceKeysStoreException
+      ? null
+      : familyRetry(count, error),
+);
+
+/// Vista local usada para los datos de móviles y la proyección autorizada.
 final localRegistryViewProvider = FutureProvider<RegistryView?>((ref) async {
-  await ref.watch(familyControllerProvider.future);
-  final v2 = await AppSyncV2Local.load(ref);
-  if (v2 == null) return null;
-  return localView(v2);
+  final registry = await ref.watch(localRegistryReadProvider.future);
+  if (registry.viewError case final error?) throw error;
+  return registry.snapshot?.view;
 });
 
 /// Las personas con un móvil activo en la familia (ADR 0004): no se pueden

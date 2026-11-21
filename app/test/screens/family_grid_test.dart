@@ -157,7 +157,7 @@ void main() {
     );
     // El regalo sin quién regala de Aritz no es una celda: sale bajo su nombre.
     expect(find.bySemanticsLabel(RegExp('Sin asignar para')), findsNothing);
-    expect(find.bySemanticsLabel('1 sin quién'), findsOneWidget);
+    expect(find.bySemanticsLabel('1 sin asignar'), findsOneWidget);
 
     // Banner y celdas del posible duplicado.
     expect(
@@ -398,13 +398,13 @@ void main() {
       );
       await settle(tester);
       expect(
-        find.text('Padrina Anna aún no regala nada a Aritz'),
+        find.text('Aún no hay regalos de Padrina Anna para Aritz'),
         findsOneWidget,
       );
       // Aritz tiene un regalo sin quién regala: se puede dar desde aquí.
       expect(find.text('Patinete'), findsOneWidget);
-      expect(find.text('¿Quién?'), findsOneWidget);
-      await tester.tap(find.text('Regalo nuevo de Padrina Anna'));
+      expect(find.text('Sin asignar'), findsWidgets);
+      await tester.tap(find.text('Añadir regalo de Padrina Anna'));
       await settle(tester);
       expect(find.text('Nuevo regalo'), findsOneWidget);
       final dropdowns = find.byType(PickerField<String>);
@@ -430,11 +430,11 @@ void main() {
     await seedSample(tester, phone);
     await pumpRegalos(tester, phone);
     await openFamily(tester);
-    await tester.tap(find.bySemanticsLabel('1 sin quién'));
+    await tester.tap(find.bySemanticsLabel('1 sin asignar'));
     await settle(tester);
-    expect(find.text('Sin quién regala'), findsOneWidget);
+    expect(find.text('Sin asignar'), findsWidgets);
     expect(find.text('Patinete'), findsOneWidget);
-    expect(find.text('¿Quién?'), findsOneWidget);
+    expect(find.text('Sin asignar'), findsWidgets);
   }, size: const Size(390, 1500));
 
   screenTest('cambiar quién regala desde la hoja reasigna el regalo y las '
@@ -487,10 +487,10 @@ void main() {
     await seedSample(tester, phone);
     await pumpRegalos(tester, phone);
     await openFamily(tester);
-    await tester.tap(find.bySemanticsLabel('1 sin quién'));
+    await tester.tap(find.bySemanticsLabel('1 sin asignar'));
     await settle(tester);
     await tester.tap(
-      find.bySemanticsLabel(RegExp('^Quién regala: ¿Quién')).first,
+      find.bySemanticsLabel(RegExp('^Quién regala: Sin asignar')).first,
     );
     await settle(tester);
     await tester.tap(_inSheet('Tío Pere'));
@@ -503,7 +503,7 @@ void main() {
     );
     await tester.binding.handlePopRoute();
     await settle(tester);
-    expect(find.bySemanticsLabel('1 sin quién'), findsNothing);
+    expect(find.bySemanticsLabel('1 sin asignar'), findsNothing);
   }, size: const Size(390, 1500));
 
   screenTest('con «Reducir movimiento» la hoja solo se funde, en 150 ms', (
@@ -553,7 +553,7 @@ void main() {
       await bareFamily(tester, phone);
       await pumpRegalos(tester, phone);
       await openFamily(tester);
-      expect(find.text('Nadie ha apuntado regalos'), findsOneWidget);
+      expect(find.text('Faltan personas'), findsOneWidget);
     },
   );
 

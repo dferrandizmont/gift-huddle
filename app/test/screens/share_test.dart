@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' show Provider;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:regalos/app/router.dart';
 import 'package:regalos/core/motion/success_mark.dart';
+import 'package:regalos/core/sync/device_registry.dart';
 import 'package:regalos/core/sync/envelope.dart';
+import 'package:regalos/core/sync/model.dart';
+import 'package:regalos/core/sync/pairing_v2.dart';
+import 'package:regalos/features/family/data/device_keys_store.dart';
+import 'package:regalos/features/family/data/family_store.dart';
 import 'package:regalos/features/sharing/presentation/scan_viewfinder.dart';
 import 'package:regalos/features/family/domain/family_errors.dart';
 import 'package:regalos/features/family/presentation/family_texts.dart';
@@ -16,9 +22,20 @@ import 'package:regalos/features/sharing/application/share_service.dart';
 import 'package:regalos/core/widgets/regalos_switch.dart';
 import 'package:regalos/core/widgets/sheet_parts.dart';
 import 'package:regalos/features/sharing/presentation/pairing_qr_view.dart';
+import 'package:regalos/features/sync/application/sync_controller.dart';
+import 'package:regalos/features/sync/application/v2_health_provider.dart';
+import 'package:regalos/features/sync/application/pairing_v2_controller.dart';
+import 'package:regalos/features/sync/data/sync_config.dart';
+import 'package:regalos/features/sync/data/sync_transport.dart';
+import 'package:regalos/features/sync/domain/sync_keys.dart';
+import 'package:regalos/features/sync/domain/sync_status.dart';
 
+import '../helpers/fake_sync_server.dart';
+import '../helpers/fake_worker_v2.dart';
 import '../helpers/memory_stores.dart';
+import '../helpers/other_phone.dart';
 import '../helpers/screens.dart';
+import '../sync/sync_harness.dart' show kFastTiming, kTestHost;
 
 /// Espera a lo que corre fuera de la interfaz (cifrado, hilos aparte).
 Future<void> waitReal(WidgetTester tester, [int ms = 400]) async {
@@ -58,6 +75,63 @@ void main() {
   }
 
   screenTest(
+    'sin family.registry, la vista v2 da error y se muestran los avisos',
+    (tester, phone) async {
+      await seedSample(tester, phone);
+      await tester.runAsync(() async {
+        await familyOf(phone).setSelfRecipient('aritz');
+        await changedElsewhere(
+          phone,
+          (doc, clock) => doc.set(clock, Collections.meta, kProtocolRecordId, {
+            kProtocolVersionField: kSyncProtocolV2,
+          }),
+        );
+        final store = phone.container.read(familyStoreProvider);
+        final identity = (await store.load())!.identity;
+        await phone.container.read(deviceKeysStoreProvider).create();
+        await store.saveSyncV2(
+          SyncIdentityV2(
+            listId: identity.listId,
+            deviceId: identity.node,
+            syncId: 'AAAAAAAAAAAAAAAAAAAAAA',
+          ),
+        );
+        expect(await store.readRegistry(), isNull);
+      });
+
+      await pumpRegalos(tester, phone);
+      await openDevices(tester);
+      // Avanza el reloj de la prueba para que terminen los reintentos.
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(seconds: 1));
+      }
+      final missingSelf = isA<RegistryException>().having(
+        (error) => error.message,
+        'message',
+        'este móvil no está en el registro',
+      );
+      expect(
+        phone.container.read(localRegistryViewProvider).error,
+        missingSelf,
+      );
+      expect(phone.container.read(v2HealthProvider).error, missingSelf);
+      expect(
+        find.text('No se ha podido leer la lista de móviles.'),
+        findsOneWidget,
+      );
+
+      await tapLabel(tester, 'Volver a Ajustes');
+      await tapText(tester, 'Este móvil es de');
+      await tester.tap(find.text('Nora').last);
+      await settleSaved(tester);
+      expect(find.text('¿Cambiar de quién es este móvil?'), findsOneWidget);
+      await tapText(tester, 'Cancelar');
+      expect(find.bySemanticsLabel('Este móvil es de. Aritz'), findsOneWidget);
+    },
+    size: tall,
+  );
+
+  screenTest(
     'Móviles de la familia: el estado, los conectados, un botón y una fila',
     (tester, phone) async {
       await seedSample(tester, phone);
@@ -92,6 +166,84 @@ void main() {
     size: tall,
   );
 
+  {
+    final server = FakeSyncServer();
+    final transport = server.connect();
+    final worker = FakeWorkerV2();
+    final prepareV2 = Provider(
+      (ref) =>
+          () => ensureV2Family(ref),
+    );
+    screenTest(
+      'Compartir permite reintentar la retirada v1 con sincronización apagada',
+      (tester, phone) async {
+        await seedSample(tester, phone);
+        final (v1Id, v2Id) = (await tester.runAsync(() async {
+          final sync = phone.container.read(syncControllerProvider.notifier);
+          final store = phone.container.read(familyStoreProvider);
+          await familyOf(phone).markPaired(peerName: 'Nora');
+          final v1Id = await SyncKeys.syncId(familyOf(phone).familyKey!);
+          final local = await phone.container.read(prepareV2)();
+          sync.setV2Pairing(true);
+          await sync.syncNow();
+          final v2Id = local.identity.syncId;
+          expect(server.hasList(v1Id), isTrue);
+          expect(worker.hasList(v2Id), isTrue);
+          expect(await store.readLegacyV1(), isNotNull);
+          return (v1Id, v2Id);
+        }))!;
+
+        transport.deleteError = const SyncTransportException(
+          SyncFailure.server,
+          '503',
+        );
+        await pumpRegalos(tester, phone);
+        await openDevices(tester);
+        Future<void> stop() async {
+          await tapText(tester, 'Más opciones');
+          await tapText(tester, 'Dejar de sincronizar');
+          expect(find.text('¿Dejar de sincronizar?'), findsOneWidget);
+          await tapText(tester, 'Dejar de sincronizar');
+        }
+
+        await stop();
+        await waitReal(tester);
+        expect(
+          find.textContaining('No se ha podido contactar'),
+          findsOneWidget,
+        );
+        expect(
+          phone.container.read(syncControllerProvider).phase,
+          SyncPhase.disabled,
+        );
+        expect(server.hasList(v1Id), isTrue);
+        expect(worker.hasList(v2Id), isFalse);
+
+        transport.deleteError = null;
+        await stop();
+        await waitReal(tester);
+        expect(find.text('Sincronización apagada.'), findsOneWidget);
+        expect(
+          phone.container.read(syncControllerProvider).phase,
+          SyncPhase.disabled,
+        );
+        expect(server.hasList(v1Id), isFalse);
+        expect(server.calls['delete'], 2);
+        expect(worker.calls['DELETE list'], 1);
+        await tapText(tester, 'Más opciones');
+        expect(find.text('Dejar de sincronizar'), findsNothing);
+      },
+      size: tall,
+      syncHost: null,
+      overrides: [
+        syncHostProvider.overrideWithValue(kTestHost),
+        syncTransportProvider.overrideWithValue(transport),
+        syncV2TransportProvider.overrideWithValue(worker.client()),
+        syncTimingProvider.overrideWithValue(kFastTiming),
+      ],
+    );
+  }
+
   screenTest('«Conectar otro móvil» pregunta dónde está y «Está aquí» '
       'dibuja el QR en la misma hoja', (tester, phone) async {
     await seedSample(tester, phone);
@@ -114,7 +266,12 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('No hagas captura'), findsOneWidget);
-    expect(find.textContaining('toca «Unirme a una familia», luego «Escanear el QR»'), findsOneWidget);
+    expect(
+      find.textContaining(
+        'toca «Unirme a una familia», luego «Escanear el QR»',
+      ),
+      findsOneWidget,
+    );
 
     // El código es el del servicio de emparejar, con la clave de la familia.
     final expected = await tester.runAsync(
@@ -233,7 +390,7 @@ void main() {
       expect(find.text('Cómo se protege la lista'), findsNothing);
       await tester.tap(find.text('Unir este móvil a otra familia').last);
       await settle(tester);
-      expect(find.textContaining('se sustituye y se pierden'), findsOneWidget);
+      expect(find.textContaining('su lista sustituirá a la de este móvil'), findsOneWidget);
       expect(find.text('Pegar un enlace de invitación'), findsOneWidget);
       await tapText(tester, 'Escanear su QR');
       expect(find.byType(BottomSheet), findsNothing);
@@ -467,13 +624,13 @@ void main() {
       ),
     );
     await waitReal(tester);
-    expect(find.text('No se pudo abrir el envío'), findsOneWidget);
+    expect(find.text('No se ha podido abrir el envío'), findsOneWidget);
     expect(
       find.text('Este fichero o texto no es un envío de Gift Huddle.'),
       findsOneWidget,
     );
     await tapText(tester, 'Cerrar');
-    expect(find.text('No se pudo abrir el envío'), findsNothing);
+    expect(find.text('No se ha podido abrir el envío'), findsNothing);
   });
 
   screenTest('un fichero de otra familia lo dice con claridad', (
@@ -560,7 +717,7 @@ void main() {
       expect(find.text(text), findsOneWidget, reason: text);
     }
     expect(
-      find.textContaining('solo se abre en un móvil que ya esté conectado'),
+      find.textContaining('Solo puedes abrirla en un móvil que ya forme parte'),
       findsOneWidget,
     );
     // El código de recuperación (ADR 0004) aún no funciona: no se enseña.
@@ -615,7 +772,7 @@ void main() {
     clipboard = 'hola';
     await paste();
     await waitReal(tester);
-    expect(find.text('No se pudo abrir el envío'), findsOneWidget);
+    expect(find.text('No se ha podido abrir el envío'), findsOneWidget);
     await tapText(tester, 'Cerrar');
 
     // El enlace de un envío de verdad.
@@ -633,14 +790,14 @@ void main() {
         es,
         const ImportSummary(giftsAdded: 3, giftsChanged: 2),
       ),
-      '3 regalos nuevos, 2 cambiados',
+      '3 regalos nuevos, 2 regalos modificados',
     );
     expect(
       importSummaryText(
         es,
         const ImportSummary(giftsAdded: 1, giftsDeleted: 1),
       ),
-      '1 regalo nuevo, 1 borrado',
+      '1 regalo nuevo, 1 regalo eliminado',
     );
     expect(
       importSummaryText(es, const ImportSummary(docChanged: true)),

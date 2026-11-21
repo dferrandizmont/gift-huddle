@@ -131,7 +131,7 @@ void main() {
       expectFillsColumn(tester, find.byType(SettingsRow));
       expectFillsColumn(
         tester,
-        find.textContaining('solo se abre en un móvil que ya esté conectado'),
+        find.textContaining('Solo puedes abrirla en un móvil que ya forme parte'),
         inset: 16,
       );
 

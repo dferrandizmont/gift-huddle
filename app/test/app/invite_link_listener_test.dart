@@ -21,6 +21,13 @@ import 'package:regalos/features/sync/presentation/pairing_v2_guest_view.dart';
 import '../helpers/screens.dart';
 import '../platform/link_source_test.dart' show FakeLinks;
 
+/// El enlace que llega solo no abre la invitación: antes se ve el nombre de
+/// este móvil y se pulsa «Pedir entrada».
+Future<void> _ask(WidgetTester tester) async {
+  await tester.tap(find.text('Pedir entrada'));
+  await settle(tester);
+}
+
 class DelayedFamily extends FamilyController {
   final ready = Completer<FamilyState>();
 
@@ -81,6 +88,9 @@ void main() {
       await settle(tester);
       expect(phone.container.read(routerProvider).state.uri.path, '/welcome');
       expect(find.byType(JoinInviteScreen), findsOneWidget);
+      expect(coldGuest.calls, isEmpty);
+      expect(find.text('Nombre de este móvil'), findsOneWidget);
+      await _ask(tester);
       expect(coldGuest.calls, ['begin:$id']);
       expect(phone.container.read(incomingInviteProvider), isNull);
       await settle(tester);
@@ -164,6 +174,8 @@ void main() {
         isTrue,
       );
       expect(find.byType(JoinInviteScreen), findsOneWidget);
+      expect(androidGuest.calls, isEmpty);
+      await _ask(tester);
       expect(androidGuest.calls, ['begin:$id']);
       expect(phone.container.read(incomingInviteProvider), isNull);
       debugDefaultTargetPlatformOverride = null;
@@ -193,6 +205,7 @@ void main() {
             );
             await settle(tester);
           }
+          await _ask(tester);
           final view = tester.state(find.byType(PairingV2GuestView));
           final pairing = phone.container.read(pairingV2GuestProvider);
           expect(guest.calls, ['begin:$id']);
@@ -225,6 +238,8 @@ void main() {
             find.byType(JoinInviteScreen, skipOffstage: false),
             findsOneWidget,
           );
+          expect(guest.calls, ['begin:$id', 'reset']);
+          await _ask(tester);
           expect(guest.calls, ['begin:$id', 'reset', 'begin:$nextId']);
         },
         syncHost: null,

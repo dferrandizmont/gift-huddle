@@ -324,7 +324,7 @@ void main() {
       expect(tester.takeException(), isNull);
       // Su ficha, también.
       await tester.tap(
-        find.bySemanticsLabel('Obre la fitxa de Aritz (jo)').first,
+        find.bySemanticsLabel('Obrir la fitxa de Aritz (jo)').first,
       );
       await settle(tester);
       expect(

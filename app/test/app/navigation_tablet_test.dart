@@ -155,7 +155,7 @@ void main() {
         expect(tester.takeException(), isNull, reason: label);
       }
 
-      await open('Reparto', 'Nadie ha apuntado regalos');
+      await open('Reparto', 'Faltan personas');
       await open('Ocasiones', 'Sin ocasiones');
       await open('Ajustes', 'Apariencia');
       await open('Personas', 'Aún no hay personas');

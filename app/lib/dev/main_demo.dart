@@ -291,11 +291,11 @@ Future<void> _seed(ProviderContainer container) async {
     gift(
       'g8',
       'nora',
-      'Cocinita de madera',
+      'El Principito',
       giver: 'us',
       occasion: 'seed-santa',
       status: GiftStatus.wrapped,
-      planned: 6450,
+      planned: 1299,
     ),
     gift(
       'g9',

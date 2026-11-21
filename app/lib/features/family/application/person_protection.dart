@@ -8,6 +8,46 @@ Set<String> otherMobilePeople(RegistryView? view) => Set.unmodifiable({
         if (view.member(id)!.personId case final String person) person,
 });
 
+ProtectedPersonReason protectionRegistryFailureReason(Object error) =>
+    error is RegistryIdentityAmbiguousException
+    ? ProtectedPersonReason.requesterAmbiguous
+    : ProtectedPersonReason.registryUnavailable;
+
+/// Request eligibility on the verified registry and the view built from it.
+/// [candidateViews] shares candidate views across one evaluation.
+Future<ProtectedPersonReason?> protectionRequestReason(
+  VerifiedRegistry snapshot,
+  String personId, {
+  Map<String, Future<RegistryView>>? candidateViews,
+}) async {
+  final ProtectionRequestBlock? block;
+  try {
+    block = await protectionRequestBlock(
+      registry: snapshot.registry,
+      localView: snapshot.view,
+      personId: personId,
+      candidateViews: candidateViews,
+    );
+  } on Object catch (error) {
+    return protectionRegistryFailureReason(error);
+  }
+  return switch (block) {
+    null => null,
+    ProtectionRequestBlock.registryUnavailable =>
+      ProtectedPersonReason.registryUnavailable,
+    ProtectionRequestBlock.notMobile => ProtectedPersonReason.requiresV2,
+    ProtectionRequestBlock.recipientUnavailable =>
+      ProtectedPersonReason.recipientUnavailable,
+    ProtectionRequestBlock.requesterRevoked =>
+      ProtectedPersonReason.requesterRevoked,
+    ProtectionRequestBlock.requesterAmbiguous =>
+      ProtectedPersonReason.requesterAmbiguous,
+    ProtectionRequestBlock.requesterPending =>
+      ProtectedPersonReason.requesterPending,
+    ProtectionRequestBlock.noConfirmer => ProtectedPersonReason.noConfirmer,
+  };
+}
+
 class _ProtectionContext {
   const _ProtectionContext(this.view, this.keys, this.slots, this.keyring);
   final RegistryView view;
@@ -92,9 +132,7 @@ extension PersonProtectionActions on FamilyController {
       FamilyState(
         doc: saved.doc,
         identity: saved.identity,
-        otherDevicePeople: otherMobilePeople(
-          (await _store.readVerifiedRegistry(saved.doc))?.view,
-        ),
+        otherDevicePeople: await _readOtherMobilePeople(saved.doc),
       ),
     );
   }
@@ -254,27 +292,64 @@ extension PersonProtectionActions on FamilyController {
 
   /// Publishes only a request. It never creates keys or moves gifts. A phone
   /// with entitlement confirms it through activateProtection (or on sync).
-  Future<void> requestProtection(String personId) =>
-      _protectionSerial(() async {
+  Future<void> requestProtection(String personId) async {
+    try {
+      await _protectionSerial(() async {
         final current = await _requireFamily();
         _store.requireMobileOperation('requestProtection');
-        if (!livePeopleOf(current.doc).contains(personId)) return;
-        if (await _store.readSyncV2() == null) {
+        final LocalRegistryRead registry;
+        try {
+          registry = await _store.readLocalRegistry(current.doc);
+        } on RegistryException catch (error) {
           throw ProtectedPersonException(
             personId,
-            reason: ProtectedPersonReason.requiresV2,
+            reason: protectionRegistryFailureReason(error),
+          );
+        } on FamilyStoreException {
+          throw ProtectedPersonException(
+            personId,
+            reason: ProtectedPersonReason.registryUnavailable,
+          );
+        } on DeviceKeysStoreException {
+          throw ProtectedPersonException(
+            personId,
+            reason: ProtectedPersonReason.registryUnavailable,
           );
         }
-        final ctx = await _protectionContext(current.doc);
+        final snapshot = registry.snapshot;
+        if (snapshot == null) {
+          throw ProtectedPersonException(
+            personId,
+            reason:
+                registry.hasV2Identity ||
+                    syncProtocolOf(current.doc) == kSyncProtocolV2
+                ? ProtectedPersonReason.registryUnavailable
+                : ProtectedPersonReason.requiresV2,
+          );
+        }
+        final reason = await protectionRequestReason(snapshot, personId);
+        if (reason != null) {
+          throw ProtectedPersonException(personId, reason: reason);
+        }
+        final slots = await _store.readSlots();
         final next = protection_policy.requestProtection(
           current.doc,
           _clock!,
           personId,
-          authenticated: ctx?.slots.authenticatedPolicy(personId, ctx.view),
+          authenticated: slots.authenticatedPolicy(personId, snapshot.view),
         );
         await _store.saveDoc(next);
         _protectionState = AsyncData(current.copyWith(doc: next));
       });
+    } on ProtectedPersonException catch (error) {
+      final ref = _protectionRef;
+      if (error.reason == ProtectedPersonReason.registryUnavailable &&
+          ref.mounted) {
+        ref.container.invalidate(localRegistryReadProvider);
+      }
+      rethrow;
+    }
+  }
 
   Future<void> activateProtection(String personId) =>
       _protectionSerial(() => _transitionProtection(personId, true));

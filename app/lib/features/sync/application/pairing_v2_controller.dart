@@ -666,7 +666,7 @@ class PairingV2HostController extends Notifier<PairingV2HostState> {
       await ref.read(familyControllerProvider.notifier).markPaired();
       _host = null;
       _end(PairingV2HostPhase.done, code: current.code);
-      if (ref.mounted) ref.invalidate(localRegistryViewProvider);
+      if (ref.mounted) ref.invalidate(localRegistryReadProvider);
       unawaited(ref.read(syncControllerProvider.notifier).resumeAfterPairing());
     } on Object catch (e) {
       if (run != _run || !ref.mounted) return;
@@ -1141,7 +1141,7 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
             await ref.read(v2FamilyLockProvider).run(() => _install(joined));
             // Installation is complete: acknowledge removal of the whole invitation.
             unawaited(guest.releaseCheckpoint());
-            if (ref.mounted) ref.invalidate(localRegistryViewProvider);
+            if (ref.mounted) ref.invalidate(localRegistryReadProvider);
             unawaited(
               ref.read(syncControllerProvider.notifier).resumeAfterPairing(),
             );

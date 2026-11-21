@@ -121,14 +121,26 @@ class _JoinInviteScreenState extends ConsumerState<JoinInviteScreen> {
   String? _v2Invite;
   String? _v2Error;
 
+  /// El nombre de este móvil tal como estaba al pulsar «Pedir entrada» (o el
+  /// que ya venía confirmado): no se vuelve a leer del campo después, porque
+  /// la sugerencia del modelo puede llegar en medio. Vacío también vale.
+  String _v2Name = '';
+
   @override
   void initState() {
     super.initState();
     _presence = ref.read(joinInvitePresenceProvider);
     _presence._owners.add(this);
     final initial = widget.initialInvite;
-    if (initial != null && ref.read(pairingV2AvailableProvider)) {
+    // Con el nombre ya escrito o aceptado (bienvenida, lector de QR) se abre la
+    // invitación sin más. Con un enlace que llega solo (App Link) no: antes la
+    // persona ve el campo del nombre de este móvil, con el modelo propuesto, y
+    // pulsa «Pedir entrada». El enlace ya está en [_link].
+    if (initial != null &&
+        widget.deviceName.trim().isNotEmpty &&
+        ref.read(pairingV2AvailableProvider)) {
       _v2Invite = _inviteIdOf(initial);
+      _v2Name = deviceNameToSend(ref, widget.deviceName);
     }
   }
 
@@ -146,7 +158,9 @@ class _JoinInviteScreenState extends ConsumerState<JoinInviteScreen> {
   void _askV2() {
     FocusScope.of(context).unfocus();
     final id = _inviteIdOf(_link.text);
+    final name = deviceNameToSend(ref, _name.text);
     setState(() {
+      _v2Name = name;
       _v2Invite = id;
       _v2Error = id == null
           ? AppLocalizations.of(context).joinInviteBadLink
@@ -162,7 +176,7 @@ class _JoinInviteScreenState extends ConsumerState<JoinInviteScreen> {
       return PairingV2GuestView(
         key: ValueKey<String>(invite),
         inviteId: invite,
-        deviceName: deviceNameToSend(ref, _name.text),
+        deviceName: _v2Name,
         onDone: () => _finish(l10n.pairingV2GuestDoneBody),
         onExit: () => setState(() => _v2Invite = null),
       );
@@ -187,6 +201,8 @@ class _JoinInviteScreenState extends ConsumerState<JoinInviteScreen> {
             ),
           ),
         ),
+        const SizedBox(height: 12),
+        DeviceNameField(controller: _name),
         if (_v2Error != null) ...[
           const SizedBox(height: 12),
           Text(_v2Error!, style: t.styles.body),

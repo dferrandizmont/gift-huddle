@@ -78,7 +78,7 @@ void main() {
         );
         expect(find.text('Guardado'), findsOneWidget);
         expect(
-          find.text('Este ordenador espera a que un móvil lo confirme'),
+          find.text('Pendiente de confirmación desde un móvil'),
           findsNothing,
         );
         expect(tester.takeException(), isNull);
@@ -99,7 +99,7 @@ void main() {
       (tester, phone) async {
         await _mountWeb(tester, phone);
         expect(
-          find.text('Este ordenador espera a que un móvil lo confirme'),
+          find.text('Pendiente de confirmación desde un móvil'),
           findsOneWidget,
         );
         expect(find.text('Guardado'), findsNothing);

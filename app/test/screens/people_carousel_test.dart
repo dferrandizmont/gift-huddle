@@ -236,7 +236,7 @@ void main() {
     await settle(tester);
     expect(find.byType(OccasionDetailScreen), findsOneWidget);
     expect(find.text('Tió'), findsWidgets);
-    expect(find.text('Cada persona'), findsOneWidget);
+    expect(find.text('Por persona'), findsOneWidget);
 
     // Se abrió desde Personas: el atrás vuelve allí, no a Ocasiones.
     expect(find.bySemanticsLabel('Volver a Personas'), findsOneWidget);
@@ -290,7 +290,7 @@ void main() {
       expect(find.text('45'), findsOneWidget);
       expect(detailNumberOpacities(tester), everyElement(1));
       expect(_detailAddButton, findsOneWidget);
-      expect(find.text('Cada persona'), findsOneWidget);
+      expect(find.text('Por persona'), findsOneWidget);
     });
 
     screenTest('el número cambia de tamaño de letra durante el vuelo', (

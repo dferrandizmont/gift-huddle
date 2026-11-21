@@ -123,7 +123,7 @@ void main() {
       )).firstWhere((g) => g.title == 'Bicicleta');
       expect(saved.recipientId, 'nora');
       // El aviso lleva a la lista de Nora, donde está el regalo.
-      expect(find.text('Regalo añadido a Nora'), findsOneWidget);
+      expect(find.text('Regalo añadido a la lista de Nora'), findsOneWidget);
       await tapText(tester, 'Ver');
       expect(find.text('Bicicleta'), findsOneWidget);
       expect(find.text('Nora'), findsWidgets);

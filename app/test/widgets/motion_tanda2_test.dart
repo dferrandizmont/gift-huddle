@@ -41,7 +41,7 @@ void main() {
               await showRegalosConfirm(
                 context,
                 title: '¿Borrar «Patinete»?',
-                body: 'Se borra también en los móviles de tu familia.',
+                body: 'Se elimina también en los móviles de tu familia.',
                 confirmLabel: 'Borrar',
                 cancelLabel: 'Cancelar',
               ),

@@ -192,7 +192,7 @@ void main() {
 
     await tapText(tester, 'Acerca de Gift Huddle');
     expect(find.text('Gift Huddle'), findsOneWidget);
-    expect(find.textContaining('solo salen del móvil'), findsOneWidget);
+    expect(find.textContaining('solo sale de tu móvil'), findsOneWidget);
   }, size: tall);
 
   final shakeHaptics = FakeHaptics();
@@ -395,7 +395,7 @@ void main() {
 
     await tapText(tester, 'Archivo');
     expect(
-      find.text('Fuera de las listas, con sus regalos guardados.'),
+      find.text('Lo que archivas deja de aparecer en las listas, pero conserva sus regalos.'),
       findsOneWidget,
     );
     // Un grupo por lista, con lo suyo.
@@ -479,7 +479,7 @@ void main() {
     await settle(tester);
     expect(find.text('¿Eliminar a Nora?'), findsOneWidget);
     expect(
-      find.textContaining('Se eliminarán también sus 4 regalos.'),
+      find.textContaining('También se eliminarán los 4 regalos que hay para esta persona.'),
       findsOneWidget,
     );
     expect(find.textContaining('No se puede deshacer.'), findsOneWidget);
@@ -515,7 +515,7 @@ void main() {
     await settle(tester);
     expect(find.text('¿Eliminar a Tío Pere?'), findsOneWidget);
     expect(
-      find.textContaining('Su regalo se quedará sin quién regala.'),
+      find.textContaining('Su regalo seguirá en la lista sin nadie asignado en «Quién regala».'),
       findsOneWidget,
     );
     await tester.tap(find.widgetWithText(FilledButton, 'Eliminar'));

@@ -241,10 +241,10 @@ void main() {
           _item('n', 'nora', DeviceReviewReason.frozen),
         ]),
       );
-      expect(find.text('Congelado: espera aprobación'), findsOneWidget);
+      expect(find.text('Cambios en pausa: espera aprobación'), findsOneWidget);
       expect(find.text('Espera aprobación'), findsOneWidget);
       expect(
-        find.text('Sin persona: aún no abre las sorpresas'),
+        find.text('Sin persona: aún no ve las sorpresas'),
         findsOneWidget,
       );
       // El contador es el de los móviles activos, no cuenta a los pendientes.
@@ -318,7 +318,7 @@ void main() {
       await _tapText(tester, 'Nora');
       await _tapText(tester, 'Quitar este móvil');
       expect(
-        find.text('Este móvil volverá a esperar aprobación'),
+        find.text('Tu móvil volverá a esperar aprobación'),
         findsOneWidget,
       );
       // Primero el aviso; la confirmación general viene después.
@@ -371,10 +371,10 @@ void main() {
       await _tapText(tester, 'Quitar este móvil');
       await _tapText(tester, 'Quitar móvil');
       expect(find.text('De quién es'), findsNothing);
-      expect(find.textContaining('Falta cortar su acceso'), findsNothing);
+      expect(find.textContaining('el acceso en cuanto haya conexión'), findsNothing);
       gate.complete();
       await _settle(tester);
-      expect(find.textContaining('Falta cortar su acceso'), findsOneWidget);
+      expect(find.textContaining('el acceso en cuanto haya conexión'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     });
 
@@ -450,7 +450,7 @@ void main() {
         await _tapText(tester, 'Quitar móvil');
         expect(actions.calls, ['preview n', 'remove n']);
         expect(find.text('¿Este móvil es de Leo?'), findsOneWidget);
-        expect(find.textContaining('Dejó de estar enlazado'), findsOneWidget);
+        expect(find.textContaining('Hay que confirmar de nuevo de quién es'), findsOneWidget);
         await _tapText(tester, 'Sí, es de Leo');
         expect(actions.calls.last, 'approve l');
         expect(find.text('Todo revisado'), findsOneWidget);
@@ -479,7 +479,7 @@ void main() {
       expect(find.text('1 de 2'), findsOneWidget);
       // Un cambio de persona avisa de que podrá avalar a otros.
       expect(
-        find.textContaining('podrá avalar a otros móviles'),
+        find.textContaining('podrá aprobar otros móviles'),
         findsOneWidget,
       );
       // No hay botón de aprobar todos.
@@ -513,7 +513,7 @@ void main() {
       expect(find.text('¿Este móvil es de Leo?'), findsOneWidget);
       await _tapText(tester, 'Después');
       expect(find.text('¿Este móvil es de Nora?'), findsOneWidget);
-      expect(find.textContaining('te confirmó a ti'), findsOneWidget);
+      expect(find.textContaining('antes confirmó el tuyo'), findsOneWidget);
       expect(actions.calls, isEmpty);
       await tester.pumpWidget(const SizedBox());
     });
@@ -544,7 +544,7 @@ void main() {
       actions.failApprove = true;
       await _tapText(tester, 'Revisar móviles');
       await _tapText(tester, 'Sí, es de Leo');
-      expect(find.text('No se ha podido aprobar el móvil.'), findsOneWidget);
+      expect(find.text('No se ha podido aprobar el móvil. Inténtalo de nuevo.'), findsOneWidget);
       actions.failApprove = false;
       await _tapText(tester, 'Sí, es de Leo');
       expect(find.text('Todo revisado'), findsOneWidget);
@@ -559,11 +559,11 @@ void main() {
         review: DeviceReview([_item('n', 'nora', DeviceReviewReason.frozen)]),
       );
       await _tapText(tester, 'Nora');
-      expect(find.text('Congelado'), findsWidgets);
+      expect(find.text('Cambios en pausa'), findsWidgets);
       await _tapText(tester, 'Aprobar este móvil');
       expect(find.text('¿Este móvil es de Nora?'), findsOneWidget);
       expect(
-        find.textContaining('Sus cambios están congelados'),
+        find.textContaining('Sus cambios están en pausa'),
         findsOneWidget,
       );
       await _tapText(tester, 'Sí, es de Nora');
@@ -599,7 +599,7 @@ void main() {
       await _settle(tester);
       expect(find.text('¿Este móvil es de Nora?'), findsOneWidget);
       expect(
-        find.text('Este móvil ha cambiado: revisa de nuevo.'),
+        find.text('Han cambiado los datos del móvil. Revísalos de nuevo.'),
         findsOneWidget,
       );
       await _tapText(tester, 'Sí, es de Nora');
@@ -625,11 +625,11 @@ void main() {
       expect(actions.digests, ['d-l']);
       expect(find.text('Todo revisado'), findsNothing);
       expect(
-        find.text('Este móvil ha cambiado: revisa de nuevo.'),
+        find.text('Han cambiado los datos del móvil. Revísalos de nuevo.'),
         findsOneWidget,
       );
       expect(find.text('¿Este móvil es de Nora?'), findsOneWidget);
-      expect(find.text('No se ha podido aprobar el móvil.'), findsNothing);
+      expect(find.text('No se ha podido aprobar el móvil. Inténtalo de nuevo.'), findsNothing);
       await _tapText(tester, 'Sí, es de Nora');
       expect(actions.digests, ['d-l', 'd-l2']);
       expect(find.text('Todo revisado'), findsOneWidget);
@@ -660,7 +660,7 @@ void main() {
           );
       await _settle(tester);
       expect(
-        find.text('Este móvil ha cambiado: revisa de nuevo.'),
+        find.text('Han cambiado los datos del móvil. Revísalos de nuevo.'),
         findsOneWidget,
       );
       expect(find.text('¿Este móvil es de Leo?'), findsOneWidget);
@@ -711,7 +711,7 @@ void main() {
       await _tapText(tester, 'Quitar móvil');
       expect(actions.calls, ['preview n', 'remove n', 'preview n']);
       expect(
-        find.text('Este móvil volverá a esperar aprobación'),
+        find.text('Tu móvil volverá a esperar aprobación'),
         findsOneWidget,
       );
       await _tapText(tester, 'Quitar igualmente');
@@ -730,8 +730,7 @@ void main() {
       await _tapText(tester, 'Quitar móvil');
       expect(
         find.text(
-          'Quitado de este móvil. Falta cortar su acceso: se hará en cuanto '
-          'haya conexión.',
+          'Móvil quitado. Perderá el acceso en cuanto haya conexión.',
         ),
         findsOneWidget,
       );
@@ -770,9 +769,9 @@ void main() {
         ]),
       );
       await _tapText(tester, 'Revisar móviles');
-      expect(find.textContaining('Dejó de estar enlazado'), findsOneWidget);
+      expect(find.textContaining('Hay que confirmar de nuevo de quién es'), findsOneWidget);
       expect(
-        find.textContaining('podrá avalar a otros móviles'),
+        find.textContaining('podrá aprobar otros móviles'),
         findsOneWidget,
       );
       await tester.pumpWidget(const SizedBox());

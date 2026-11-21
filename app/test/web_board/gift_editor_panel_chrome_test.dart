@@ -131,7 +131,7 @@ void main() {
   // a la izquierda y en la misma fila que «Cancelar» y «Guardar».
   for (final (locale, delete, cancel, save) in const [
     ('es', 'Borrar regalo', 'Cancelar', 'Guardar'),
-    ('ca', 'Esborra el regal', 'Cancel·la', 'Desa'),
+    ('ca', 'Esborra el regal', 'Cancel·lar', 'Desar'),
     ('en', 'Delete gift', 'Cancel', 'Save'),
   ]) {
     screenTest(

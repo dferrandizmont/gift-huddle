@@ -619,7 +619,13 @@ void main() {
       ],
     );
     addTearDown(c.dispose);
-    expect((await c.read(familyControllerProvider.future)).hasFamily, isTrue);
+    final family = await c.read(familyControllerProvider.future);
+    expect(family.hasFamily, isTrue);
+    final verified = await c
+        .read(familyStoreProvider)
+        .readVerifiedRegistry(family.doc);
+    expect(verified?.view.me, family.identity!.node);
+    expect(verified?.view.self.kind, DeviceKind.web);
     expect(c.read(recoveryTransportProvider), isNull);
     expect(c.read(recoveryReaderProvider), isNull);
     expect(c.read(recoveryControllerProvider), isNull);

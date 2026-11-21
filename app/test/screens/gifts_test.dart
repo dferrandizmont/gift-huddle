@@ -213,7 +213,7 @@ void main() {
     );
     await tapText(tester, 'Guardar');
     expect(find.text('Posible duplicado'), findsOneWidget);
-    expect(find.textContaining('se parece a un regalo'), findsOneWidget);
+    expect(find.textContaining('Puede que este regalo ya esté en la lista'), findsOneWidget);
 
     // Revisar vuelve al editor sin guardar.
     await tapText(tester, 'Revisar');

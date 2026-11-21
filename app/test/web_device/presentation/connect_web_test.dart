@@ -238,7 +238,7 @@ void main() {
       expect(host.calls, isNot(contains('confirmPerson')));
       expect(host.calls.last, 'cancel');
       expect(
-        find.textContaining('Se ha cancelado y el código ya no sirve'),
+        find.textContaining('Se ha cancelado la conexión y el código ya no sirve'),
         findsOneWidget,
       );
       await tester.pumpWidget(const SizedBox());
@@ -275,8 +275,8 @@ void main() {
       await settleMobile(tester);
       expect(
         find.text(
-          'Este código ya no vale. En el ordenador, toca Empezar otra vez y '
-          'escanea el nuevo.',
+          'Este código ya no vale. En el ordenador, pulsa «Empezar otra vez». '
+          'Escanea el código nuevo con el móvil.',
         ),
         findsOneWidget,
       );
@@ -311,7 +311,7 @@ void main() {
       );
       await settleMobile(tester);
       expect(
-        find.textContaining('hace falta tener la sincronización'),
+        find.textContaining('tener la sincronización encendida'),
         findsOneWidget,
       );
       await tester.pumpWidget(const SizedBox());

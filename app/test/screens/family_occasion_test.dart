@@ -224,7 +224,7 @@ void main() {
       ),
     );
     await settle(tester);
-    await tester.tap(find.text('Regalo nuevo de Padrina Anna'));
+    await tester.tap(find.text('Añadir regalo de Padrina Anna'));
     await settle(tester);
     expect(find.text('Nuevo regalo'), findsOneWidget);
     final occasion = tester

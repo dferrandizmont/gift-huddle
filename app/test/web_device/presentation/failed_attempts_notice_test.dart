@@ -74,12 +74,12 @@ void main() {
   testWidgets('singular y plural en español', (tester) async {
     await pumpWeb(tester, _page(FakeGateActions(), 1));
     expect(
-      find.textContaining('Hubo 1 intento fallido de desbloquear'),
+      find.textContaining('Ha habido 1 intento fallido desde la última vez'),
       findsOneWidget,
     );
     await pumpWeb(tester, _page(FakeGateActions(), 3));
     expect(
-      find.textContaining('Hubo 3 intentos fallidos de desbloquear'),
+      find.textContaining('Ha habido 3 intentos fallidos desde la última vez'),
       findsOneWidget,
     );
   });

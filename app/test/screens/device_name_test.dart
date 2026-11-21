@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,11 +53,16 @@ void main() {
             await tester.ensureVisible(scanner);
             await tester.tap(scanner);
           } else {
-            await tester.enterText(find.byType(TextField), invite);
+            await tester.enterText(find.byType(TextField).first, invite);
             await tester.tap(find.text('Pedir entrada'));
           }
           await settle(tester);
-          expect(guest.receivedName, typed ?? 'Pixel de Nora');
+          // Un nombre vacío en la bienvenida no se queda vacío al pegar el
+          // enlace: el campo propone el modelo, visible y editable.
+          final shared = typed == null || typed.isEmpty
+              ? 'Pixel de Nora'
+              : typed;
+          expect(guest.receivedName, qr ? (typed ?? 'Pixel de Nora') : shared);
           await tester.pumpWidget(const SizedBox());
         },
         overrides: [
@@ -73,28 +80,71 @@ void main() {
     }
   }
 
-  testWidgets('abrir el enlace sin pasar por un campo no comparte el modelo', (
-    tester,
-  ) async {
-    final guest = _NameGuest();
-    await pumpThemed(
-      tester,
-      ProviderScope(
-        overrides: [
-          syncHostProvider.overrideWithValue(''),
-          suggestedDeviceNameProvider.overrideWith(
-            (ref) async => 'Pixel de Nora',
+  for (final edit in [null, 'Móvil de Nora']) {
+    testWidgets(
+      'un enlace que llega solo pide el nombre antes de abrir la invitación '
+      '(editado: $edit)',
+      (tester) async {
+        final guest = _NameGuest();
+        await pumpThemed(
+          tester,
+          ProviderScope(
+            overrides: [
+              syncHostProvider.overrideWithValue(''),
+              suggestedDeviceNameProvider.overrideWith(
+                (ref) async => 'Pixel de Nora',
+              ),
+              pairingV2AvailableProvider.overrideWithValue(true),
+              pairingV2GuestProvider.overrideWith(() => guest),
+            ],
+            child: const JoinInviteScreen(initialInvite: invite),
           ),
-          pairingV2AvailableProvider.overrideWithValue(true),
-          pairingV2GuestProvider.overrideWith(() => guest),
-        ],
-        child: const JoinInviteScreen(initialInvite: invite),
-      ),
+        );
+        await tester.pump();
+        await tester.pump();
+        // No se abre sola ni comparte el modelo sin que se vea.
+        expect(guest.receivedName, isNull);
+        final field = find.widgetWithText(TextField, 'Nombre de este móvil');
+        expect(field, findsOneWidget);
+        expect(find.text('Pixel de Nora'), findsOneWidget);
+        if (edit != null) await tester.enterText(field, edit);
+        await tester.tap(find.text('Pedir entrada'));
+        await tester.pump();
+        expect(guest.receivedName, edit ?? 'Pixel de Nora');
+        await tester.pumpWidget(const SizedBox());
+      },
     );
-    await tester.pump();
-    expect(guest.receivedName, isEmpty);
-    await tester.pumpWidget(const SizedBox());
-  });
+  }
+
+  testWidgets(
+    'el nombre se toma al pulsar «Pedir entrada»: el vacío también vale aunque '
+    'la sugerencia llegue después',
+    (tester) async {
+      final guest = _NameGuest();
+      final suggestion = Completer<String>();
+      await pumpThemed(
+        tester,
+        ProviderScope(
+          overrides: [
+            syncHostProvider.overrideWithValue(''),
+            suggestedDeviceNameProvider.overrideWith(
+              (ref) => suggestion.future,
+            ),
+            pairingV2AvailableProvider.overrideWithValue(true),
+            pairingV2GuestProvider.overrideWith(() => guest),
+          ],
+          child: const JoinInviteScreen(initialInvite: invite),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.text('Pedir entrada'));
+      suggestion.complete('Pixel de Nora');
+      await tester.pump();
+      await tester.pump();
+      expect(guest.receivedName, '');
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
   Future<void> pumpField(
     WidgetTester tester,

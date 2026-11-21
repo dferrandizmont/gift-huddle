@@ -155,10 +155,10 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
   /// «Conectar la web»: escanear el QR del navegador y elegir de quién es.
   void _connectWeb() => _open(const ConnectWebScreen());
 
-  Future<void> _more(SyncStatus status) async {
+  Future<void> _more(SyncStatus status, {required bool canStopSync}) async {
     final choice = await showMoreOptionsSheet(
       context,
-      canStopSync: status.active,
+      canStopSync: canStopSync,
       showPrivacy: status.phase != SyncPhase.notConfigured,
     );
     if (choice == null || !mounted) {
@@ -277,6 +277,9 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
     );
     // Tras pasar a la sincronización nueva, cada móvil se conecta otra vez.
     final reconnect = ref.watch(syncReconnectNeededProvider).value ?? false;
+    final canStopSync =
+        status.active ||
+        (status.phase == SyncPhase.disabled && isV2 && reconnect);
     // Conectar la web empareja en v2: solo si esta versión sincroniza.
     final canConnectWeb = ref.watch(pairingV2AvailableProvider);
 
@@ -502,10 +505,10 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
                       SettingsRow(
                         icon: SettingsIcons.dots,
                         title: l10n.devicesMore,
-                        hint: status.active
+                        hint: canStopSync
                             ? l10n.devicesMoreHint
                             : l10n.devicesJoinOther,
-                        onTap: () => _more(status),
+                        onTap: () => _more(status, canStopSync: canStopSync),
                       ),
                     ],
                   ),

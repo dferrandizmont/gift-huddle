@@ -33,7 +33,7 @@ import '../../sync/application/recovery_providers.dart'
         resumeRecoveryBeforeFamily,
         requireNoPendingRestore;
 import '../../sync/application/sync_controller.dart'
-    show localRegistryViewProvider;
+    show localRegistryReadProvider;
 import '../../sync/data/sync_transport_v2.dart' show kV2MaxSlotsPerWriter;
 import '../domain/delete_impact.dart';
 import '../domain/family_errors.dart';
@@ -261,10 +261,22 @@ class FamilyController extends AsyncNotifier<FamilyState> {
     return FamilyState(
       doc: doc,
       identity: stored.identity,
-      otherDevicePeople: otherMobilePeople(
-        (await _store.readVerifiedRegistry(doc))?.view,
-      ),
+      otherDevicePeople: await _readOtherMobilePeople(doc),
     );
+  }
+
+  Future<Set<String>> _readOtherMobilePeople(FamilyDoc doc) async {
+    try {
+      return otherMobilePeople((await _store.readVerifiedRegistry(doc))?.view);
+    } on RegistryException {
+      // Display metadata only: archiving and deleting verify it afresh
+      // (_refuseDevicePerson), so a mixed identity cannot block the family.
+      return const {};
+    } on FamilyStoreException {
+      return const {};
+    } on DeviceKeysStoreException {
+      return const {};
+    }
   }
 
   /// La clave de la familia, o `null` si no hay familia. Nunca va en el
@@ -313,9 +325,7 @@ class FamilyController extends AsyncNotifier<FamilyState> {
       _clock = HlcClock(node: stored.identity.node);
     }
     if (max != null) _clock!.receive(max);
-    final otherPeople = otherMobilePeople(
-      (await _store.readVerifiedRegistry(stored.doc))?.view,
-    );
+    final otherPeople = await _readOtherMobilePeople(stored.doc);
     if (!ref.mounted) return;
     state = AsyncData(
       current.copyWith(
@@ -490,6 +500,8 @@ class FamilyController extends AsyncNotifier<FamilyState> {
         ? existing.copyWith(
             peerName: peerName,
             paired: paired || existing.paired,
+            // El nombre que la persona envió al unirse gana al anterior.
+            deviceName: deviceName.trim().isEmpty ? null : deviceName.trim(),
           )
         : FamilyIdentity(
             listId: listId,
@@ -716,7 +728,7 @@ class FamilyController extends AsyncNotifier<FamilyState> {
         }
         // Estas vistas observan FamilyController. Invalidarlas por el
         // contenedor evita declarar una dependencia circular desde su Ref.
-        ref.container.invalidate(localRegistryViewProvider);
+        ref.container.invalidate(localRegistryReadProvider);
         ref.container.invalidate(rememberedOrphansProvider);
       }
     }

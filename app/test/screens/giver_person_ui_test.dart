@@ -247,7 +247,7 @@ void main() {
       await pumpRegalos(tester, phone);
       await _openEditor(tester);
       await _openGiverPicker(tester);
-      expect(find.text('Se recupera como quién regala'), findsOneWidget);
+      expect(find.text('Volverá a la lista de quienes regalan'), findsOneWidget);
       await _tapLast(tester, 'Nora');
       await tapText(tester, 'Guardar');
 
@@ -266,13 +266,13 @@ void main() {
         await pumpRegalos(tester, phone);
         await _openEditor(tester);
         await _openGiverPicker(tester);
-        expect(find.text('Antes se añade como quién regala'), findsWidgets);
+        expect(find.text('Primero se añade a quienes regalan'), findsWidgets);
 
         // Elegirla no la asigna: explica por qué y deja cancelar sin crear nada.
         await _tapLast(tester, 'Nora');
-        expect(find.text('¿Añadir a Nora como quién regala?'), findsOneWidget);
+        expect(find.text('¿Añadir a Nora a la lista de quienes regalan?'), findsOneWidget);
         expect(
-          find.textContaining('Para no delatarla, primero hay que añadir a '),
+          find.textContaining('Primero, añade a '),
           findsOneWidget,
         );
         await _cancelDialog(tester);
@@ -283,7 +283,7 @@ void main() {
         // Confirmar la añade para toda la familia y la deja elegida.
         await _openGiverPicker(tester);
         await _tapLast(tester, 'Nora');
-        await tapText(tester, 'Añadir a Nora como quién regala');
+        await tapText(tester, 'Añadir a Nora');
         state = await familyState(tester, phone);
         expect(state.view.giverForPerson('nora'), isNotNull);
         expect(find.bySemanticsLabel('Quién regala, Nora'), findsOneWidget);
@@ -313,6 +313,8 @@ void main() {
         await settle(tester);
 
         expect(find.text('Editar regalo'), findsNothing);
+        // Cierre automático: no se pregunta «¿Descartar los cambios?».
+        expect(find.text('¿Descartar los cambios?'), findsNothing);
         expect(find.text('Otro título que no se guarda'), findsNothing);
         expect(
           find.text('Este regalo ya no se puede ver en este móvil.'),
@@ -407,20 +409,20 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));
         await tester.tap(
-          find.bySemanticsLabel('Nora. Antes se añade como quién regala'),
+          find.bySemanticsLabel('Nora. Primero se añade a quienes regalan'),
         );
         await settle(tester);
-        expect(find.text('¿Añadir a Nora como quién regala?'), findsOneWidget);
+        expect(find.text('¿Añadir a Nora a la lista de quienes regalan?'), findsOneWidget);
         await _cancelDialog(tester);
         var state = await familyState(tester, phone);
         expect(state.view.giverForPerson('nora'), isNull);
         expect(_gift(state, _libro).giverId, 'marta');
 
         await tester.tap(
-          find.bySemanticsLabel('Nora. Antes se añade como quién regala'),
+          find.bySemanticsLabel('Nora. Primero se añade a quienes regalan'),
         );
         await settle(tester);
-        await tapText(tester, 'Añadir a Nora como quién regala');
+        await tapText(tester, 'Añadir a Nora');
         await settle(tester);
         state = await familyState(tester, phone);
         expect(_giverPerson(state, _libro), 'nora');
@@ -449,14 +451,14 @@ void main() {
           await tester.pump(const Duration(milliseconds: 400));
           expect(find.text('Personas'), findsWidgets);
           final chip = find.bySemanticsLabel(
-            'Nora. Antes se añade como quién regala',
+            'Nora. Primero se añade a quienes regalan',
           );
           await tester.ensureVisible(chip);
           await tester.pump();
           await tester.tap(chip);
           await settle(tester);
           expect(
-            find.text('¿Añadir a Nora como quién regala?'),
+            find.text('¿Añadir a Nora a la lista de quienes regalan?'),
             findsOneWidget,
           );
           expect(tester.takeException(), isNull);
@@ -502,7 +504,7 @@ void main() {
 
         expect(find.text('¿Eliminar a Nosotros?'), findsOneWidget);
         expect(
-          find.textContaining('Sus 4 regalos se quedarán sin quién regala.'),
+          find.textContaining('Sus 4 regalos seguirán en la lista sin nadie asignado en «Quién regala».'),
           findsOneWidget,
         );
         expect(
@@ -525,11 +527,11 @@ void main() {
         // El aviso se reabre solo, con lo nuevo, y no se ha eliminado nada.
         expect(find.text('¿Eliminar a Nosotros?'), findsOneWidget);
         expect(
-          find.textContaining('Ha cambiado mientras tenías el aviso abierto.'),
+          find.textContaining('La lista ha cambiado. Antes de confirmar'),
           findsOneWidget,
         );
         expect(
-          find.textContaining('Sus 5 regalos se quedarán sin quién regala.'),
+          find.textContaining('Sus 5 regalos seguirán en la lista sin nadie asignado en «Quién regala».'),
           findsOneWidget,
         );
         expect(find.textContaining('«Patinete»'), findsOneWidget);
@@ -547,7 +549,7 @@ void main() {
 
     screenTest(
       'eliminar a una persona que también regala explica que su nombre sigue '
-      'en los regalos que dio',
+      'en los regalos que hace a otras personas',
       (tester, phone) async {
         await seedSample(tester, phone);
         await tester.runAsync(
@@ -560,7 +562,7 @@ void main() {
         expect(find.text('¿Eliminar a Leo?'), findsOneWidget);
         expect(
           find.textContaining(
-            'Su nombre seguirá apareciendo en los regalos que dio',
+            'Su nombre seguirá en «Quién regala»',
           ),
           findsOneWidget,
         );
@@ -568,7 +570,7 @@ void main() {
         await _cancelDialog(tester);
         await tester.tap(buttonOf('Nora', 'Eliminar'));
         await settle(tester);
-        expect(find.textContaining('seguirá apareciendo'), findsNothing);
+        expect(find.textContaining('seguirá en «Quién regala»'), findsNothing);
       },
       size: _tall,
     );
@@ -594,7 +596,7 @@ void main() {
 
         expect(find.text('Este móvil es de Nora'), findsOneWidget);
         expect(
-          find.textContaining('no se puede eliminar ni archivar desde aquí'),
+          find.textContaining('Para eliminar o archivar a'),
           findsOneWidget,
         );
         await tapText(tester, 'Entendido');
@@ -834,7 +836,7 @@ void main() {
         await settle(tester);
         expect(find.text('¿Eliminar a Nosotros?'), findsOneWidget);
         expect(
-          find.textContaining('Ha cambiado mientras tenías el aviso abierto.'),
+          find.textContaining('La lista ha cambiado. Antes de confirmar'),
           findsOneWidget,
         );
         expect(find.textContaining('Pijama de astronautas'), findsNothing);
@@ -1135,7 +1137,7 @@ void main() {
         expect(find.text('¿Eliminar a Nosotros?'), findsNothing);
         expect(
           find.text(
-            'No se ha podido comprobar qué se elimina. Vuelve a abrir el aviso.',
+            'No se ha podido comprobar qué se eliminaría. Inténtalo de nuevo.',
           ),
           findsOneWidget,
         );
@@ -1362,7 +1364,7 @@ void main() {
         expect(state.view.givers.map((g) => g.id), contains('us'));
         expect(find.text('¿Eliminar a Nosotros?'), findsOneWidget);
         expect(
-          find.textContaining('Ha cambiado mientras tenías el aviso abierto.'),
+          find.textContaining('La lista ha cambiado. Antes de confirmar'),
           findsOneWidget,
         );
         expect(find.textContaining('Sus 5 regalos'), findsOneWidget);

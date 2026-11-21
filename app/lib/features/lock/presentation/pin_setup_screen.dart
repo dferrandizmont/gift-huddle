@@ -7,6 +7,8 @@ import '../../../core/theme/regalos_tokens.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/lock_controller.dart';
 import 'pin_pad.dart';
+import '../data/biometrics.dart';
+import 'biometric_labels.dart';
 
 /// Crear el PIN: se escribe y se repite.
 ///
@@ -76,6 +78,8 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
       return;
     }
     if (canOffer) {
+      // Se pudo dar de alta Face ID o Touch ID con la app abierta.
+      ref.invalidate(biometricKindProvider);
       // Un paso más dentro de esta misma pantalla (no es un diálogo: la
       // puerta del bloqueo vive encima del navegador y no puede abrir uno).
       setState(() {
@@ -115,6 +119,8 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
 
   Widget _offer(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final kind =
+        ref.watch(biometricKindProvider).value ?? BiometricKind.generic;
     final t = RegalosTokens.of(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -122,13 +128,13 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
         Text(l10n.appTitle, style: t.styles.sectionTitle),
         const SizedBox(height: 20),
         Text(
-          l10n.pinBiometricOfferTitle,
+          kind.offerTitle(l10n),
           style: t.styles.screenTitle,
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 6),
         Text(
-          l10n.lockBiometricNotice,
+          kind.notice(l10n),
           style: t.styles.meta,
           textAlign: TextAlign.center,
         ),
@@ -149,6 +155,8 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final t = RegalosTokens.of(context);
+    // Se pide ya para que el nombre esté listo cuando salga la oferta.
+    ref.watch(biometricKindProvider);
     return Scaffold(
       backgroundColor: t.bg,
       body: SafeArea(
