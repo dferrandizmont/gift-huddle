@@ -126,7 +126,7 @@
   "@appearanceHapticsTitle": {
     "description": "Interruptor que activa las vibraciones suaves al tocar."
   },
-  "appearanceHapticsHint": "El móvil vibra suavemente, por ejemplo, al marcar una casilla o elegir una opción.",
+  "appearanceHapticsHint": "Desactiva esta opción para apagar todas las vibraciones de la app, incluidas las que notas al marcar una casilla, eliminar un regalo o introducir un PIN incorrecto.",
   "@appearanceHapticsHint": {
     "description": "Explicación bajo el interruptor de vibraciones."
   },
@@ -651,7 +651,7 @@
   "@obStart": {
     "description": "Botón de la bienvenida."
   },
-  "obHaveListTitle": "¿Ya tenéis la lista en otro móvil?",
+  "obHaveListTitle": "¿Ya tenéis una lista?",
   "@obHaveListTitle": {
     "description": "Pregunta sobre el botón «Escanear el QR» de la bienvenida."
   },
@@ -729,7 +729,7 @@
   "@obOccasionsTitle": {
     "description": "Título del paso de ocasiones."
   },
-  "obOccasionsBody": "Elige cuándo hacéis regalos. Los cumpleaños aparecen si has indicado la fecha de nacimiento de cada persona.",
+  "obOccasionsBody": "Elige cuándo hacéis regalos. Si indicas la fecha de nacimiento de alguien, aparecerá su cumpleaños.",
   "@obOccasionsBody": {
     "description": "Explicación del paso de ocasiones."
   },
@@ -1085,22 +1085,22 @@
   "@giftSurpriseHint": {
     "description": "Explicación del interruptor de sorpresa."
   },
-  "giftDelete": "Borrar regalo",
+  "giftDelete": "Eliminar regalo",
   "@giftDelete": {
-    "description": "Botón que borra el regalo."
+    "description": "Botón que elimina el regalo."
   },
-  "confirmDeleteTitle": "¿Borrar «{name}»?",
+  "confirmDeleteTitle": "¿Eliminar «{name}»?",
   "@confirmDeleteTitle": {
-    "description": "Título del diálogo que pregunta antes de borrar algo.",
+    "description": "Título del diálogo que pregunta antes de eliminar un regalo.",
     "placeholders": {
       "name": {
         "type": "String"
       }
     }
   },
-  "confirmDeleteBody": "Se borra también en los móviles de tu familia.",
+  "confirmDeleteBody": "Se elimina también en los móviles de tu familia.",
   "@confirmDeleteBody": {
-    "description": "Consecuencia de borrar, en el diálogo de confirmación."
+    "description": "Consecuencia de eliminar un regalo, en el diálogo de confirmación."
   },
   "personCompletionProgress": "{occasion} · {done} de {total} comprados",
   "@personCompletionProgress": {
@@ -1385,7 +1385,7 @@
   "@budgetByOccasion": {
     "description": "Cabecera del presupuesto por ocasión."
   },
-  "budgetNote": "Lo que regalan los abuelos o los tíos cuenta como regalo, no como gasto de la casa.",
+  "budgetNote": "Solo suma lo que paga la casa. Los regalos que pagan otras personas, como los abuelos, quedan fuera del gasto de la casa.",
   "@budgetNote": {
     "description": "Nota al pie del presupuesto."
   },
@@ -1545,7 +1545,7 @@
       }
     }
   },
-  "manageArchiveHint": "Archivar quita algo de las listas sin borrar sus regalos; se recupera en Ajustes › Archivo. Eliminar lo borra para siempre.",
+  "manageArchiveHint": "Archivar quita algo de las listas sin eliminar sus regalos; se recupera en Ajustes › Archivo. Eliminar lo borra para siempre.",
   "@manageArchiveHint": {
     "description": "Explicación de archivar."
   },
@@ -1748,7 +1748,7 @@
   },
   "importDeleted": "{count, plural, one{{count} regalo eliminado} other{{count} regalos eliminados}}",
   "@importDeleted": {
-    "description": "Parte del resumen de un envío: regalos borrados.",
+    "description": "Parte del resumen de un envío: regalos eliminados.",
     "placeholders": {
       "count": {
         "type": "int"
@@ -1761,7 +1761,7 @@
   },
   "syncStopTitle": "Dejar de sincronizar",
   "@syncStopTitle": {
-    "description": "Fila que saca este móvil de la sincronización de la familia (si es el último, borra la copia del servidor) y la apaga."
+    "description": "Fila que saca este móvil de la sincronización de la familia (si es el último, borra la copia cifrada para sincronizar) y la apaga."
   },
   "syncStopHint": "Este móvil deja de enviar y recibir cambios.",
   "@syncStopHint": {
@@ -1771,7 +1771,7 @@
   "@syncStopConfirmTitle": {
     "description": "Título del aviso de confirmación de Dejar de sincronizar."
   },
-  "syncStopConfirmBody": "Este móvil dejará de enviar y recibir cambios. Los demás seguirán sincronizándose entre sí. Si este es el último móvil que sincroniza, se borrará la copia cifrada del servidor. Cada móvil conservará sus datos. Para volver a sincronizar, conecta de nuevo este móvil con otro de la familia.",
+  "syncStopConfirmBody": "Este móvil dejará de enviar y recibir cambios. Los demás seguirán sincronizándose entre sí. Si ningún otro móvil ni la web tienen acceso a la lista, se borrará la copia cifrada para sincronizar. Cada móvil conservará sus datos. Para volver a sincronizar, conecta de nuevo este móvil con otro de la familia.",
   "@syncStopConfirmBody": {
     "description": "Texto del aviso de confirmación de Dejar de sincronizar."
   },
@@ -1956,7 +1956,7 @@
   },
   "inviteCancel": "Cancelar invitación",
   "@inviteCancel": {
-    "description": "Botón que mata la invitación en el servidor."
+    "description": "Botón que cancela la invitación en el servidor (invitar a otro móvil)."
   },
   "inviteRequestTitle": "{name} quiere unirse",
   "@inviteRequestTitle": {
@@ -2064,7 +2064,7 @@
   "@joinInviteWaitingTitle": {
     "description": "Título mientras se espera la aprobación."
   },
-  "joinInviteWaitingBody": "Quien te invitó tiene que ver tu petición. En unos segundos verás aquí un código para comparar con esa persona. Puedes esperar hasta 10 minutos.",
+  "joinInviteWaitingBody": "Quien te invitó tiene que ver tu petición. Cuando su móvil responda, verás aquí un código para comparar. Este móvil espera la confirmación hasta 10 minutos.",
   "@joinInviteWaitingBody": {
     "description": "Texto mientras se espera a que la otra persona vea la petición."
   },
@@ -2531,7 +2531,7 @@
       }
     }
   },
-  "repartoPersonSheetSub": "Cómo sale en Reparto. No se borra ningún regalo.",
+  "repartoPersonSheetSub": "Cómo sale en Reparto. No se elimina ningún regalo.",
   "@repartoPersonSheetSub": {
     "description": "Frase bajo el nombre en la ficha de una persona de Reparto."
   },
@@ -2649,7 +2649,7 @@
   },
   "deleteGiverGifts": "{count, plural, =0{} one{Su regalo seguirá en la lista sin nadie asignado en «Quién regala».} other{Sus {count} regalos seguirán en la lista sin nadie asignado en «Quién regala».}}",
   "@deleteGiverGifts": {
-    "description": "Consecuencia de eliminar a quien regala: sus regalos no se borran. Vacío si no tiene.",
+    "description": "Consecuencia de eliminar a quien regala: sus regalos no se eliminan. Vacío si no tiene.",
     "placeholders": {
       "count": {
         "type": "int"
@@ -2658,7 +2658,7 @@
   },
   "deleteOccasionGifts": "{count, plural, =0{} one{Su regalo se quedará sin ocasión.} other{Sus {count} regalos se quedarán sin ocasión.}}",
   "@deleteOccasionGifts": {
-    "description": "Consecuencia de eliminar una ocasión: sus regalos no se borran. Vacío si no tiene.",
+    "description": "Consecuencia de eliminar una ocasión: sus regalos no se eliminan. Vacío si no tiene.",
     "placeholders": {
       "count": {
         "type": "int"
@@ -2685,9 +2685,9 @@
   "@giftNotSaved": {
     "description": "Aviso del editor de regalos cuando el regalo o su persona se eliminaron en otro móvil."
   },
-  "giftDeletedNotice": "«{name}» borrado",
+  "giftDeletedNotice": "«{name}» eliminado",
   "@giftDeletedNotice": {
-    "description": "Aviso tras borrar un regalo, con la acción Deshacer.",
+    "description": "Aviso tras eliminar un regalo, con la acción Deshacer.",
     "placeholders": {
       "name": {
         "type": "String"
@@ -2758,9 +2758,9 @@
   "@eraseAllConfirmBody": {
     "description": "Texto del primer diálogo de Borrar todo: qué se borra, que no se puede deshacer y que los demás móviles no cambian."
   },
-  "eraseAllConfirmServer": "Antes, este móvil sale de la sincronización de la familia; si es el último, también se borra la copia cifrada del servidor.",
+  "eraseAllConfirmServer": "Antes, este móvil sale de la sincronización de la familia. Si no queda otro móvil ni la web conectados, también se borra la copia cifrada para sincronizar.",
   "@eraseAllConfirmServer": {
-    "description": "Frase que se añade al primer diálogo de Borrar todo cuando la app puede sincronizar: este móvil sale antes de la familia y solo el último borra la copia del servidor."
+    "description": "Frase que se añade al primer diálogo de Borrar todo cuando la app puede sincronizar: este móvil sale antes de la familia y solo el último borra la copia cifrada para sincronizar."
   },
   "eraseAllContinue": "Continuar",
   "@eraseAllContinue": {
@@ -2789,13 +2789,13 @@
   },
   "eraseAllWorking": "Borrando…",
   "@eraseAllWorking": {
-    "description": "Estado del diálogo de Borrar todo mientras se borra la copia del servidor."
+    "description": "Estado del diálogo de Borrar todo mientras se borra la copia cifrada para sincronizar."
   },
   "eraseAllServerFailedTitle": "No se ha podido contactar con el servidor",
   "@eraseAllServerFailedTitle": {
     "description": "Título del diálogo de Borrar todo cuando el servidor no responde."
   },
-  "eraseAllServerFailedBody": "Comprueba la conexión e inténtalo de nuevo. Si borras los datos solo aquí, este móvil seguirá en «Móviles de la familia» hasta que alguien lo quite desde otro móvil. La copia cifrada seguirá en el servidor para los demás móviles. Si este era el último, la copia se conservará hasta que caduque.",
+  "eraseAllServerFailedBody": "Comprueba la conexión e inténtalo de nuevo. Si borras los datos solo aquí, este móvil seguirá en «Móviles de la familia» hasta que alguien lo quite desde otro móvil. Los demás móviles y la web que tengan acceso podrán seguir usando la copia cifrada para sincronizar. Si nadie vuelve a acceder a ella, caducará.",
   "@eraseAllServerFailedBody": {
     "description": "Texto del diálogo de Borrar todo cuando el servidor no responde: qué pasa si se borra solo lo local."
   },
@@ -2805,7 +2805,7 @@
   },
   "eraseAllLocalOnly": "Borrar solo en este móvil",
   "@eraseAllLocalOnly": {
-    "description": "Botón del diálogo de Borrar todo cuando el servidor no responde: borra lo local y deja la copia del servidor."
+    "description": "Botón del diálogo de Borrar todo cuando el servidor no responde: borra lo local y deja la copia cifrada para sincronizar."
   },
   "eraseAllFailed": "No se ha podido borrar todo. Inténtalo de nuevo.",
   "@eraseAllFailed": {
@@ -2919,9 +2919,9 @@
   },
   "devicesRecoveryTitle": "Copia de recuperación guardada",
   "@devicesRecoveryTitle": {
-    "description": "Título de la tarjeta de estado cuando no hay otro móvil conectado pero hay un código de recuperación activo: la lista tiene una copia cifrada en el servidor."
+    "description": "Título de la tarjeta de estado cuando no hay otro móvil conectado pero hay un código de recuperación activo: la lista tiene una copia cifrada para sincronizar."
   },
-  "devicesRecoveryBody": "Con tu código puedes recuperar la copia cifrada de la lista. Conecta otro móvil para ver la lista en los dos.",
+  "devicesRecoveryBody": "Con tu código puedes recuperar la lista a partir de la copia cifrada para sincronizar. Conecta otro móvil para ver la lista en los dos.",
   "@devicesRecoveryBody": {
     "description": "Frase de la tarjeta de estado con un código de recuperación activo y ningún otro móvil conectado."
   },
@@ -3119,7 +3119,7 @@
   "@pairingV2Preparing": {
     "description": "Texto mientras se prepara la conexión de otro móvil."
   },
-  "pairingV2NoticeExpires": "La invitación caduca a las 24 horas y solo sirve para pedir entrada. Antes de dar acceso, compara el número que aparece en los dos móviles.",
+  "pairingV2NoticeExpires": "La invitación caduca a las 24 horas y solo sirve para pedir entrada. Antes de dar acceso, compara el código que aparece en los dos móviles.",
   "@pairingV2NoticeExpires": {
     "description": "Aviso bajo el QR o el enlace: caduca y no da acceso por sí solo."
   },
@@ -3127,7 +3127,7 @@
   "@pairingV2FarTitle": {
     "description": "Título de la pantalla del enlace para un móvil lejano."
   },
-  "pairingV2FarBody": "Envíaselo a quien quieras conectar. Cuando lo abra y pida entrar, aquí verás un número para compararlo.",
+  "pairingV2FarBody": "Envíaselo a quien quieras conectar. Cuando lo abra y pida entrar, aquí verás un código para compararlo.",
   "@pairingV2FarBody": {
     "description": "Explicación del enlace que se comparte con un móvil lejano."
   },
@@ -3139,21 +3139,21 @@
   "@pairingV2WaitingHere": {
     "description": "Estado mientras nadie ha respondido a la invitación."
   },
-  "pairingV2CompareTitle": "Compara el número",
+  "pairingV2CompareTitle": "Compara el código",
   "@pairingV2CompareTitle": {
-    "description": "Título del paso de comparar el número de seis cifras."
+    "description": "Título del paso de comparar el código de seis cifras."
   },
-  "pairingV2HostCompareBody": "El otro móvil enseña un número. Tiene que ser el mismo que este. Si lo es, pulsa «Coinciden»; si no, «No coinciden».",
+  "pairingV2HostCompareBody": "El otro móvil enseña un código. Tiene que ser el mismo que este. Si es el mismo, toca «Coinciden». Si es distinto, toca «No coinciden».",
   "@pairingV2HostCompareBody": {
-    "description": "Explicación en el móvil que invita al comparar el número."
+    "description": "Explicación en el móvil que invita al comparar el código."
   },
   "pairingV2Match": "Coinciden",
   "@pairingV2Match": {
-    "description": "Botón: los dos números son el mismo."
+    "description": "Botón: los códigos coinciden."
   },
   "pairingV2NoMatch": "No coinciden",
   "@pairingV2NoMatch": {
-    "description": "Botón: los números son distintos; se cancela."
+    "description": "Botón: los códigos son distintos; se cancela."
   },
   "pairingV2NoPersonWarning": "El otro móvil todavía no ha dicho de quién es. Puedes darle acceso igualmente: podrá elegirlo más adelante y, hasta entonces, no abrirá las sorpresas.",
   "@pairingV2NoPersonWarning": {
@@ -3217,11 +3217,11 @@
   "@pairingV2ChooseNone": {
     "description": "Texto cuando no hay personas que elegir."
   },
-  "pairingV2GuestWaitingCode": "Esperando al otro móvil. En unos segundos verás aquí un número para comparar.",
+  "pairingV2GuestWaitingCode": "Cuando el otro móvil responda, verás aquí un código para comparar.",
   "@pairingV2GuestWaitingCode": {
-    "description": "Estado del invitado antes de ver el número."
+    "description": "Estado del invitado antes de ver el código."
   },
-  "pairingV2GuestCompareBody": "Compara este número con el que ve la otra persona. Si son iguales, pulsa «Coinciden».",
+  "pairingV2GuestCompareBody": "Compara este código con el que ve la otra persona. Si son iguales, toca «Coinciden».",
   "@pairingV2GuestCompareBody": {
     "description": "Explicación en el móvil invitado al comparar."
   },
@@ -3241,7 +3241,7 @@
   "@pairingV2ReconnectTitle": {
     "description": "Aviso en Móviles de la familia: hay que volver a conectar."
   },
-  "pairingV2ReconnectBody": "Cada móvil se conecta otra vez con «Conectar otro móvil» y comparando un número.",
+  "pairingV2ReconnectBody": "Cada móvil se conecta otra vez con «Conectar otro móvil» y comparando un código.",
   "@pairingV2ReconnectBody": {
     "description": "Explicación del aviso de volver a conectar."
   },
@@ -3524,7 +3524,7 @@
   "@webGateCompareBody": {
     "description": "Instrucción al comparar el código con el móvil."
   },
-  "webGateCompareWaiting": "Esperando a que el móvil lo apruebe…",
+  "webGateCompareWaiting": "Esperando a que toques «Coinciden» en el móvil…",
   "@webGateCompareWaiting": {
     "description": "Indicador de espera mientras el móvil aprueba la conexión."
   },
@@ -3898,7 +3898,7 @@
   "@connectWebWaiting": {
     "description": "Mientras el ordenador responde tras escanear su código."
   },
-  "connectWebCompareBody": "El ordenador enseña un código. Tiene que ser el mismo que este. Si lo es, pulsa «Coinciden»; si no, «No coinciden».",
+  "connectWebCompareBody": "El ordenador enseña un código. Tiene que ser el mismo que este. Si es el mismo, toca «Coinciden». Si es distinto, toca «No coinciden».",
   "@connectWebCompareBody": {
     "description": "Explicación de comparar el código con el que enseña el ordenador."
   },
@@ -3925,6 +3925,10 @@
   "connectWebFailed": "No se ha podido conectar el ordenador. Pulsa «Empezar otra vez» en el ordenador. Escanea el código nuevo con el móvil.",
   "@connectWebFailed": {
     "description": "No se ha podido conectar el ordenador."
+  },
+  "connectWebCancel": "Cancelar conexión",
+  "@connectWebCancel": {
+    "description": "Botón que cancela la conexión de la web mientras se espera al ordenador."
   },
   "connectWebCancelled": "Se ha cancelado la conexión y el código ya no sirve. En el ordenador, pulsa «Empezar otra vez».",
   "@connectWebCancelled": {
@@ -4023,7 +4027,7 @@
   "@selfChangeConfirmIntroNobody": {
     "description": "Introducción de la hoja de cambio de persona cuando se elige Nadie."
   },
-  "selfChangeEffectHides": "Este móvil dejará de ver los regalos de {name} y sus sorpresas.",
+  "selfChangeEffectHides": "Si los regalos para {name} están en secreto, no verás ninguno en este móvil.",
   "@selfChangeEffectHides": {
     "description": "Primera consecuencia del cambio de persona.",
     "placeholders": {
@@ -4320,7 +4324,7 @@
       }
     }
   },
-  "protectionDeactivateBody": "Se publicarán todos los regalos disponibles de {name}, de cualquier año, también los que están pendientes en este móvil. Después {name} los verá en su móvil.",
+  "protectionDeactivateBody": "Los regalos para {name} que estén disponibles en este móvil dejarán de estar en secreto. Se incluyen los de cualquier año y los pendientes en este móvil. Cuando se sincronicen los cambios, {name} podrá verlos en su móvil.",
   "@protectionDeactivateBody": {
     "description": "Cuerpo del diálogo de confirmación al desactivar.",
     "placeholders": {
@@ -4907,7 +4911,7 @@
   "@recoveryAbsentTitle": {
     "description": "Título del estado sin código en la pantalla Código de recuperación."
   },
-  "recoveryAbsentBody": "Con 24 palabras puedes recuperar en otro móvil la lista y todo lo que ves en este. Si solo tienes este móvil, se activa una copia cifrada en el servidor. Sin las palabras, nadie puede leerla.",
+  "recoveryAbsentBody": "Al crear el código, la app guarda una copia cifrada para sincronizar, aunque solo tengas este móvil. Con las 24 palabras podrás recuperar en otro móvil la parte de la lista que puedes ver y que se haya sincronizado.",
   "@recoveryAbsentBody": {
     "description": "Explicación del estado sin código: qué recupera y la copia cifrada con un solo móvil."
   },
@@ -4963,9 +4967,9 @@
   "@recoveryRemoveBody": {
     "description": "Texto del diálogo de confirmación al quitar el código."
   },
-  "recoveryRemoveSoloNote": "Como no hay otro móvil ni la web conectados, también se borra del servidor la copia cifrada de la lista, y la lista vuelve a estar solo en este móvil.",
+  "recoveryRemoveSoloNote": "Como no hay otro móvil ni la web conectados, también se borra la copia cifrada para sincronizar, y la lista vuelve a estar solo en este móvil.",
   "@recoveryRemoveSoloNote": {
-    "description": "Aviso extra del diálogo de quitar el código cuando no queda otro móvil ni la web: también se retira la copia del servidor."
+    "description": "Aviso extra del diálogo de quitar el código cuando no queda otro móvil ni la web: también se retira la copia cifrada para sincronizar."
   },
   "recoveryRemoveConfirm": "Borrar código",
   "@recoveryRemoveConfirm": {
@@ -5384,7 +5388,7 @@
   "@recoveryProblemNotReadyTitle": {
     "description": "Título cuando la copia cifrada no ha quedado preparada."
   },
-  "recoveryProblemNotReadyBody": "No se ha podido guardar la copia cifrada en el servidor. Por eso aún no puedes ver las palabras. Inténtalo de nuevo cuando tengas conexión.",
+  "recoveryProblemNotReadyBody": "Las 24 palabras aún no están disponibles. Comprueba la conexión e inténtalo de nuevo.",
   "@recoveryProblemNotReadyBody": {
     "description": "Explicación cuando la copia cifrada no ha quedado preparada."
   },

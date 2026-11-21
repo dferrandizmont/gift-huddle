@@ -46,7 +46,7 @@ void main() {
     }, size: _narrow);
   }
 
-  screenTest('editor de regalo: «Borrar regalo» es un botón rojo a todo el '
+  screenTest('editor de regalo: «Eliminar regalo» es un botón rojo a todo el '
       'ancho, como «Guardar»', (tester, phone) async {
     await seedSample(tester, phone);
     await pumpRegalos(tester, phone);
@@ -56,10 +56,10 @@ void main() {
     final delete = find.byType(DangerButton);
     expect(delete, findsOneWidget);
     expect(
-      find.descendant(of: delete, matching: find.text('Borrar regalo')),
+      find.descendant(of: delete, matching: find.text('Eliminar regalo')),
       findsOneWidget,
     );
-    final deleteRect = tester.getRect(_button('Borrar regalo'));
+    final deleteRect = tester.getRect(_button('Eliminar regalo'));
     final saveRect = tester.getRect(_button('Guardar'));
     expect(deleteRect.width, _narrow.width - 32);
     expect(deleteRect.width, saveRect.width);
@@ -67,7 +67,7 @@ void main() {
 
     final tokens = RegalosTokens.of(tester.element(delete));
     final style = tester
-        .widget<OutlinedButton>(_button('Borrar regalo'))
+        .widget<OutlinedButton>(_button('Eliminar regalo'))
         .style!;
     expect(style.foregroundColor!.resolve({}), tokens.danger);
     expect(style.side!.resolve({})!.color, tokens.danger);
@@ -79,10 +79,10 @@ void main() {
     expect(style.backgroundColor, isNull);
 
     // Sigue preguntando antes de borrar.
-    await tapText(tester, 'Borrar regalo');
-    expect(find.text('¿Borrar «Patinete»?'), findsOneWidget);
+    await tapText(tester, 'Eliminar regalo');
+    expect(find.text('¿Eliminar «Patinete»?'), findsOneWidget);
     await tapText(tester, 'Cancelar');
-    expect(find.text('¿Borrar «Patinete»?'), findsNothing);
+    expect(find.text('¿Eliminar «Patinete»?'), findsNothing);
     expect(find.byType(DangerButton), findsOneWidget);
   }, size: _narrow);
 

@@ -20,11 +20,11 @@ Gift Huddle is the family's gift notebook. Note what each person wants, who is g
   <a href="https://play.google.com/apps/testing/es.gifthuddle.app"><img src="https://img.shields.io/badge/Google_Play-Closed_test-414141?logo=googleplay&amp;style=for-the-badge" alt="Closed test on Google Play"></a>
   <a href="https://web.gifthuddle.app"><img src="https://img.shields.io/badge/Web-web.gifthuddle.app-C9245F?style=for-the-badge" alt="Web version"></a>
   <!--
-  <a href="[APP_STORE_LINK]"><img src="https://img.shields.io/badge/App_Store-Download-0D96F6?logo=appstore&amp;style=for-the-badge" alt="Available on the App Store"></a>
+  <a href="https://apps.apple.com/app/id6835840931"><img src="https://img.shields.io/badge/App_Store-Download-0D96F6?logo=appstore&amp;style=for-the-badge" alt="Available on the App Store"></a>
   -->
 </p>
 
-Android 8 or later is in closed testing on Google Play. The iPhone version (iOS 16 or later) is coming soon to the App Store. More about the app at [gifthuddle.app](https://gifthuddle.app).
+Android 8 or later is in closed testing on Google Play. The iPhone version (iOS 16 or later) is available on the App Store. More about the app at [gifthuddle.app](https://gifthuddle.app).
 
 <details>
 <summary>Join the beta on Google Play</summary>

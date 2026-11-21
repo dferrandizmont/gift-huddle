@@ -1,7 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show HapticFeedback;
 
+import '../../../core/motion/haptics.dart';
 import '../../../core/motion/rect_flight.dart';
 import '../../../core/theme/regalos_motion.dart';
 import '../../../core/theme/regalos_shape.dart';
@@ -147,6 +147,7 @@ class _BoardCardDraggableState extends State<BoardCardDraggable> {
       onDragUpdate: _moved,
       onDragEnd: (_) => _ended(),
       onDraggableCanceled: (_, _) => _ended(),
+      haptics: context.haptics,
       child: _MouseDraggable(
         data: _data,
         feedback: feedback,
@@ -199,7 +200,12 @@ class _TouchDraggable extends LongPressDraggable<BoardDragData> {
     required super.onDragEnd,
     required super.onDraggableCanceled,
     required super.child,
+    required this.haptics,
   }) : super(delay: BoardCardDraggable.holdDelay);
+
+  /// El servicio de vibraciones de la app: el interruptor de Ajustes también
+  /// manda en el arrastre del tablero web.
+  final Haptics haptics;
 
   @override
   DelayedMultiDragGestureRecognizer createRecognizer(
@@ -217,7 +223,7 @@ class _TouchDraggable extends LongPressDraggable<BoardDragData> {
       ..onStart = (position) {
         final drag = onStart(position);
         if (drag != null && hapticFeedbackOnStart) {
-          HapticFeedback.selectionClick();
+          haptics.selection();
         }
         return drag;
       };

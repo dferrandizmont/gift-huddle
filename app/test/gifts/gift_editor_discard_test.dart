@@ -66,7 +66,7 @@ class _SlowFamily extends FamilyController {
   }
 }
 
-/// «Borrar regalo» va al final de la lista en la hoja: se baja hasta él.
+/// «Eliminar regalo» va al final de la lista en la hoja: se baja hasta él.
 Future<void> _reveal(WidgetTester tester, Finder button) async {
   if (button.evaluate().isEmpty) {
     await tester.scrollUntilVisible(
@@ -83,7 +83,7 @@ Future<void> _reveal(WidgetTester tester, Finder button) async {
   await tester.ensureVisible(button);
 }
 
-/// Si el botón responde (en la hoja se baja antes hasta «Borrar regalo»).
+/// Si el botón responde (en la hoja se baja antes hasta «Eliminar regalo»).
 Future<bool> _enabledAfterReveal(WidgetTester tester, Finder button) async {
   await _reveal(tester, button);
   return _enabled(tester, button);
@@ -118,7 +118,7 @@ void main() {
       final overrides = desktop ? dialog : sheet;
 
       screenTest(
-        '$label: mientras se guarda, «Borrar regalo» no responde',
+        '$label: mientras se guarda, «Eliminar regalo» no responde',
         (tester, phone) async {
           _SlowFamily.armed = false;
           _SlowFamily.deleteArmed = false;
@@ -153,7 +153,7 @@ void main() {
           _SlowFamily.deleteArmed = true;
           await tester.tap(del);
           await settle(tester);
-          await tester.tap(find.widgetWithText(FilledButton, 'Borrar').last);
+          await tester.tap(find.widgetWithText(FilledButton, 'Eliminar').last);
           await tester.pump();
           expect(_enabled(tester, save), isFalse);
           expect(await _enabledAfterReveal(tester, del), isFalse);

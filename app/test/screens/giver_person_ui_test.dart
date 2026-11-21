@@ -786,15 +786,15 @@ void main() {
         await seedSample(tester, phone);
         await pumpRegalos(tester, phone);
         await _openEditor(tester);
-        await tester.ensureVisible(find.text('Borrar regalo'));
+        await tester.ensureVisible(find.text('Eliminar regalo'));
         await tester.pump();
-        await tester.tap(find.text('Borrar regalo'));
+        await tester.tap(find.text('Eliminar regalo'));
         await settle(tester);
-        expect(find.text('¿Borrar «$_libro»?'), findsOneWidget);
+        expect(find.text('¿Eliminar «$_libro»?'), findsOneWidget);
 
         phone.container.read(_lockedProvider.notifier).set(_gone);
         await settle(tester);
-        expect(find.textContaining('¿Borrar «'), findsNothing);
+        expect(find.textContaining('¿Eliminar «'), findsNothing);
         expect(find.text('Editar regalo'), findsNothing);
         expect(
           find.text('Este regalo ya no se puede ver en este móvil.'),
@@ -1006,21 +1006,21 @@ void main() {
 
   group('ronda 3', () {
     screenTest(
-      'con «Borrar regalo» abierto, si la proyección falla el diálogo se '
+      'con «Eliminar regalo» abierto, si la proyección falla el diálogo se '
       'cierra',
       (tester, phone) async {
         await seedSample(tester, phone);
         await pumpRegalos(tester, phone);
         await _openEditor(tester);
-        await tester.ensureVisible(find.text('Borrar regalo'));
+        await tester.ensureVisible(find.text('Eliminar regalo'));
         await tester.pump();
-        await tester.tap(find.text('Borrar regalo'));
+        await tester.tap(find.text('Eliminar regalo'));
         await settle(tester);
-        expect(find.text('¿Borrar «$_libro»?'), findsOneWidget);
+        expect(find.text('¿Eliminar «$_libro»?'), findsOneWidget);
 
         phone.container.read(_lockedProvider.notifier).set(_error);
         await settle(tester);
-        expect(find.textContaining('¿Borrar «'), findsNothing);
+        expect(find.textContaining('¿Eliminar «'), findsNothing);
         // El editor sigue, sin pintar los campos.
         expect(find.text('Editar regalo'), findsOneWidget);
         expect(find.widgetWithText(TextField, 'Regalo'), findsNothing);
@@ -1062,11 +1062,11 @@ void main() {
         await seedSample(tester, phone);
         await pumpRegalos(tester, phone);
         await _openEditor(tester);
-        await tester.ensureVisible(find.text('Borrar regalo'));
+        await tester.ensureVisible(find.text('Eliminar regalo'));
         await tester.pump();
-        await tester.tap(find.text('Borrar regalo'));
+        await tester.tap(find.text('Eliminar regalo'));
         await settle(tester);
-        await tester.tap(find.widgetWithText(FilledButton, 'Borrar'));
+        await tester.tap(find.widgetWithText(FilledButton, 'Eliminar'));
         await settle(tester);
         expect(
           find.text('No se ha podido eliminar. Inténtalo de nuevo.'),

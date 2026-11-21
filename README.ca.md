@@ -20,11 +20,11 @@ Gift Huddle és la llibreta de regals de la família. Apunta què vol cada perso
   <a href="https://play.google.com/apps/testing/es.gifthuddle.app"><img src="https://img.shields.io/badge/Google_Play-Prova_tancada-414141?logo=googleplay&amp;style=for-the-badge" alt="Prova tancada a Google Play"></a>
   <a href="https://web.gifthuddle.app"><img src="https://img.shields.io/badge/Web-web.gifthuddle.app-C9245F?style=for-the-badge" alt="Versió web"></a>
   <!--
-  <a href="[APP_STORE_LINK]"><img src="https://img.shields.io/badge/App_Store-Baixa-0D96F6?logo=appstore&amp;style=for-the-badge" alt="Disponible a l'App Store"></a>
+  <a href="https://apps.apple.com/app/id6835840931"><img src="https://img.shields.io/badge/App_Store-Baixa-0D96F6?logo=appstore&amp;style=for-the-badge" alt="Disponible a l'App Store"></a>
   -->
 </p>
 
-Android 8 o posterior és en prova tancada a Google Play. La versió per a iPhone (iOS 16 o posterior) arribarà aviat a l'App Store. Més informació a [gifthuddle.app](https://gifthuddle.app).
+Android 8 o posterior és en prova tancada a Google Play. La versió per a iPhone (iOS 16 o posterior) ja és a l'App Store. Més informació a [gifthuddle.app](https://gifthuddle.app).
 
 <details>
 <summary>Uneix-te a la beta de Google Play</summary>

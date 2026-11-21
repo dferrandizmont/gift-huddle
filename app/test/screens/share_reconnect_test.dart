@@ -22,7 +22,7 @@ void main() {
       await openDevices(tester);
       expect(find.text(notice), findsOneWidget);
       expect(
-        find.textContaining('«Conectar otro móvil» y comparando un número'),
+        find.textContaining('«Conectar otro móvil» y comparando un código'),
         findsOneWidget,
       );
     },

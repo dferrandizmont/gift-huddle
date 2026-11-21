@@ -108,7 +108,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get appearanceHapticsHint =>
-      'El móvil vibra suavemente, por ejemplo, al marcar una casilla o elegir una opción.';
+      'Desactiva esta opción para apagar todas las vibraciones de la app, incluidas las que notas al marcar una casilla, eliminar un regalo o introducir un PIN incorrecto.';
 
   @override
   String get appearancePreview => 'Vista previa';
@@ -509,7 +509,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get obStart => 'Empezar';
 
   @override
-  String get obHaveListTitle => '¿Ya tenéis la lista en otro móvil?';
+  String get obHaveListTitle => '¿Ya tenéis una lista?';
 
   @override
   String get obPeopleTitle => '¿A quién le regaláis?';
@@ -567,7 +567,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get obOccasionsBody =>
-      'Elige cuándo hacéis regalos. Los cumpleaños aparecen si has indicado la fecha de nacimiento de cada persona.';
+      'Elige cuándo hacéis regalos. Si indicas la fecha de nacimiento de alguien, aparecerá su cumpleaños.';
 
   @override
   String get obBirthdaysSection => 'Cumpleaños (se crean solos)';
@@ -820,16 +820,16 @@ class AppLocalizationsEs extends AppLocalizations {
       'Se marca para que nadie lo cuente delante de quien lo recibe.';
 
   @override
-  String get giftDelete => 'Borrar regalo';
+  String get giftDelete => 'Eliminar regalo';
 
   @override
   String confirmDeleteTitle(String name) {
-    return '¿Borrar «$name»?';
+    return '¿Eliminar «$name»?';
   }
 
   @override
   String get confirmDeleteBody =>
-      'Se borra también en los móviles de tu familia.';
+      'Se elimina también en los móviles de tu familia.';
 
   @override
   String personCompletionProgress(String occasion, int done, int total) {
@@ -1021,7 +1021,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get budgetNote =>
-      'Lo que regalan los abuelos o los tíos cuenta como regalo, no como gasto de la casa.';
+      'Solo suma lo que paga la casa. Los regalos que pagan otras personas, como los abuelos, quedan fuera del gasto de la casa.';
 
   @override
   String get budgetEmpty =>
@@ -1132,7 +1132,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get manageArchiveHint =>
-      'Archivar quita algo de las listas sin borrar sus regalos; se recupera en Ajustes › Archivo. Eliminar lo borra para siempre.';
+      'Archivar quita algo de las listas sin eliminar sus regalos; se recupera en Ajustes › Archivo. Eliminar lo borra para siempre.';
 
   @override
   String manageArchiveLabel(String name) {
@@ -1320,7 +1320,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get syncStopConfirmBody =>
-      'Este móvil dejará de enviar y recibir cambios. Los demás seguirán sincronizándose entre sí. Si este es el último móvil que sincroniza, se borrará la copia cifrada del servidor. Cada móvil conservará sus datos. Para volver a sincronizar, conecta de nuevo este móvil con otro de la familia.';
+      'Este móvil dejará de enviar y recibir cambios. Los demás seguirán sincronizándose entre sí. Si ningún otro móvil ni la web tienen acceso a la lista, se borrará la copia cifrada para sincronizar. Cada móvil conservará sus datos. Para volver a sincronizar, conecta de nuevo este móvil con otro de la familia.';
 
   @override
   String get syncStopDone => 'Sincronización apagada.';
@@ -1553,7 +1553,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get joinInviteWaitingBody =>
-      'Quien te invitó tiene que ver tu petición. En unos segundos verás aquí un código para comparar con esa persona. Puedes esperar hasta 10 minutos.';
+      'Quien te invitó tiene que ver tu petición. Cuando su móvil responda, verás aquí un código para comparar. Este móvil espera la confirmación hasta 10 minutos.';
 
   @override
   String get joinInviteConfirmTitle => 'Compara el código';
@@ -1869,7 +1869,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get repartoPersonSheetSub =>
-      'Cómo sale en Reparto. No se borra ningún regalo.';
+      'Cómo sale en Reparto. No se elimina ningún regalo.';
 
   @override
   String get repartoPersonInReparto => 'Sale en el reparto';
@@ -1999,7 +1999,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String giftDeletedNotice(String name) {
-    return '«$name» borrado';
+    return '«$name» eliminado';
   }
 
   @override
@@ -2055,7 +2055,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get eraseAllConfirmServer =>
-      'Antes, este móvil sale de la sincronización de la familia; si es el último, también se borra la copia cifrada del servidor.';
+      'Antes, este móvil sale de la sincronización de la familia. Si no queda otro móvil ni la web conectados, también se borra la copia cifrada para sincronizar.';
 
   @override
   String get eraseAllContinue => 'Continuar';
@@ -2083,7 +2083,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get eraseAllServerFailedBody =>
-      'Comprueba la conexión e inténtalo de nuevo. Si borras los datos solo aquí, este móvil seguirá en «Móviles de la familia» hasta que alguien lo quite desde otro móvil. La copia cifrada seguirá en el servidor para los demás móviles. Si este era el último, la copia se conservará hasta que caduque.';
+      'Comprueba la conexión e inténtalo de nuevo. Si borras los datos solo aquí, este móvil seguirá en «Móviles de la familia» hasta que alguien lo quite desde otro móvil. Los demás móviles y la web que tengan acceso podrán seguir usando la copia cifrada para sincronizar. Si nadie vuelve a acceder a ella, caducará.';
 
   @override
   String get eraseAllRetry => 'Reintentar';
@@ -2169,7 +2169,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get devicesRecoveryBody =>
-      'Con tu código puedes recuperar la copia cifrada de la lista. Conecta otro móvil para ver la lista en los dos.';
+      'Con tu código puedes recuperar la lista a partir de la copia cifrada para sincronizar. Conecta otro móvil para ver la lista en los dos.';
 
   @override
   String get devicesManualTitle => 'Conectados por fichero o QR';
@@ -2325,14 +2325,14 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get pairingV2NoticeExpires =>
-      'La invitación caduca a las 24 horas y solo sirve para pedir entrada. Antes de dar acceso, compara el número que aparece en los dos móviles.';
+      'La invitación caduca a las 24 horas y solo sirve para pedir entrada. Antes de dar acceso, compara el código que aparece en los dos móviles.';
 
   @override
   String get pairingV2FarTitle => 'Comparte el enlace';
 
   @override
   String get pairingV2FarBody =>
-      'Envíaselo a quien quieras conectar. Cuando lo abra y pida entrar, aquí verás un número para compararlo.';
+      'Envíaselo a quien quieras conectar. Cuando lo abra y pida entrar, aquí verás un código para compararlo.';
 
   @override
   String get pairingV2Share => 'Compartir el enlace';
@@ -2342,11 +2342,11 @@ class AppLocalizationsEs extends AppLocalizations {
       'Esperando a que la otra persona pida entrar…';
 
   @override
-  String get pairingV2CompareTitle => 'Compara el número';
+  String get pairingV2CompareTitle => 'Compara el código';
 
   @override
   String get pairingV2HostCompareBody =>
-      'El otro móvil enseña un número. Tiene que ser el mismo que este. Si lo es, pulsa «Coinciden»; si no, «No coinciden».';
+      'El otro móvil enseña un código. Tiene que ser el mismo que este. Si es el mismo, toca «Coinciden». Si es distinto, toca «No coinciden».';
 
   @override
   String get pairingV2Match => 'Coinciden';
@@ -2409,11 +2409,11 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get pairingV2GuestWaitingCode =>
-      'Esperando al otro móvil. En unos segundos verás aquí un número para comparar.';
+      'Cuando el otro móvil responda, verás aquí un código para comparar.';
 
   @override
   String get pairingV2GuestCompareBody =>
-      'Compara este número con el que ve la otra persona. Si son iguales, pulsa «Coinciden».';
+      'Compara este código con el que ve la otra persona. Si son iguales, toca «Coinciden».';
 
   @override
   String get pairingV2GuestWaitingApproval =>
@@ -2433,7 +2433,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get pairingV2ReconnectBody =>
-      'Cada móvil se conecta otra vez con «Conectar otro móvil» y comparando un número.';
+      'Cada móvil se conecta otra vez con «Conectar otro móvil» y comparando un código.';
 
   @override
   String pairingV2ClaimTitle(String name) {
@@ -2657,7 +2657,8 @@ class AppLocalizationsEs extends AppLocalizations {
       'Comprueba que en el móvil sale el mismo código, confírmalo aquí y apruébalo también en el móvil.';
 
   @override
-  String get webGateCompareWaiting => 'Esperando a que el móvil lo apruebe…';
+  String get webGateCompareWaiting =>
+      'Esperando a que toques «Coinciden» en el móvil…';
 
   @override
   String get webGateCompareConfirmed => 'Has confirmado el código aquí';
@@ -2984,7 +2985,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get connectWebCompareBody =>
-      'El ordenador enseña un código. Tiene que ser el mismo que este. Si lo es, pulsa «Coinciden»; si no, «No coinciden».';
+      'El ordenador enseña un código. Tiene que ser el mismo que este. Si es el mismo, toca «Coinciden». Si es distinto, toca «No coinciden».';
 
   @override
   String get connectWebApproving => 'Dando acceso al ordenador…';
@@ -3006,6 +3007,9 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get connectWebFailed =>
       'No se ha podido conectar el ordenador. Pulsa «Empezar otra vez» en el ordenador. Escanea el código nuevo con el móvil.';
+
+  @override
+  String get connectWebCancel => 'Cancelar conexión';
 
   @override
   String get connectWebCancelled =>
@@ -3091,7 +3095,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String selfChangeEffectHides(String name) {
-    return 'Este móvil dejará de ver los regalos de $name y sus sorpresas.';
+    return 'Si los regalos para $name están en secreto, no verás ninguno en este móvil.';
   }
 
   @override
@@ -3303,7 +3307,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String protectionDeactivateBody(String name) {
-    return 'Se publicarán todos los regalos disponibles de $name, de cualquier año, también los que están pendientes en este móvil. Después $name los verá en su móvil.';
+    return 'Los regalos para $name que estén disponibles en este móvil dejarán de estar en secreto. Se incluyen los de cualquier año y los pendientes en este móvil. Cuando se sincronicen los cambios, $name podrá verlos en su móvil.';
   }
 
   @override
@@ -3723,7 +3727,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryAbsentBody =>
-      'Con 24 palabras puedes recuperar en otro móvil la lista y todo lo que ves en este. Si solo tienes este móvil, se activa una copia cifrada en el servidor. Sin las palabras, nadie puede leerla.';
+      'Al crear el código, la app guarda una copia cifrada para sincronizar, aunque solo tengas este móvil. Con las 24 palabras podrás recuperar en otro móvil la parte de la lista que puedes ver y que se haya sincronizado.';
 
   @override
   String get recoveryAbsentWarn =>
@@ -3772,7 +3776,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryRemoveSoloNote =>
-      'Como no hay otro móvil ni la web conectados, también se borra del servidor la copia cifrada de la lista, y la lista vuelve a estar solo en este móvil.';
+      'Como no hay otro móvil ni la web conectados, también se borra la copia cifrada para sincronizar, y la lista vuelve a estar solo en este móvil.';
 
   @override
   String get recoveryRemoveConfirm => 'Borrar código';
@@ -4105,7 +4109,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get recoveryProblemNotReadyBody =>
-      'No se ha podido guardar la copia cifrada en el servidor. Por eso aún no puedes ver las palabras. Inténtalo de nuevo cuando tengas conexión.';
+      'Las 24 palabras aún no están disponibles. Comprueba la conexión e inténtalo de nuevo.';
 
   @override
   String get recoverReplaceTitle => '¿Sustituir la lista de este móvil?';

@@ -1,5 +1,5 @@
 // El editor de regalo en el panel de la web de escritorio: campos de 52 de
-// alto y «Borrar regalo» como botón de texto rojo a la izquierda del pie.
+// alto y «Eliminar regalo» como botón de texto rojo a la izquierda del pie.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -76,7 +76,7 @@ void main() {
   );
 
   screenTest(
-    '«Borrar regalo» es un botón de texto rojo a la izquierda de «Cancelar» y '
+    '«Eliminar regalo» es un botón de texto rojo a la izquierda de «Cancelar» y '
     '«Guardar»; pregunta y, si se cancela, no borra',
     (tester, phone) async {
       await _openEditor(tester, phone);
@@ -112,10 +112,10 @@ void main() {
 
       await tester.tap(delete);
       await settle(tester);
-      expect(find.text('¿Borrar «Patinete»?'), findsOneWidget);
+      expect(find.text('¿Eliminar «Patinete»?'), findsOneWidget);
       await tester.tap(find.text('Cancelar').last);
       await settle(tester);
-      expect(find.text('¿Borrar «Patinete»?'), findsNothing);
+      expect(find.text('¿Eliminar «Patinete»?'), findsNothing);
       // Sigue el editor y el regalo.
       expect(find.byType(GiftEditorScreen), findsOneWidget);
       expect(find.text('Patinete'), findsWidgets);
@@ -127,11 +127,11 @@ void main() {
     overrides: _web(),
   );
 
-  // El pie a 1536 × 900 en los tres idiomas: «Borrar regalo» en una sola línea,
+  // El pie a 1536 × 900 en los tres idiomas: «Eliminar regalo» en una sola línea,
   // a la izquierda y en la misma fila que «Cancelar» y «Guardar».
   for (final (locale, delete, cancel, save) in const [
-    ('es', 'Borrar regalo', 'Cancelar', 'Guardar'),
-    ('ca', 'Esborra el regal', 'Cancel·lar', 'Desar'),
+    ('es', 'Eliminar regalo', 'Cancelar', 'Guardar'),
+    ('ca', 'Eliminar el regal', 'Cancel·lar', 'Desar'),
     ('en', 'Delete gift', 'Cancel', 'Save'),
   ]) {
     screenTest(
@@ -176,10 +176,10 @@ void main() {
     );
   }
 
-  // Si no caben juntos (texto al 200 %), «Borrar regalo» pasa a una fila
+  // Si no caben juntos (texto al 200 %), «Eliminar regalo» pasa a una fila
   // propia encima en vez de partirse.
   screenTest(
-    'con el texto al 200 % «Borrar regalo» sube a su propia fila, sin partirse',
+    'con el texto al 200 % «Eliminar regalo» sube a su propia fila, sin partirse',
     (tester, phone) async {
       // Al 200 % la barra lateral y la franja de ocasiones del tablero de al
       // lado desbordan (no son del editor): aquí solo se mira el pie.
@@ -193,7 +193,7 @@ void main() {
       await _openEditor(tester, phone);
       final text = find.descendant(
         of: find.byType(DangerButton),
-        matching: find.text('Borrar regalo'),
+        matching: find.text('Eliminar regalo'),
       );
       final line = tester.getSize(text).height;
       expect(line, tester.getSize(find.text('Guardar').last).height);

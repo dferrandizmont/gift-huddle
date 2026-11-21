@@ -155,17 +155,17 @@ void main() {
     await tapText(tester, 'Aritz');
     await tapText(tester, 'Patinete');
     await tester.scrollUntilVisible(
-      find.text('Borrar regalo'),
+      find.text('Eliminar regalo'),
       200,
       scrollable: find.byType(Scrollable).first,
     );
     await settle(tester);
-    await tapText(tester, 'Borrar regalo');
-    expect(find.text('¿Borrar «Patinete»?'), findsOneWidget);
+    await tapText(tester, 'Eliminar regalo');
+    expect(find.text('¿Eliminar «Patinete»?'), findsOneWidget);
 
     // Confirmar: el dato se borra al momento, la tarjeta baja y la fila se
     // pliega (se quita de la lista cuando acaba).
-    await tester.tap(find.text('Borrar').last);
+    await tester.tap(find.text('Eliminar').last);
     await _afterSave(tester, 120);
     expect(
       (await familyState(

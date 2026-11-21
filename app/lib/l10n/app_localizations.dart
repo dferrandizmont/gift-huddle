@@ -283,7 +283,7 @@ abstract class AppLocalizations {
   /// Explicación bajo el interruptor de vibraciones.
   ///
   /// In es, this message translates to:
-  /// **'El móvil vibra suavemente, por ejemplo, al marcar una casilla o elegir una opción.'**
+  /// **'Desactiva esta opción para apagar todas las vibraciones de la app, incluidas las que notas al marcar una casilla, eliminar un regalo o introducir un PIN incorrecto.'**
   String get appearanceHapticsHint;
 
   /// Cabecera de la muestra con una fila de regalo y una cuenta atrás.
@@ -907,7 +907,7 @@ abstract class AppLocalizations {
   /// Pregunta sobre el botón «Escanear el QR» de la bienvenida.
   ///
   /// In es, this message translates to:
-  /// **'¿Ya tenéis la lista en otro móvil?'**
+  /// **'¿Ya tenéis una lista?'**
   String get obHaveListTitle;
 
   /// Título del paso de personas.
@@ -1009,7 +1009,7 @@ abstract class AppLocalizations {
   /// Explicación del paso de ocasiones.
   ///
   /// In es, this message translates to:
-  /// **'Elige cuándo hacéis regalos. Los cumpleaños aparecen si has indicado la fecha de nacimiento de cada persona.'**
+  /// **'Elige cuándo hacéis regalos. Si indicas la fecha de nacimiento de alguien, aparecerá su cumpleaños.'**
   String get obOccasionsBody;
 
   /// Cabecera de la lista de cumpleaños del primer uso.
@@ -1444,22 +1444,22 @@ abstract class AppLocalizations {
   /// **'Se marca para que nadie lo cuente delante de quien lo recibe.'**
   String get giftSurpriseHint;
 
-  /// Botón que borra el regalo.
+  /// Botón que elimina el regalo.
   ///
   /// In es, this message translates to:
-  /// **'Borrar regalo'**
+  /// **'Eliminar regalo'**
   String get giftDelete;
 
-  /// Título del diálogo que pregunta antes de borrar algo.
+  /// Título del diálogo que pregunta antes de eliminar un regalo.
   ///
   /// In es, this message translates to:
-  /// **'¿Borrar «{name}»?'**
+  /// **'¿Eliminar «{name}»?'**
   String confirmDeleteTitle(String name);
 
-  /// Consecuencia de borrar, en el diálogo de confirmación.
+  /// Consecuencia de eliminar un regalo, en el diálogo de confirmación.
   ///
   /// In es, this message translates to:
-  /// **'Se borra también en los móviles de tu familia.'**
+  /// **'Se elimina también en los móviles de tu familia.'**
   String get confirmDeleteBody;
 
   /// Línea de la cabecera de una persona: lo comprado de su próxima ocasión.
@@ -1771,7 +1771,7 @@ abstract class AppLocalizations {
   /// Nota al pie del presupuesto.
   ///
   /// In es, this message translates to:
-  /// **'Lo que regalan los abuelos o los tíos cuenta como regalo, no como gasto de la casa.'**
+  /// **'Solo suma lo que paga la casa. Los regalos que pagan otras personas, como los abuelos, quedan fuera del gasto de la casa.'**
   String get budgetNote;
 
   /// Estado vacío del presupuesto.
@@ -1951,7 +1951,7 @@ abstract class AppLocalizations {
   /// Explicación de archivar.
   ///
   /// In es, this message translates to:
-  /// **'Archivar quita algo de las listas sin borrar sus regalos; se recupera en Ajustes › Archivo. Eliminar lo borra para siempre.'**
+  /// **'Archivar quita algo de las listas sin eliminar sus regalos; se recupera en Ajustes › Archivo. Eliminar lo borra para siempre.'**
   String get manageArchiveHint;
 
   /// Etiqueta accesible del botón de archivar.
@@ -2212,7 +2212,7 @@ abstract class AppLocalizations {
   /// **'{count, plural, one{{count} regalo modificado} other{{count} regalos modificados}}'**
   String importChanged(int count);
 
-  /// Parte del resumen de un envío: regalos borrados.
+  /// Parte del resumen de un envío: regalos eliminados.
   ///
   /// In es, this message translates to:
   /// **'{count, plural, one{{count} regalo eliminado} other{{count} regalos eliminados}}'**
@@ -2224,7 +2224,7 @@ abstract class AppLocalizations {
   /// **'Sincronizar ahora'**
   String get syncNowTitle;
 
-  /// Fila que saca este móvil de la sincronización de la familia (si es el último, borra la copia del servidor) y la apaga.
+  /// Fila que saca este móvil de la sincronización de la familia (si es el último, borra la copia cifrada para sincronizar) y la apaga.
   ///
   /// In es, this message translates to:
   /// **'Dejar de sincronizar'**
@@ -2245,7 +2245,7 @@ abstract class AppLocalizations {
   /// Texto del aviso de confirmación de Dejar de sincronizar.
   ///
   /// In es, this message translates to:
-  /// **'Este móvil dejará de enviar y recibir cambios. Los demás seguirán sincronizándose entre sí. Si este es el último móvil que sincroniza, se borrará la copia cifrada del servidor. Cada móvil conservará sus datos. Para volver a sincronizar, conecta de nuevo este móvil con otro de la familia.'**
+  /// **'Este móvil dejará de enviar y recibir cambios. Los demás seguirán sincronizándose entre sí. Si ningún otro móvil ni la web tienen acceso a la lista, se borrará la copia cifrada para sincronizar. Cada móvil conservará sus datos. Para volver a sincronizar, conecta de nuevo este móvil con otro de la familia.'**
   String get syncStopConfirmBody;
 
   /// Aviso tras dejar de sincronizar.
@@ -2464,7 +2464,7 @@ abstract class AppLocalizations {
   /// **'Compartir el enlace otra vez'**
   String get inviteShareAgain;
 
-  /// Botón que mata la invitación en el servidor.
+  /// Botón que cancela la invitación en el servidor (invitar a otro móvil).
   ///
   /// In es, this message translates to:
   /// **'Cancelar invitación'**
@@ -2617,7 +2617,7 @@ abstract class AppLocalizations {
   /// Texto mientras se espera a que la otra persona vea la petición.
   ///
   /// In es, this message translates to:
-  /// **'Quien te invitó tiene que ver tu petición. En unos segundos verás aquí un código para comparar con esa persona. Puedes esperar hasta 10 minutos.'**
+  /// **'Quien te invitó tiene que ver tu petición. Cuando su móvil responda, verás aquí un código para comparar. Este móvil espera la confirmación hasta 10 minutos.'**
   String get joinInviteWaitingBody;
 
   /// Título de la comparación del código.
@@ -3115,7 +3115,7 @@ abstract class AppLocalizations {
   /// Frase bajo el nombre en la ficha de una persona de Reparto.
   ///
   /// In es, this message translates to:
-  /// **'Cómo sale en Reparto. No se borra ningún regalo.'**
+  /// **'Cómo sale en Reparto. No se elimina ningún regalo.'**
   String get repartoPersonSheetSub;
 
   /// Casilla de la ficha: la persona sale (o no) en Reparto.
@@ -3226,13 +3226,13 @@ abstract class AppLocalizations {
   /// **'Su cumpleaños también se eliminará de la lista de ocasiones.'**
   String get deleteBirthdayToo;
 
-  /// Consecuencia de eliminar a quien regala: sus regalos no se borran. Vacío si no tiene.
+  /// Consecuencia de eliminar a quien regala: sus regalos no se eliminan. Vacío si no tiene.
   ///
   /// In es, this message translates to:
   /// **'{count, plural, =0{} one{Su regalo seguirá en la lista sin nadie asignado en «Quién regala».} other{Sus {count} regalos seguirán en la lista sin nadie asignado en «Quién regala».}}'**
   String deleteGiverGifts(int count);
 
-  /// Consecuencia de eliminar una ocasión: sus regalos no se borran. Vacío si no tiene.
+  /// Consecuencia de eliminar una ocasión: sus regalos no se eliminan. Vacío si no tiene.
   ///
   /// In es, this message translates to:
   /// **'{count, plural, =0{} one{Su regalo se quedará sin ocasión.} other{Sus {count} regalos se quedarán sin ocasión.}}'**
@@ -3268,10 +3268,10 @@ abstract class AppLocalizations {
   /// **'No se ha guardado: este regalo ya no está disponible en este móvil.'**
   String get giftNotSaved;
 
-  /// Aviso tras borrar un regalo, con la acción Deshacer.
+  /// Aviso tras eliminar un regalo, con la acción Deshacer.
   ///
   /// In es, this message translates to:
-  /// **'«{name}» borrado'**
+  /// **'«{name}» eliminado'**
   String giftDeletedNotice(String name);
 
   /// Primer grupo de Ajustes: personas, quién regala, ocasiones y archivo.
@@ -3370,10 +3370,10 @@ abstract class AppLocalizations {
   /// **'Se borran de este móvil la lista entera, el PIN y los ajustes, y la app vuelve a empezar de cero. No se puede deshacer. Los demás móviles de tu familia conservan su copia.'**
   String get eraseAllConfirmBody;
 
-  /// Frase que se añade al primer diálogo de Borrar todo cuando la app puede sincronizar: este móvil sale antes de la familia y solo el último borra la copia del servidor.
+  /// Frase que se añade al primer diálogo de Borrar todo cuando la app puede sincronizar: este móvil sale antes de la familia y solo el último borra la copia cifrada para sincronizar.
   ///
   /// In es, this message translates to:
-  /// **'Antes, este móvil sale de la sincronización de la familia; si es el último, también se borra la copia cifrada del servidor.'**
+  /// **'Antes, este móvil sale de la sincronización de la familia. Si no queda otro móvil ni la web conectados, también se borra la copia cifrada para sincronizar.'**
   String get eraseAllConfirmServer;
 
   /// Botón del primer diálogo de Borrar todo: lleva al último paso.
@@ -3406,7 +3406,7 @@ abstract class AppLocalizations {
   /// **'Confirmación'**
   String get eraseAllFieldLabel;
 
-  /// Estado del diálogo de Borrar todo mientras se borra la copia del servidor.
+  /// Estado del diálogo de Borrar todo mientras se borra la copia cifrada para sincronizar.
   ///
   /// In es, this message translates to:
   /// **'Borrando…'**
@@ -3421,7 +3421,7 @@ abstract class AppLocalizations {
   /// Texto del diálogo de Borrar todo cuando el servidor no responde: qué pasa si se borra solo lo local.
   ///
   /// In es, this message translates to:
-  /// **'Comprueba la conexión e inténtalo de nuevo. Si borras los datos solo aquí, este móvil seguirá en «Móviles de la familia» hasta que alguien lo quite desde otro móvil. La copia cifrada seguirá en el servidor para los demás móviles. Si este era el último, la copia se conservará hasta que caduque.'**
+  /// **'Comprueba la conexión e inténtalo de nuevo. Si borras los datos solo aquí, este móvil seguirá en «Móviles de la familia» hasta que alguien lo quite desde otro móvil. Los demás móviles y la web que tengan acceso podrán seguir usando la copia cifrada para sincronizar. Si nadie vuelve a acceder a ella, caducará.'**
   String get eraseAllServerFailedBody;
 
   /// Botón del diálogo de Borrar todo cuando el servidor no responde: lo intenta otra vez.
@@ -3430,7 +3430,7 @@ abstract class AppLocalizations {
   /// **'Reintentar'**
   String get eraseAllRetry;
 
-  /// Botón del diálogo de Borrar todo cuando el servidor no responde: borra lo local y deja la copia del servidor.
+  /// Botón del diálogo de Borrar todo cuando el servidor no responde: borra lo local y deja la copia cifrada para sincronizar.
   ///
   /// In es, this message translates to:
   /// **'Borrar solo en este móvil'**
@@ -3562,7 +3562,7 @@ abstract class AppLocalizations {
   /// **'Conecta otro para ver la misma lista en los dos.'**
   String get devicesSoloBody;
 
-  /// Título de la tarjeta de estado cuando no hay otro móvil conectado pero hay un código de recuperación activo: la lista tiene una copia cifrada en el servidor.
+  /// Título de la tarjeta de estado cuando no hay otro móvil conectado pero hay un código de recuperación activo: la lista tiene una copia cifrada para sincronizar.
   ///
   /// In es, this message translates to:
   /// **'Copia de recuperación guardada'**
@@ -3571,7 +3571,7 @@ abstract class AppLocalizations {
   /// Frase de la tarjeta de estado con un código de recuperación activo y ningún otro móvil conectado.
   ///
   /// In es, this message translates to:
-  /// **'Con tu código puedes recuperar la copia cifrada de la lista. Conecta otro móvil para ver la lista en los dos.'**
+  /// **'Con tu código puedes recuperar la lista a partir de la copia cifrada para sincronizar. Conecta otro móvil para ver la lista en los dos.'**
   String get devicesRecoveryBody;
 
   /// Título de la tarjeta de estado con dos móviles conectados en una versión sin servidor de sincronización.
@@ -3859,7 +3859,7 @@ abstract class AppLocalizations {
   /// Aviso bajo el QR o el enlace: caduca y no da acceso por sí solo.
   ///
   /// In es, this message translates to:
-  /// **'La invitación caduca a las 24 horas y solo sirve para pedir entrada. Antes de dar acceso, compara el número que aparece en los dos móviles.'**
+  /// **'La invitación caduca a las 24 horas y solo sirve para pedir entrada. Antes de dar acceso, compara el código que aparece en los dos móviles.'**
   String get pairingV2NoticeExpires;
 
   /// Título de la pantalla del enlace para un móvil lejano.
@@ -3871,7 +3871,7 @@ abstract class AppLocalizations {
   /// Explicación del enlace que se comparte con un móvil lejano.
   ///
   /// In es, this message translates to:
-  /// **'Envíaselo a quien quieras conectar. Cuando lo abra y pida entrar, aquí verás un número para compararlo.'**
+  /// **'Envíaselo a quien quieras conectar. Cuando lo abra y pida entrar, aquí verás un código para compararlo.'**
   String get pairingV2FarBody;
 
   /// Botón que abre la hoja de compartir con el enlace.
@@ -3886,25 +3886,25 @@ abstract class AppLocalizations {
   /// **'Esperando a que la otra persona pida entrar…'**
   String get pairingV2WaitingHere;
 
-  /// Título del paso de comparar el número de seis cifras.
+  /// Título del paso de comparar el código de seis cifras.
   ///
   /// In es, this message translates to:
-  /// **'Compara el número'**
+  /// **'Compara el código'**
   String get pairingV2CompareTitle;
 
-  /// Explicación en el móvil que invita al comparar el número.
+  /// Explicación en el móvil que invita al comparar el código.
   ///
   /// In es, this message translates to:
-  /// **'El otro móvil enseña un número. Tiene que ser el mismo que este. Si lo es, pulsa «Coinciden»; si no, «No coinciden».'**
+  /// **'El otro móvil enseña un código. Tiene que ser el mismo que este. Si es el mismo, toca «Coinciden». Si es distinto, toca «No coinciden».'**
   String get pairingV2HostCompareBody;
 
-  /// Botón: los dos números son el mismo.
+  /// Botón: los códigos coinciden.
   ///
   /// In es, this message translates to:
   /// **'Coinciden'**
   String get pairingV2Match;
 
-  /// Botón: los números son distintos; se cancela.
+  /// Botón: los códigos son distintos; se cancela.
   ///
   /// In es, this message translates to:
   /// **'No coinciden'**
@@ -3994,16 +3994,16 @@ abstract class AppLocalizations {
   /// **'Este móvil todavía no conoce a nadie de esta familia, así que de momento no se puede elegir. Podrás hacerlo cuando llegue la lista.'**
   String get pairingV2ChooseNone;
 
-  /// Estado del invitado antes de ver el número.
+  /// Estado del invitado antes de ver el código.
   ///
   /// In es, this message translates to:
-  /// **'Esperando al otro móvil. En unos segundos verás aquí un número para comparar.'**
+  /// **'Cuando el otro móvil responda, verás aquí un código para comparar.'**
   String get pairingV2GuestWaitingCode;
 
   /// Explicación en el móvil invitado al comparar.
   ///
   /// In es, this message translates to:
-  /// **'Compara este número con el que ve la otra persona. Si son iguales, pulsa «Coinciden».'**
+  /// **'Compara este código con el que ve la otra persona. Si son iguales, toca «Coinciden».'**
   String get pairingV2GuestCompareBody;
 
   /// Estado del invitado tras pulsar Coinciden.
@@ -4033,7 +4033,7 @@ abstract class AppLocalizations {
   /// Explicación del aviso de volver a conectar.
   ///
   /// In es, this message translates to:
-  /// **'Cada móvil se conecta otra vez con «Conectar otro móvil» y comparando un número.'**
+  /// **'Cada móvil se conecta otra vez con «Conectar otro móvil» y comparando un código.'**
   String get pairingV2ReconnectBody;
 
   /// Título del paso del móvil que invita donde se confirma aparte de quién dice ser el móvil nuevo; name es la persona que eligió.
@@ -4405,7 +4405,7 @@ abstract class AppLocalizations {
   /// Indicador de espera mientras el móvil aprueba la conexión.
   ///
   /// In es, this message translates to:
-  /// **'Esperando a que el móvil lo apruebe…'**
+  /// **'Esperando a que toques «Coinciden» en el móvil…'**
   String get webGateCompareWaiting;
 
   /// Texto que sustituye a los botones de comparar cuando la persona ya ha confirmado en la web que los códigos coinciden; solo falta que el móvil apruebe.
@@ -4903,7 +4903,7 @@ abstract class AppLocalizations {
   /// Explicación de comparar el código con el que enseña el ordenador.
   ///
   /// In es, this message translates to:
-  /// **'El ordenador enseña un código. Tiene que ser el mismo que este. Si lo es, pulsa «Coinciden»; si no, «No coinciden».'**
+  /// **'El ordenador enseña un código. Tiene que ser el mismo que este. Si es el mismo, toca «Coinciden». Si es distinto, toca «No coinciden».'**
   String get connectWebCompareBody;
 
   /// Mientras se da acceso al ordenador.
@@ -4941,6 +4941,12 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'No se ha podido conectar el ordenador. Pulsa «Empezar otra vez» en el ordenador. Escanea el código nuevo con el móvil.'**
   String get connectWebFailed;
+
+  /// Botón que cancela la conexión de la web mientras se espera al ordenador.
+  ///
+  /// In es, this message translates to:
+  /// **'Cancelar conexión'**
+  String get connectWebCancel;
 
   /// Se canceló la conexión del ordenador.
   ///
@@ -5083,7 +5089,7 @@ abstract class AppLocalizations {
   /// Primera consecuencia del cambio de persona.
   ///
   /// In es, this message translates to:
-  /// **'Este móvil dejará de ver los regalos de {name} y sus sorpresas.'**
+  /// **'Si los regalos para {name} están en secreto, no verás ninguno en este móvil.'**
   String selfChangeEffectHides(String name);
 
   /// Primera consecuencia del cambio cuando se elige Nadie.
@@ -5419,7 +5425,7 @@ abstract class AppLocalizations {
   /// Cuerpo del diálogo de confirmación al desactivar.
   ///
   /// In es, this message translates to:
-  /// **'Se publicarán todos los regalos disponibles de {name}, de cualquier año, también los que están pendientes en este móvil. Después {name} los verá en su móvil.'**
+  /// **'Los regalos para {name} que estén disponibles en este móvil dejarán de estar en secreto. Se incluyen los de cualquier año y los pendientes en este móvil. Cuando se sincronicen los cambios, {name} podrá verlos en su móvil.'**
   String protectionDeactivateBody(String name);
 
   /// Botón rojo del diálogo al desactivar.
@@ -6073,7 +6079,7 @@ abstract class AppLocalizations {
   /// Explicación del estado sin código: qué recupera y la copia cifrada con un solo móvil.
   ///
   /// In es, this message translates to:
-  /// **'Con 24 palabras puedes recuperar en otro móvil la lista y todo lo que ves en este. Si solo tienes este móvil, se activa una copia cifrada en el servidor. Sin las palabras, nadie puede leerla.'**
+  /// **'Al crear el código, la app guarda una copia cifrada para sincronizar, aunque solo tengas este móvil. Con las 24 palabras podrás recuperar en otro móvil la parte de la lista que puedes ver y que se haya sincronizado.'**
   String get recoveryAbsentBody;
 
   /// Aviso del estado sin código.
@@ -6154,10 +6160,10 @@ abstract class AppLocalizations {
   /// **'Se borra la copia de recuperación y las 24 palabras dejan de valer. Podrás crear otro código cuando quieras.'**
   String get recoveryRemoveBody;
 
-  /// Aviso extra del diálogo de quitar el código cuando no queda otro móvil ni la web: también se retira la copia del servidor.
+  /// Aviso extra del diálogo de quitar el código cuando no queda otro móvil ni la web: también se retira la copia cifrada para sincronizar.
   ///
   /// In es, this message translates to:
-  /// **'Como no hay otro móvil ni la web conectados, también se borra del servidor la copia cifrada de la lista, y la lista vuelve a estar solo en este móvil.'**
+  /// **'Como no hay otro móvil ni la web conectados, también se borra la copia cifrada para sincronizar, y la lista vuelve a estar solo en este móvil.'**
   String get recoveryRemoveSoloNote;
 
   /// Botón rojo que confirma quitar el código.
@@ -6715,7 +6721,7 @@ abstract class AppLocalizations {
   /// Explicación cuando la copia cifrada no ha quedado preparada.
   ///
   /// In es, this message translates to:
-  /// **'No se ha podido guardar la copia cifrada en el servidor. Por eso aún no puedes ver las palabras. Inténtalo de nuevo cuando tengas conexión.'**
+  /// **'Las 24 palabras aún no están disponibles. Comprueba la conexión e inténtalo de nuevo.'**
   String get recoveryProblemNotReadyBody;
 
   /// Título del diálogo cuando el código es de otra familia.

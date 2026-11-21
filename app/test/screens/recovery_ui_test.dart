@@ -44,7 +44,7 @@ void recoveryTest(
   String description,
   Future<void> Function(WidgetTester tester, FakePhone phone) body, {
   RecoveryStatus initial = const RecoveryStatus(RecoveryReadiness.absent),
-  Size size = const Size(390, 844),
+  Size size = const Size(390, 1100),
   double textScale = 1,
   Brightness brightness = Brightness.light,
   ScannerBuilder? scanner,
@@ -168,7 +168,7 @@ void main() {
       expect(find.text('Crear código de recuperación'), findsOneWidget);
       // Dice qué recupera y qué no, sin tecnicismos.
       expect(
-        find.textContaining('todo lo que ves en este'),
+        find.textContaining('recuperar en otro móvil la parte de la lista'),
         findsOneWidget,
       );
       expect(find.textContaining('Solo se puede recuperar lo que se haya sincronizado'), findsOneWidget);
@@ -258,7 +258,7 @@ void main() {
         await tapText(tester, 'Borrar el código');
         expect(find.text('¿Borrar el código de recuperación?'), findsOneWidget);
         expect(
-          find.textContaining('también se borra del servidor la copia cifrada de la lista'),
+          find.textContaining('también se borra la copia cifrada para sincronizar'),
           findsOneWidget,
         );
         await tapText(tester, 'Borrar código');

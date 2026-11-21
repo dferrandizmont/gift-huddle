@@ -501,7 +501,7 @@ class _Progress extends StatelessWidget {
           ),
           if (onCancel != null) ...[
             const SizedBox(height: 8),
-            TextButton(onPressed: onCancel, child: Text(l10n.inviteCancel)),
+            TextButton(onPressed: onCancel, child: Text(l10n.connectWebCancel)),
           ],
         ],
       ),

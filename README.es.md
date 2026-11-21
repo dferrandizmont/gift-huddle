@@ -20,11 +20,11 @@ Gift Huddle es la libreta de regalos de la familia. Apunta qué quiere cada pers
   <a href="https://play.google.com/apps/testing/es.gifthuddle.app"><img src="https://img.shields.io/badge/Google_Play-Prueba_cerrada-414141?logo=googleplay&amp;style=for-the-badge" alt="Prueba cerrada en Google Play"></a>
   <a href="https://web.gifthuddle.app"><img src="https://img.shields.io/badge/Web-web.gifthuddle.app-C9245F?style=for-the-badge" alt="Versión web"></a>
   <!--
-  <a href="[APP_STORE_LINK]"><img src="https://img.shields.io/badge/App_Store-Descargar-0D96F6?logo=appstore&amp;style=for-the-badge" alt="Disponible en la App Store"></a>
+  <a href="https://apps.apple.com/app/id6835840931"><img src="https://img.shields.io/badge/App_Store-Descargar-0D96F6?logo=appstore&amp;style=for-the-badge" alt="Disponible en la App Store"></a>
   -->
 </p>
 
-Android 8 o posterior está en prueba cerrada en Google Play. La versión para iPhone (iOS 16 o posterior) llegará pronto a la App Store. Más información en [gifthuddle.app](https://gifthuddle.app).
+Android 8 o posterior está en prueba cerrada en Google Play. La versión para iPhone (iOS 16 o posterior) ya está en la App Store. Más información en [gifthuddle.app](https://gifthuddle.app).
 
 <details>
 <summary>Únete a la beta de Google Play</summary>

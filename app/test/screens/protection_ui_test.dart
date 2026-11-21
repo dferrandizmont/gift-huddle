@@ -276,7 +276,7 @@ void main() {
           findsOneWidget,
         );
         expect(
-          find.textContaining('también los que están pendientes'),
+          find.textContaining('que estén disponibles en este móvil'),
           findsOneWidget,
         );
         expect(_actions(phone).calls, ['request:nora', 'activate:nora']);

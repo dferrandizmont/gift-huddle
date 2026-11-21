@@ -4,6 +4,9 @@ All notable changes to Gift Huddle are listed here. Store versions may skip numb
 
 ## Unreleased
 
+- Texts: deleting a gift now says "Eliminar" in Spanish and Catalan (button, confirmation and notice), like people and occasions; the six digits compared when connecting a phone or the web are always called a "code", never a "number"; the encrypted copy kept for syncing is now called the "encrypted sync copy" (Spanish "copia cifrada para sincronizar") instead of "the copy on the server".
+- Texts: clearer wording for the vibrations setting (it controls every vibration in the app), for "This phone belongs to" (it says exactly what the phone stops seeing), for the invitation wait (the phone waits up to 10 minutes for confirmation), for turning off secret gifts, for the budget note, for "Already have a list?" at the start, for "When do you give gifts?" in English, and for the wait while approving the web connection (Spanish).
+
 ## 1.0.5 · 2026-11-21
 
 - Texts reviewed in Spanish, Catalan and English: clearer wording and consistent terms.

@@ -231,23 +231,23 @@ void main() {
     await pumpRegalos(tester, phone);
     await openAritz(tester);
     await tapText(tester, 'Patinete');
-    await scrollTo(tester, find.text('Borrar regalo'));
-    await tapText(tester, 'Borrar regalo');
+    await scrollTo(tester, find.text('Eliminar regalo'));
+    await tapText(tester, 'Eliminar regalo');
     // Antes de borrar, siempre un diálogo; mientras está abierto no se ha
     // borrado nada.
-    expect(find.text('¿Borrar «Patinete»?'), findsOneWidget);
+    expect(find.text('¿Eliminar «Patinete»?'), findsOneWidget);
     expect(
-      find.text('Se borra también en los móviles de tu familia.'),
+      find.text('Se elimina también en los móviles de tu familia.'),
       findsOneWidget,
     );
     expect(await giftByTitle(tester, phone, 'Patinete'), isNotNull);
 
     await tapText(tester, 'Cancelar');
-    expect(find.text('¿Borrar «Patinete»?'), findsNothing);
+    expect(find.text('¿Eliminar «Patinete»?'), findsNothing);
     expect(await giftByTitle(tester, phone, 'Patinete'), isNotNull);
 
-    await tapText(tester, 'Borrar regalo');
-    await tapText(tester, 'Borrar');
+    await tapText(tester, 'Eliminar regalo');
+    await tapText(tester, 'Eliminar');
     expect(await giftByTitle(tester, phone, 'Patinete'), isNull);
     // La fila se pliega después de confirmar y acaba quitándose.
     await tester.pumpAndSettle();
@@ -262,11 +262,11 @@ void main() {
     await pumpRegalos(tester, phone);
     await openAritz(tester);
     await tapText(tester, 'Patinete');
-    await scrollTo(tester, find.text('Borrar regalo'));
-    await tapText(tester, 'Borrar regalo');
-    await tapText(tester, 'Borrar');
+    await scrollTo(tester, find.text('Eliminar regalo'));
+    await tapText(tester, 'Eliminar regalo');
+    await tapText(tester, 'Eliminar');
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
-    expect(find.text('«Patinete» borrado'), findsOneWidget);
+    expect(find.text('«Patinete» eliminado'), findsOneWidget);
     expect(find.text('Deshacer'), findsOneWidget);
     // Mientras el aviso está vivo la lápida no está escrita: el contenido
     // sigue en el documento y Deshacer lo devuelve.
@@ -287,9 +287,9 @@ void main() {
     // Borrar otra vez y pasar la app a segundo plano: se escribe la lápida
     // y ya no hay Deshacer que valga.
     await tapText(tester, 'Patinete');
-    await scrollTo(tester, find.text('Borrar regalo'));
-    await tapText(tester, 'Borrar regalo');
-    await tapText(tester, 'Borrar');
+    await scrollTo(tester, find.text('Eliminar regalo'));
+    await tapText(tester, 'Eliminar regalo');
+    await tapText(tester, 'Eliminar');
     await tester.runAsync(
       () => phone.container
           .read(familyControllerProvider.notifier)

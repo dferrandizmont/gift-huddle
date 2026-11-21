@@ -12,9 +12,11 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/app/app.dart';
 import 'package:regalos/app/router.dart';
+import 'package:regalos/core/motion/haptics.dart';
 import 'package:regalos/core/sync/model.dart' show Gift, GiftStatus;
 import 'package:regalos/core/widgets/status_checkbox.dart';
 import 'package:regalos/features/family/application/family_controller.dart';
+import 'package:regalos/features/web_board/presentation/board_lane_drag.dart';
 import 'package:regalos/features/web_board/presentation/board_lane_move.dart';
 import 'package:regalos/features/web_board/application/board_lanes.dart';
 import 'package:regalos/features/web_board/application/board_metrics.dart';
@@ -28,6 +30,7 @@ import '../helpers/fonts.dart';
 import '../helpers/memory_stores.dart';
 import '../helpers/screens.dart';
 import '../web_device/presentation/gate_test_support.dart';
+import '../widgets/pin_shake_test.dart' show recordHaptics;
 
 const _confirmed = WebDeviceState(
   status: WebSyncStatus.confirmed,
@@ -82,6 +85,38 @@ Future<TestGesture> _drag(
     kind: PointerDeviceKind.mouse,
   );
   await tester.pump();
+  // Primero un poco, para pasar el umbral; luego, hasta el carril.
+  await gesture.moveBy(const Offset(12, 0));
+  await tester.pump();
+  await gesture.moveTo(tester.getCenter(to));
+  await tester.pump();
+  if (release) {
+    await gesture.up();
+    await settle(tester);
+  }
+  return gesture;
+}
+
+/// Arrastra con el dedo la tarjeta de [title] hasta el centro de [to] y la
+/// suelta. Con el dedo, el arrastre espera a la pulsación larga.
+Future<TestGesture> _touchDrag(
+  WidgetTester tester,
+  String title,
+  Finder to, {
+  bool release = true,
+}) async {
+  final from = tester.getCenter(
+    find.descendant(
+      of: find.byType(BoardLanesView),
+      matching: find.text(title),
+    ),
+  );
+  final gesture = await tester.startGesture(from);
+  await tester.pump();
+  // Quieto hasta que pasa la pulsación larga.
+  await tester.pump(
+    BoardCardDraggable.holdDelay + const Duration(milliseconds: 50),
+  );
   // Primero un poco, para pasar el umbral; luego, hasta el carril.
   await gesture.moveBy(const Offset(12, 0));
   await tester.pump();
@@ -205,6 +240,38 @@ void main() {
       },
       size: const Size(1920, 960),
       overrides: _web(),
+    );
+  });
+
+  group('vibración del arrastre', () {
+    screenTest(
+      'con el dedo, al empezar el arrastre suena un clic',
+      (tester, phone) async {
+        final haptics = recordHaptics(tester);
+        await _mountWeb(tester, phone);
+        await _touchDrag(tester, 'Patinete', _lane(BoardLane.buy));
+        // El regalo se movió de verdad: el gesto fue un arrastre.
+        expect(_gift(phone, 'Patinete').status, GiftStatus.decided);
+        expect(haptics, contains('HapticFeedbackType.selectionClick'));
+        expect(tester.takeException(), isNull);
+      },
+      size: const Size(1920, 960),
+      overrides: _web(),
+    );
+
+    screenTest(
+      'con las vibraciones apagadas en Ajustes, el arrastre no suena',
+      (tester, phone) async {
+        final haptics = recordHaptics(tester);
+        await _mountWeb(tester, phone);
+        await _touchDrag(tester, 'Patinete', _lane(BoardLane.buy));
+        expect(_gift(phone, 'Patinete').status, GiftStatus.decided);
+        expect(haptics, isEmpty);
+        expect(tester.takeException(), isNull);
+      },
+      size: const Size(1920, 960),
+      overrides: _web(),
+      prefs: {kHapticsEnabledKey: false},
     );
   });
 

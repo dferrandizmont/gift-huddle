@@ -33,8 +33,9 @@ void main() {
   const welcome = 'Te damos la bienvenida a Gift Huddle';
   const hint = 'La lista, el PIN y los ajustes de este móvil.';
   const serverNote =
-      'Antes, este móvil sale de la sincronización de la familia; si es el '
-      'último, también se borra la copia cifrada del servidor.';
+      'Antes, este móvil sale de la sincronización de la familia. Si no queda '
+      'otro móvil ni la web conectados, también se borra la copia cifrada para '
+      'sincronizar.';
   const failedTitle = 'No se ha podido contactar con el servidor';
 
   late Directory temp;
@@ -375,7 +376,9 @@ void main() {
         expect(find.byType(EraseAllDialog), findsOneWidget);
         expect(find.text(failedTitle), findsOneWidget);
         expect(
-          find.textContaining('La copia cifrada seguirá en el servidor'),
+          find.textContaining(
+            'Los demás móviles y la web que tengan acceso podrán seguir usando',
+          ),
           findsOneWidget,
         );
         for (final label in [

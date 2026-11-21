@@ -94,7 +94,8 @@ void main() {
     expect(find.text(_confirmTitle), findsOneWidget);
     expect(
       find.text(
-        'Este móvil dejará de ver los regalos de Nora y sus sorpresas.',
+        'Si los regalos para Nora están en secreto, no verás ninguno en este '
+        'móvil.',
       ),
       findsOneWidget,
     );

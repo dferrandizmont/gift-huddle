@@ -108,7 +108,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceHapticsHint =>
-      'Your phone vibrates gently when you do things like tick a box or choose an option.';
+      'Turn this setting off to disable all app vibrations, including those you feel when you tick a box, delete a gift or enter the wrong PIN.';
 
   @override
   String get appearancePreview => 'Preview';
@@ -508,7 +508,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get obStart => 'Get started';
 
   @override
-  String get obHaveListTitle => 'Already have the list on another phone?';
+  String get obHaveListTitle => 'Already have a list?';
 
   @override
   String get obPeopleTitle => 'Who do you give gifts to?';
@@ -562,7 +562,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get giverNameHint => 'Grandparents, Aunt Nora and Leo…';
 
   @override
-  String get obOccasionsTitle => 'When are the gifts?';
+  String get obOccasionsTitle => 'When do you give gifts?';
 
   @override
   String get obOccasionsBody =>
@@ -1018,7 +1018,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get budgetNote =>
-      'What grandparents or uncles give counts as a gift, not as a household expense.';
+      'The budget only includes what the household pays. Gifts paid for by someone else, such as a grandparent, do not count towards household spending.';
 
   @override
   String get budgetEmpty =>
@@ -1317,7 +1317,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get syncStopConfirmBody =>
-      'This phone will stop sending and receiving changes. The other phones will keep syncing with each other. If this is the last phone still syncing, the app will delete the encrypted copy on the server. Each phone will keep its data. To sync again, reconnect this phone to another phone in the family.';
+      'This phone will stop sending and receiving changes. The other phones will keep syncing with each other. If no other phone or web app has access to the list, the app will delete the encrypted sync copy. Each phone will keep its data. To sync again, reconnect this phone to another phone in the family.';
 
   @override
   String get syncStopDone => 'Sync turned off.';
@@ -1548,7 +1548,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get joinInviteWaitingBody =>
-      'The person who invited you has to see your request. In a few seconds you will see a code here to compare with them. You can wait up to 10 minutes.';
+      'The person who invited you has to see your request. When their phone responds, you will see a code here to compare. This phone waits up to 10 minutes for confirmation.';
 
   @override
   String get joinInviteConfirmTitle => 'Compare the code';
@@ -2048,7 +2048,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get eraseAllConfirmServer =>
-      'First, this phone leaves the family\'s sync; if it is the last one, the encrypted copy on the server is deleted too.';
+      'First, this phone leaves the family\'s sync. If no other phone or web app is connected, the encrypted sync copy is deleted too.';
 
   @override
   String get eraseAllContinue => 'Continue';
@@ -2075,7 +2075,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get eraseAllServerFailedBody =>
-      'Check your connection and try again. If you delete the data on this phone only, the phone will stay in \"Family phones\" until someone removes it from another phone. The server keeps the encrypted copy for the other phones. If this was the last phone, the copy stays there until it expires.';
+      'Check your connection and try again. If you delete the data on this phone only, the phone will stay in \"Family phones\" until someone removes it from another phone. Other phones and the web app can keep using the encrypted sync copy if they still have access. If no one accesses it again, it will expire.';
 
   @override
   String get eraseAllRetry => 'Try again';
@@ -2160,7 +2160,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get devicesRecoveryBody =>
-      'You can restore an encrypted copy of your list with your code. Connect another phone to see the list on both.';
+      'You can use your code to recover the list from the encrypted sync copy. Connect another phone to see the list on both.';
 
   @override
   String get devicesManualTitle => 'Connected by file or QR';
@@ -2317,14 +2317,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pairingV2NoticeExpires =>
-      'The invitation expires after 24 hours and only lets someone ask to join. Before giving access, compare the numbers shown on both phones.';
+      'The invitation expires after 24 hours and only lets someone ask to join. Before giving access, compare the codes shown on both phones.';
 
   @override
   String get pairingV2FarTitle => 'Share the link';
 
   @override
   String get pairingV2FarBody =>
-      'Send it to whoever you want to connect. When they open it and ask to join, you will see a number here to compare.';
+      'Send it to whoever you want to connect. When they open it and ask to join, you will see a code here to compare.';
 
   @override
   String get pairingV2Share => 'Share the link';
@@ -2334,11 +2334,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Waiting for the other person to ask to join…';
 
   @override
-  String get pairingV2CompareTitle => 'Compare the number';
+  String get pairingV2CompareTitle => 'Compare the code';
 
   @override
   String get pairingV2HostCompareBody =>
-      'The other phone shows a number. It has to be the same as this one. If it is, tap \"They match\"; if not, \"They do not match\".';
+      'The other phone shows a code. It has to be the same as this one. If it is, tap \"They match\"; if not, \"They do not match\".';
 
   @override
   String get pairingV2Match => 'They match';
@@ -2401,11 +2401,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pairingV2GuestWaitingCode =>
-      'Waiting for the other phone. In a few seconds you will see a number here to compare.';
+      'When the other phone responds, you will see a code here to compare.';
 
   @override
   String get pairingV2GuestCompareBody =>
-      'Compare this number with the one the other person sees. If they are the same, tap \"They match\".';
+      'Compare this code with the one the other person sees. If they are the same, tap \"They match\".';
 
   @override
   String get pairingV2GuestWaitingApproval =>
@@ -2425,7 +2425,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pairingV2ReconnectBody =>
-      'Each phone connects again with \"Connect another phone\" by comparing a number.';
+      'Each phone connects again with \"Connect another phone\" by comparing a code.';
 
   @override
   String pairingV2ClaimTitle(String name) {
@@ -2996,6 +2996,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'The computer could not be connected. Select \"Start again\" on the computer. Scan the new code with your phone.';
 
   @override
+  String get connectWebCancel => 'Cancel connection';
+
+  @override
   String get connectWebCancelled =>
       'The connection was cancelled and the code no longer works. On the computer, select \"Start again\".';
 
@@ -3078,7 +3081,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String selfChangeEffectHides(String name) {
-    return 'This phone will stop seeing the gifts for $name and their surprises.';
+    return 'If gifts for $name are secret, you will not see any of them on this phone.';
   }
 
   @override
@@ -3292,7 +3295,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String protectionDeactivateBody(String name) {
-    return 'All available gifts for $name, from any year, will be published, including those pending on this phone. After that, $name will see them on their phone.';
+    return 'Gifts for $name that are available on this phone will no longer be secret. This includes gifts from any year and those still pending on this phone. Once the changes sync, $name will be able to see them on their phone.';
   }
 
   @override
@@ -3705,7 +3708,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoveryAbsentBody =>
-      'With 24 words, you can recover the list on another phone, including everything you can see on this one. If this is your only phone, an encrypted copy is saved on the server. No one can read it without the words.';
+      'When you create the code, the app saves an encrypted sync copy even if this is your only phone. You can use the 24 words on another phone to recover the parts of the list you can see that have been synced.';
 
   @override
   String get recoveryAbsentWarn =>
@@ -3753,7 +3756,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoveryRemoveSoloNote =>
-      'Since no other phone or web app is connected, the encrypted copy of the list is also deleted from the server and the list is only on this phone again.';
+      'Since no other phone or web app is connected, the encrypted sync copy is also deleted and the list is only on this phone again.';
 
   @override
   String get recoveryRemoveConfirm => 'Delete code';
@@ -4083,7 +4086,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recoveryProblemNotReadyBody =>
-      'The encrypted copy could not be saved on the server, so the words are not shown. Try again with a connection.';
+      'The 24 words are not available yet. Check your connection and try again.';
 
   @override
   String get recoverReplaceTitle => 'Replace the list on this phone?';

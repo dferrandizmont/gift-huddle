@@ -415,9 +415,9 @@ void main() {
         await pumpRegalos(tester, phone);
         await _openPersonAt(tester, 'Patinete');
         await tapText(tester, 'Patinete');
-        await _scrollEditorTo(tester, find.text('Borrar regalo'));
-        await tapText(tester, 'Borrar regalo');
-        expect(find.text('¿Borrar «Patinete»?'), findsOneWidget);
+        await _scrollEditorTo(tester, find.text('Eliminar regalo'));
+        await tapText(tester, 'Eliminar regalo');
+        expect(find.text('¿Eliminar «Patinete»?'), findsOneWidget);
         final dialog = tester.getRect(
           find
               .descendant(
@@ -548,10 +548,10 @@ void main() {
         await pumpRegalos(tester, phone);
         await _openPersonAt(tester, 'Patinete');
         await tapText(tester, 'Patinete');
-        await _scrollEditorTo(tester, find.text('Borrar regalo'));
-        await tapText(tester, 'Borrar regalo');
-        await tapText(tester, 'Borrar');
-        expect(find.text('«Patinete» borrado'), findsOneWidget);
+        await _scrollEditorTo(tester, find.text('Eliminar regalo'));
+        await tapText(tester, 'Eliminar regalo');
+        await tapText(tester, 'Eliminar');
+        expect(find.text('«Patinete» eliminado'), findsOneWidget);
         final bar = _snackRect(tester);
         expect(bar.width, 480);
         expect(bar.center.dx, _area(tester).center.dx);

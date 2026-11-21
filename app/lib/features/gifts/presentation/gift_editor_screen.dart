@@ -1010,7 +1010,7 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
         context,
         title: l10n.confirmDeleteTitle(gift.title),
         body: l10n.confirmDeleteBody,
-        confirmLabel: l10n.actionDelete,
+        confirmLabel: l10n.actionEliminate,
         cancelLabel: l10n.actionCancel,
       ),
     );
