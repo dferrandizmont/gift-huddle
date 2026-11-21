@@ -38,3 +38,15 @@ cd server && pnpm install && pnpm test
 
 By submitting a pull request, you agree to license your contribution under
 GPL-3.0-or-later, as described in [LICENSE](LICENSE).
+
+You also grant Daniel Mont Ferrandiz, the maintainer, and his successors
+and assigns, a perpetual, worldwide, non-exclusive, royalty-free and
+irrevocable license to reproduce, modify, distribute, make available to
+the public and sublicense your contribution, in any form and under any
+terms, including in the builds published on Google Play and the App Store
+and in any paid edition of Gift Huddle. This includes a license, on the
+same conditions, under any patent claims you hold that your contribution
+necessarily infringes. You keep the copyright in your contribution, and
+it stays available to everyone under GPL-3.0-or-later. You confirm that
+you wrote the contribution or otherwise have the right to submit it on
+these terms. If you do not agree, open an issue instead of a pull request.
