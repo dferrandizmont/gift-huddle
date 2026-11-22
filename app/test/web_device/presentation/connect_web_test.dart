@@ -1,14 +1,18 @@
-// «Conectar la web» desde el móvil: escanear el QR del navegador, elegir de
-// quién es el ordenador y comparar el código. El anfitrión es un doble que
-// apunta lo que se le pide.
+// «Conectar la web» desde el móvil: escanear el QR del navegador y comparar
+// el código. Desde la 1.0.6 la web hereda la persona de este móvil y no se
+// pregunta de quién es. El anfitrión es un doble que apunta lo que se le pide.
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/features/family/application/family_controller.dart';
+import 'package:regalos/features/family/application/self_person_gate.dart';
 import 'package:regalos/features/sharing/presentation/join_qr_screen.dart'
     show scannerBuilderProvider;
 import 'package:regalos/features/sync/application/pairing_v2_controller.dart';
 import 'package:regalos/features/web_device/presentation/connect_web_flow.dart';
 
+import '../../helpers/fake_self_gate.dart';
 import '../../helpers/fonts.dart';
 import 'gate_test_support.dart' show l10nOf;
 import 'mobile_web_support.dart';
@@ -21,6 +25,9 @@ Future<FakeHost> _open(
   Locale locale = const Locale('es'),
   Size size = phone375,
   Map<String, bool>? people,
+  String? self = 'nora',
+  FakeGate? gate,
+  List<Override> extra = const <Override>[],
 }) async {
   final host = FakeHost();
   _scan = null;
@@ -30,8 +37,10 @@ Future<FakeHost> _open(
     locale: locale,
     size: size,
     overrides: [
-      familyControllerProvider.overrideWith(() => FakeFamily(people)),
+      ...extra,
+      familyControllerProvider.overrideWith(() => FakeFamily(people, self)),
       pairingV2HostProvider.overrideWith(() => host),
+      if (gate != null) selfPersonGateActionsProvider.overrideWithValue(gate),
       scannerBuilderProvider.overrideWithValue((context, onCode) {
         _scan = onCode;
         return const ColoredBox(color: Colors.black);
@@ -48,12 +57,72 @@ Future<void> _scanCode(WidgetTester tester, String text) async {
 
 Future<void> _pickNora(WidgetTester tester) async {
   await _scanCode(tester, validWebQr);
-  await tester.tap(find.text('Nora'));
-  await settleMobile(tester);
+}
+
+/// Pone [text] en el portapapeles simulado.
+void _clipboard(WidgetTester tester, String text) {
+  tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+    SystemChannels.platform,
+    (call) async => call.method == 'Clipboard.getData'
+        ? <String, Object?>{'text': text}
+        : null,
+  );
+  addTearDown(
+    () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      null,
+    ),
+  );
 }
 
 void main() {
   setUpAll(loadInter);
+
+  group('pegar el código del QR (solo fuera de la tienda)', () {
+    testWidgets('con el botón, el texto pasa por la misma validación y '
+        'conecta', (tester) async {
+      _clipboard(tester, validWebQr);
+      final host = await _open(
+        tester,
+        extra: [pasteWebQrAllowedProvider.overrideWithValue(true)],
+      );
+      final l10n = l10nOf(tester);
+      expect(find.text(l10n.connectWebPasteCode), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey<String>('connectWebPaste')));
+      await settleMobile(tester);
+      expect(host.calls, contains('startWeb:nora'));
+    });
+
+    testWidgets('un texto que no es el QR de la web se rechaza como en el '
+        'escáner', (tester) async {
+      _clipboard(tester, 'https://example.test/i#otra-cosa');
+      final host = await _open(
+        tester,
+        extra: [pasteWebQrAllowedProvider.overrideWithValue(true)],
+      );
+      final l10n = l10nOf(tester);
+      await tester.tap(find.byKey(const ValueKey<String>('connectWebPaste')));
+      await settleMobile(tester);
+      expect(find.text(l10n.connectWebScanInvalid), findsOneWidget);
+      expect(host.calls.where((c) => c.startsWith('startWeb')), isEmpty);
+    });
+
+    testWidgets('en la versión de tienda no hay botón ni camino', (
+      tester,
+    ) async {
+      _clipboard(tester, validWebQr);
+      final host = await _open(
+        tester,
+        extra: [pasteWebQrAllowedProvider.overrideWithValue(false)],
+      );
+      expect(
+        find.byKey(const ValueKey<String>('connectWebPaste')),
+        findsNothing,
+      );
+      expect(find.text(l10nOf(tester).connectWebPasteCode), findsNothing);
+      expect(host.calls, isEmpty);
+    });
+  });
 
   for (final size in [phone375, desktop1280]) {
     for (final locale in const ['es', 'ca', 'en']) {
@@ -66,13 +135,9 @@ void main() {
           expect(tester.takeException(), isNull);
 
           await _scanCode(tester, validWebQr);
-          expect(find.text(l10n.connectWebWhoseTitle), findsOneWidget);
-          expect(find.text('Aritz'), findsOneWidget);
-          expect(tester.takeException(), isNull);
-
-          await tester.tap(find.text('Nora'));
-          await settleMobile(tester);
+          expect(find.text(l10n.whoAreYouTitle), findsNothing);
           expect(host.calls, contains('startWeb:nora'));
+          expect(tester.takeException(), isNull);
           host.push(const PairingV2HostState(PairingV2HostPhase.waiting));
           await settleMobile(tester);
           expect(find.text(l10n.connectWebWaiting), findsOneWidget);
@@ -87,6 +152,8 @@ void main() {
           await settleMobile(tester);
           expect(find.text('123 456'), findsOneWidget);
           expect(find.text(l10n.connectWebCompareBody), findsOneWidget);
+          // B9: avalar la web le entrega los regalos en secreto de los demás.
+          expect(find.text(l10n.webApproveSecretsNotice), findsOneWidget);
           expect(tester.takeException(), isNull);
 
           host.push(
@@ -105,17 +172,54 @@ void main() {
   }
 
   group('escanear', () {
-    testWidgets('un QR válido pasa a elegir persona sin crear nada aún', (
-      tester,
-    ) async {
+    testWidgets('1.0.6: un QR válido empieza con la persona de este móvil, '
+        'sin preguntar', (tester) async {
       final host = await _open(tester);
-      await _scanCode(tester, validWebQr);
-      expect(find.text('¿De quién es este ordenador?'), findsOneWidget);
-      expect(find.text('Aritz'), findsOneWidget);
-      expect(find.text('Nora'), findsOneWidget);
-      expect(find.text('Leo'), findsOneWidget);
-      // Ninguna oferta hasta tener el QR y la persona.
       expect(host.calls, isEmpty);
+      await _scanCode(tester, validWebQr);
+      expect(find.text('¿De quién es este ordenador?'), findsNothing);
+      expect(host.calls, ['dismiss', 'startWeb:nora']);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('1.0.6: sin persona en este móvil, antes «¿Quién eres?»; '
+        'no se empieza hasta responder', (tester) async {
+      final gate = FakeGate();
+      final host = await _open(tester, self: null, gate: gate);
+      await _scanCode(tester, validWebQr);
+      expect(find.text('¿Quién eres?'), findsOneWidget);
+      expect(find.text('¿De quién es este ordenador?'), findsNothing);
+      expect(host.calls, isEmpty);
+      // «Continuar» espera a que se elija algo.
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.byKey(const ValueKey('personPickerContinue')),
+            )
+            .onPressed,
+        isNull,
+      );
+      await tester.tap(find.text('Nora'));
+      await settleMobile(tester);
+      await tester.tap(find.byKey(const ValueKey('personPickerContinue')));
+      await settleMobile(tester);
+      expect(gate.calls, ['choose:nora']);
+      expect(host.calls, ['dismiss', 'startWeb:null']);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('1.0.6: «¿Quién eres?» tiene «No estoy en la lista» y '
+        '«Nadie», ambos con nombre', (tester) async {
+      final gate = FakeGate();
+      await _open(tester, self: null, gate: gate);
+      await _scanCode(tester, validWebQr);
+      await tester.tap(find.text('No estoy en la lista'));
+      await settleMobile(tester);
+      await tester.enterText(find.byType(TextField), 'Leo');
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('personPickerContinue')));
+      await settleMobile(tester);
+      expect(gate.calls, ['notOnList:Leo']);
       await tester.pumpWidget(const SizedBox());
     });
 
@@ -138,34 +242,12 @@ void main() {
           findsOneWidget,
           reason: bad,
         );
-        expect(find.text('¿De quién es este ordenador?'), findsNothing);
       }
       expect(host.calls, isEmpty);
       // Uno válido después sigue adelante y quita el aviso.
       await _scanCode(tester, validWebQr);
-      expect(find.text('¿De quién es este ordenador?'), findsOneWidget);
+      expect(host.calls, ['dismiss', 'startWeb:nora']);
       expect(find.textContaining('Ese código no es'), findsNothing);
-      await tester.pumpWidget(const SizedBox());
-    });
-
-    testWidgets('las personas archivadas no se pueden elegir', (tester) async {
-      await _open(tester, people: const {'Aritz': false, 'Nora': true});
-      await _scanCode(tester, validWebQr);
-      expect(find.text('Aritz'), findsOneWidget);
-      expect(find.text('Nora'), findsNothing);
-      await tester.pumpWidget(const SizedBox());
-    });
-
-    testWidgets('sin personas avisa de que hay que añadir una', (tester) async {
-      await _open(tester, people: const {});
-      await _scanCode(tester, validWebQr);
-      expect(
-        find.text(
-          'Todavía no hay personas. Añade una persona antes de '
-          'conectar la web.',
-        ),
-        findsOneWidget,
-      );
       await tester.pumpWidget(const SizedBox());
     });
   });
@@ -238,7 +320,9 @@ void main() {
       expect(host.calls, isNot(contains('confirmPerson')));
       expect(host.calls.last, 'cancel');
       expect(
-        find.textContaining('Se ha cancelado la conexión y el código ya no sirve'),
+        find.textContaining(
+          'Se ha cancelado la conexión y el código ya no sirve',
+        ),
         findsOneWidget,
       );
       await tester.pumpWidget(const SizedBox());
@@ -283,9 +367,9 @@ void main() {
       await tester.tap(find.text('Escanear otro código'));
       await settleMobile(tester);
       expect(find.textContaining('abre web.gifthuddle.app'), findsOneWidget);
-      // El nuevo QR se vuelve a leer y a preguntar la persona.
+      // El nuevo QR se vuelve a leer y empieza otra vez.
       await _scanCode(tester, validWebQr);
-      expect(find.text('¿De quién es este ordenador?'), findsOneWidget);
+      expect(host.calls.where((c) => c == 'startWeb:nora'), hasLength(2));
       await tester.pumpWidget(const SizedBox());
     });
 

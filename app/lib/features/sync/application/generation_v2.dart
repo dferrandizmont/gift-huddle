@@ -19,7 +19,8 @@ import '../../../core/sync/access_policy.dart' show SurpriseKeyring;
 import '../../../core/sync/device_keys.dart' show constantTimeEquals;
 import '../../../core/sync/device_registry.dart';
 import '../../../core/sync/pairing_v2.dart';
-import '../../../core/sync/protected_doc.dart' show SlotSet;
+import '../../../core/sync/protected_doc.dart'
+    show SlotSet, ownGiftsWereHidden, purgeOwnGiftsOnLeaving;
 import '../../family/application/family_controller.dart';
 import '../../family/data/device_keys_store.dart';
 import '../../family/data/family_store.dart';
@@ -66,7 +67,43 @@ Future<bool> finishPendingV2(Ref ref) async {
           personId: identity.selfRecipientId,
         ),
       );
+  var doc = fam.doc;
   if (pending.reset) {
+    // 1.0.6: sin nadie más, este móvil vuelve a ver lo suyo. Antes se quitan
+    // del común de la generación nueva los regalos para su persona que la
+    // protección aún no había pasado al bloque secreto (nunca se pintaron
+    // aquí). Este común no sube a la lista de la familia: es otra generación.
+    final previous = await store.readRegistry();
+    // La ficha más reciente de este móvil (un cambio de persona pendiente).
+    DeviceRecord? previousSelf;
+    for (final r in previous?.records ?? const <DeviceRecord>[]) {
+      if (r.deviceId == identity.node &&
+          (previousSelf == null || r.seq > previousSelf.seq)) {
+        previousSelf = r;
+      }
+    }
+    final people = [
+      identity.selfRecipientId,
+      previousSelf?.personId,
+      ...identity.formerSelf,
+      // Las de todas las fichas de este móvil, como la capa de pantalla con
+      // un cambio pendiente (revisión de seguridad, B4).
+      for (final r in previous?.records ?? const <DeviceRecord>[])
+        if (r.deviceId == identity.node) r.personId,
+    ];
+    doc = purgeOwnGiftsOnLeaving(
+      doc,
+      node: identity.node,
+      people: people,
+      // La misma regla que la capa de pantalla: dos dispositivos de la misma
+      // persona, sin nadie más, no se ocultaban nada y no se purga.
+      hadCompany: ownGiftsWereHidden(
+        registry: previous,
+        me: identity.node,
+        people: people,
+        paired: identity.paired,
+      ),
+    );
     await store.disableRemoteSync();
     await store.savePendingInviteAcknowledgement(null);
     await store.setRecoveryRemovalPending(false);
@@ -85,7 +122,7 @@ Future<bool> finishPendingV2(Ref ref) async {
     listId: identity.listId,
     node: identity.node,
     key: pending.key,
-    doc: fam.doc,
+    doc: doc,
   );
   if (pending.reset) await family.markUnpaired();
   // Un invitado que entró tras el corte (B7) nace con la marca: antes de la
@@ -126,15 +163,30 @@ Future<void> startNewGenerationV2(Ref ref) async {
   final current = await store.readSyncV2();
   if (current == null) return;
   final generations = ref.read(generationStoreProvider);
+  final family = ref.read(familyControllerProvider.notifier);
+  // QA 1.0.6, M1 (B1 y B2): quién podrá volver se decide con la generación
+  // que se deja, antes de tirar su llavero, su registro y `formerSelf`. Vale
+  // para los dos caminos: `startLocalGeneration` y el reinicio de
+  // [finishPendingV2]. Un reinicio que se reanuda tras un cierre no tiene
+  // plan y no restaura nada (como antes: vuelve al conectar otro móvil).
+  final plan = await family.planAloneRestoreWithinLock();
   if (await generations.activeSyncId() != null) {
     await generations.startLocalGeneration();
-    await ref.read(familyControllerProvider.notifier).reloadStoredCandidate();
-    return;
+    await family.reloadStoredCandidate();
+  } else {
+    final pending = await PendingV2.fresh(
+      fromV1: current.migratedFromV1,
+      reset: true,
+    );
+    await store.savePendingV2(pending.toJson());
+    await finishPendingV2(ref);
   }
-  final pending = await PendingV2.fresh(
-    fromV1: current.migratedFromV1,
-    reset: true,
-  );
-  await store.savePendingV2(pending.toJson());
-  await finishPendingV2(ref);
+  // QA 1.0.6, M1: solo, sigue viendo y editando las sorpresas de los demás
+  // que ya tenía; las de su persona no vuelven. De mejor esfuerzo (B3): con
+  // la generación ya estrenada, un fallo aquí no hace fallar a quien llama.
+  try {
+    await family.restoreOthersSecretsWhenAloneWithinLock(plan);
+  } on Object {
+    // Vuelve al conectar otro móvil.
+  }
 }

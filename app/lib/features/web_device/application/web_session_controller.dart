@@ -13,6 +13,13 @@ enum WebSessionState {
   otraPestana,
 }
 
+/// Idle time before an open web session locks.
+const Duration kWebIdleLock = Duration(minutes: 15);
+
+/// Idle time before it locks while surprises are open (1.0.6, ADR 0009):
+/// the shared family computer is the realistic threat.
+const Duration kWebSecretsIdleLock = Duration(minutes: 5);
+
 abstract interface class SessionClock {
   DateTime now();
   void Function() schedule(Duration delay, void Function() callback);
@@ -45,6 +52,7 @@ class WebSessionController {
     this.onStateChanged,
     this.onVisible,
     this.onHidden,
+    this.secretsOpen,
   }) : clock = clock ?? RealSessionClock(),
        state = hasIdentity
            ? WebSessionState.bloqueada
@@ -62,7 +70,14 @@ class WebSessionController {
   /// Called after visibility deadlines have been checked, only if still open.
   final void Function()? onVisible;
   final void Function()? onHidden;
+
+  /// Whether surprises are open in this session (1.0.6, ADR 0009): then the
+  /// idle lock is [kWebSecretsIdleLock] instead of [kWebIdleLock].
+  final bool Function()? secretsOpen;
   final SessionClock clock;
+
+  Duration get _idleLimit =>
+      secretsOpen?.call() == true ? kWebSecretsIdleLock : kWebIdleLock;
   final void Function() cover,
       cancelWork,
       disposeContainer,
@@ -175,10 +190,21 @@ class WebSessionController {
     _arm();
   }
 
+  /// The surprises opened or closed (M4 of the security review): the idle
+  /// deadline is recomputed at once, so a session that showed surprises a few
+  /// seconds after unlocking still locks at [kWebSecretsIdleLock].
+  void secretsChanged() {
+    if (!_active) return;
+    if (_expired()) {
+      lock();
+    } else {
+      _arm();
+    }
+  }
+
   bool _expired() {
     final now = clock.now();
-    return (_lastUse != null &&
-            now.difference(_lastUse!) >= const Duration(minutes: 15)) ||
+    return (_lastUse != null && now.difference(_lastUse!) >= _idleLimit) ||
         (_hiddenAt != null &&
             now.difference(_hiddenAt!) >= const Duration(minutes: 5));
   }
@@ -191,7 +217,7 @@ class WebSessionController {
     _timer?.call();
     if (!_active) return;
     final now = clock.now();
-    DateTime? deadline = _lastUse?.add(const Duration(minutes: 15));
+    DateTime? deadline = _lastUse?.add(_idleLimit);
     if (_hiddenAt != null) {
       final hiddenDeadline = _hiddenAt!.add(const Duration(minutes: 5));
       if (deadline == null || hiddenDeadline.isBefore(deadline)) {

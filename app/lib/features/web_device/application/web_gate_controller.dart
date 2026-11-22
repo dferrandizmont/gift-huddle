@@ -59,6 +59,7 @@ class WebGateController extends ChangeNotifier implements WebGateActions {
       createContainer: () => createContainer(engine!),
       onStateChanged: _sessionChanged,
       onHidden: () => engine?.suspend(),
+      secretsOpen: () => engine?.secretsOpen ?? false,
       onVisible: () {
         if (vault.status == VaultStatus.open) {
           unawaited(engine?.resume().catchError((Object _) {}));
@@ -204,7 +205,13 @@ class WebGateController extends ChangeNotifier implements WebGateActions {
       vault: vault,
       queue: queue,
       onChanged: () {
-        if (session.accept(captured)) candidateChanged?.call();
+        if (!session.accept(captured)) return;
+        // M4: the idle lock follows the surprises as soon as they open. On
+        // every change, without a remembered flag that could outlive a lock
+        // (final review, B2).
+        session.secretsChanged();
+        if (!session.accept(captured)) return;
+        candidateChanged?.call();
       },
       onDisconnected: () {
         if (_disposed || captured != session.generation) return;

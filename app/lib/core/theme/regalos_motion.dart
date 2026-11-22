@@ -93,6 +93,23 @@ abstract final class RegalosCurves {
   static const Duration foldDuration = Duration(milliseconds: 180);
 }
 
+/// El movimiento de elegir una fila de una lista de opciones (de quién es un
+/// móvil, `PersonPicker`): el fondo se tiñe y el visto se dibuja un poco
+/// después. Con «Reducir movimiento», el tinte dura [RegalosMotion.fade].
+abstract final class RegalosChoiceMotion {
+  /// Lo que tarda en teñirse el fondo de la fila elegida.
+  static const Duration tint = Duration(milliseconds: 240);
+
+  /// Lo que tarda en dibujarse el visto.
+  static const Duration check = Duration(milliseconds: 300);
+
+  /// Cuánto espera el visto a que el fondo empiece a teñirse.
+  static const Duration checkDelay = Duration(milliseconds: 80);
+
+  /// La curva del visto.
+  static const Curve checkCurve = Cubic(0.3, 0.7, 0.3, 1);
+}
+
 /// Si hay que mover algo o solo fundir.
 ///
 /// Con «Quitar animaciones» (Android) o «Reducir movimiento» (iOS),

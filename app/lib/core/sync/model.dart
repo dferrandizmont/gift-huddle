@@ -165,6 +165,16 @@ class Recipient {
   /// Whether the recipient appears in Reparto. Does not archive their gifts.
   final bool inReparto;
 
+  /// A person who only gives gifts and never receives them (1.0.6: the
+  /// "Nobody" answer to "Who are you?" is a real person with this mark, so
+  /// their phone keeps every right). They are not a gift recipient: not in
+  /// the recipient picker, Reparto or the budget ([FamilyView.giftRecipients]),
+  /// but they stay in People. Older phones show them as an ordinary person.
+  final bool noGifts;
+
+  /// The wire field of [noGifts]. Written only when true; null clears it.
+  static const String noGiftsField = 'noGifts';
+
   /// Occasion ids excluded from Reparto (`true`) or explicitly included
   /// again (`false`). Missing entries mean included. False entries must be
   /// retained: they are the tombstones of previous exclusions.
@@ -203,6 +213,7 @@ class Recipient {
     required this.archived,
     this.inReparto = true,
     this.skipOccasions = const <String, bool>{},
+    this.noGifts = false,
   });
 
   /// Reads a recipient from a record, or null when the record is deleted or
@@ -230,6 +241,7 @@ class Recipient {
       birthYear: _int(record['birthYear']),
       archived: archived,
       inReparto: _bool(record['inReparto']) ?? true,
+      noGifts: record[noGiftsField] == true,
       skipOccasions: Map<String, bool>.unmodifiable({
         for (final entry in record.fields.entries)
           if (entry.key.startsWith(skipOccasionFieldPrefix) &&
@@ -255,6 +267,7 @@ class Recipient {
     'inReparto': inReparto,
     for (final entry in skipOccasions.entries)
       skipOccasionField(entry.key): entry.value,
+    if (noGifts) noGiftsField: true,
   };
 
   @override
@@ -270,6 +283,7 @@ class Recipient {
           other.birthYear == birthYear &&
           other.archived == archived &&
           other.inReparto == inReparto &&
+          other.noGifts == noGifts &&
           canonicalJsonOf(other.skipOccasions) ==
               canonicalJsonOf(skipOccasions);
 
@@ -284,6 +298,7 @@ class Recipient {
     birthYear,
     archived,
     inReparto,
+    noGifts,
     canonicalJsonOf(skipOccasions),
   );
 
@@ -1492,16 +1507,27 @@ class FamilyView {
     for (final occasion in occasions) occasion.id: occasion,
   };
 
-  /// Active recipients that appear as rows in Reparto, in name order.
+  /// The people who can receive gifts: [recipients] without the ones who
+  /// only give ([Recipient.noGifts]). For the recipient picker and totals.
+  List<Recipient> get giftRecipients => [
+    for (final recipient in recipients)
+      if (!recipient.noGifts) recipient,
+  ];
+
+  /// Active recipients that appear as rows in Reparto, in name order. People
+  /// who only give ([Recipient.noGifts]) are never rows.
   List<Recipient> get repartoRecipients => [
     for (final recipient in recipients)
-      if (!recipient.archived && recipient.inReparto) recipient,
+      if (!recipient.archived && recipient.inReparto && !recipient.noGifts)
+        recipient,
   ];
 
   /// Active recipients kept out of Reparto, without deleting their data.
+  /// People who only give are not listed: they are not recipients.
   List<Recipient> get outsideReparto => [
     for (final recipient in recipients)
-      if (!recipient.archived && !recipient.inReparto) recipient,
+      if (!recipient.archived && !recipient.inReparto && !recipient.noGifts)
+        recipient,
   ];
 
   /// A projection for Reparto lists and totals. Other views (People, gift

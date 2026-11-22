@@ -34,6 +34,7 @@ import 'package:regalos/features/sync/domain/sync_status.dart';
 
 import '../helpers/fake_sync_server.dart';
 import '../helpers/fake_worker_v2.dart';
+import '../helpers/host_person.dart';
 import '../helpers/memory_stores.dart';
 import '../helpers/pump_app.dart';
 import '../review/review_service_test.dart' show FakeStoreReview;
@@ -814,7 +815,10 @@ void main() {
       v2Transport: worker.client(),
     );
     await fill(p);
-    await p.container.read(pairingV2HostProvider.notifier).start();
+    await hostWithPerson(p);
+    await p.container
+        .read(pairingV2HostProvider.notifier)
+        .start(guestPerson: kGuestGiver);
     final local = await p.container.read(prepareV2)();
     final syncId = local.identity.syncId;
     worker.tamper = (method, uri, response) =>
@@ -841,7 +845,10 @@ void main() {
       v2Transport: worker.client(),
     );
     await fill(p);
-    await p.container.read(pairingV2HostProvider.notifier).start();
+    await hostWithPerson(p);
+    await p.container
+        .read(pairingV2HostProvider.notifier)
+        .start(guestPerson: kGuestGiver);
     final local = await p.container.read(prepareV2)();
     final id = local.identity;
     final replacement = await local.keys.withNewServiceCredential();
@@ -867,7 +874,10 @@ void main() {
       v2Transport: worker.client(),
     );
     await fill(p);
-    await p.container.read(pairingV2HostProvider.notifier).start();
+    await hostWithPerson(p);
+    await p.container
+        .read(pairingV2HostProvider.notifier)
+        .start(guestPerson: kGuestGiver);
     expect(
       p.container.read(pairingV2HostProvider).phase,
       PairingV2HostPhase.waiting,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/motion/rolling_number.dart';
 import '../../../core/motion/success_mark.dart';
 import '../../../core/motion/value_switcher.dart';
+import '../../../core/platform/gifts_secure_scope.dart';
 import '../../../core/theme/theme.dart';
 import '../invites/invite_crypto.dart';
 
@@ -100,11 +101,15 @@ class VerificationCodeCard extends StatelessWidget {
         ],
       ),
     );
-    return Semantics(
-      container: true,
-      label: '$label ${code.split('').join(' ')}',
-      excludeSemantics: true,
-      child: card,
+    // En la versión de tienda no se captura el código de emparejar (1.0.6,
+    // QA m7).
+    return GiftsSecureScope(
+      child: Semantics(
+        container: true,
+        label: '$label ${code.split('').join(' ')}',
+        excludeSemantics: true,
+        child: card,
+      ),
     );
   }
 }

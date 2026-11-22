@@ -1513,6 +1513,22 @@ class DeviceRegistry {
         livePeople.contains(person);
     // Las revocaciones firmadas, aparte de los ids solo ambiguos (B6, M1).
     final explicitlyRevoked = Set<String>.unmodifiable(revoked);
+    // Webs propias (1.0.6, ADR 0009): activas, de la persona de este móvil y
+    // cuya ficha actual avaló este móvil siendo ya de esa persona. Solo las
+    // evalúa este móvil, con sus propios avales.
+    final ownWebs = <String>{
+      if (mine.kind == DeviceKind.mobile && personOk(mine.personId))
+        for (final id in active)
+          if (current[id]!.kind == DeviceKind.web &&
+              current[id]!.personId == mine.personId &&
+              (vouched[current[id]!.digest] ?? const <String>{}).any((digest) {
+                final then = _records[digest]!;
+                return then.deviceId == me &&
+                    _recordNode(then) == myNode &&
+                    then.personId == mine.personId;
+              }))
+            id,
+    };
     return RegistryView._(
       registry: this,
       listId: listId,
@@ -1521,6 +1537,7 @@ class DeviceRegistry {
       revokedByOthers: selfRevoked || myIdTaken,
       selfRevoked: selfRevoked,
       explicitlyRevoked: explicitlyRevoked,
+      ownWebIds: Set.unmodifiable(ownWebs),
       revoked: Set.unmodifiable({...explicitlyRevoked, ...ambiguous}),
       everMembers: Set.unmodifiable(everById.keys),
       active: {for (final id in active) id: KnownDevice._(current[id]!)},
@@ -1593,6 +1610,7 @@ class RegistryView {
     required this.revokedByOthers,
     required this.selfRevoked,
     required this.explicitlyRevoked,
+    required this._ownWebIds,
     required this.revoked,
     required this.everMembers,
     required this._active,
@@ -1604,6 +1622,20 @@ class RegistryView {
     required this._cleanFor,
     required this._linkedSigningKeys,
   });
+
+  final Set<String> _ownWebIds;
+
+  /// Las webs de la persona de este móvil (1.0.6, ADR 0009): activas, con la
+  /// misma persona que este móvil y cuya ficha actual avaló este móvil siendo
+  /// ya de esa persona (la emparejó o la reconfirmó). Este móvil les entrega
+  /// las claves de las sorpresas de los demás y recoge lo que escriben en su
+  /// buzón. Vacía si este móvil no tiene la ficha aprobada o lo han revocado.
+  /// No cambia [entitled], [relayable] ni nada de las sorpresas: una web
+  /// nunca es escritora ni destinataria en esos predicados.
+  List<KnownDevice> ownWebs() => [
+    if (selfApproved && !revokedByOthers && self.kind == DeviceKind.mobile)
+      for (final id in _ownWebIds.toList()..sort()) _active[id]!,
+  ];
 
   /// The verified snapshot this view was built from.
   final DeviceRegistry registry;
@@ -1696,6 +1728,35 @@ class RegistryView {
 
   /// «Emparejado»: hay algún otro móvil activo en la familia.
   bool get paired => _active.length > 1;
+
+  /// Las personas que existen y tienen algún dispositivo activo o pendiente
+  /// (móvil o web), también la de este. Es la lista de personas cuya
+  /// protección se activa sola (1.0.6): en el móvil de cada una no se ve
+  /// ningún regalo para ella.
+  Set<String> get devicePeople => {
+    for (final d in [..._active.values, ..._pending.values])
+      if (d.personId case final String person when _validPerson(person)) person,
+  };
+
+  // Las fichas de los demás dispositivos, en cualquier estado (también
+  // revocados, huérfanos o colgados de un revocado): para la capa de pantalla
+  // cuenta haber tenido compañía en esta generación, no solo tenerla ahora.
+  Iterable<DeviceRecord> get _otherRecords =>
+      registry.records.where((r) => r.deviceId != me);
+
+  /// Si en este registro hay otro dispositivo cuya persona no es [personId]:
+  /// entonces este móvil no pinta los regalos para [personId] (capa de
+  /// pantalla, 1.0.6). Cuentan todas sus fichas, también las de dispositivos
+  /// revocados: quitar a los demás no destapa nada; solo estrenar una
+  /// generación sin nadie ([alone]) lo levanta. Con solo dispositivos de
+  /// [personId] (dos móviles de la misma persona) no está acompañado.
+  bool accompanied(String? personId) =>
+      _otherRecords.any((r) => r.personId != personId);
+
+  /// Si en este registro no hay ninguna ficha de otro dispositivo, ni
+  /// siquiera revocada: una generación que este móvil acaba de estrenar o un
+  /// móvil que nunca se ha conectado a otro.
+  bool get alone => _otherRecords.isEmpty;
 
   /// El móvil activo [deviceId], o null (desconocido, revocado o pendiente).
   KnownDevice? member(String deviceId) => _active[deviceId];

@@ -2,6 +2,12 @@
 // emparejados en v1 vuelven a conectarse; el que invita migra, el que entra
 // fusiona su copia v1 y, cuando los dos están en v2, la copia v1 del servidor
 // se borra.
+//
+// 1.0.6: cada vuelta también protege sola a quien tiene móvil (claves y
+// slots nuevos), así que las cadenas de varios móviles tardan más.
+@Timeout(Duration(minutes: 2))
+library;
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -45,6 +51,7 @@ import 'package:regalos/features/sync/domain/sync_keys.dart';
 import 'package:regalos/features/sync/domain/sync_status.dart';
 
 import '../helpers/fake_sync_server.dart';
+import '../helpers/host_person.dart';
 import '../helpers/fake_worker_v2.dart';
 import '../helpers/memory_stores.dart';
 import '../helpers/pump_app.dart';
@@ -170,15 +177,16 @@ void main() {
 
   test('migrar tres móviles con Yo y volver a invitar', () async {
     final a = await threeV1Phones();
+    await hostWithPerson(a);
     final host = a.container.read(pairingV2HostProvider.notifier);
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     await host.confirmMigration();
     expect(
       a.container.read(pairingV2HostProvider).phase,
       PairingV2HostPhase.waiting,
     );
     await host.cancel();
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     expect(
       a.container.read(pairingV2HostProvider).phase,
       PairingV2HostPhase.waiting,
@@ -205,8 +213,9 @@ void main() {
     );
     final a = await threeV1Phones(disk: disk);
     interrupted = true;
+    await hostWithPerson(a);
     final host = a.container.read(pairingV2HostProvider.notifier);
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     await host.confirmMigration();
     final failed = a.container.read(pairingV2HostProvider);
     expect(failed.phase, PairingV2HostPhase.failed);
@@ -235,9 +244,10 @@ void main() {
           identity.syncId,
       reason: 'startup removes the interrupted invitation copy',
     );
+    await hostWithPerson(a);
     final retry = a.container.read(pairingV2HostProvider.notifier);
     await Future.wait([
-      retry.start(),
+      retry.start(guestPerson: kGuestGiver),
       a.container.read(syncControllerProvider.notifier).syncNow(),
     ]);
     expect(
@@ -291,8 +301,9 @@ void main() {
     );
     final lock = _ObservedFamilyLock();
     final a = await threeV1Phones(disk: disk, lock: lock);
+    await hostWithPerson(a);
     final host = a.container.read(pairingV2HostProvider.notifier);
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     await host.confirmMigration();
     expect(
       a.container.read(pairingV2HostProvider).phase,
@@ -309,7 +320,7 @@ void main() {
     writing = Completer<void>();
     final entered = writing!.future;
     resume = Completer<void>();
-    final retry = host.start();
+    final retry = host.start(guestPerson: kGuestGiver);
     await entered;
     final requested = lock.nextRequest();
     final background = a.container
@@ -350,8 +361,9 @@ void main() {
     await a.container
         .read(familyControllerProvider.notifier)
         .createFamily(deviceName: 'Aritz');
+    await hostWithPerson(a);
     final host = a.container.read(pairingV2HostProvider.notifier);
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     await a.container.read(syncControllerProvider.notifier).syncNow();
     final link = a.container.read(pairingV2HostProvider).link!;
     final guest = await PairingV2Guest.open(
@@ -360,7 +372,7 @@ void main() {
       keys: await DeviceKeys.generate(),
       deviceIdFor: (_, _) => 'leo-phone',
     );
-    await guest.answer(withoutPerson: true);
+    await guest.answer(personId: kGuestGiver);
     await host.check();
     expect(await guest.code(), a.container.read(pairingV2HostProvider).code);
     guest.confirmCode();
@@ -525,8 +537,9 @@ void main() {
     'el invitado conserva fase y tipo de error sin detalles privados',
     () async {
       final a = await threeV1Phones();
+      await hostWithPerson(a);
       final host = a.container.read(pairingV2HostProvider.notifier);
-      await host.start();
+      await host.start(guestPerson: kGuestGiver);
       await host.confirmMigration();
       final link = a.container.read(pairingV2HostProvider).link!;
       final b = await phone();
@@ -545,9 +558,10 @@ void main() {
       expect(failed.notReady, isFalse);
       worker.tamper = null;
       await guest.begin(link.substring(link.indexOf('#') + 1));
+      // 1.0.6: no elige persona; responde con la que eligió quien invita.
       expect(
         b.container.read(pairingV2GuestProvider).phase,
-        PairingV2GuestPhase.choosePerson,
+        PairingV2GuestPhase.waitingCode,
       );
       expect(b.container.read(pairingV2GuestProvider).failureCode, isNull);
       guest.cancel();
@@ -570,6 +584,9 @@ void main() {
           colorIndex: 0,
           archived: false,
         ),
+      );
+      await famA.upsertRecipient(
+        const Recipient(id: 'leo', name: 'Leo', colorIndex: 1, archived: false),
       );
       final idA = a.container.read(familyControllerProvider).value!.identity!;
       // B entra en v1 por QR.
@@ -604,8 +621,9 @@ void main() {
           .read(familyControllerProvider.notifier)
           .upsertGift(
             Gift(
+              // Para Leo: en el móvil de Nora no se ve nada para Nora (1.0.6).
               id: 'g-b',
-              recipientId: 'nora',
+              recipientId: 'leo',
               title: 'Bufanda',
               status: GiftStatus.idea,
               rawStatus: 'idea',
@@ -620,9 +638,11 @@ void main() {
 
       // A vuelve a conectar: primero pregunta (hallazgo 8) y no toca nada;
       // al confirmar, migra y enseña la invitación.
+      await hostWithPerson(a);
       final host = a.container.read(pairingV2HostProvider.notifier);
       final storeA = a.container.read(familyStoreProvider);
-      await host.start();
+      // 1.0.6: A elige que el móvil nuevo es de Nora.
+      await host.start(guestPerson: 'nora');
       expect(
         a.container.read(pairingV2HostProvider).phase,
         PairingV2HostPhase.confirmMigration,
@@ -645,18 +665,14 @@ void main() {
         kSyncProtocolV2,
       );
 
-      // B tenía «Este móvil es de» en Nora: al entrar sale ya marcada.
-      await b.container
-          .read(familyControllerProvider.notifier)
-          .setSelfRecipient('nora');
-      // B lee el QR (el enlace) y elige persona.
+      // B lee el QR (el enlace) y no elige nada: entra como de Nora, la
+      // persona que eligió A (1.0.6).
       final guest = b.container.read(pairingV2GuestProvider.notifier);
       await guest.begin(link.substring(link.indexOf('#') + 1));
-      final choose = b.container.read(pairingV2GuestProvider);
-      expect(choose.phase, PairingV2GuestPhase.choosePerson);
-      expect(choose.people.map((p) => p.id), ['nora']);
-      expect(choose.selfId, 'nora');
-      await guest.choosePerson('nora');
+      final assigned = b.container.read(pairingV2GuestProvider);
+      expect(assigned.phase, isNot(PairingV2GuestPhase.choosePerson));
+      expect(assigned.hostAssigned, isTrue);
+      expect(assigned.assignedPersonId, 'nora');
       await eventually(
         () =>
             b.container.read(pairingV2GuestProvider).phase ==
@@ -670,21 +686,9 @@ void main() {
         b.container.read(pairingV2GuestProvider).code,
       );
       guest.confirmCode();
-      // «Coinciden» no basta: B dice ser de Nora y hay que confirmarlo aparte
-      // (hallazgo 3).
+      // La persona la eligió A: «Coinciden» aprueba sin otro paso.
+      expect(a.container.read(pairingV2HostProvider).guestPersonName, 'Nora');
       await host.confirm();
-      final claim = a.container.read(pairingV2HostProvider);
-      expect(claim.phase, PairingV2HostPhase.confirmPerson);
-      expect(claim.guestPersonName, 'Nora');
-      expect(
-        worker.devicesOf(v2A.syncId).keys,
-        isNot(
-          contains(
-            b.container.read(familyControllerProvider).value!.identity!.node,
-          ),
-        ),
-      );
-      await host.confirmPerson();
       expect(
         a.container.read(pairingV2HostProvider).phase,
         PairingV2HostPhase.done,
@@ -729,8 +733,11 @@ void main() {
         reason: 'sin aviso',
       );
 
-      // Las personas con móvil: Aritz no tenía «Yo»; B eligió a Nora.
-      expect(await a.container.read(devicePersonIdsProvider.future), {'nora'});
+      // Las personas con móvil: A es de Aritz; A eligió a Nora para B.
+      expect(await a.container.read(devicePersonIdsProvider.future), {
+        'aritz',
+        'nora',
+      });
       expect(
         await a.container.read(isDevicePersonProvider('nora').future),
         isTrue,
@@ -793,8 +800,10 @@ void main() {
       const Recipient(id: 'nora', name: 'Nora', colorIndex: 0, archived: false),
     );
     await b.container.read(familyControllerProvider.future);
+    // 1.0.6: los dos, de quien solo regala (antes, los dos sin persona).
+    await hostWithPerson(a, id: kGuestGiver);
     final host = a.container.read(pairingV2HostProvider.notifier);
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     // Sin otros móviles en v1, no hay nada que preguntar.
     final link = a.container.read(pairingV2HostProvider).link!;
     final guest = b.container.read(pairingV2GuestProvider.notifier);
@@ -802,7 +811,6 @@ void main() {
       link.substring(link.indexOf('#') + 1),
       deviceName: guestConfirmedName,
     );
-    await guest.choosePerson(null);
     await eventually(
       () =>
           a.container.read(pairingV2HostProvider).phase ==
@@ -1354,14 +1362,16 @@ void main() {
     sync.setV2Pairing(true);
     await sync.removeDevice(peer.deviceId);
     sync.setV2Pairing(false);
-    // A has no selected person, so historical surprise keys stay frozen.
+    // A historical key for a person this phone has no right to (1.0.6: the
+    // host now has a person, so the key is for someone not in the list)
+    // stays frozen.
     await a.container
         .read(deviceKeysStoreProvider)
         .updateKeyring(
           old.listId,
           (_) => SurpriseKeyring([
             SurpriseKey(
-              personId: 'nora',
+              personId: 'leo',
               epoch: 1,
               bytes: List<int>.filled(32, 42),
               audience: [old.deviceId],
@@ -1620,8 +1630,9 @@ void main() {
     expect(worker.hasList(fresh.syncId), isFalse);
     expect(titles(b), titles(a));
     // Y puede volver a invitar: crear el syncId nuevo no es 410.
+    await hostWithPerson(b);
     final host = b.container.read(pairingV2HostProvider.notifier);
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     expect(
       b.container.read(pairingV2HostProvider).phase,
       PairingV2HostPhase.waiting,
@@ -1686,7 +1697,10 @@ void main() {
     await a.container
         .read(familyControllerProvider.notifier)
         .createFamily(deviceName: 'Aritz');
-    await a.container.read(pairingV2HostProvider.notifier).start();
+    await hostWithPerson(a);
+    await a.container
+        .read(pairingV2HostProvider.notifier)
+        .start(guestPerson: kGuestGiver);
     final old = (await a.container.read(familyStoreProvider).readSyncV2())!;
     expect(worker.devicesOf(old.syncId), {old.deviceId: false});
     await a.container.read(syncControllerProvider.notifier).setEnabled(false);
@@ -1725,8 +1739,9 @@ void main() {
       key: v1Key,
       doc: marked,
     );
+    await hostWithPerson(a);
     final host = a.container.read(pairingV2HostProvider.notifier);
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     expect(await store.readSyncV2(), isNotNull);
     expect(famA.familyKey, isNot(v1Key));
     expect(await store.readPendingV2(), isNull);
@@ -1780,8 +1795,9 @@ void main() {
     final keysStoreB = b.container.read(deviceKeysStoreProvider);
     final keysBefore = await keysStoreB.read() ?? await keysStoreB.create();
     final listB = b.container.read(familyControllerProvider).value!.identity!;
+    await hostWithPerson(a);
     final host = a.container.read(pairingV2HostProvider.notifier);
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     final link = a.container.read(pairingV2HostProvider).link!;
     final inviteId = link.substring(link.indexOf('#') + 1);
     final guest = b.container.read(pairingV2GuestProvider.notifier);
@@ -1797,12 +1813,11 @@ void main() {
       PairingV2GuestPhase.confirmReplace,
     );
     await guest.confirmReplace();
+    // 1.0.6: no hay que elegir persona; responde con la de quien invita.
     expect(
       b.container.read(pairingV2GuestProvider).phase,
-      PairingV2GuestPhase.choosePerson,
+      PairingV2GuestPhase.waitingCode,
     );
-    // Otra familia: no hay personas que premarcar.
-    expect(b.container.read(pairingV2GuestProvider).selfId, isNull);
     // Confirmado el reemplazo, todo sigue igual: ni la lista ni las claves.
     expect(stillB(), isTrue);
     expect(
@@ -1826,11 +1841,10 @@ void main() {
     await host.cancel();
 
     // Otra vez, hasta el final: solo al entrar se sustituye.
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     final again = a.container.read(pairingV2HostProvider).link!;
     await guest.begin(again.substring(again.indexOf('#') + 1));
     await guest.confirmReplace();
-    await guest.choosePerson(null);
     await eventually(
       () =>
           a.container.read(pairingV2HostProvider).phase ==
@@ -1871,13 +1885,13 @@ void main() {
     String? personId,
     bool replace = false,
   }) async {
+    await hostWithPerson(a);
     final host = a.container.read(pairingV2HostProvider.notifier);
-    await host.start();
+    await host.start(guestPerson: personId ?? kGuestGiver);
     final link = a.container.read(pairingV2HostProvider).link!;
     final guest = guestPhone.container.read(pairingV2GuestProvider.notifier);
     await guest.begin(link.substring(link.indexOf('#') + 1));
     if (replace) await guest.confirmReplace();
-    await guest.choosePerson(personId);
     await eventually(
       () =>
           a.container.read(pairingV2HostProvider).phase ==
@@ -1932,12 +1946,12 @@ void main() {
 
   /// Hasta que el invitado confirma el código y el anfitrión aprueba.
   Future<void> approveV2(FakePhone a, FakePhone guestPhone) async {
+    await hostWithPerson(a);
     final host = a.container.read(pairingV2HostProvider.notifier);
-    await host.start();
+    await host.start(guestPerson: 'leo');
     final link = a.container.read(pairingV2HostProvider).link!;
     final guest = guestPhone.container.read(pairingV2GuestProvider.notifier);
     await guest.begin(link.substring(link.indexOf('#') + 1));
-    await guest.choosePerson('leo');
     await eventually(
       () =>
           a.container.read(pairingV2HostProvider).phase ==
@@ -1982,7 +1996,7 @@ void main() {
                 .recipients)
           r.id,
       },
-      {'aritz', 'nora', 'leo'},
+      {'aritz', 'nora', 'leo', kGuestGiver},
     );
   });
 
@@ -2141,12 +2155,12 @@ void main() {
       final a = await familyOwner();
       final b = await phone();
       await b.container.read(familyControllerProvider.future);
+      await hostWithPerson(a);
       final host = a.container.read(pairingV2HostProvider.notifier);
-      await host.start();
+      await host.start(guestPerson: kGuestGiver);
       final link = a.container.read(pairingV2HostProvider).link!;
       final guest = b.container.read(pairingV2GuestProvider.notifier);
       await guest.begin(link.substring(link.indexOf('#') + 1));
-      await guest.choosePerson(null);
       await eventually(
         () =>
             a.container.read(pairingV2HostProvider).phase ==
@@ -2634,8 +2648,9 @@ void main() {
           ),
           deviceName: 'Intruso',
         );
+    await hostWithPerson(a);
     final host = a.container.read(pairingV2HostProvider.notifier);
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     await host.confirmMigration();
     final link = a.container.read(pairingV2HostProvider).link!;
     expect(
@@ -2666,8 +2681,9 @@ void main() {
     final before = b.container.read(familyControllerProvider).value!;
     // Otra invitación con el mismo listId: B ya es v2 y tiene que confirmar
     // que sustituye; no se queda con su nodo ni enseña sus personas.
+    await hostWithPerson(a);
     final host = a.container.read(pairingV2HostProvider.notifier);
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     final link = a.container.read(pairingV2HostProvider).link!;
     final guest = b.container.read(pairingV2GuestProvider.notifier);
     await guest.begin(link.substring(link.indexOf('#') + 1));
@@ -2676,8 +2692,9 @@ void main() {
       PairingV2GuestPhase.confirmReplace,
     );
     await guest.confirmReplace();
+    // 1.0.6: responde con la persona de quien invita, sin elegir nada.
     final choose = b.container.read(pairingV2GuestProvider);
-    expect(choose.phase, PairingV2GuestPhase.choosePerson);
+    expect(choose.phase, PairingV2GuestPhase.waitingCode);
     expect(choose.people, isEmpty);
     expect(
       b.container.read(familyControllerProvider).value!.identity!.node,
@@ -2733,7 +2750,10 @@ void main() {
     'a killed open invitation is already marked and cleaned on restart',
     () async {
       final a = await familyOwner();
-      await a.container.read(pairingV2HostProvider.notifier).start();
+      await hostWithPerson(a);
+      await a.container
+          .read(pairingV2HostProvider.notifier)
+          .start(guestPerson: kGuestGiver);
       final store = a.container.read(familyStoreProvider);
       final sid = (await store.readSyncV2())!.syncId;
       expect(
@@ -2765,8 +2785,9 @@ void main() {
       'servidor, también si la red falla al cancelar', () async {
     final a = await familyOwner();
     final store = a.container.read(familyStoreProvider);
+    await hostWithPerson(a);
     final host = a.container.read(pairingV2HostProvider.notifier);
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     final first = (await store.readSyncV2())!.syncId;
     expect(worker.hasList(first), isTrue, reason: 'subió para invitar');
     await host.cancel();
@@ -2777,13 +2798,13 @@ void main() {
     expect(worker.hasList(second), isFalse);
     expect(
       a.container.read(familyControllerProvider).value!.fullView.recipients,
-      hasLength(3),
+      hasLength(4), // también quien solo regala (kGuestGiver)
       reason: 'lo local se queda',
     );
 
     // Otra vez, ahora sin red al cancelar: queda apuntada y se borra al
     // volver a abrir la app.
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     expect(
       a.container.read(pairingV2HostProvider).phase,
       PairingV2HostPhase.waiting,
@@ -2818,8 +2839,9 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 50));
     expect(worker.hasList(syncId), isTrue);
     // Una invitación cancelada con otro móvil ya dentro tampoco la borra.
+    await hostWithPerson(a);
     final host = a.container.read(pairingV2HostProvider.notifier);
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     await host.cancel();
     expect(worker.hasList(syncId), isTrue);
     expect(
@@ -2853,6 +2875,7 @@ void main() {
       ),
     );
     final store = a.container.read(familyStoreProvider);
+    await hostWithPerson(a);
     final host = a.container.read(pairingV2HostProvider.notifier);
     final prefs = a.container.read(sharedPreferencesProvider);
     bool isList(String method, Uri uri, String want) =>
@@ -2860,7 +2883,7 @@ void main() {
 
     // 1. El registro local dice «solo», pero el servidor tiene otra
     //    credencial sin revocar: no se borra y la marca se quita.
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     final syncId = (await store.readSyncV2())!.syncId;
     worker.tamper = (method, uri, r) {
       if (!isList(method, uri, 'GET') || r.status != 200) return r;
@@ -2880,7 +2903,7 @@ void main() {
 
     // 2. La versión cambia entre el GET y el DELETE (412 cada vez): no se
     //    borra ni se estrena generación; queda apuntada para reintentar.
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     worker.tamper = null;
     staleDeletes = true;
     await host.cancel();
@@ -2894,13 +2917,14 @@ void main() {
       'nueva', () async {
     final a = await familyOwner();
     final store = a.container.read(familyStoreProvider);
+    await hostWithPerson(a);
     final host = a.container.read(pairingV2HostProvider.notifier);
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     final syncId = (await store.readSyncV2())!.syncId;
     // Se cierra (el DELETE de la invitación sale) y se vuelve a abrir antes
     // de que vuelva.
     host.dismiss();
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     await Future<void>.delayed(const Duration(milliseconds: 50));
     final state = a.container.read(pairingV2HostProvider);
     expect(state.phase, PairingV2HostPhase.waiting);
@@ -2916,13 +2940,13 @@ void main() {
     final b = await phone();
     await b.container.read(familyControllerProvider.future);
     final store = a.container.read(familyStoreProvider);
+    await hostWithPerson(a);
     final host = a.container.read(pairingV2HostProvider.notifier);
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     final syncId = (await store.readSyncV2())!.syncId;
     final link = a.container.read(pairingV2HostProvider).link!;
     final guest = b.container.read(pairingV2GuestProvider.notifier);
     await guest.begin(link.substring(link.indexOf('#') + 1));
-    await guest.choosePerson(null);
     await eventually(
       () =>
           a.container.read(pairingV2HostProvider).phase ==
@@ -2954,8 +2978,9 @@ void main() {
     await b.container.read(familyControllerProvider.future);
     await connectV2(a, b, personId: 'nora');
     final keyB = b.container.read(familyControllerProvider.notifier).familyKey!;
+    await hostWithPerson(a);
     final host = a.container.read(pairingV2HostProvider.notifier);
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     final link = a.container.read(pairingV2HostProvider).link!;
     final inviteId = link.substring(link.indexOf('#') + 1);
     final offer = await PairingOffer.fromJson(
@@ -3022,15 +3047,17 @@ void main() {
           ),
         );
     expect(idA.paired, isFalse);
+    await hostWithPerson(a);
     final host = a.container.read(pairingV2HostProvider.notifier);
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     expect(await a.container.read(familyStoreProvider).readLegacyV1(), isNull);
     final link = a.container.read(pairingV2HostProvider).link!;
     final guest = b.container.read(pairingV2GuestProvider.notifier);
     await guest.begin(link.substring(link.indexOf('#') + 1));
+    // La misma lista: no pide sustituir nada y responde ya (1.0.6: con la
+    // persona de quien invita).
     final choose = b.container.read(pairingV2GuestProvider);
-    expect(choose.phase, PairingV2GuestPhase.choosePerson);
-    expect(choose.people.map((p) => p.id), ['nora']);
+    expect(choose.phase, PairingV2GuestPhase.waitingCode);
     guest.cancel();
     await host.cancel();
   });
@@ -3050,8 +3077,9 @@ void main() {
       ),
     );
     final store = a.container.read(familyStoreProvider);
+    await hostWithPerson(a);
     final host = a.container.read(pairingV2HostProvider.notifier);
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     final syncId = (await store.readSyncV2())!.syncId;
     expect(worker.hasList(syncId), isTrue);
     hold = Completer<void>();
@@ -3078,8 +3106,9 @@ void main() {
 
   /// [b] entra, sustituyendo su familia v2, en la de [host].
   Future<void> replaceInto(FakePhone host, FakePhone b) async {
+    await hostWithPerson(host);
     final h = host.container.read(pairingV2HostProvider.notifier);
-    await h.start();
+    await h.start(guestPerson: kGuestGiver);
     final link = host.container.read(pairingV2HostProvider).link!;
     final guest = b.container.read(pairingV2GuestProvider.notifier);
     await guest.begin(link.substring(link.indexOf('#') + 1));
@@ -3088,7 +3117,6 @@ void main() {
       PairingV2GuestPhase.confirmReplace,
     );
     await guest.confirmReplace();
-    await guest.choosePerson(null);
     await eventually(
       () =>
           host.container.read(pairingV2HostProvider).phase ==
@@ -3112,7 +3140,10 @@ void main() {
     'sustituir desde un móvil v2 que estaba solo borra su lista vieja',
     () async {
       final b = await familyOwner();
-      await b.container.read(pairingV2HostProvider.notifier).start();
+      await hostWithPerson(b);
+      await b.container
+          .read(pairingV2HostProvider.notifier)
+          .start(guestPerson: kGuestGiver);
       final old = (await b.container.read(familyStoreProvider).readSyncV2())!;
       expect(worker.hasList(old.syncId), isTrue);
       final c = await familyOwner();

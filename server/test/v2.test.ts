@@ -16,7 +16,11 @@ import {
   V2_MAX_PACKAGE_BYTES_PER_WRITER,
   V2_MAX_REGISTRY_BYTES,
   V2_MAX_SLOT_BYTES,
+  V2_MAX_SLOTS,
   V2_MAX_SLOTS_PER_PUT,
+  V2_WARN_SLOTS,
+  V2_LEGACY_MAX_SLOTS,
+  V2_LEGACY_WARN_SLOTS,
   V2_CREDENTIAL_REQUESTS,
   V2_INVITE_REQUESTS_PER_INVITE,
   V2_INVITE_REQUESTS_PER_IP,
@@ -145,7 +149,8 @@ const byteCapacity = (id: Setup, count: number) => editState(id, (m) => {
 const capacity = (credentials: number, records: number, renew: boolean, slots = 0) => ({
   credentials: { used: credentials, warn: 48, max: 64 },
   records: { used: records, warn: 384, max: 512 },
-  slots: { used: slots, warn: 48, max: 64 },
+  // One phone that never announced slotCapacity: the 1.0.5 cap.
+  slots: { used: slots, warn: V2_LEGACY_WARN_SLOTS, max: V2_LEGACY_MAX_SLOTS },
   renew,
 });
 /** A registry holding the record declarations `from` to `to - 1`. */
@@ -191,6 +196,111 @@ const allowAttempt = (id: Setup, device = "nora") => runInDurableObject(listStub
   const g = JSON.parse(row.data) as { nextAttemptAt: number };
   g.nextAttemptAt = 0;
   state.storage.sql.exec("UPDATE guard SET data = ? WHERE device = ?", JSON.stringify(g), device);
+});
+
+describe("web inbox slots (1.0.6, ADR 0009)", () => {
+  const inbox = (id: Setup, person: string, device: string, key: string, version: number | null, data: unknown) =>
+    call("PUT", `${id.path}/slots/${person}/${device}`, { key, headers: version === null ? {} : { "If-Match": `"${version}"` }, body: { data } });
+  const manifest = async (id: Setup) => (await json<{ slots: { personId: string; deviceId: string; version: number }[] }>(await call("GET", id.path, { key: id.key }))).slots;
+
+  it("lets a web write, replace and remove only its own slot, under the global ETag", async () => {
+    const id = await setup();
+    const web = await webPair(id);
+    expect((await inbox(id, "person0", "nora", web.guestKey, null, sealed("person0", "nora"))).status).toBe(428);
+    expect((await inbox(id, "person0", "nora", web.guestKey, 1, sealed("person0", "nora"))).status).toBe(412);
+    const first = await inbox(id, "person0", "nora", web.guestKey, 2, sealed("person0", "nora"));
+    expect(first.status).toBe(200);
+    expect(await json(first)).toEqual({ version: 3 });
+    expect(await manifest(id)).toEqual([{ personId: "person0", deviceId: "nora", version: 3 }]);
+    // The phone reads it like any other slot.
+    const read = await call("GET", `${id.path}/slots/person0/nora`, { key: id.key, headers: { "If-Match": '"3"' } });
+    expect((await json(read)).data).toBe(sealed("person0", "nora"));
+    expect((await inbox(id, "person0", "nora", web.guestKey, 3, sealed("person0", "nora", { fill: 1 }))).status).toBe(200);
+    expect(await manifest(id)).toEqual([{ personId: "person0", deviceId: "nora", version: 4 }]);
+    expect((await inbox(id, "person0", "nora", web.guestKey, 4, null)).status).toBe(200);
+    expect(await manifest(id)).toEqual([]);
+    // Removing what is not there changes nothing.
+    const again = await inbox(id, "person0", "nora", web.guestKey, 5, null);
+    expect(await json(again)).toEqual({ version: 5 });
+  });
+
+  it("refuses other writers, phones and malformed slots", async () => {
+    const id = await setup();
+    const web = await webPair(id);
+    const other = await inbox(id, "person0", "aritz", web.guestKey, 2, sealed("person0", "aritz"));
+    expect(other.status).toBe(403);
+    expect(await json(other)).toEqual({ error: "forbidden_role" });
+    const phone = await inbox(id, "person0", "aritz", id.key, 2, sealed("person0", "aritz"));
+    expect(phone.status).toBe(403);
+    expect(await json(phone)).toEqual({ error: "forbidden_role" });
+    // The header must name the resource, with the exact size.
+    expect((await inbox(id, "person0", "nora", web.guestKey, 2, sealed("person1", "nora"))).status).toBe(400);
+    expect((await inbox(id, "person0", "nora", web.guestKey, 2, sealed("person0", "nora", { tail: SLOT_TAIL - 3 }))).status).toBe(400);
+    expect((await inbox(id, "person0", "nora", web.guestKey, 2, 7)).status).toBe(400);
+    const extra = await call("PUT", `${id.path}/slots/person0/nora`, { key: web.guestKey, headers: { "If-Match": '"2"' }, body: { data: null, role: "device" } });
+    expect(extra.status).toBe(400);
+    // A web still cannot write a full snapshot, not even with only its slot.
+    expect((await put(id, snapshot([slot(0, "nora")]), 2, web.guestKey)).status).toBe(403);
+    expect(await manifest(id)).toEqual([]);
+  });
+
+  it("caps a web at V2_MAX_WEB_SLOTS and counts its slots in V2_MAX_SLOTS", async () => {
+    const id = await setup();
+    const web = await webPair(id);
+    let version = 2;
+    for (let n = 0; n < 8; n++) {
+      expect((await inbox(id, `person${n}`, "nora", web.guestKey, version, sealed(`person${n}`, "nora"))).status).toBe(200);
+      version++;
+    }
+    const ninth = await inbox(id, "person8", "nora", web.guestKey, version, sealed("person8", "nora"));
+    expect(ninth.status).toBe(413);
+    expect(await json(ninth)).toEqual({ error: "too_many_writer_slots" });
+    // Replacing one of its own still fits.
+    expect((await inbox(id, "person0", "nora", web.guestKey, version, sealed("person0", "nora", { fill: 2 }))).status).toBe(200);
+    version++;
+    // The list cap counts the web's rows too.
+    const full = await setup();
+    const fullWeb = await webPair(full);
+    await plant(full, Array.from({ length: V2_MAX_SLOTS }, (_, n) => [`p${n}`, `w${n % 60}`] as [string, string]));
+    const over = await inbox(full, "person0", "nora", fullWeb.guestKey, 2, sealed("person0", "nora"));
+    expect(over.status).toBe(413);
+    expect(await json(over)).toEqual({ error: "too_many_slots" });
+  });
+
+  it("M1: with a phone that has not announced slotCapacity, the web inbox respects the 1.0.5 cap of 64", async () => {
+    const id = await setup();
+    const web = await webPair(id);
+    // Enough phones for the bytes; none has announced slotCapacity.
+    await editState(id, (m) => {
+      while (m.credentials.length < 12) m.credentials.push({ deviceId: `w${m.credentials.length}`, verifier: b64u(rand(32)), revoked: false, records: [], createdAt: Date.now() - 8 * DAY });
+    });
+    await plant(id, Array.from({ length: V2_LEGACY_MAX_SLOTS - 1 }, (_, n) => [`p${n}`, `w${2 + (n % 10)}`] as [string, string]));
+    expect((await inbox(id, "person0", "nora", web.guestKey, 2, sealed("person0", "nora"))).status).toBe(200);
+    const over = await inbox(id, "person1", "nora", web.guestKey, 3, sealed("person1", "nora"));
+    expect(over.status).toBe(413);
+    expect(await json(over)).toEqual({ error: "too_many_slots" });
+    // Once every phone announces it, the web gets the larger cap.
+    await editState(id, (m) => {
+      for (const a of m.credentials) (a as { slotCapacity?: number }).slotCapacity = 2;
+    });
+    expect((await inbox(id, "person1", "nora", web.guestKey, 3, sealed("person1", "nora"))).status).toBe(200);
+  });
+
+  it("erases a web's slots at once when it is revoked, by a phone or by itself", async () => {
+    for (const self of [false, true]) {
+      const id = await setup();
+      expect((await put(id, snapshot([slot(0)]), 1)).status).toBe(200);
+      const web = await webPair(id, "nora", 2);
+      expect((await inbox(id, "person0", "nora", web.guestKey, 3, sealed("person0", "nora"))).status).toBe(200);
+      expect((await inbox(id, "person1", "nora", web.guestKey, 4, sealed("person1", "nora"))).status).toBe(200);
+      const revoked = await call("POST", `${id.path}/revoke`, { key: self ? web.guestKey : id.key, body: { deviceId: "nora" } });
+      expect(revoked.status).toBe(200);
+      expect(await manifest(id)).toEqual([{ personId: "person0", deviceId: "aritz", version: 2 }]);
+      const state = await readState(id);
+      expect(state.credentials.find((c) => c.deviceId === "nora")!.slotsExpireAt).toBeUndefined();
+      expect((await everythingStored(id.syncId)).includes(sealed("person1", "nora"))).toBe(false);
+    }
+  });
 });
 
 describe("web credentials and common-only writes", () => {
@@ -498,9 +608,33 @@ describe("global client invitation reservations", () => {
     const wrong = await call("POST", `/v2/invites/${inviteId}/answer`, { body: answerBody });
     expect(wrong.status).toBe(400); expect(await json(wrong)).toEqual({ error: "person_mismatch" });
     expect((await call("POST", `/v2/invites/${inviteId}/answer`, { body: { ...answerBody, answer: { ...answer, guest: { ...answer.guest, p: "nora" } } } })).status).toBe(201);
-    expect((await call("GET", `${a.path}/invites/${inviteId}`, { key: a.key })).status).toBe(200);
+    const hostView = await call("GET", `${a.path}/invites/${inviteId}`, { key: a.key });
+    expect(hostView.status).toBe(200);
+    expect((await json<{ answer: { guest: { p?: string | null } } }>(hostView)).answer.guest.p).toBe("nora");
     expect((await call("DELETE", `${a.path}/invites/${inviteId}`, { key: a.key })).status).toBe(204);
     expect((await create(b)).status).toBe(201);
+  });
+
+  it("QA 1.0.6 m1: an answer without a person reaches the host; another person is still rejected", async () => {
+    for (const absent of ["missing", "null"] as const) {
+      const a = await setup();
+      const inviteId = b64u(rand(16));
+      const offer = { v: 2, host: { d: "aritz" }, c: b64u(rand(32)) };
+      expect((await call("POST", `${a.path}/invites`, { key: a.key, body: { inviteId, offer, guestPerson: "nora" } })).status).toBe(201);
+      const guest: Record<string, unknown> = { d: "movil-105", e: b64u(rand(32)) };
+      if (absent === "null") guest.p = null; // A 1.0.5 guest sends "p": null.
+      const verifier = await digest(b64u(rand(32)));
+      const answerBody = (g: Record<string, unknown>) => ({ answer: { v: 2, guest: g, vouch: {} }, serviceCredentialVerifier: verifier });
+      const other = await call("POST", `/v2/invites/${inviteId}/answer`, { body: answerBody({ ...guest, p: "leo" }) });
+      expect(other.status).toBe(400); expect(await json(other)).toEqual({ error: "person_mismatch" });
+      expect((await call("POST", `/v2/invites/${inviteId}/answer`, { body: answerBody(guest) })).status).toBe(201);
+      const hostView = await call("GET", `${a.path}/invites/${inviteId}`, { key: a.key });
+      expect(hostView.status).toBe(200);
+      const received = (await json<{ answer: { guest: { d: string; p?: string | null } } }>(hostView)).answer;
+      expect(received.guest.d).toBe("movil-105");
+      expect(received.guest.p ?? null).toBeNull();
+      expect((await call("DELETE", `${a.path}/invites/${inviteId}`, { key: a.key })).status).toBe(204);
+    }
   });
 
   it("orders simultaneous reservations from two lists with exactly one winner", async () => {
@@ -1150,6 +1284,7 @@ describe("v2 snapshots with v1 retired", () => {
         { deviceId: "nora", revoked: false, role: "device", approvedBy: "aritz" },
       ],
       capacity: capacity(2, 1, false),
+      slotCapacity: 2,
     });
     expect((await call("GET", id.path, { key: id.key, headers: { "If-None-Match": '"2"' } })).status).toBe(304);
     const stored = await everythingStored(id.syncId);
@@ -1244,25 +1379,96 @@ describe("v2 snapshots with v1 retired", () => {
     expect((await json<{ data: string }>(read)).data).toBe(max);
   });
 
-  it("checks the 64-slot cap, counting stored slots, before writing anything", async () => {
+  /** [count] phones that all announced `slotCapacity` 2 (Aritz included), and the stored rows to fill [total] slots between them. */
+  const announcedFamily = async (id: Setup, count: number, total: number) => {
+    await editState(id, (m) => {
+      while (m.credentials.length < count) m.credentials.push({ deviceId: `capacity${m.credentials.length}`, verifier: b64u(rand(32)), revoked: false, records: [], createdAt: Date.now() - 8 * DAY });
+      for (const a of m.credentials) (a as { slotCapacity?: number }).slotCapacity = 2;
+    });
+    const writers = Array.from({ length: count - 1 }, (_, n) => `capacity${n + 1}`);
+    await plant(id, Array.from({ length: total }, (_, n) => [`person${n}`, writers[n % writers.length]!] as [string, string]));
+  };
+
+  it("checks the slot cap (V2_MAX_SLOTS) once every phone announced it, counting stored slots, before writing anything", async () => {
     const id = await setup();
-    await byteCapacity(id, 12);
-    // 65 entries are refused even when malformed: the count comes first.
-    expect(validateSnapshot(snapshot(Array.from({ length: 65 }, () => "not a slot")))).toBe(413);
-    // 63 slots of writers that are gone, which nobody may remove (B2), and one of Aritz.
-    await plant(id, Array.from({ length: 63 }, (_, n) => [`person${n}`, `gone${n}`] as [string, string]));
-    expect((await put(id, snapshot([slot(100)]), 1)).status).toBe(200);
-    const full = await put(id, { ...snapshot([slot(101)]), common: "BBBB" }, 2);
+    // 12 phones: 127 stored slots (at most 11 per writer, all paid by the slot supplement) and one of Aritz.
+    await announcedFamily(id, 12, V2_MAX_SLOTS - 1);
+    // One entry too many is refused even when malformed: the count comes first.
+    expect(validateSnapshot(snapshot(Array.from({ length: V2_MAX_SLOTS + 1 }, () => "not a slot")))).toBe(413);
+    expect((await put(id, snapshot([slot(200)]), 1)).status).toBe(200);
+    const full = await put(id, { ...snapshot([slot(201)]), common: "BBBB" }, 2);
     expect(full.status).toBe(413);
     expect(await json(full)).toEqual({ error: "too_many_slots" });
-    const state = await json<{ version: number; common: string; slots: unknown[] }>(await call("GET", id.path, { key: id.key }));
+    const state = await json<{ version: number; common: string; slots: unknown[]; capacity: { slots: unknown } }>(await call("GET", id.path, { key: id.key }));
     expect(state.version).toBe(2);
     expect(state.common).toBe("AAAA");
-    expect(state.slots).toHaveLength(64);
+    expect(state.slots).toHaveLength(V2_MAX_SLOTS);
+    expect(state.capacity.slots).toEqual({ used: V2_MAX_SLOTS, warn: V2_WARN_SLOTS, max: V2_MAX_SLOTS });
     // Full: replacing its own slot still works, and so does swapping one for another.
-    const replaced = { personId: "person100", deviceId: "aritz", data: sealed("person100", "aritz", { fill: 1 }) };
+    const replaced = { personId: "person200", deviceId: "aritz", data: sealed("person200", "aritz", { fill: 1 }) };
     expect((await put(id, snapshot([replaced]), 2)).status).toBe(200);
-    expect((await put(id, snapshot([slot(100, "aritz", null), slot(101)]), 3)).status).toBe(200);
+    expect((await put(id, snapshot([slot(200, "aritz", null), slot(201)]), 3)).status).toBe(200);
+  });
+
+  it("keeps the 1.0.5 cap of 64 slots while one active phone has not announced slotCapacity; webs and revoked ones do not count", async () => {
+    const id = await setup();
+    await announcedFamily(id, 12, V2_LEGACY_MAX_SLOTS - 1);
+    // One phone (as if still on 1.0.5) never announced.
+    await editState(id, (m) => { delete (m.credentials[3] as { slotCapacity?: number }).slotCapacity; });
+    expect((await put(id, snapshot([slot(200)]), 1)).status).toBe(200);
+    const read = async () => (await json<{ capacity: { slots: unknown }; slotCapacity: number; devices: { deviceId: string; slotCapacity?: number }[] }>(await call("GET", id.path, { key: id.key })));
+    const before = await read();
+    expect(before.capacity.slots).toEqual({ used: V2_LEGACY_MAX_SLOTS, warn: V2_LEGACY_WARN_SLOTS, max: V2_LEGACY_MAX_SLOTS });
+    expect(before.slotCapacity).toBe(2);
+    expect(before.devices.find((d) => d.deviceId === "aritz")!.slotCapacity).toBe(2);
+    expect(before.devices.find((d) => d.deviceId === "capacity3")!.slotCapacity).toBeUndefined();
+    const full = await put(id, snapshot([slot(201)]), 2);
+    expect(full.status).toBe(413);
+    expect(await json(full)).toEqual({ error: "too_many_slots" });
+    // Replacing stays possible at the cap.
+    const replaced = { personId: "person200", deviceId: "aritz", data: sealed("person200", "aritz", { fill: 1 }) };
+    expect((await put(id, snapshot([replaced]), 2)).status).toBe(200);
+    // A revoked phone or a web that never announced does not hold the list back.
+    await editState(id, (m) => {
+      m.credentials[3]!.revoked = true;
+      m.credentials.push({ deviceId: "the-web", verifier: b64u(rand(32)), revoked: false, records: [], role: "web", createdAt: Date.now() } as State["credentials"][number]);
+    });
+    expect((await put(id, snapshot([slot(201)]), 3)).status).toBe(200);
+  });
+
+  it("only the slotCapacity announcement that lifts the cap moves the version", async () => {
+    const id = await setup();
+    const leoKey = b64u(rand(32)), leoVerifier = await digest(leoKey);
+    await editState(id, (m) => { m.credentials.push({ deviceId: "leo", verifier: leoVerifier, revoked: false, records: [], createdAt: Date.now() }); });
+    const announce = (key: string) => call("POST", `${id.path}/capability`, { key, body: { slotCapacity: 2 } });
+    // Leo has not announced: Aritz's announcement changes no cap, so no new version.
+    expect((await announce(id.key)).headers.get("ETag")).toBe('"1"');
+    expect((await call("GET", id.path, { key: id.key, headers: { "If-None-Match": '"1"' } })).status).toBe(304);
+    // Leo's lifts it from 64 to 128: new version, and a repeat changes nothing.
+    expect((await announce(leoKey)).headers.get("ETag")).toBe('"2"');
+    expect((await announce(leoKey)).headers.get("ETag")).toBe('"2"');
+    const after = await json<{ capacity: { slots: { max: number } } }>(await call("GET", id.path, { key: id.key, headers: { "If-None-Match": '"1"' } }));
+    expect(after.capacity.slots.max).toBe(V2_MAX_SLOTS);
+  });
+
+  it("POST S/capability {slotCapacity: 2} announces it once; anything else is refused", async () => {
+    const id = await setup();
+    const announce = (body: unknown) => call("POST", `${id.path}/capability`, { key: id.key, body });
+    for (const bad of [{ slotCapacity: 3 }, { slotCapacity: "2" }, { slotCapacity: 1 }, { slotCapacity: 2, other: 1 }]) {
+      expect((await announce(bad)).status, JSON.stringify(bad)).toBe(400);
+    }
+    // Aritz is the only phone: his announcement moves the cap from 64 to 128,
+    // so the version moves (readers must not get a 304 with the old cap).
+    const first = await announce({ slotCapacity: 2 });
+    expect(first.status).toBe(200);
+    expect(first.headers.get("ETag")).toBe('"2"');
+    const again = await announce({ slotCapacity: 2 });
+    expect(again.headers.get("ETag")).toBe('"2"');
+    expect((await call("GET", id.path, { key: id.key, headers: { "If-None-Match": '"1"' } })).status).toBe(200);
+    const both = await announce({ commonFormat: 2, slotCapacity: 2 });
+    expect(both.status).toBe(200);
+    const devices = (await json<{ devices: { deviceId: string; slotCapacity?: number; commonFormat?: number }[] }>(await call("GET", id.path, { key: id.key }))).devices;
+    expect(devices.find((d) => d.deviceId === "aritz")).toMatchObject({ slotCapacity: 2, commonFormat: 2 });
   });
 
   it("caps the slots of one writer at 32; above it a writer may still replace and remove", async () => {
@@ -2278,13 +2484,14 @@ describe("B2: no device touches another writer's slot", () => {
     expect(await version(id)).toBe(2);
   });
 
-  it("reports slot pressure in capacity: abandoned slots still count and ask to renew from 48", async () => {
+  it("reports slot pressure in capacity: abandoned slots still count and ask to renew from the warning", async () => {
     const id = await setup();
     const read = async () => (await json<{ capacity: unknown }>(await call("GET", id.path, { key: id.key }))).capacity;
-    await plant(id, Array.from({ length: 47 }, (_, n) => [`person${n}`, `gone${n}`] as [string, string]));
-    expect(await read()).toEqual(capacity(1, 1, false, 47));
-    await plant(id, [["person47", "gone47"]]);
-    expect(await read()).toEqual(capacity(1, 1, true, 48));
+    const below = V2_LEGACY_WARN_SLOTS - 1;
+    await plant(id, Array.from({ length: below }, (_, n) => [`person${n}`, `gone${n}`] as [string, string]));
+    expect(await read()).toEqual(capacity(1, 1, false, below));
+    await plant(id, [[`person${below}`, `gone${below}`]]);
+    expect(await read()).toEqual(capacity(1, 1, true, V2_LEGACY_WARN_SLOTS));
   });
 });
 

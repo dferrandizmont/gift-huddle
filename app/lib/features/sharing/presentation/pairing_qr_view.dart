@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/layout/window_class.dart';
+import '../../../core/platform/gifts_secure_scope.dart';
 import '../../../core/theme/regalos_motion.dart';
 import '../../../core/theme/regalos_shape.dart';
 import '../../../core/theme/regalos_tokens.dart';
@@ -91,28 +92,32 @@ class PairingQrFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final t = RegalosTokens.of(context);
-    return _QrEntrance(
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: RegalosShape.card,
-          border: Border.all(color: t.separator),
-        ),
-        child: QrImageView(
-          data: data,
-          size: side,
-          padding: const EdgeInsets.all(12),
-          backgroundColor: Colors.white,
-          errorCorrectionLevel: QrErrorCorrectLevel.M,
-          eyeStyle: const QrEyeStyle(
-            eyeShape: QrEyeShape.square,
-            color: Colors.black,
+    // En la versión de tienda no se captura el QR de emparejar ni de invitar
+    // (1.0.6, QA m7).
+    return GiftsSecureScope(
+      child: _QrEntrance(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: RegalosShape.card,
+            border: Border.all(color: t.separator),
           ),
-          dataModuleStyle: const QrDataModuleStyle(
-            dataModuleShape: QrDataModuleShape.square,
-            color: Colors.black,
+          child: QrImageView(
+            data: data,
+            size: side,
+            padding: const EdgeInsets.all(12),
+            backgroundColor: Colors.white,
+            errorCorrectionLevel: QrErrorCorrectLevel.M,
+            eyeStyle: const QrEyeStyle(
+              eyeShape: QrEyeShape.square,
+              color: Colors.black,
+            ),
+            dataModuleStyle: const QrDataModuleStyle(
+              dataModuleShape: QrDataModuleShape.square,
+              color: Colors.black,
+            ),
+            semanticsLabel: l10n.showQrLabel,
           ),
-          semanticsLabel: l10n.showQrLabel,
         ),
       ),
     );

@@ -33,6 +33,8 @@ import 'package:regalos/features/sync/domain/sync_status.dart';
 import '../helpers/fake_sync_server.dart';
 import '../helpers/fake_worker_v2.dart';
 import '../helpers/memory_stores.dart';
+import 'package:regalos/features/family/application/own_gifts_notice.dart'
+    show kOwnGiftsHiddenSeenKey;
 import '../helpers/other_phone.dart';
 import '../helpers/screens.dart';
 import '../sync/sync_harness.dart' show kFastTiming, kTestHost;
@@ -129,6 +131,8 @@ void main() {
       expect(find.bySemanticsLabel('Este móvil es de. Aritz'), findsOneWidget);
     },
     size: tall,
+    // Un móvil v2 acompañado avisa una vez de que no ve sus regalos: ya visto.
+    prefs: const {kOwnGiftsHiddenSeenKey: true},
   );
 
   screenTest(

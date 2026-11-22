@@ -798,14 +798,14 @@ void main() {
       expect(liveOwnSurpriseGifts(scope), 1);
       // Lo que no cupo sale con su contenido, para guardarlo en local.
       expect(overflow, hasLength(40 - kMaxReconcileGifts));
-      expect(overflow.first['title'], 'Relleno 14');
-      // El cupo de la interfaz sigue entero: caben los otros 49 y ni uno más.
+      expect(overflow.first['title'], 'Relleno $kMaxReconcileGifts');
+      // El cupo de la interfaz sigue entero: caben los otros 199 y ni uno más.
       final clock = clockOf('aritz-phone', 4000);
-      for (var i = 0; i < 49; i++) {
+      for (var i = 0; i < kMaxSurpriseGifts - 1; i++) {
         scope = addSurpriseGift(scope, clock, 'u$i', giftFields('nora', 'S$i'));
       }
       expect(
-        () => addSurpriseGift(scope, clock, 'u49', giftFields('nora', 'S49')),
+        () => addSurpriseGift(scope, clock, 'ux', giftFields('nora', 'Sx')),
         throwsA(isA<SurpriseCapacityException>()),
       );
       expect(liveSurpriseGifts(scope), kMaxSlotGifts);
@@ -815,16 +815,18 @@ void main() {
       expect(liveMovedInGifts(scope), kMaxReconcileGifts - 1);
     });
 
-    test('N3: más de 64 vivos al fusionar dos escritores no bloquea la '
-        'publicación ni pierde nada', () async {
+    test('N3: más de kMaxSlotGifts vivos al fusionar dos escritores no '
+        'bloquea la publicación ni pierde nada', () async {
+      // Cada uno llenó el suyo sin red: entre los dos pasan del tope por 16.
+      const each = kMaxSlotGifts ~/ 2 + 8;
       FamilyDoc forty(String node, String prefix) {
         var doc = FamilyDoc.empty(kListId);
         final clock = clockOf(node, 1000);
-        for (var i = 0; i < 40; i++) {
+        for (var i = 0; i < each; i++) {
           doc = doc.set(
             clock,
             Collections.gifts,
-            '$prefix${i.toString().padLeft(2, '0')}',
+            '$prefix${i.toString().padLeft(3, '0')}',
             giftFields('nora', 'Regalo $prefix$i'),
           );
         }
@@ -841,7 +843,7 @@ void main() {
         leoSlot,
       ]);
       final opened = await openAs(family.aritz, slots);
-      expect(liveSurpriseGifts(opened.doc), 80);
+      expect(liveSurpriseGifts(opened.doc), 2 * each);
       final published = await publishAs(
         family.aritz,
         slots,
@@ -851,13 +853,16 @@ void main() {
       );
       expect(liveSurpriseGifts(published.sealed), kMaxSlotGifts);
       expect(published.leftOut, hasLength(16));
-      expect(published.leftOut.first, 'l24');
+      expect(
+        published.leftOut.first,
+        'l${(kMaxSlotGifts - each).toString().padLeft(3, '0')}',
+      );
       // Entre los dos slots sigue estando todo.
       final after = await openAs(
         family.leo,
         await withSlot(slots, published.slot),
       );
-      expect(liveSurpriseGifts(after.doc), 80);
+      expect(liveSurpriseGifts(after.doc), 2 * each);
       // Y desde la interfaz no entra ni uno más.
       expect(
         () => addSurpriseGift(
@@ -915,14 +920,44 @@ void main() {
       expect(liveSurpriseGifts(opened.doc), 0);
     });
 
-    test('ataque N4: Nora no puede bloquear la activación con 52 regalos y '
+    test('N3 con «cap»: al abrir vale el límite que anuncia el slot', () async {
+      var doc = FamilyDoc.empty(kListId);
+      final clock = clockOf('leo-phone', 1000);
+      for (var i = 0; i < kLegacySlotGifts + 1; i++) {
+        doc = doc.set(
+          clock,
+          Collections.gifts,
+          'x$i',
+          giftFields('nora', 'R$i'),
+        );
+      }
+      Future<OpenedSlot> open(Object? cap) async =>
+          (await _rawSlot(family.leo, family.key, doc, cap: cap)).open(
+            expectedListId: kListId,
+            key: family.key,
+            signingKey: family.leo.keys.publicKeys.signing,
+          );
+      // Sin «cap» (como un 1.0.5) no puede pasar de 64.
+      await expectLater(open(null), throwsA(isA<SlotFormatException>()));
+      expect(liveSurpriseGifts((await open(kSlotCapacity)).doc), 65);
+      expect((await open(kSlotCapacity)).cap, kSlotCapacity);
+      for (final bad in [0, -1, '2', 2.5, true]) {
+        await expectLater(
+          open(bad),
+          throwsA(isA<SlotFormatException>()),
+          reason: '$bad',
+        );
+      }
+    });
+
+    test('ataque N4: Nora no puede bloquear la activación con 202 regalos y '
         'uno enorme, y ninguno se queda en público', () {
       var many = common;
-      for (var i = 0; i < 51; i++) {
+      for (var i = 0; i < kMaxSurpriseGifts + 1; i++) {
         many = many.set(
           clockOf('nora-phone', 200),
           Collections.gifts,
-          'n${i.toString().padLeft(2, '0')}',
+          'n${i.toString().padLeft(3, '0')}',
           giftFields('nora', 'R$i'),
         );
       }
@@ -1650,7 +1685,7 @@ void main() {
   group('segunda revisión de la fase 2a (N3 y 7)', () {
     test('ataque (N3): un ladrón que Aritz emparejó avala una cadena de '
         'móviles falsos con derecho y les hace escribir slots: el conjunto '
-        'no pasa de 64, al revocarlo se podan, y un escritor con derecho '
+        'no pasa del tope, al revocarlo se podan, y un escritor con derecho '
         'desaloja a los que ya no lo tienen', () async {
       final thief = await Phone.create('ladron', 'aritz', 20);
       final rThief = await thief.record();
@@ -1679,19 +1714,32 @@ void main() {
         fakes.add(fake);
         prev = (fake, r);
       }
-      final view = await family.aritz.viewOf(registry);
+      // Con cuatro personas más, cada falso escribe seis slots: entre todos
+      // pasan de kMaxSlotsPerList (128 desde la 1.0.6).
+      const extra = ['p0', 'p1', 'p2', 'p3'];
+      final view = await family.aritz.viewOf(
+        registry,
+        people: {...kPeople, ...extra},
+      );
       expect(view.entitled('falso-32', 'nora'), isNotNull);
       expect(view.entitled('falso-32', 'leo'), isNotNull);
-      final leoKey = SurpriseKey(
-        personId: 'leo',
-        epoch: 1,
-        bytes: List<int>.filled(32, 43),
-      );
+      expect(view.entitled('falso-32', 'p3'), isNotNull);
+      final keys = [
+        family.key,
+        SurpriseKey(personId: 'leo', epoch: 1, bytes: List<int>.filled(32, 43)),
+        for (final (i, person) in extra.indexed)
+          SurpriseKey(
+            personId: person,
+            epoch: 1,
+            bytes: List<int>.filled(32, 50 + i),
+          ),
+      ];
+      expect(keys.length * fakes.length, greaterThan(kMaxSlotsPerList));
       final empty = FamilyDoc.empty(kListId);
       var slots = SlotSet.empty;
       var rejected = 0;
       for (final fake in fakes) {
-        for (final key in [family.key, leoKey]) {
+        for (final key in keys) {
           final slot = await seal(fake, empty, revision: 1, key: key);
           try {
             slots = (await slots.acceptVerified(slot, view: view)).$1;
@@ -1701,7 +1749,7 @@ void main() {
         }
       }
       expect(slots.all, hasLength(kMaxSlotsPerList));
-      expect(rejected, 2 * fakes.length - kMaxSlotsPerList);
+      expect(rejected, keys.length * fakes.length - kMaxSlotsPerList);
       // Lo que se guarda se vuelve a leer (antes, con más de 64, el almacén
       // local no podía leerlo).
       expect(SlotSet.fromLocalStoreJson(slots.toJson()).sameAs(slots), isTrue);
@@ -1969,8 +2017,9 @@ final _atTestTime = Clock.fixed(
 Future<SealedSlot> _rawSlot(
   Phone writer,
   SurpriseKey key,
-  FamilyDoc doc,
-) async {
+  FamilyDoc doc, {
+  Object? cap,
+}) async {
   final header = SlotHeader(
     listId: kListId,
     personId: key.personId,
@@ -1983,6 +2032,7 @@ Future<SealedSlot> _rawSlot(
   final compressed = Deflate(
     utf8.encode(
       canonicalJsonOf(<String, Object?>{
+        'cap': ?cap,
         'd': doc.toJson(),
         's': <String, Object?>{},
         'v': 2,

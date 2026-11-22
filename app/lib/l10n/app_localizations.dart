@@ -2338,10 +2338,10 @@ abstract class AppLocalizations {
   /// **'Sincronizado hace {days} d'**
   String syncStatusSyncedDays(int days);
 
-  /// Estado: no hay red; los cambios están guardados en el móvil.
+  /// Estado: no se ha podido conectar con el servidor (sin red o bloqueado); los cambios están guardados en el móvil. No dice «sin conexión»: la app no sabe si hay internet.
   ///
   /// In es, this message translates to:
-  /// **'Sin conexión, los cambios se enviarán luego'**
+  /// **'No se puede conectar ahora. Los cambios se enviarán luego.'**
   String get syncStatusOffline;
 
   /// Estado: error de sincronización.
@@ -3517,7 +3517,7 @@ abstract class AppLocalizations {
   /// Estado de la sincronización en minúsculas, tras el número de móviles.
   ///
   /// In es, this message translates to:
-  /// **'sin conexión'**
+  /// **'sin conectar'**
   String get syncShortOffline;
 
   /// Estado de la sincronización en minúsculas, tras el número de móviles.
@@ -3561,6 +3561,30 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Conecta otro para ver la misma lista en los dos.'**
   String get devicesSoloBody;
+
+  /// Título de la tarjeta de estado mientras otro móvil espera la aprobación o termina de conectarse.
+  ///
+  /// In es, this message translates to:
+  /// **'Conectando otro móvil'**
+  String get devicesPendingTitle;
+
+  /// Frase de la tarjeta de estado mientras otro móvil termina de conectarse.
+  ///
+  /// In es, this message translates to:
+  /// **'Esperando a que el otro móvil termine de conectarse.'**
+  String get devicesPendingBody;
+
+  /// Solo fuera de la versión de tienda: botón de Conectar la web que pega el texto del QR (pruebas sin cámara).
+  ///
+  /// In es, this message translates to:
+  /// **'Pegar el código del QR'**
+  String get connectWebPasteCode;
+
+  /// Nota bajo la persona de este móvil en la lista de elegir persona.
+  ///
+  /// In es, this message translates to:
+  /// **'Este móvil'**
+  String get personPickerThisPhone;
 
   /// Título de la tarjeta de estado cuando no hay otro móvil conectado pero hay un código de recuperación activo: la lista tiene una copia cifrada para sincronizar.
   ///
@@ -3631,14 +3655,20 @@ abstract class AppLocalizations {
   /// Título de la tarjeta de estado sin red.
   ///
   /// In es, this message translates to:
-  /// **'Sin conexión'**
+  /// **'No se puede conectar'**
   String get devicesOfflineTitle;
 
   /// Frase de la tarjeta de estado sin red.
   ///
   /// In es, this message translates to:
-  /// **'Los cambios se enviarán cuando vuelva.'**
+  /// **'Los cambios se enviarán luego.'**
   String get devicesOfflineBody;
+
+  /// Frase de la tarjeta de estado tras tres intentos seguidos sin poder conectar con ninguna ruta del servidor (1.0.6).
+  ///
+  /// In es, this message translates to:
+  /// **'Si tienes internet, puede que tu operador esté bloqueando el servicio. Prueba con datos móviles u otra wifi.'**
+  String get syncBlockedHint;
 
   /// Cabecera de la lista de móviles de la familia; a su derecha va cuántos hay.
   ///
@@ -3910,12 +3940,6 @@ abstract class AppLocalizations {
   /// **'No coinciden'**
   String get pairingV2NoMatch;
 
-  /// Aviso en el móvil que invita cuando el otro no eligió persona.
-  ///
-  /// In es, this message translates to:
-  /// **'El otro móvil todavía no ha dicho de quién es. Puedes darle acceso igualmente: podrá elegirlo más adelante y, hasta entonces, no abrirá las sorpresas.'**
-  String get pairingV2NoPersonWarning;
-
   /// Progreso al aprobar.
   ///
   /// In es, this message translates to:
@@ -3952,47 +3976,11 @@ abstract class AppLocalizations {
   /// **'Para continuar, hace falta conexión a internet y tener la sincronización encendida.'**
   String get pairingV2NotReady;
 
-  /// Título al elegir la persona dueña del móvil al entrar.
-  ///
-  /// In es, this message translates to:
-  /// **'¿De quién es este móvil?'**
-  String get pairingV2ChooseTitle;
-
-  /// Explicación de por qué se elige la persona.
-  ///
-  /// In es, this message translates to:
-  /// **'El que tienes en la mano. Elige a quien lo usa y Gift Huddle sabrá qué sorpresas esconderle.'**
-  String get pairingV2ChooseBody;
-
-  /// Explicación cuando este móvil ya tenía a una persona en «Este móvil es de» y sale premarcada.
-  ///
-  /// In es, this message translates to:
-  /// **'Lo tenías marcado como de {name}. Confírmalo o elige a otra persona.'**
-  String pairingV2ChooseBodySelf(String name);
-
-  /// Botón que confirma la persona premarcada como dueña de este móvil.
+  /// Botón que sigue tras elegir la persona de un móvil (para quién es el móvil nuevo, o quién eres).
   ///
   /// In es, this message translates to:
   /// **'Continuar'**
   String get pairingV2ChooseContinue;
-
-  /// Botón para no elegir persona ahora.
-  ///
-  /// In es, this message translates to:
-  /// **'Elegir después'**
-  String get pairingV2ChooseLaterTitle;
-
-  /// Aviso de lo que pasa al no elegir persona (N2).
-  ///
-  /// In es, this message translates to:
-  /// **'Si no eliges ahora, este móvil no abrirá las sorpresas hasta que elijas a la persona y quien te invitó lo apruebe.'**
-  String get pairingV2ChooseLaterBody;
-
-  /// Texto cuando no hay personas que elegir.
-  ///
-  /// In es, this message translates to:
-  /// **'Este móvil todavía no conoce a nadie de esta familia, así que de momento no se puede elegir. Podrás hacerlo cuando llegue la lista.'**
-  String get pairingV2ChooseNone;
 
   /// Estado del invitado antes de ver el código.
   ///
@@ -4876,24 +4864,6 @@ abstract class AppLocalizations {
   /// **'Ese código no es el de la web de Gift Huddle. Escanea el que aparece en el ordenador.'**
   String get connectWebScanInvalid;
 
-  /// Pregunta de a quién pertenece el ordenador que se conecta.
-  ///
-  /// In es, this message translates to:
-  /// **'¿De quién es este ordenador?'**
-  String get connectWebWhoseTitle;
-
-  /// Explicación bajo la pregunta de a quién pertenece el ordenador.
-  ///
-  /// In es, this message translates to:
-  /// **'Elige quién va a usar la lista desde el ordenador.'**
-  String get connectWebWhoseBody;
-
-  /// Aviso si no hay personas entre las que elegir al conectar la web.
-  ///
-  /// In es, this message translates to:
-  /// **'Todavía no hay personas. Añade una persona antes de conectar la web.'**
-  String get connectWebNoPeople;
-
   /// Mientras el ordenador responde tras escanear su código.
   ///
   /// In es, this message translates to:
@@ -5053,7 +5023,7 @@ abstract class AppLocalizations {
   /// Estado discreto de la web: sin conexión.
   ///
   /// In es, this message translates to:
-  /// **'Sin conexión'**
+  /// **'No se puede conectar'**
   String get webSyncOffline;
 
   /// Estado de la web cuando ningún móvil la ha confirmado.
@@ -5089,7 +5059,7 @@ abstract class AppLocalizations {
   /// Primera consecuencia del cambio de persona.
   ///
   /// In es, this message translates to:
-  /// **'Si los regalos para {name} están en secreto, no verás ninguno en este móvil.'**
+  /// **'En este móvil dejarán de verse los regalos para {name}.'**
   String selfChangeEffectHides(String name);
 
   /// Primera consecuencia del cambio cuando se elige Nadie.
@@ -5439,6 +5409,12 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Este móvil no puede desactivarla ahora: hace falta permiso y la clave actual de {name}.'**
   String protectionCannotDeactivate(String name);
+
+  /// Hoja de regalos en secreto en el móvil de la propia persona: no puede desactivarla ella.
+  ///
+  /// In es, this message translates to:
+  /// **'Solo otra persona de la familia puede cambiarlo, desde su móvil.'**
+  String get protectionOnlyOthersChange;
 
   /// Aviso cuando falla pedir, activar o desactivar la protección.
   ///
@@ -7629,6 +7605,300 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Comprobando lo que se elimina…'**
   String get deleteImpactChecking;
+
+  /// Título del paso en que quien invita elige la persona del móvil nuevo.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Para quién es el móvil nuevo?'**
+  String get inviteForTitle;
+
+  /// Explicación del paso de elegir la persona del móvil nuevo.
+  ///
+  /// In es, this message translates to:
+  /// **'Elige a la persona que lo va a usar. En su móvil no se verá ningún regalo para ella.'**
+  String get inviteForBody;
+
+  /// Aviso cuando el móvil que invita no tiene persona.
+  ///
+  /// In es, this message translates to:
+  /// **'Antes de conectar otro dispositivo, di de quién es este móvil.'**
+  String get inviteForNeedsSelf;
+
+  /// Aviso al elegir una persona que aún no tenía los regalos en secreto.
+  ///
+  /// In es, this message translates to:
+  /// **'Los regalos para {name} pasan a estar en secreto: dejarán de verse en su móvil.'**
+  String inviteForSecretNotice(String name);
+
+  /// Línea en la comparación del código cuando quien invita eligió la persona.
+  ///
+  /// In es, this message translates to:
+  /// **'Vas a conectar el móvil de {name}.'**
+  String pairingV2HostCompareFor(String name);
+
+  /// Pista en la espera del anfitrión.
+  ///
+  /// In es, this message translates to:
+  /// **'Si el otro móvil da un error, actualiza Gift Huddle en ese móvil y vuelve a empezar.'**
+  String get pairingV2HostUpdateHint;
+
+  /// Fallo al aprobar porque no se pudo activar la protección.
+  ///
+  /// In es, this message translates to:
+  /// **'No se han podido poner en secreto los regalos para {name}, así que el móvil no se ha conectado. Ese móvil ha quedado quitado y puede que tenga que volver a conectarse. Este móvil sigue ocultando los regalos de su persona. Sincroniza e inténtalo de nuevo.'**
+  String pairingV2ProtectFailed(String name);
+
+  /// Texto fijo en el móvil que entra: no elige persona.
+  ///
+  /// In es, this message translates to:
+  /// **'Quien te invita ha elegido de quién es este móvil. Lo verás al entrar.'**
+  String get pairingV2GuestAssigned;
+
+  /// Hoja final del móvil que entra con persona.
+  ///
+  /// In es, this message translates to:
+  /// **'Ya estás en la familia. Este móvil es de {name}: aquí no verás los regalos para {name}.'**
+  String pairingV2GuestDoneFor(String name);
+
+  /// Línea del bloque propio en el móvil de esa persona.
+  ///
+  /// In es, this message translates to:
+  /// **'En este móvil no se ven los regalos para {name}. Solo otra persona de la familia puede cambiarlo, desde su móvil.'**
+  String ownGiftsHiddenBody(String name);
+
+  /// Motivo de la protección automática en la hoja «Regalos en secreto».
+  ///
+  /// In es, this message translates to:
+  /// **'Activos porque {name} tiene un móvil conectado.'**
+  String protectionAutoReason(String name);
+
+  /// Aviso al desactivar la protección de alguien con móvil.
+  ///
+  /// In es, this message translates to:
+  /// **'{name} tiene un móvil conectado: en él sus regalos seguirán sin verse. Si los desactivas, se verán en los dispositivos que no tienen la clave, como la web.'**
+  String protectionDeactivateHasDevice(String name);
+
+  /// Aviso al quedarse solo.
+  ///
+  /// In es, this message translates to:
+  /// **'Este móvil ya no está conectado a ningún otro. Los regalos para {name} que estaban en secreto no están en este móvil.'**
+  String ownGiftsAloneNotice(String name);
+
+  /// Título de la pregunta antes de invitar a otro dispositivo cuando este móvil no tiene persona.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Quién eres?'**
+  String get whoAreYouTitle;
+
+  /// Explicación de «¿Quién eres?».
+  ///
+  /// In es, this message translates to:
+  /// **'Antes de conectar otro dispositivo, di de quién es este móvil. En él no se verá ningún regalo para esa persona.'**
+  String get whoAreYouBody;
+
+  /// Opción que da de alta a la persona con su nombre.
+  ///
+  /// In es, this message translates to:
+  /// **'No estoy en la lista'**
+  String get whoAreYouNotOnList;
+
+  /// Campo del nombre en «No estoy en la lista».
+  ///
+  /// In es, this message translates to:
+  /// **'Tu nombre'**
+  String get whoAreYouNameLabel;
+
+  /// Opción para quien regala y no recibe.
+  ///
+  /// In es, this message translates to:
+  /// **'Nadie'**
+  String get whoAreYouNobody;
+
+  /// Aclaración bajo «Nadie».
+  ///
+  /// In es, this message translates to:
+  /// **'Para quien regala y no recibe regalos.'**
+  String get whoAreYouNobodyHint;
+
+  /// Opción del anfitrión que da de alta a la persona del móvil nuevo.
+  ///
+  /// In es, this message translates to:
+  /// **'No está en la lista'**
+  String get inviteForNotOnList;
+
+  /// Opción del anfitrión para alguien que regala y no recibe.
+  ///
+  /// In es, this message translates to:
+  /// **'Nadie: solo regala'**
+  String get inviteForNobody;
+
+  /// Campo del nombre de la persona nueva al invitar.
+  ///
+  /// In es, this message translates to:
+  /// **'Nombre'**
+  String get inviteForNameLabel;
+
+  /// Etiqueta en Personas de alguien que no recibe regalos.
+  ///
+  /// In es, this message translates to:
+  /// **'Solo regala'**
+  String get personNoGiftsLabel;
+
+  /// Título de la pantalla del código tras leer el QR desde la bienvenida.
+  ///
+  /// In es, this message translates to:
+  /// **'Conectar este móvil'**
+  String get joinQrPairingTitle;
+
+  /// Web (1.0.6): puede ver los regalos en secreto de esa persona, pero este cambio se hace desde el móvil.
+  ///
+  /// In es, this message translates to:
+  /// **'Los regalos en secreto de {name} se cambian desde tu móvil.'**
+  String protectionReason_webUseMobile(String name);
+
+  /// Web (1.0.6): marca corta de un regalo en secreto cambiado en la web que el móvil de su persona aún no ha recogido (el texto largo es webSecretsPendingLong).
+  ///
+  /// In es, this message translates to:
+  /// **'Pendiente'**
+  String get webSecretsPending;
+
+  /// Web (1.0.6): ningún móvil de su persona la verifica.
+  ///
+  /// In es, this message translates to:
+  /// **'Para ver los regalos en secreto, vuelve a conectar este ordenador desde tu móvil.'**
+  String get webSecretsReconnect;
+
+  /// Web (1.0.6): su móvil aún no le ha dado las claves.
+  ///
+  /// In es, this message translates to:
+  /// **'Abre la app en tu móvil para ver aquí los regalos en secreto. Si no aparecen, actualiza la app del móvil.'**
+  String get webSecretsWaitingPhone;
+
+  /// Web (1.0.6): aviso al ver regalos en secreto.
+  ///
+  /// In es, this message translates to:
+  /// **'Con los regalos en secreto a la vista, la web se bloquea a los 5 minutos sin uso. No la dejes abierta en un ordenador que comparte la familia.'**
+  String get webSecretsSharedComputer;
+
+  /// Web (1.0.6): aviso antes de olvidar el ordenador con cambios sin recoger.
+  ///
+  /// In es, this message translates to:
+  /// **'Hay cambios en regalos en secreto que tu móvil aún no ha recogido. Si olvidas este ordenador, se pierden.'**
+  String get webForgetPendingSecrets;
+
+  /// Web (1.0.6): aviso de cambios en regalos en secreto que se han descartado porque ya no se podían aplicar.
+  ///
+  /// In es, this message translates to:
+  /// **'{count, plural, one{Se ha descartado {count} cambio en un regalo en secreto: ya no se puede aplicar (el regalo ya no existe, ha pasado a otra persona o es demasiado largo).} other{Se han descartado {count} cambios en regalos en secreto: ya no se pueden aplicar (los regalos ya no existen, han pasado a otra persona o son demasiado largos).}}'**
+  String webSecretsDropped(int count);
+
+  /// Título del aviso que sale una vez en el móvil de una persona cuando sus regalos dejan de verse (o vuelven a poder verse).
+  ///
+  /// In es, this message translates to:
+  /// **'Regalos para {name}'**
+  String ownGiftsNoticeTitle(String name);
+
+  /// Aviso al aprobar una web desde el móvil (B9, ADR 0009): al avalarla, ve y edita los regalos en secreto de los demás.
+  ///
+  /// In es, this message translates to:
+  /// **'Ese ordenador podrá ver y cambiar los regalos en secreto de los demás. Confírmalo solo si lo conectaste tú.'**
+  String get webApproveSecretsNotice;
+
+  /// Web (1.0.6): el servidor aún no acepta el buzón de cambios de esas personas; se reintenta.
+  ///
+  /// In es, this message translates to:
+  /// **'Los cambios en regalos en secreto para {names} no se han podido enviar todavía. Se vuelve a intentar solo.'**
+  String webSecretsHeld(String names);
+
+  /// Web (1.0.6): texto largo de la marca «Pendiente»: ayuda y lector de pantalla.
+  ///
+  /// In es, this message translates to:
+  /// **'Pendiente de tu móvil'**
+  String get webSecretsPendingLong;
+
+  /// Etiqueta del botón de la lupa de Personas que despliega el buscador de regalos.
+  ///
+  /// In es, this message translates to:
+  /// **'Buscar regalos'**
+  String get giftSearchOpen;
+
+  /// Aviso en el anfitrión cuando el móvil que quiere entrar tiene la 1.0.5 y no entiende que se elija su persona.
+  ///
+  /// In es, this message translates to:
+  /// **'El otro móvil necesita actualizar Gift Huddle para unirse.'**
+  String get pairingV2GuestOutdated;
+
+  /// Fallo al aprobar un móvil que no es de protección (B8, ADR 0009).
+  ///
+  /// In es, this message translates to:
+  /// **'No se ha podido dar acceso al otro móvil. Ha quedado quitado y puede que tenga que volver a conectarse. Este móvil sigue ocultando los regalos de su persona.'**
+  String get pairingV2ApproveFailed;
+
+  /// Frase del bloque «Regalos en secreto» en la web: este ordenador no muestra esos regalos.
+  ///
+  /// In es, this message translates to:
+  /// **'Este ordenador no los muestra.'**
+  String get secretBlockNoteWeb;
+
+  /// Línea del bloque propio y aviso de una vez en la web cuando el ordenador es de esa persona.
+  ///
+  /// In es, this message translates to:
+  /// **'En este ordenador no se ven los regalos para {name}. Solo otra persona de la familia puede cambiarlo, desde su móvil.'**
+  String ownGiftsHiddenBodyWeb(String name);
+
+  /// Aviso de una vez en la web: el ordenador ya no está conectado a ningún móvil y los regalos en secreto de su persona no están en él.
+  ///
+  /// In es, this message translates to:
+  /// **'Este ordenador ya no está conectado a ningún móvil de la familia. Los regalos para {name} que estaban en secreto no están en este ordenador.'**
+  String ownGiftsAloneNoticeWeb(String name);
+
+  /// Línea bajo el nombre en Ajustes › Personas en la web: la persona es la de este ordenador, por eso Archivar y Eliminar están desactivados.
+  ///
+  /// In es, this message translates to:
+  /// **'Es la persona de este ordenador.'**
+  String get manageLockedThisDeviceWeb;
+
+  /// Título del aviso en la web al intentar eliminar o archivar a la persona de este ordenador.
+  ///
+  /// In es, this message translates to:
+  /// **'Este ordenador es de {name}'**
+  String devicePersonBlockedThisTitleWeb(String name);
+
+  /// Texto del aviso en la web al intentar eliminar o archivar a la persona de este ordenador. En la web no se elige de quién es el ordenador en Ajustes.
+  ///
+  /// In es, this message translates to:
+  /// **'{name} es la persona de este ordenador, así que no se puede eliminar ni archivar desde aquí.'**
+  String devicePersonBlockedThisBodyWeb(String name);
+
+  /// Aviso en la web cuando el regalo o su persona se eliminaron en otro dispositivo.
+  ///
+  /// In es, this message translates to:
+  /// **'No se ha guardado: este regalo ya no está disponible en este ordenador.'**
+  String get giftNotSavedWeb;
+
+  /// Error en la web al guardar un regalo que ya no está disponible en este ordenador.
+  ///
+  /// In es, this message translates to:
+  /// **'No se ha guardado: este regalo ya no está disponible en este ordenador.'**
+  String get giftWriteGiftUnavailableWeb;
+
+  /// Aviso en la web cuando el regalo abierto deja de poder verse en este ordenador.
+  ///
+  /// In es, this message translates to:
+  /// **'Este regalo ya no se puede ver en este ordenador.'**
+  String get giftNoLongerVisibleWeb;
+
+  /// Aviso del editor en la web cuando la persona elegida es la de este ordenador y está protegida.
+  ///
+  /// In es, this message translates to:
+  /// **'Con la protección activa, no puedes añadir ni ver regalos para ti en este ordenador. Pide a otra persona de la familia que apunte el regalo.'**
+  String get giftOwnRequestRestrictedWeb;
+
+  /// Frase de privacidad de Acerca de en la web.
+  ///
+  /// In es, this message translates to:
+  /// **'Sin cuentas ni publicidad. La lista solo sale de este ordenador para sincronizarse con los móviles de tu familia, y siempre va cifrada.'**
+  String get aboutPrivacyWeb;
 }
 
 class _AppLocalizationsDelegate

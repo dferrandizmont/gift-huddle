@@ -27,6 +27,7 @@ class WebSettingsSection extends StatelessWidget {
     super.key,
     required this.actions,
     this.persistenceDenied = false,
+    this.pendingSecretChanges = 0,
     this.leading = const <Widget>[],
     this.showHeader = true,
   });
@@ -36,6 +37,11 @@ class WebSettingsSection extends StatelessWidget {
 
   /// Si el navegador no garantiza guardar los datos.
   final bool persistenceDenied;
+
+  /// Cuántos regalos en secreto tienen cambios que el móvil de esta web aún no
+  /// ha recogido (1.0.6): al olvidar este ordenador se pierden, y el aviso
+  /// del diálogo lo dice.
+  final int pendingSecretChanges;
 
   /// Filas que van antes de las de este ordenador, bajo la misma cabecera
   /// (en Ajustes: idioma y apariencia).
@@ -50,7 +56,9 @@ class WebSettingsSection extends StatelessWidget {
     final confirmed = await showRegalosConfirm(
       context,
       title: l10n.webSettingsForgetTitle,
-      body: l10n.webSettingsForgetBody,
+      body: pendingSecretChanges > 0
+          ? '${l10n.webSettingsForgetBody}\n\n${l10n.webForgetPendingSecrets}'
+          : l10n.webSettingsForgetBody,
       confirmLabel: l10n.webSettingsForgetConfirm,
       cancelLabel: l10n.actionCancel,
     );

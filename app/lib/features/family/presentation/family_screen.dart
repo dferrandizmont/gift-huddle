@@ -1,3 +1,5 @@
+import '../../web_device/application/web_app_provider.dart';
+
 import 'dart:math' as math;
 
 import 'package:clock/clock.dart';
@@ -6,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/format/dates.dart';
+import '../../../core/platform/gifts_secure_scope.dart';
 import '../../../core/layout/content_width.dart';
 import '../../../core/layout/window_class.dart';
 import '../../../core/motion/haptics.dart';
@@ -522,7 +525,10 @@ class _FamilyScreenState extends ConsumerState<FamilyScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      GiftsSecureScope(child: _buildScreen(context));
+
+  Widget _buildScreen(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final mode = ref.watch(repartoViewProvider);
     final view = ref.watch(familyViewProvider);
@@ -681,6 +687,7 @@ class _FamilyScreenState extends ConsumerState<FamilyScreen> {
                         stage: stage,
                         filterKey: selectedKey,
                         selfId: ref.watch(selfRecipientIdProvider),
+                        web: ref.watch(webAppProvider),
                         excluded: excluded,
                         secret: ref.watch(lockedPeopleProvider),
                         skipLabels: skipLabels,

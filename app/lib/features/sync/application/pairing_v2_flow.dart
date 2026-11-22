@@ -138,6 +138,51 @@ List<int> _approvalBytes(Map<String, Object?> package) => [
 
 final _hash43 = RegExp(r'^[A-Za-z0-9_-]{43}$');
 
+/// El común que se iba a aprobar no tiene en secreto los regalos de la
+/// persona del móvil nuevo (1.0.6): no se aprueba.
+class PairingCheckpointUnprotectedException extends PairingException {
+  /// Crea el error.
+  const PairingCheckpointUnprotectedException()
+    : super('el común aprobado no protege a la persona del móvil nuevo');
+}
+
+final Set<String> _confirming = <String>{};
+
+/// Si este proceso está aprobando ahora mismo al invitado [guestDeviceId]
+/// ([PairingV2Host.confirm]): su marca de pendiente no es de un cierre.
+bool pairingConfirmInProgress(String guestDeviceId) =>
+    _confirming.contains(guestDeviceId);
+
+/// Revoca en el registro de este móvil al invitado [guestDeviceId] que no
+/// llegó a aprobarse (1.0.6: el emparejamiento falla en cerrado). No hace
+/// nada si ya no está o ya está revocado.
+Future<void> revokeUnapprovedGuest(
+  SyncV2Local local,
+  String guestDeviceId,
+) async {
+  final registry = await local.registry();
+  final view = await registry.viewFor(
+    me: local.identity.deviceId,
+    mySigningKey: local.keys.publicKeys.signing,
+    livePeople: livePeopleOf(await local.common()),
+  );
+  if (view.device(guestDeviceId) == null ||
+      view.revoked.contains(guestDeviceId)) {
+    return;
+  }
+  final me = registry.recordByDigest(view.self.recordDigest)!;
+  await local.saveRegistry(
+    await registry.withRevocation(
+      await Revocation.create(
+        keys: local.keys,
+        by: me,
+        deviceId: guestDeviceId,
+      ),
+      anchor: view.anchor,
+    ),
+  );
+}
+
 /// Lo que ve el anfitrión cuando el invitado ya ha respondido.
 class PairingV2Answered {
   /// Crea el resultado.
@@ -174,6 +219,11 @@ class PairingV2Host {
   /// migrar (`LegacyV1`): con ella la oferta lleva la prueba
   /// ([v1ListProof]) que deja entrar como «misma lista» a un móvil de v1 de
   /// esa lista (hallazgo 6). Sin ella, ninguno lo es.
+  ///
+  /// Con [hostPicksPerson] (móviles, 1.0.6) este móvil ya ha elegido para
+  /// quién es el móvil nuevo ([guestPerson], o null para «alguien que no
+  /// está en la lista»): la oferta lleva la marca y el servidor guarda la
+  /// persona para dársela al invitado ([PairingHost.start]).
   static Future<PairingV2Host> start({
     required SyncV2Transport transport,
     required SyncV2Local local,
@@ -183,6 +233,7 @@ class PairingV2Host {
     String? guestPerson,
     FamilyKey? v1Key,
     bool inviteCopy = true,
+    bool hostPicksPerson = false,
   }) => lock.run(() async {
     // B1: la web tras el corte se rechaza antes de crear nada.
     if (web != null) await _refuseWebAfterCut(local);
@@ -203,6 +254,7 @@ class PairingV2Host {
       inviteId: web?.inviteId,
       guestPerson: guestPerson,
       expectedFingerprint: web?.fingerprint,
+      hostPicksPerson: hostPicksPerson && web == null,
     );
     onPhase?.call('invite');
     final offer = session.offer.toJson();
@@ -225,6 +277,12 @@ class PairingV2Host {
 
   /// Id de la invitación (lo lleva el QR o el enlace).
   final String inviteId;
+
+  /// Si este móvil eligió la persona del móvil nuevo ([start]).
+  bool get hostPicksPerson => _session.hostPicksPerson;
+
+  /// La persona que eligió este móvil, o null.
+  String? get guestPerson => _session.guestPerson;
 
   /// Liveness while the host is comparing an already answered invitation.
   Future<void> ensureAlive() async {
@@ -279,9 +337,29 @@ class PairingV2Host {
   /// persona y no se pasa [guestWithoutPerson], o si tiene persona y
   /// [confirmedPersonId] no es ella (alguien tiene que haber visto aparte de
   /// quién dice ser el móvil, hallazgo 3) o ya no existe.
+  ///
+  /// [beforePublish] se llama dentro del cerrojo, con la ficha y los avales
+  /// del invitado ya guardados y antes de la sincronización que fija el
+  /// checkpoint: la aplicación pone ahí en secreto los regalos de la persona
+  /// del móvil nuevo (1.0.6). Si lanza, no se aprueba nada.
+  ///
+  /// [verifyCheckpoint] recibe en cada intento el común exacto que se va a
+  /// aprobar (abierto con las claves de este móvil) y, si devuelve false, no
+  /// se aprueba. [onPending] se llama antes de guardar la ficha del invitado
+  /// y [onSettled] cuando la aprobación ha entrado o el invitado ya está
+  /// revocado: entre medias, un cierre deja la marca para que la aplicación
+  /// lo revoque ([revokeUnapprovedGuest]).
+  ///
+  /// Si algo falla antes de que el servidor acepte la aprobación, el
+  /// invitado queda revocado en el registro de este móvil (falla en
+  /// cerrado: su ficha avalada no se queda como un móvil más).
   Future<void> confirm({
     bool guestWithoutPerson = false,
     String? confirmedPersonId,
+    Future<void> Function()? beforePublish,
+    Future<bool> Function(FamilyDoc common)? verifyCheckpoint,
+    Future<void> Function(String guestDeviceId)? onPending,
+    Future<void> Function()? onSettled,
   }) => _lock.run(() async {
     if (_answered == null) {
       throw const PairingException('todavía no hay respuesta');
@@ -304,61 +382,83 @@ class PairingV2Host {
       guestWithoutPerson: guestWithoutPerson,
       confirmedPersonId: confirmedPersonId,
     );
-    await _local.saveRegistry(change.registry);
-    final engine = SyncV2Engine(transport: _transport, local: _local);
     final guest = _session.answer!.guest.deviceId;
-    var rewritten = false;
-    for (var attempt = 0; ; attempt++) {
-      final out = await engine.sync();
-      final published = out.published;
-      if (published == null) {
-        throw const PairingException('no se sabe qué hay en el servidor');
-      }
-      final (package, claim) = await _package(out, guest, published);
-      final V2WriteResult approved;
-      try {
-        approved = await _transport.approveInvite(
-          _authOf(_local),
-          inviteId,
-          version: out.version,
-          package: package,
-          role: _session.expectWeb ? 'web' : 'device',
-          checkpoint: claim,
+    _confirming.add(guest);
+    if (onPending != null) await onPending(guest);
+    await _local.saveRegistry(change.registry);
+    try {
+      if (beforePublish != null) await beforePublish();
+      final engine = SyncV2Engine(transport: _transport, local: _local);
+      var rewritten = false;
+      for (var attempt = 0; ; attempt++) {
+        final out = await engine.sync();
+        final published = out.published;
+        if (published == null) {
+          throw const PairingException('no se sabe qué hay en el servidor');
+        }
+        final (package, claim, common) = await _package(
+          out,
+          guest,
+          published,
         );
-      } on V2InviteConflictException catch (e) {
-        // B3: lo guardado no se serializa como aquí (base64url no canónico,
-        // un registro raro). Una vez: se reescribe con lo mismo y se vuelve
-        // a aprobar sobre la versión nueva.
-        if (e.code != 'checkpoint_mismatch' || rewritten) rethrow;
-        rewritten = true;
-        // El registro verificado y fusionado de este móvil, en su JSON
-        // limpio; nunca lo que diga el servidor tal cual.
-        await _transport.putList(
-          _authOf(_local),
-          version: out.version,
-          body: V2SnapshotUpload(
-            common: published.common,
-            registry: (await _local.registry()).toJson(),
-            keyPackages: published.keyPackages,
-          ),
-        );
-        continue;
+        if (verifyCheckpoint != null && !await verifyCheckpoint(common)) {
+          throw const PairingCheckpointUnprotectedException();
+        }
+        final V2WriteResult approved;
+        try {
+          approved = await _transport.approveInvite(
+            _authOf(_local),
+            inviteId,
+            version: out.version,
+            package: package,
+            role: _session.expectWeb ? 'web' : 'device',
+            checkpoint: claim,
+          );
+        } on V2InviteConflictException catch (e) {
+          // B3: lo guardado no se serializa como aquí (base64url no
+          // canónico, un registro raro). Una vez: se reescribe con lo mismo
+          // y se vuelve a aprobar sobre la versión nueva.
+          if (e.code != 'checkpoint_mismatch' || rewritten) rethrow;
+          rewritten = true;
+          // El registro verificado y fusionado de este móvil, en su JSON
+          // limpio; nunca lo que diga el servidor tal cual.
+          await _transport.putList(
+            _authOf(_local),
+            version: out.version,
+            body: V2SnapshotUpload(
+              common: published.common,
+              registry: (await _local.registry()).toJson(),
+              keyPackages: published.keyPackages,
+            ),
+          );
+          continue;
+        }
+        switch (approved) {
+          case V2WriteOk():
+            final state = await _local.readState();
+            await _local.saveState(state.copyWith(version: approved.version));
+            if (onSettled != null) await onSettled();
+            return;
+          case V2WriteStale():
+            if (attempt >= 3) {
+              throw const SyncTransportException(
+                SyncFailure.server,
+                'la lista cambia demasiado deprisa',
+              );
+            }
+          case V2WriteNotFound():
+            throw const V2ListGoneException();
+        }
       }
-      switch (approved) {
-        case V2WriteOk():
-          final state = await _local.readState();
-          await _local.saveState(state.copyWith(version: approved.version));
-          return;
-        case V2WriteStale():
-          if (attempt >= 3) {
-            throw const SyncTransportException(
-              SyncFailure.server,
-              'la lista cambia demasiado deprisa',
-            );
-          }
-        case V2WriteNotFound():
-          throw const V2ListGoneException();
-      }
+    } on Object {
+      // Falla en cerrado: el invitado no se queda avalado aquí. Si la
+      // aprobación llegó a entrar sin que llegara la respuesta, tendrá que
+      // volver a emparejar.
+      await revokeUnapprovedGuest(_local, guest);
+      if (onSettled != null) await onSettled();
+      rethrow;
+    } finally {
+      _confirming.remove(guest);
     }
   });
 
@@ -373,11 +473,12 @@ class PairingV2Host {
   /// no sella la `familyKey` en v3. Sin corte, la `familyKey` en v3 como
   /// hasta ahora. Lanza [PairingException] (antes de aprobar: no queda
   /// ninguna credencial) si no puede.
-  Future<(Map<String, Object?>, V2CheckpointClaim)> _package(
+  Future<(Map<String, Object?>, V2CheckpointClaim, FamilyDoc)> _package(
     V2SyncOutcome out,
     String guest,
     V2Published published,
   ) async {
+    late final FamilyDoc approvedCommon;
     final view = out.view;
     final registry = await _local.registry();
     final floor = await _local.commonFormatFloor();
@@ -405,6 +506,7 @@ class PairingV2Host {
           keyring: (keys ?? CommonKeyState()).keyring,
         );
         kid = opened.header.kid;
+        approvedCommon = opened.doc;
       } on EnvelopeException {
         throw const PairingException(
           'este móvil no puede abrir el común que aprobaría',
@@ -428,11 +530,12 @@ class PairingV2Host {
       }
     } else {
       try {
-        await env.open(
+        final opened = await env.open(
           published.common,
           key: _local.familyKey,
           expectedListId: view.listId,
         );
+        approvedCommon = FamilyDoc.fromJson(opened.doc);
       } on EnvelopeException {
         throw const PairingException(
           'este móvil no puede abrir el común que aprobaría',
@@ -476,6 +579,10 @@ class PairingV2Host {
         for (final s in slots.all)
           '${s.header.personId}/${s.header.writer}': s.header.revision,
       },
+      // 1.0.6: la persona que eligió este móvil, firmada (el invitado la
+      // exige: la marca de la oferta no va firmada).
+      if (_session.hostPicksPerson && _session.guestPerson != null)
+        kHostPicksPersonField: _session.guestPerson,
     };
     package['sig'] = encodeBase64Url(
       await _local.keys.sign(_approvalBytes(package)),
@@ -483,6 +590,7 @@ class PairingV2Host {
     return (
       package,
       V2CheckpointClaim(common: commonHash, registry: registryHash),
+      approvedCommon,
     );
   }
 
@@ -560,6 +668,7 @@ class PairingV2Guest {
     this._deviceId,
     this.kind, {
     this.onRequest,
+    this.assignedPerson,
   });
 
   /// Lee la oferta de la invitación y comprueba la ficha del anfitrión.
@@ -589,8 +698,19 @@ class PairingV2Guest {
       deviceIdFor(offer.listId, proven),
       DeviceKind.mobile,
       onRequest: onRequest,
+      assignedPerson: offer.hostPicksPerson ? got.guestPerson : null,
     );
   }
+
+  /// Si el anfitrión ha elegido de quién es este móvil (marca
+  /// [kHostPicksPersonField] de la oferta, 1.0.6). Sin ella, el anfitrión es
+  /// de una versión que deja entrar sin persona y un móvil 1.0.6 no entra.
+  bool get hostPicksPerson => offer.hostPicksPerson;
+
+  /// La persona que eligió el anfitrión (id estable), o null («alguien que
+  /// no está en la lista», o sin marca). La da el servidor: si la cambiara,
+  /// el anfitrión rechaza la respuesta.
+  final String? assignedPerson;
 
   final SyncV2Transport _transport;
 
@@ -1020,8 +1140,13 @@ class PairingV2Guest {
     V2InviteApproved outcome,
   ) async {
     const bad = PairingException('aprobación sin autenticar');
-    if (package.length != _approvalKeys.length ||
-        !package.keys.every(_approvalKeys.contains)) {
+    // 1.0.6: la persona que eligió el anfitrión va firmada en la aprobación
+    // ([kHostPicksPersonField]); es la única clave opcional.
+    final picked = package.containsKey(kHostPicksPersonField);
+    if (package.length != _approvalKeys.length + (picked ? 1 : 0) ||
+        !package.keys.every(
+          (k) => _approvalKeys.contains(k) || k == kHostPicksPersonField,
+        )) {
       throw bad;
     }
     final sig = package['sig'];
@@ -1068,6 +1193,15 @@ class PairingV2Guest {
         package['guestRecord'] != join.answer.guest.digest ||
         package['transcriptHash'] != join.transcriptHash(inviteId, reveal)) {
       throw const PairingException('la aprobación es de otro emparejamiento');
+    }
+    // 1.0.6: un móvil entra solo con la persona que eligió el anfitrión y
+    // que este firma: así se sabe que la marca de la oferta era suya y que
+    // protegió el común antes de aprobar (una marca añadida por el camino a
+    // la oferta de un anfitrión viejo no llega firmada).
+    if (kind == DeviceKind.mobile &&
+        (assignedPerson == null ||
+            package[kHostPicksPersonField] != assignedPerson)) {
+      throw const PairingV2VersionMismatchException();
     }
     return _Approval(
       minVersion: minVersion,

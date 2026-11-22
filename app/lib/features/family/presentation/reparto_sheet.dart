@@ -1,4 +1,6 @@
 // ignore_for_file: prefer_initializing_formals
+import '../../web_device/application/web_app_provider.dart';
+
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
@@ -827,7 +829,11 @@ class _SheetContentState extends ConsumerState<_SheetContent> {
         context,
         SnackBar(
           content: Text(
-            giftWriteResultText(AppLocalizations.of(context), result),
+            giftWriteResultText(
+              AppLocalizations.of(context),
+              result,
+              web: ref.read(webAppProvider),
+            ),
           ),
         ),
       );
@@ -882,7 +888,11 @@ class _SheetContentState extends ConsumerState<_SheetContent> {
           context,
           SnackBar(
             content: Text(
-              giftWriteResultText(AppLocalizations.of(context), result),
+              giftWriteResultText(
+                AppLocalizations.of(context),
+                result,
+                web: ref.read(webAppProvider),
+              ),
             ),
           ),
         );

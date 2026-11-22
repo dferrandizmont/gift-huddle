@@ -1,9 +1,12 @@
+import '../../web_device/application/web_app_provider.dart';
+
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/format/dates.dart';
+import '../../../core/platform/gifts_secure_scope.dart';
 import '../../../core/format/money.dart';
 import '../../../core/layout/content_gutter.dart';
 import '../../../core/layout/content_width.dart';
@@ -137,18 +140,25 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
 
   /// Abre el editor para añadir un regalo a [personId], con la ocasión y quien
   /// regala de los filtros puestos (o con [occasionId], si se pide una).
-  Future<void> _addGift(String personId, {String? occasionId}) => _openEditor(
-    recipientId: personId,
-    occasionId:
-        occasionId ??
-        (_filter.occasionId == null ||
-                _filter.occasionId == GiftFilter.kNoOccasion
-            ? null
-            : _filter.occasionId),
-    giverId: _filter.giverId == null || _filter.giverId == kUnassignedGiver
-        ? null
-        : _filter.giverId,
-  );
+  Future<void> _addGift(String personId, {String? occasionId}) async {
+    // Quien solo regala (1.0.6) no recibe regalos.
+    if (ref.read(familyFullViewProvider).recipientsById[personId]?.noGifts ==
+        true) {
+      return;
+    }
+    return _openEditor(
+      recipientId: personId,
+      occasionId:
+          occasionId ??
+          (_filter.occasionId == null ||
+                  _filter.occasionId == GiftFilter.kNoOccasion
+              ? null
+              : _filter.occasionId),
+      giverId: _filter.giverId == null || _filter.giverId == kUnassignedGiver
+          ? null
+          : _filter.giverId,
+    );
+  }
 
   /// Cuando la persona pasa de incompleta a completa decide si celebra: solo
   /// si lo provocó una acción del usuario (la casilla, el selector o el
@@ -209,7 +219,14 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => GiftsSecureScope(
+    // Una persona cuyos regalos este móvil no enseña (solo el bloque fijo) no
+    // enseña regalos.
+    enabled: !ref.watch(lockedPeopleProvider).contains(widget.recipientId),
+    child: _buildScreen(context),
+  );
+
+  Widget _buildScreen(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final t = RegalosTokens.of(context);
     final view = ref.watch(familyViewProvider);
@@ -219,6 +236,14 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
     // Persona con regalos en secreto que este móvil no puede ver: ni lista, ni
     // cifras, ni filtros; solo el bloque fijo.
     final locked = ref.watch(lockedPeopleProvider).contains(widget.recipientId);
+    final web = ref.watch(webAppProvider);
+    final ownHidden = ref
+        .watch(ownHiddenPeopleProvider)
+        .contains(widget.recipientId);
+    // Se repinta al recoger o cambiar los pendientes de la web.
+    ref.watch(webPendingSecretGiftIdsProvider);
+    // Quien solo regala (1.0.6) no recibe regalos: aquí no se añade ninguno.
+    final canAdd = person?.noGifts != true;
     ref.listen<PersonCompletion>(
       personCompletionProvider(widget.recipientId),
       _onCompletion,
@@ -439,7 +464,7 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
     return Scaffold(
       // El «+» se queda a 16 del borde derecho de la columna, no del panel.
       // Con dos paneles no hay «+»: «Añadir regalo» va en la cabecera.
-      floatingActionButton: desktop || locked
+      floatingActionButton: desktop || locked || !canAdd
           ? null
           : ContentFloatingButton(
               maxWidth: columnWidth,
@@ -468,6 +493,12 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
                   title: person.name,
                   subtitleWidget: locked
                       ? (age == null ? null : Text(age, style: t.styles.meta))
+                      : !canAdd
+                      // Quien solo regala (1.0.6): sin cuenta de regalos.
+                      ? Text(
+                          [?age, l10n.personNoGiftsLabel].join(' · '),
+                          style: t.styles.meta,
+                        )
                       : _Subtitle(
                           age: age,
                           count: gifts.length,
@@ -513,7 +544,10 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
                       ),
                     ),
                   ),
-                  actions: [if (desktop && !locked) addButton, editButton],
+                  actions: [
+                    if (desktop && !locked && canAdd) addButton,
+                    editButton,
+                  ],
                 ),
               ),
               if (locked)
@@ -526,6 +560,15 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
                         key: ValueKey<String>('secret-block:${person.id}'),
                         name: person.name,
                         colorIndex: person.colorIndex,
+                        web: web,
+                        // La persona de este móvil (1.0.6): en él no se ven
+                        // sus regalos y solo otra persona puede cambiarlo. En
+                        // la web, «este ordenador».
+                        note: ownHidden
+                            ? (web
+                                  ? l10n.ownGiftsHiddenBodyWeb(person.name)
+                                  : l10n.ownGiftsHiddenBody(person.name))
+                            : null,
                       ),
                     ),
                   ),
@@ -787,7 +830,7 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
                                       .read(recentlyDeletedProvider.notifier)
                                       .clear(id),
                                 ),
-                                if (desktop)
+                                if (desktop && canAdd)
                                   _AddGiftInline(
                                     onTap: () => _addGift(person.id),
                                   ),
@@ -815,6 +858,9 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
   }) {
     final giver = gift.giverId == null ? null : givers[gift.giverId];
     final by = gift.requestedBy;
+    // La web (1.0.6): cambios en un regalo en secreto que el móvil de su
+    // persona aún no ha recogido. En el móvil, siempre vacío.
+    final pending = ref.read(webPendingSecretGiftIdsProvider).contains(gift.id);
     final requester = switch (by) {
       RequestedByRecipient(:final recipientId) => people[recipientId]?.name,
       RequestedByName(:final name) => name,
@@ -843,9 +889,13 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
         note: noteTable.isEmpty ? null : noteTable.join(' · '),
         url: gift.url,
         tags: [
+          if (pending) l10n.webSecretsPending,
           if (gift.surprise) l10n.giftTagSurprise,
           if (by != null) l10n.giftTagRequest,
         ],
+        tagHints: {
+          if (pending) l10n.webSecretsPending: l10n.webSecretsPendingLong,
+        },
         onTap: () {
           ref.read(boardGiftCursorProvider).set(gift.id);
           _openEditor(gift: gift);
@@ -864,9 +914,13 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
       price: giftPriceText(l10n, gift),
       note: noteParts.isEmpty ? null : noteParts.join(' · '),
       tags: [
+        if (pending) l10n.webSecretsPending,
         if (gift.surprise) l10n.giftTagSurprise,
         if (by != null) l10n.giftTagRequest,
       ],
+      tagHints: {
+        if (pending) l10n.webSecretsPending: l10n.webSecretsPendingLong,
+      },
       linkHost: linkHost,
       linkLabel: linkHost == null ? null : '${l10n.giftLinkOpen}: $linkHost',
       onLinkTap: gift.url == null

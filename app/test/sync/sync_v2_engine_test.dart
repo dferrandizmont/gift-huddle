@@ -1139,8 +1139,10 @@ void main() {
                 : r;
           }
           await aritz.engine(client).sync();
+          // Leo y Nora no han anunciado `slotCapacity`: vale el aviso de 1.0.5.
+          final warn = worker.slotWarnOf(kV2Sync);
           // Slots de escritores que ya no están: no cuentan, pero ocupan sitio.
-          var planted = worker.plantSlotsForTesting(kV2Sync, kV2WarnSlots - 2);
+          var planted = worker.plantSlotsForTesting(kV2Sync, warn - 2);
           final below = await aritz.engine(client).sync();
           expect(below.renewSuggested, isFalse);
           planted = {...planted, ...worker.plantSlotsForTesting(kV2Sync, 1)};
@@ -1235,6 +1237,185 @@ void main() {
         expect(aritz.slotSet.slotOf('nora', 'leo-phone'), isNotNull);
       },
     );
+
+    test('1.0.6: mientras un móvil no anuncia la capacidad nueva (un 1.0.5), '
+        'la lista no pasa de 64; cuando la anuncia, sí, y un móvil con la '
+        'caché vacía baja un manifiesto de 65', () async {
+      await aritz.engine(client).sync();
+      expect(worker.slotCapacityOf(kV2Sync, 'aritz-phone'), kV2SlotCapacity);
+      // Nora no ha sincronizado: como un 1.0.5, no ha anunciado nada.
+      expect(worker.slotCapacityOf(kV2Sync, 'nora-phone'), 1);
+      worker.plantSlotsForTesting(
+        kV2Sync,
+        kV2LegacyMaxSlots - worker.slotVersions(kV2Sync).length,
+      );
+      expect(worker.slotVersions(kV2Sync), hasLength(kV2LegacyMaxSlots));
+      // El alta de Leo sería el slot 65: no se sube.
+      leo.addGift('g1', 'leo', 'Patinete');
+      final held = await leo.engine(client).sync();
+      expect(worker.slotCapacityOf(kV2Sync, 'leo-phone'), kV2SlotCapacity);
+      expect(held.slotsFull, isTrue);
+      expect(held.uploaded, isTrue);
+      expect(worker.slotVersions(kV2Sync), hasLength(kV2LegacyMaxSlots));
+      // Nora actualiza: al sincronizar lo anuncia y ya caben más.
+      await nora.engine(client).sync();
+      expect(worker.slotCapacityOf(kV2Sync, 'nora-phone'), kV2SlotCapacity);
+      final grown = await leo.engine(client).sync();
+      expect(grown.slotsFull, isFalse);
+      expect(grown.publishedPeople, ['nora']);
+      expect(worker.slotVersions(kV2Sync), hasLength(kV2LegacyMaxSlots + 1));
+      // Un móvil con la caché vacía baja los 65.
+      aritz.slotSet = SlotSet.empty;
+      await aritz.engine(client).sync();
+      expect(aritz.slotSet.slotOf('nora', 'leo-phone'), isNotNull);
+      expect(aritz.giftTitles, contains('Patinete'));
+    });
+
+    test('1.0.6: un slot de otro recurso no se queda guardado para la vuelta '
+        'siguiente; cuando el servidor lo arregla, entra', () async {
+      clearPendingSlotDownloadsForTesting();
+      addTearDown(clearPendingSlotDownloadsForTesting);
+      await aritz.engine(client).sync();
+      leo.addGift('g1', 'leo', 'Patinete');
+      await leo.engine(client).sync();
+      final version = worker.slotVersions(kV2Sync)['nora/leo-phone']!;
+      final snap = (await client.getList(aritz.auth) as V2GetOk).snapshot;
+      Future<Uint8List> dataOf(String writer) async => ((await client.getSlot(
+        aritz.auth,
+        version: snap.version,
+        personId: 'nora',
+        deviceId: writer,
+      )) as V2SlotOk).data;
+      final leoData = await dataOf('leo-phone');
+      final aritzData = await dataOf('aritz-phone');
+      // El servidor sirve en el recurso de Leo el slot de Aritz.
+      worker.plantRawSlotForTesting(
+        kV2Sync,
+        'nora',
+        'leo-phone',
+        encodeBase64Url(aritzData),
+      );
+      expect(worker.slotVersions(kV2Sync)['nora/leo-phone'], version);
+      aritz.slotSet = SlotSet.empty;
+      await expectLater(
+        aritz.engine(client).sync(),
+        throwsA(
+          isA<SyncTransportException>().having(
+            (e) => e.failure,
+            'failure',
+            SyncFailure.protocol,
+          ),
+        ),
+      );
+      // Mismo recurso y misma versión, ya con los bytes buenos.
+      worker.plantRawSlotForTesting(
+        kV2Sync,
+        'nora',
+        'leo-phone',
+        encodeBase64Url(leoData),
+      );
+      await aritz.engine(client).sync();
+      expect(
+        aritz.slotSet.slotOf('nora', 'leo-phone')!.header.writer,
+        'leo-phone',
+      );
+    });
+
+    test('1.0.6: un manifiesto de más de kMaxSlotsPerList o un slot más '
+        'largo que el máximo no se descargan', () async {
+      await aritz.engine(client).sync();
+      var slotGets = 0;
+      worker.tamper = (method, uri, r) {
+        if (method == 'GET' && uri.path.contains('/slots/')) slotGets++;
+        if (method == 'GET' && uri.path == '/v2/lists/$kV2Sync') {
+          final body = r.json();
+          return _json(r, {
+            ...body,
+            'slots': [
+              for (var i = 0; i <= kMaxSlotsPerList; i++)
+                {'personId': 'p$i', 'deviceId': 'gone$i', 'version': 1},
+            ],
+          });
+        }
+        return r;
+      };
+      await expectLater(
+        client.getList(aritz.auth),
+        throwsA(
+          isA<SyncTransportException>().having(
+            (e) => e.message,
+            'message',
+            'demasiados slots',
+          ),
+        ),
+      );
+      expect(slotGets, 0);
+      worker.tamper = (method, uri, r) {
+        if (method == 'GET' && uri.path.contains('/slots/')) {
+          return _json(r, {...r.json(), 'data': 'A' * (kV2MaxSlotChars + 1)});
+        }
+        return r;
+      };
+      final snap = (await client.getList(aritz.auth) as V2GetOk).snapshot;
+      await expectLater(
+        client.getSlot(
+          aritz.auth,
+          version: snap.version,
+          personId: 'nora',
+          deviceId: 'aritz-phone',
+        ),
+        throwsA(
+          isA<SyncTransportException>().having(
+            (e) => e.message,
+            'message',
+            'slot demasiado grande',
+          ),
+        ),
+      );
+    });
+
+    test('1.0.6: la descarga en frío de 128 slots sigue tras un 429 a mitad '
+        'sin volver a pedir lo ya bajado', () async {
+      clearPendingSlotDownloadsForTesting();
+      addTearDown(clearPendingSlotDownloadsForTesting);
+      await aritz.engine(client).sync();
+      await leo.engine(client).sync();
+      await nora.engine(client).sync();
+      worker.plantSlotsForTesting(
+        kV2Sync,
+        kMaxSlotsPerList - worker.slotVersions(kV2Sync).length,
+      );
+      expect(worker.slotVersions(kV2Sync), hasLength(kMaxSlotsPerList));
+      var slotGets = 0;
+      var limited = false;
+      worker.tamper = (method, uri, r) {
+        if (method != 'GET' || !uri.path.contains('/slots/')) return r;
+        slotGets++;
+        // La cuota de la credencial (120 por minuto) se acaba a mitad.
+        if (!limited && slotGets == 61) {
+          limited = true;
+          return SyncResponse(429, {'retry-after': '60'}, Uint8List(0));
+        }
+        return r;
+      };
+      leo.slotSet = SlotSet.empty;
+      await expectLater(
+        leo.engine(client).sync(),
+        throwsA(
+          isA<SyncTransportException>().having(
+            (e) => e.failure,
+            'failure',
+            SyncFailure.rateLimited,
+          ),
+        ),
+      );
+      expect(slotGets, 61);
+      // La vuelta siguiente (otro motor, como al reabrir) termina y solo pide
+      // lo que faltaba.
+      await leo.engine(client).sync();
+      expect(slotGets, kMaxSlotsPerList + 1);
+      expect(leo.slotSet.slotOf('nora', 'aritz-phone'), isNotNull);
+    });
 
     test('M2: con la lista llena, un alta propia no se sube, el común sí, y '
         'se avisa; sustituir el propio sigue funcionando', () async {

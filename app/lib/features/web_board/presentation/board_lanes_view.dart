@@ -885,6 +885,14 @@ class _LaneAddButton extends StatelessWidget {
   }
 }
 
+/// [line] con [hint] como ayuda y como lectura de pantalla, si lo hay.
+Widget _withHint(String? hint, Widget line) => hint == null
+    ? line
+    : Semantics(
+        label: hint,
+        child: Tooltip(message: hint, excludeFromSemantics: true, child: line),
+      );
+
 /// La segunda línea de una fila: persona, ocasión y quien regala. Si entera no
 /// cabe, quita quién regala; y si aun así no cabe, se corta con «…».
 class _SecondLine extends StatelessWidget {
@@ -1028,7 +1036,13 @@ class BoardGiftRow extends ConsumerWidget {
     final giver = view.resolveGiver(gift.giverId);
     final occasion = view.occasionsById[gift.occasionId];
     final labels = OccasionLabels(l10n, full.recipientsById);
+    // Un regalo en secreto cambiado en la web que el móvil de su persona aún no
+    // ha recogido (1.0.6): la marca va primero, para que no la corte el «…».
+    final pending = ref
+        .watch(webPendingSecretGiftIdsProvider)
+        .contains(gift.id);
     final parts = <String>[
+      if (pending) l10n.webSecretsPending,
       if (subtitle != BoardRowSubtitle.occasionOnly && person != null)
         person.name,
       if (subtitle != BoardRowSubtitle.perOccasion && occasion != null)
@@ -1050,6 +1064,7 @@ class BoardGiftRow extends ConsumerWidget {
         parts: parts,
         giverName: giverName,
         cents: cents,
+        pendingHint: pending ? l10n.webSecretsPendingLong : null,
       ),
     );
   }
@@ -1064,6 +1079,7 @@ class BoardGiftRow extends ConsumerWidget {
     required AppLocalizations l10n,
     required List<String> parts,
     required int? cents,
+    required String? pendingHint,
   }) {
     // El puntero compartido se toma ya: el arrastre puede seguir cuando la fila
     // se ha ido (el regalo se borra en otro móvil) y su `ref` ya no vale.
@@ -1210,10 +1226,15 @@ class BoardGiftRow extends ConsumerWidget {
                                           ],
                                         ),
                                         const SizedBox(height: 2),
-                                        _SecondLine(
-                                          parts: parts,
-                                          giverName: giverName,
-                                          style: lineStyle,
+                                        // «Pendiente» es corto: el texto entero, en
+                                        // la ayuda y para el lector de pantalla.
+                                        _withHint(
+                                          pendingHint,
+                                          _SecondLine(
+                                            parts: parts,
+                                            giverName: giverName,
+                                            style: lineStyle,
+                                          ),
                                         ),
                                       ],
                                     ),

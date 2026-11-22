@@ -289,6 +289,7 @@ class BoardGiftTableRow extends ConsumerWidget {
     this.note,
     this.url,
     this.tags = const <String>[],
+    this.tagHints = const <String, String>{},
     this.onTap,
     this.onStatusTap,
     this.onStatusLongPress,
@@ -326,6 +327,9 @@ class BoardGiftTableRow extends ConsumerWidget {
 
   /// Etiquetas pequeñas junto al título («Sorpresa»).
   final List<String> tags;
+
+  /// El texto largo de las etiquetas que lo tienen (ayuda y lector).
+  final Map<String, String> tagHints;
 
   /// Abre el regalo.
   final VoidCallback? onTap;
@@ -427,6 +431,7 @@ class BoardGiftTableRow extends ConsumerWidget {
                                       child: _TitleBlock(
                                         name: name,
                                         tags: tags,
+                                        tagHints: tagHints,
                                         secondLine: secondLine,
                                       ),
                                     ),
@@ -557,11 +562,13 @@ class _TitleBlock extends StatelessWidget {
   const _TitleBlock({
     required this.name,
     required this.tags,
+    required this.tagHints,
     required this.secondLine,
   });
 
   final String name;
   final List<String> tags;
+  final Map<String, String> tagHints;
   final String secondLine;
 
   @override
@@ -586,7 +593,7 @@ class _TitleBlock extends StatelessWidget {
             ),
             for (final tag in tags) ...[
               const SizedBox(width: 8),
-              TagLabel(tag),
+              TagLabel(tag, hint: tagHints[tag]),
             ],
           ],
         ),

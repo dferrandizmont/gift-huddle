@@ -10,6 +10,7 @@ import 'package:regalos/core/sync/renewal_protocol.dart';
 import 'package:regalos/core/sync/envelope.dart';
 import 'package:regalos/core/sync/pairing_v2.dart'
     show canonicalJsonText, pairingCheckpointHash;
+import 'package:regalos/core/sync/protected_doc.dart' show kMaxSlotsPerList;
 import 'package:regalos/core/sync/protected_envelope.dart';
 import 'package:regalos/features/sync/data/sync_transport.dart';
 import 'package:regalos/features/sync/data/sync_transport_common.dart';
@@ -88,6 +89,23 @@ class FakeWorkerV2 {
       .credentials
       .firstWhere((c) => c.deviceId == deviceId)
       .commonFormat;
+
+  /// El aviso de renovar por slots de la lista ahora (48 con un 1.0.5).
+  int slotWarnOf(String syncId) => _lists[syncId]!.slotWarn;
+
+  /// La capacidad de lista anunciada por [deviceId] (1.0.6).
+  int slotCapacityOf(String syncId, String deviceId) => _lists[syncId]!
+      .credentials
+      .firstWhere((c) => c.deviceId == deviceId)
+      .slotCapacity;
+
+  /// Hace de [deviceId] un móvil que no anuncia la capacidad nueva (como un
+  /// 1.0.5): su credencial vuelve a 1.
+  void forgetSlotCapacityForTesting(String syncId, String deviceId) =>
+      _lists[syncId]!.credentials
+              .firstWhere((c) => c.deviceId == deviceId)
+              .slotCapacity =
+          1;
 
   /// Un servidor que manipula (B4): pone [common] y, si se da, el mínimo
   /// [minCommonFormat] sin ninguna comprobación, y sube la versión.
@@ -229,6 +247,10 @@ class FakeWorkerV2 {
       encodeBase64Url(const DartSha256().hashSync(credential).bytes);
 
   void _count(String what) => calls[what] = (calls[what] ?? 0) + 1;
+
+  /// Si no es null, `PUT S/slots/...` de una web contesta con este estado
+  /// (por ejemplo 413): un Worker que rechaza el buzón.
+  int? refuseWebSlot;
 
   /// Cupo de paquetes (v3 y v4 juntos) por escritor
   /// (`V2_MAX_PACKAGES_PER_WRITER`).
@@ -466,6 +488,11 @@ class FakeWorkerV2 {
                     resource == 'renewal' ||
                     resource == 'ws') ||
             resource == 'common' && method == 'PUT' ||
+            // 1.0.6 (ADR 0009): el buzón de la propia web.
+            resource == 'slot' &&
+                method == 'PUT' &&
+                p.length > 6 &&
+                p[6] == auth.deviceId ||
             resource == 'renewal' &&
                 method == 'PUT' &&
                 ['ack', 'resume', 'capability'].contains(body['action']) ||
@@ -509,6 +536,16 @@ class FakeWorkerV2 {
         }
         return list.remove(h['if-match'], auth);
       case 'slot':
+        if (method == 'PUT') {
+          final hook = beforePut;
+          if (hook != null) {
+            beforePut = null;
+            await hook(syncId);
+          }
+          final refuse = refuseWebSlot;
+          if (refuse != null) return _err(refuse, 'refused_for_testing');
+          return list.putWebSlot(auth, h['if-match'], p[5], p[6], body);
+        }
         return list.readSlot(h['if-match'], p[5], p[6]);
       case 'revoke':
         return list.revoke(body['deviceId'], h['if-match']);
@@ -540,7 +577,7 @@ class FakeWorkerV2 {
         b['common'] is! String) {
       return _err(400, 'bad_request');
     }
-    if (slots.length > 64) return _err(413, 'too_large');
+    if (slots.length > kMaxSlotsPerList) return _err(413, 'too_large');
     // `V2_MAX_PACKAGES` y `V2_MAX_PACKAGES_BYTES` (server/src/limits.ts).
     final packages = b['keyPackages'] as List;
     if (packages.length > 512 ||
@@ -675,6 +712,9 @@ class _Credential {
 
   /// El formato del común anunciado (B4).
   int commonFormat = 1;
+
+  /// La capacidad de lista de slots anunciada (1.0.6): 1 es un 1.0.5.
+  int slotCapacity = 1;
 
   /// Cuándo añadió fichas nuevas (ventana de 24 h).
   final List<DateTime> records = [];
@@ -907,17 +947,19 @@ class _List {
               'role': c.role,
               if (c.approvedBy != null) 'approvedBy': c.approvedBy,
               if (c.commonFormat > 1) 'commonFormat': c.commonFormat,
+              if (c.slotCapacity > 1) 'slotCapacity': c.slotCapacity,
             },
         ],
         if (minCommonFormat > 1) 'minCommonFormat': minCommonFormat,
+        'slotCapacity': kV2SlotCapacity,
         'capacity': {
           'credentials': {'used': credentials.length, 'warn': 48, 'max': 64},
           'records': {'used': knownRecords.length, 'warn': 384, 'max': 512},
-          'slots': {'used': slots.length, 'warn': 48, 'max': 64},
+          'slots': {'used': slots.length, 'warn': slotWarn, 'max': slotLimit},
           'renew':
               credentials.length >= 48 ||
               knownRecords.length >= 384 ||
-              slots.length >= 48,
+              slots.length >= slotWarn,
         },
       },
       {'ETag': tag},
@@ -984,7 +1026,10 @@ class _List {
       final key = '${s['personId']}/${s['deviceId']}';
       s['data'] == null ? keys.remove(key) : keys.add(key);
     }
-    if (keys.length > 64) return FakeWorkerV2._err(413, 'too_many_slots');
+    // Por encima del tope solo se rechaza crecer (`V2_LEGACY_MAX_SLOTS`).
+    if (keys.length > slotLimit && keys.length > slots.length) {
+      return FakeWorkerV2._err(413, 'too_many_slots');
+    }
     // Tope por escritor (`V2_MAX_SLOTS_PER_WRITER`): por encima solo se
     // sustituye o se retira.
     int own(Iterable<String> k) =>
@@ -1049,6 +1094,63 @@ class _List {
     );
   }
 
+  /// `PUT S/slots/{persona}/{web}` (1.0.6, ADR 0009): como el Worker.
+  SyncResponse putWebSlot(
+    _Credential auth,
+    String? match,
+    String person,
+    String device,
+    Map<String, Object?> b,
+  ) {
+    if (auth.role != 'web') return FakeWorkerV2._err(403, 'forbidden_role');
+    if (device != auth.deviceId) {
+      return FakeWorkerV2._err(403, 'forbidden_slot');
+    }
+    final failed = _pre(match);
+    if (failed != null) return failed;
+    if (b.length != 1 || !b.containsKey('data')) {
+      return FakeWorkerV2._err(400, 'bad_request');
+    }
+    final data = b['data'];
+    final key = '$person/$device';
+    if (data == null) {
+      if (!slots.containsKey(key)) {
+        return FakeWorkerV2._r(
+          200,
+          {'version': version},
+          {'ETag': FakeWorkerV2._etag(version)},
+        );
+      }
+      slots.remove(key);
+    } else {
+      if (data is! String) return FakeWorkerV2._err(400, 'bad_request');
+      try {
+        final header = SealedSlot.parse(decodeBase64Url(data)).header;
+        if (header.personId != person || header.writer != device) {
+          return FakeWorkerV2._err(400, 'bad_request');
+        }
+      } on Object {
+        return FakeWorkerV2._err(400, 'bad_request');
+      }
+      if (!slots.containsKey(key)) {
+        if (slots.length + 1 > kMaxSlotsPerList) {
+          return FakeWorkerV2._err(413, 'too_many_slots');
+        }
+        if (slots.keys.where((k) => k.endsWith('/$device')).length + 1 > 8) {
+          return FakeWorkerV2._err(413, 'too_many_writer_slots');
+        }
+      }
+      slots[key] = _Slot(version + 1, data);
+    }
+    version++;
+    _notify();
+    return FakeWorkerV2._r(
+      200,
+      {'version': version},
+      {'ETag': FakeWorkerV2._etag(version)},
+    );
+  }
+
   SyncResponse remove(String? match, _Credential auth) {
     final failed = _pre(match);
     if (failed != null) return failed;
@@ -1078,17 +1180,42 @@ class _List {
     return FakeWorkerV2._r(204);
   }
 
-  /// `POST S/capability` (B4): monótono; si cambia, sube la versión.
+  /// Tope de slots ahora: `kMaxSlotsPerList` si todos los móviles activos
+  /// anunciaron `slotCapacity` 2, si no el de un 1.0.5 (como el Worker).
+  int get slotLimit =>
+      credentials.any(
+        (c) => !c.revoked && c.role == 'device' && c.slotCapacity < 2,
+      )
+      ? kV2LegacyMaxSlots
+      : kMaxSlotsPerList;
+
+  int get slotWarn => slotLimit < kMaxSlotsPerList ? 48 : kV2WarnSlots;
+
+  /// `POST S/capability` (B4 y 1.0.6): monótono; si cambia, sube la versión.
   SyncResponse capability(_Credential auth, Map<String, Object?> b) {
     final format = b['commonFormat'];
-    if (b.length != 1 || format is! int || format < 2 || format > 2) {
+    final slotsOnly = !b.containsKey('commonFormat');
+    if (b.keys.any((k) => k != 'commonFormat' && k != 'slotCapacity') ||
+        b.isEmpty ||
+        (!slotsOnly && (format is! int || format < 2 || format > 2)) ||
+        (b.containsKey('slotCapacity') && b['slotCapacity'] != 2)) {
       return FakeWorkerV2._err(400, 'bad_request');
     }
     if (auth.role != 'device' && auth.role != 'web') {
       return FakeWorkerV2._err(403, 'forbidden_role');
     }
-    if (auth.commonFormat < format) {
-      auth.commonFormat = format;
+    var changed = false;
+    if (!slotsOnly && auth.commonFormat < (format! as int)) {
+      auth.commonFormat = format as int;
+      changed = true;
+    }
+    // Como el Worker: `slotCapacity` solo mueve la versión si cambia el tope.
+    if (b['slotCapacity'] == 2 && auth.slotCapacity < 2) {
+      final before = slotLimit;
+      auth.slotCapacity = 2;
+      if (slotLimit != before) changed = true;
+    }
+    if (changed) {
       version++;
       _notify();
     }
@@ -1117,6 +1244,10 @@ class _List {
       target
         ..verifier = null
         ..revoked = true;
+      // 1.0.6 (ADR 0009): los buzones de una web se borran en el acto.
+      if (target.role == 'web') {
+        slots.removeWhere((k, _) => k.endsWith('/$deviceId'));
+      }
       version++;
       if (renewal != null) {
         renewal!['needsRevalidation'] = true;
@@ -1334,11 +1465,12 @@ class _List {
         return FakeWorkerV2._err(400, 'bad_answer');
       }
       final guestRecord = answer['guest'] as Map;
-      if (i.guestPerson != null && guestRecord['p'] != i.guestPerson) {
+      // Como el Worker (QA 1.0.6, m1): una respuesta sin persona (un 1.0.5)
+      // llega al anfitrión, que la rechaza; otra persona, no.
+      if (i.guestPerson != null &&
+          guestRecord['p'] != null &&
+          guestRecord['p'] != i.guestPerson) {
         return FakeWorkerV2._err(400, 'person_mismatch');
-      }
-      if (i.guestPerson != null && guestRecord['k'] != 'web') {
-        return FakeWorkerV2._err(400, 'role_mismatch');
       }
       if (denied.contains(v)) return FakeWorkerV2._err(401, 'unauthorized');
       final guest = (answer['guest'] as Map)['d'];

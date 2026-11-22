@@ -57,8 +57,12 @@ class RecordingGuest extends PairingV2GuestController {
   final calls = <String>[];
 
   @override
-  PairingV2GuestState build() =>
-      const PairingV2GuestState(PairingV2GuestPhase.choosePerson);
+  // 1.0.6: el que entra ya no elige persona; un paso con el código basta para
+  // que la pantalla se asiente (la espera lleva un indicador que no acaba).
+  PairingV2GuestState build() => const PairingV2GuestState(
+    PairingV2GuestPhase.compare,
+    code: '123456',
+  );
 
   @override
   Future<void> begin(String inviteId, {String deviceName = ''}) async {

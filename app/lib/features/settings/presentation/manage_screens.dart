@@ -1,3 +1,5 @@
+import '../../web_device/application/web_app_provider.dart';
+
 import 'dart:async';
 
 import 'package:clock/clock.dart';
@@ -432,7 +434,10 @@ ManageList managePeopleEntries(BuildContext context, WidgetRef ref) {
   // elimina: la fila lo dice y sus botones salen desactivados.
   String? lockedReason(Recipient person) =>
       switch (family?.devicePersonOwner(person.id)) {
-        DevicePersonOwner.thisDevice => l10n.manageLockedThisDevice,
+        DevicePersonOwner.thisDevice =>
+          ref.read(webAppProvider)
+              ? l10n.manageLockedThisDeviceWeb
+              : l10n.manageLockedThisDevice,
         DevicePersonOwner.otherDevice => l10n.manageLockedOtherDevice,
         null => null,
       };
@@ -695,13 +700,19 @@ Future<void> _showDevicePersonBlocked(
           ?.name ??
       '';
   final thisDevice = error.owner == DevicePersonOwner.thisDevice;
+  // En la web, «este ordenador»; allí no se elige de quién es en Ajustes.
+  final web = ref.read(webAppProvider);
   return showRegalosNotice(
     context,
     title: thisDevice
-        ? l10n.devicePersonBlockedThisTitle(name)
+        ? (web
+              ? l10n.devicePersonBlockedThisTitleWeb(name)
+              : l10n.devicePersonBlockedThisTitle(name))
         : l10n.devicePersonBlockedOtherTitle(name),
     body: thisDevice
-        ? l10n.devicePersonBlockedThisBody(name)
+        ? (web
+              ? l10n.devicePersonBlockedThisBodyWeb(name)
+              : l10n.devicePersonBlockedThisBody(name))
         : l10n.devicePersonBlockedOtherBody(name),
     okLabel: l10n.actionUnderstood,
   );

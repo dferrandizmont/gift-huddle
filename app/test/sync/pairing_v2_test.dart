@@ -279,26 +279,13 @@ void main() {
         withoutPerson: true,
       );
       expect(joined.answer.withoutPerson, isTrue);
-      await session.receive(joined.answer);
-      expect(session.answer!.withoutPerson, isTrue);
+      // 1.0.6: el anfitrión no acepta ningún móvil sin persona, y la
+      // respuesta rota no gasta la única que tiene.
       await expectLater(
-        acceptPairing(
-          registry: host,
-          view: await _view(host, aritz),
-          myKeys: aritz.keys,
-          session: session,
-        ),
+        session.receive(joined.answer),
         throwsA(isA<PairingException>()),
       );
-      final change = await acceptPairing(
-        registry: host,
-        view: await _view(host, aritz),
-        myKeys: aritz.keys,
-        session: session,
-        guestWithoutPerson: true,
-      );
-      final view = await _view(change.registry, aritz);
-      expect(view.member(leo.id)!.personId, isNull);
+      expect(session.answer, isNull);
     });
 
     test('una revelación que no casa con el compromiso de la oferta se '

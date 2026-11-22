@@ -11,8 +11,20 @@ class PendingEntry {
     this.giftPeople = const {},
     this.undoGiftId,
     this.publishAfter,
+    this.newGifts = const {},
+    this.inboxPerson,
   });
   final String id;
+
+  /// The protected person whose inbox this action was written for: the web
+  /// could change that person's secret gifts when it was saved (1.0.6, ADR
+  /// 0009). Null for every other action, which a protection still sets
+  /// aside as before.
+  final String? inboxPerson;
+
+  /// Gifts the action created (they did not exist before it), for the inbox
+  /// of a protected person (1.0.6, ADR 0009).
+  final Set<String> newGifts;
   final FamilyDoc delta;
   final bool setAside;
 
@@ -37,6 +49,8 @@ class PendingQueue {
     Map<String, List<String>> giftPeople = const {},
     String? undoGiftId,
     DateTime? publishAfter,
+    Set<String> newGifts = const {},
+    String? inboxPerson,
   }) => vault.serial(() async {
     final current = await _current();
     final open = vault.opened;
@@ -47,6 +61,8 @@ class PendingQueue {
         'aside': false,
         'giftPeople': giftPeople,
         'undoGiftId': ?undoGiftId,
+        if (newGifts.isNotEmpty) 'newGifts': (newGifts.toList()..sort()),
+        'inbox': ?inboxPerson,
         if (publishAfter != null)
           'publishAfter': publishAfter.millisecondsSinceEpoch,
       },
@@ -114,6 +130,11 @@ class PendingQueue {
                 for (final e in ((value['giftPeople'] as Map?) ?? {}).entries)
                   e.key as String: (e.value as List).cast<String>(),
               },
+              newGifts: {
+                for (final id in (value['newGifts'] as List?) ?? const [])
+                  if (id is String) id,
+              },
+              inboxPerson: value['inbox'] as String?,
             ),
           );
         }

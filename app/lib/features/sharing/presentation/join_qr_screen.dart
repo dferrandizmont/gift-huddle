@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/root_navigator.dart';
+import '../../../core/platform/secure_screen.dart' show kStoreBuild;
 import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/device/device_name.dart';
 import '../../../core/layout/content_width.dart';
@@ -63,6 +64,11 @@ class JoinQrScreen extends ConsumerStatefulWidget {
   ConsumerState<JoinQrScreen> createState() => _JoinQrScreenState();
 }
 
+/// Si este móvil acepta el QR antiguo con la clave de la familia (v1) al
+/// unirse desde la bienvenida. En la versión de tienda, no (1.0.6): ese
+/// camino entra sin persona.
+final legacyQrJoinAllowedProvider = Provider<bool>((ref) => !kStoreBuild);
+
 class _JoinQrScreenState extends ConsumerState<JoinQrScreen> {
   late final TextEditingController _name = TextEditingController(
     text: widget.deviceName,
@@ -111,8 +117,12 @@ class _JoinQrScreenState extends ConsumerState<JoinQrScreen> {
     }
     await Navigator.of(context, rootNavigator: true).push<void>(
       MaterialPageRoute<void>(
+        // Solo se llega aquí desde la bienvenida (1.0.6: título y «volver»
+        // de ese camino, no los de Compartir).
         builder: (_) => JoinInviteScreen(
           initialInvite: inviteId,
+          fromWelcome: true,
+          fromQr: true,
           deviceName: deviceNameToSend(ref, _name.text),
         ),
       ),
@@ -139,8 +149,19 @@ class _JoinQrScreenState extends ConsumerState<JoinQrScreen> {
         return;
       }
     }
-    setState(() => _busy = true);
     final l10n = AppLocalizations.of(context);
+    // 1.0.6: en la versión de tienda, una instalación nueva no entra con el
+    // QR antiguo que lleva la clave (entraría sin persona): el otro móvil
+    // tiene que actualizarse.
+    // kStoreBuild delante: el compilador quita el camino antiguo de la tienda.
+    if (kStoreBuild || !ref.read(legacyQrJoinAllowedProvider)) {
+      showRegalosSnackBar(
+        context,
+        SnackBar(content: Text(l10n.pairingV2VersionMismatch)),
+      );
+      return;
+    }
+    setState(() => _busy = true);
     final router = GoRouter.of(context);
     final service = ref.read(pairingServiceProvider);
     final deviceName = deviceNameToSend(ref, _name.text);

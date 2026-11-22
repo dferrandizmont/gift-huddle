@@ -1,3 +1,5 @@
+import '../../web_device/application/web_app_provider.dart';
+
 import 'dart:async';
 
 import 'package:clock/clock.dart';
@@ -24,6 +26,7 @@ import '../../../core/theme/regalos_shape.dart';
 import '../../../core/theme/regalos_tokens.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/gift_segments.dart';
+import '../../../core/motion/unfold_section.dart';
 import '../../../core/widgets/header_button.dart';
 import '../../../core/widgets/pane_list_row.dart';
 import '../../../core/widgets/person_avatar.dart' show personPalette;
@@ -301,11 +304,33 @@ class _PeopleListPaneState extends ConsumerState<PeopleListPane> {
   // El buscador de regalos: con algo escrito, sus resultados sustituyen a las
   // personas.
   final TextEditingController _query = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
+
+  // Si el campo está desplegado bajo el título (la lupa de la cabecera lo abre
+  // y «Cancelar» lo cierra).
+  bool _searchOpen = false;
 
   @override
   void dispose() {
     _query.dispose();
+    _searchFocus.dispose();
     super.dispose();
+  }
+
+  /// La lupa: despliega el campo y le da el foco (con el teclado abierto).
+  void _openSearch() {
+    setState(() => _searchOpen = true);
+    // El campo existe desde el primer fotograma del despliegue.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _searchOpen) _searchFocus.requestFocus();
+    });
+  }
+
+  /// «Cancelar»: vacía la búsqueda, vuelve la lista y se pliega el campo.
+  void _closeSearch() {
+    _searchFocus.unfocus();
+    _query.clear();
+    setState(() => _searchOpen = false);
   }
 
   // Para saber si lo que cambia en la lista llegó de otro móvil.
@@ -342,6 +367,14 @@ class _PeopleListPaneState extends ConsumerState<PeopleListPane> {
       label: l10n.obPeopleAdd,
       onTap: _add,
     );
+    // Sin regalos no hay nada que buscar: sin lupa.
+    final hasGifts = view.gifts.isNotEmpty;
+    final searchButton = HeaderIconButton(
+      key: const ValueKey<String>('people-gift-search-button'),
+      icon: AppIcons.search,
+      label: l10n.giftSearchOpen,
+      onTap: _openSearch,
+    );
 
     // El recuadro de selección: el pastel y la tinta de la persona elegida.
     final selected = widget.selectedId == null
@@ -374,7 +407,7 @@ class _PeopleListPaneState extends ConsumerState<PeopleListPane> {
                   maxWidth: RegalosLayout.listColumn,
                   child: ScreenHeader(
                     title: l10n.navPeople,
-                    actions: [addButton],
+                    actions: [if (hasGifts) searchButton, addButton],
                   ),
                 ),
                 Expanded(
@@ -545,9 +578,10 @@ class _PeopleListPaneState extends ConsumerState<PeopleListPane> {
     );
   }
 
-  /// Pone sobre [child] (la lista de personas) el buscador de regalos, fijo
-  /// arriba, y, con algo escrito, cambia la lista por los regalos que casan
-  /// (nombre, nota, tienda o persona). Sin regalos aún no hay nada que buscar.
+  /// Pone sobre [child] (la lista de personas) el buscador de regalos, que se
+  /// despliega bajo el título al tocar la lupa y se cierra con «Cancelar», y,
+  /// con algo escrito, cambia la lista por los regalos que casan (nombre,
+  /// nota, tienda o persona). Sin regalos aún no hay nada que buscar.
   Widget _withSearch(
     BuildContext context, {
     required bool hasGifts,
@@ -556,17 +590,35 @@ class _PeopleListPaneState extends ConsumerState<PeopleListPane> {
     if (!hasGifts) {
       return child;
     }
-    final searching = _query.text.trim().isNotEmpty;
+    final searching = _searchOpen && _query.text.trim().isNotEmpty;
     return Column(
       children: [
-        ContentWidth(
-          maxWidth: RegalosLayout.listColumn,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: GiftSearchField(
-              key: const ValueKey<String>('people-gift-search'),
-              controller: _query,
-              onChanged: (_) => setState(() {}),
+        // El campo se despliega con el muelle de las hojas y se pliega al
+        // cancelar; con «Reducir movimiento», solo se funde.
+        UnfoldSection(
+          show: _searchOpen,
+          child: ContentWidth(
+            maxWidth: RegalosLayout.listColumn,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GiftSearchField(
+                      key: const ValueKey<String>('people-gift-search'),
+                      controller: _query,
+                      focusNode: _searchFocus,
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  TextButton(
+                    key: const ValueKey<String>('people-gift-search-cancel'),
+                    onPressed: _closeSearch,
+                    child: Text(AppLocalizations.of(context).actionCancel),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -631,17 +683,24 @@ class _PersonRow extends ConsumerWidget {
     // Con regalos en secreto que este móvil no ve, la fila no lleva cifras: ni
     // cuántos regalos hay ni cuántos faltan; en su lugar, el bloque fijo.
     final locked = ref.watch(lockedPeopleProvider).contains(person.id);
+    final web = ref.watch(webAppProvider);
     final pending = gifts.where(needsBuying).length;
-    final pendingText = locked || gifts.isEmpty
+    // Quien solo regala (1.0.6) no recibe regalos: en vez de «0 regalos», lo
+    // dice la etiqueta.
+    final onlyGives = person.noGifts;
+    final pendingText = locked || onlyGives || gifts.isEmpty
         ? null
         : (pending > 0 ? l10n.personPendingBuy(pending) : l10n.personAllBought);
     final meta = <String>[
       ?person.relation,
       ?ageText(l10n, person, now),
-      if (!locked) l10n.giftCount(gifts.length),
+      if (onlyGives)
+        l10n.personNoGiftsLabel
+      else if (!locked)
+        l10n.giftCount(gifts.length),
     ].join(' · ');
     final semanticLabel =
-        '${person.name}. ${[if (meta.isNotEmpty) meta, ?pendingText, if (locked) secretBlockLabel(l10n, person.name)].join(' · ')}';
+        '${person.name}. ${[if (meta.isNotEmpty) meta, ?pendingText, if (locked) secretBlockLabel(l10n, person.name, web: web)].join(' · ')}';
     void open() {
       if (panes) {
         ref.read(paneSelectionProvider).userChose(person.id);
@@ -709,6 +768,7 @@ class _PersonRow extends ConsumerWidget {
                         shown: true,
                         name: person.name,
                         colorIndex: person.colorIndex,
+                        web: web,
                       ),
                     ),
                   ],
@@ -805,6 +865,7 @@ class _PersonRow extends ConsumerWidget {
                                     shown: true,
                                     name: person.name,
                                     colorIndex: person.colorIndex,
+                                    web: web,
                                   ),
                                 ),
                               ],

@@ -6,6 +6,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/core/sync/model.dart';
+import 'package:regalos/features/family/application/own_gifts_notice.dart'
+    show kOwnGiftsHiddenSeenKey;
 import 'package:regalos/core/sync/pairing_v2.dart';
 import 'package:regalos/features/family/application/family_controller.dart';
 import 'package:regalos/features/family/application/self_recipient_provider.dart';
@@ -93,10 +95,8 @@ void main() {
     await _pick(tester, 'Nora');
     expect(find.text(_confirmTitle), findsOneWidget);
     expect(
-      find.text(
-        'Si los regalos para Nora están en secreto, no verás ninguno en este '
-        'móvil.',
-      ),
+      // 1.0.6: incondicional, porque ahora es verdad (capa de pantalla).
+      find.text('En este móvil dejarán de verse los regalos para Nora.'),
       findsOneWidget,
     );
     expect(
@@ -156,7 +156,7 @@ void main() {
       find.textContaining('Aunque lo aprueben, no podrá ver sorpresas'),
       findsOneWidget,
     );
-  }, overrides: _overrides);
+  }, overrides: _overrides, prefs: const {kOwnGiftsHiddenSeenKey: true});
 
   screenTest('el selector dice que la elección se comparte en v2, no en v1', (
     tester,

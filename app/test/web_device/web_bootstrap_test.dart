@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:regalos/app/web_bootstrap.dart';
 import 'package:regalos/core/sync/model.dart';
+import 'package:regalos/core/sync/protected_doc.dart' show ownHiddenPeople;
+import 'package:regalos/features/family/application/protection_providers.dart';
 import 'package:regalos/features/family/application/family_controller.dart';
 import 'package:regalos/features/family/data/device_keys_store.dart';
 import 'package:regalos/features/sharing/presentation/share_dialogs.dart';
@@ -132,4 +134,75 @@ void main() {
       });
     },
   );
+
+  testWidgets('1.0.6 (la revisión, 4): la web de Nora, emparejada por el móvil de '
+      'Aritz, oculta los regalos de Nora con el registro ya cargado', (
+    tester,
+  ) async {
+    late WebHarness h;
+    final locks = FakeLockHub();
+    late WebGateController gate;
+    late SharedPreferences prefs;
+    await tester.runAsync(() async {
+      h = WebHarness(webPerson: 'nora');
+      await h.setup();
+      // Un regalo público de Aritz, que la web de Nora sí ve.
+      h.phone.addGift('aritz-gift', 'aritz', 'Reloj');
+      await h.publish();
+      h.engine.stop();
+      h.vault.lock();
+      SharedPreferences.setMockInitialValues({});
+      prefs = await SharedPreferences.getInstance();
+    });
+    await tester.pumpWidget(
+      WebBootstrap(
+        preferences: prefs,
+        gateFactory: (create, dispose, changed) => gate = WebGateController(
+          vault: h.vault,
+          platform: FakeSessionPlatform(locks),
+          transport: () => h.client,
+          createContainer: create,
+          disposeContainer: dispose,
+          candidateChanged: changed,
+        ),
+      ),
+    );
+    await tester.runAsync(() async {
+      await Future<void>.delayed(Duration.zero);
+      await gate.submitPin('123456').timeout(const Duration(seconds: 15));
+      await gate.engine!.sync();
+      await Future<void>.delayed(Duration.zero);
+    });
+    await tester.pump();
+    final container = tester
+        .widget<UncontrolledProviderScope>(
+          find.byType(UncontrolledProviderScope).first,
+        )
+        .container;
+    await tester.runAsync(() async {
+      await container
+          .read(familyControllerProvider.future)
+          .timeout(const Duration(seconds: 15));
+    });
+    final engine = gate.engine!;
+    // La raíz que verifica es el móvil de Aritz; la de pantalla, la web.
+    expect(engine.view!.me, 'aritz-phone');
+    expect(engine.screenView!.me, engine.auth.deviceId);
+    expect(engine.screenView!.myPerson, 'nora');
+    // Con la raíz, Nora no estaría acompañada (el fallo de antes).
+    expect(
+      ownHiddenPeople(view: engine.view, selfRecipientId: 'nora', paired: true),
+      isNot(contains('nora')),
+    );
+    expect(container.read(screenRegistryViewProvider).value, engine.screenView);
+    expect(container.read(ownHiddenPeopleProvider), {'nora'});
+    final doc = container.read(projectedFamilyDocProvider);
+    expect(doc.record(Collections.gifts, 'gift'), isNull);
+    expect(doc.record(Collections.gifts, 'aritz-gift'), isNotNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(() async {
+      await Future<void>.delayed(Duration.zero);
+      h.close();
+    });
+  });
 }

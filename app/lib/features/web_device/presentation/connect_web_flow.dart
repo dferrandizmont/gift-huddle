@@ -1,24 +1,26 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/layout/content_width.dart';
 import '../../../core/layout/window_class.dart';
 import '../../../core/motion/haptics.dart';
 import '../../../core/motion/success_mark.dart';
-import '../../../core/sync/model.dart' show Recipient;
+import '../../../core/platform/secure_screen.dart' show kStoreBuild;
 import '../../../core/theme/regalos_motion.dart';
 import '../../../core/theme/regalos_shape.dart';
 import '../../../core/theme/regalos_tokens.dart';
 import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/widgets/screen_header.dart';
 import '../../../core/widgets/settings_icons.dart';
-import '../../../core/widgets/settings_row.dart';
 import '../../../core/widgets/sheet_parts.dart';
+import '../../../core/widgets/soft_note.dart';
 import '../../../core/widgets/stroke_icon.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../family/application/family_controller.dart';
+import '../../family/application/self_person_gate.dart';
 import '../../sharing/presentation/join_qr_screen.dart'
     show scannerBuilderProvider;
 import '../../sharing/presentation/qr_camera_scanner.dart';
@@ -26,22 +28,33 @@ import '../../sharing/presentation/scan_viewfinder.dart';
 import '../../sync/application/pairing_v2_controller.dart';
 import '../../sync/application/pairing_v2_flow.dart';
 import '../../sync/presentation/code_card.dart';
+import '../../sync/presentation/who_are_you_step.dart';
+
+/// Si «Conectar la web» ofrece pegar el texto del QR en vez de escanearlo.
+/// Solo fuera de la versión de tienda: así las pruebas automáticas conectan la
+/// web sin cámara (se lee el QR de la pantalla del ordenador y se pega). En la
+/// de tienda no existe ni el botón ni ese camino. El texto pasa por la misma
+/// validación que el escáner (`WebPairingQr.parse`).
+final pasteWebQrAllowedProvider = Provider<bool>((ref) => !kStoreBuild);
 
 /// «Conectar la web» desde el móvil (ADR 0003, §5): escanea el QR que enseña el
-/// navegador, pregunta «¿De quién es este ordenador?», empareja como un
-/// dispositivo más y, después de comparar el código, da acceso.
+/// navegador, empareja como un dispositivo más y, después de comparar el
+/// código, da acceso. Desde la 1.0.6 (ADR 0009) la web es una extensión de
+/// este móvil: hereda su persona y ya no se pregunta «¿De quién es este
+/// ordenador?». Solo si este móvil no es de nadie se pregunta antes «¿Quién
+/// eres?».
 ///
 /// Los pasos son tres, y cada uno entra con el mismo cambio de paso que las
 /// hojas:
 ///
 /// 1. **Escanear.** El QR solo vale si lo valida `WebPairingQr.parse`
 ///    (origen exacto, `/w` y dos campos canónicos); si no, avisa sin salir.
-/// 2. **De quién es.** Una persona viva de la familia. Ninguna oferta se crea
-///    hasta tener el QR y la persona.
+/// 2. **¿Quién eres?** Solo si este móvil no tiene persona (`WhoAreYouStep`).
+///    Ninguna oferta se crea hasta tener el QR y la persona de este móvil.
 /// 3. **Emparejar.** Reutiliza el anfitrión v2 (`pairingV2HostProvider`): el
 ///    QR ya lo enseña el navegador, así que aquí no hay otro; solo esperar,
-///    comparar el código y dar acceso. La persona se confirma sola porque la ha
-///    elegido este mismo móvil.
+///    comparar el código y dar acceso. La persona de la web es la de este
+///    móvil.
 class ConnectWebScreen extends ConsumerStatefulWidget {
   /// Crea la pantalla.
   const ConnectWebScreen({super.key});
@@ -50,7 +63,7 @@ class ConnectWebScreen extends ConsumerStatefulWidget {
   ConsumerState<ConnectWebScreen> createState() => _ConnectWebScreenState();
 }
 
-enum _Step { scan, whose, pairing }
+enum _Step { scan, whoAreYou, pairing }
 
 class _ConnectWebScreenState extends ConsumerState<ConnectWebScreen> {
   late final PairingV2HostController _controller;
@@ -112,19 +125,45 @@ class _ConnectWebScreenState extends ConsumerState<ConnectWebScreen> {
     _finder.currentState?.lock(null);
     _qr = text;
     setState(() => _invalid = false);
-    _go(_Step.whose);
+    unawaited(_afterScan());
   }
 
-  Future<void> _start(String personId) async {
+  /// Con el QR leído: si este móvil no es de nadie, antes «¿Quién eres?».
+  Future<void> _afterScan() async {
+    SelfPersonGate? gate;
+    try {
+      gate = await ref.read(selfPersonGateProvider.future);
+    } on Object {
+      gate = null;
+    }
+    if (!mounted) return;
+    if (gate != null && !gate.answered) {
+      _go(_Step.whoAreYou);
+      return;
+    }
+    await _start();
+  }
+
+  /// Empieza con la persona de este móvil (1.0.6).
+  Future<void> _start() async {
     final qr = _qr;
     if (qr == null) return;
-    _person = personId;
+    String? self;
+    try {
+      self = (await ref.read(familyControllerProvider.future))
+          .identity
+          ?.selfRecipientId;
+    } on Object {
+      self = null;
+    }
+    if (!mounted) return;
+    _person = self;
     _startFailed = false;
     // Reposo antes de empezar: el estado puede ser el de un intento anterior.
     _controller.dismiss();
     _go(_Step.pairing);
     try {
-      await _controller.startWeb(qr, guestPerson: personId);
+      await _controller.startWeb(qr, guestPerson: _person);
     } on Object {
       if (mounted) setState(() => _startFailed = true);
     }
@@ -188,7 +227,10 @@ class _ConnectWebScreenState extends ConsumerState<ConnectWebScreen> {
         invalid: _invalid,
         onCode: _onCode,
       ),
-      _Step.whose => _WhoseStep(onPick: _start),
+      _Step.whoAreYou => SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        child: WhoAreYouStep(onAnswered: () => unawaited(_start())),
+      ),
       _Step.pairing => _PairingStep(
         startFailed: _startFailed,
         onScanAgain: _scanAgain,
@@ -203,7 +245,7 @@ class _ConnectWebScreenState extends ConsumerState<ConnectWebScreen> {
             ScreenHeader(
               title: l10n.connectWebTitle,
               backLabel: l10n.actionBack,
-              onBack: _step == _Step.whose
+              onBack: _step == _Step.whoAreYou
                   ? _scanAgain
                   : () => Navigator.of(context).maybePop(),
             ),
@@ -240,6 +282,16 @@ class _ScanStep extends ConsumerStatefulWidget {
 class _ScanStepState extends ConsumerState<_ScanStep> {
   /// El permiso de cámara está denegado: no hay nada que enmarcar.
   bool _denied = false;
+
+  /// Solo fuera de la tienda: el texto del portapapeles pasa por el mismo
+  /// camino que lo que lee la cámara.
+  Future<void> _paste() async {
+    // kStoreBuild delante: el compilador lo quita de la versión de tienda.
+    if (kStoreBuild || !ref.read(pasteWebQrAllowedProvider)) return;
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (!mounted) return;
+    widget.onCode((data?.text ?? '').trim());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -297,6 +349,15 @@ class _ScanStepState extends ConsumerState<_ScanStep> {
             ),
           ),
         ),
+        if (!kStoreBuild && ref.watch(pasteWebQrAllowedProvider))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: TextButton(
+              key: const ValueKey<String>('connectWebPaste'),
+              onPressed: _paste,
+              child: Text(l10n.connectWebPasteCode),
+            ),
+          ),
         _Message(show: invalid, text: l10n.connectWebScanInvalid, danger: true),
       ],
     );
@@ -337,68 +398,6 @@ class _Message extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------- de quién
-
-class _WhoseStep extends ConsumerWidget {
-  const _WhoseStep({required this.onPick});
-
-  final ValueChanged<String> onPick;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final t = RegalosTokens.of(context);
-    final family = ref.watch(familyControllerProvider).value;
-    final people = [
-      for (final r in family?.fullView.recipients ?? const <Recipient>[])
-        if (!r.archived && r.name.trim().isNotEmpty) r,
-    ];
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 24),
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-          child: Semantics(
-            header: true,
-            child: Text(
-              l10n.connectWebWhoseTitle,
-              style: t.styles.screenTitleSmall,
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          child: Text(
-            l10n.connectWebWhoseBody,
-            style: t.styles.body.copyWith(color: t.textSecondary),
-          ),
-        ),
-        if (people.isEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: Text(l10n.connectWebNoPeople, style: t.styles.meta),
-          )
-        else
-          Container(
-            decoration: BoxDecoration(
-              border: Border(top: BorderSide(color: t.separator)),
-            ),
-            child: Column(
-              children: [
-                for (final person in people)
-                  SettingsRow(
-                    icon: SettingsIcons.people,
-                    title: person.name.trim(),
-                    onTap: () => onPick(person.id),
-                  ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-}
-
 // ---------------------------------------------------------------- emparejar
 
 class _PairingStep extends ConsumerWidget {
@@ -425,6 +424,7 @@ class _PairingStep extends ConsumerWidget {
     } else {
       switch (state.phase) {
         case PairingV2HostPhase.idle:
+        case PairingV2HostPhase.choosePerson:
         case PairingV2HostPhase.confirmMigration:
         case PairingV2HostPhase.preparing:
           step = 'preparing';
@@ -458,7 +458,13 @@ class _PairingStep extends ConsumerWidget {
         case PairingV2HostPhase.failed:
           step = 'failed';
           body = _Failure(
-            text: state.needsNewWebQr
+            text: state.needsSelfPerson
+                ? l10n.inviteForNeedsSelf
+                : state.guestOutdated
+                ? l10n.pairingV2GuestOutdated
+                : state.approveFailed
+                ? l10n.pairingV2ApproveFailed
+                : state.needsNewWebQr
                 ? l10n.connectWebNewQr
                 : (state.notReady
                       ? l10n.pairingV2NotReady
@@ -539,6 +545,10 @@ class _Compare extends StatelessWidget {
         Text(l10n.connectWebCompareBody, style: t.styles.body),
         const SizedBox(height: 16),
         VerificationCodeCard(label: l10n.inviteCodeLabel, code: code),
+        // B9 (ADR 0009): avalar una web le entrega las claves de los regalos en
+        // secreto de los demás.
+        const SizedBox(height: 12),
+        SoftNote(icon: SettingsIcons.lock, text: l10n.webApproveSecretsNotice),
         const SizedBox(height: 20),
         FilledButton(onPressed: onMatch, child: Text(l10n.pairingV2Match)),
         const SizedBox(height: 8),

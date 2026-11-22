@@ -1,3 +1,6 @@
+import '../../family/presentation/giver_person_flow.dart';
+import '../../web_device/application/web_app_provider.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -162,7 +165,12 @@ Future<bool> moveGiftToLane(
   }
   if (!saved) {
     // Otro móvil lo borró: se avisa en vez de contar un cambio que no existe.
-    showRegalosSnackBar(context, SnackBar(content: Text(l10n.giftNotSaved)));
+    showRegalosSnackBar(
+      context,
+      SnackBar(
+        content: Text(giftNotSavedText(l10n, web: ref.read(webAppProvider))),
+      ),
+    );
     return false;
   }
   showRegalosSnackBar(

@@ -29,6 +29,15 @@ describe("HTTP origins and retired v1", () => {
       cors(res, value !== undefined && origins.includes(value) ? value : null);
     }
   });
+  it("answers the web's route probe (1.0.6) with a readable 404 and nothing else", async () => {
+    // A simple GET (no preflight): the web only needs an HTTP answer to pick the host.
+    for (const value of origins) {
+      const res = await call("GET", "/v2/route-probe", { headers: { Origin: value } });
+      expect(res.status).toBe(404);
+      expect(await res.json()).toEqual({ error: "not_found" });
+      cors(res, value);
+    }
+  });
   it("adds CORS and no-store to every retired route, including preflight and upgrade", async () => {
     for (const method of ["GET", "OPTIONS", "PUT"]) {
       const res = await call(method, "/v1/lists/retired/ws", { headers: { ...headers, Upgrade: "websocket" } });

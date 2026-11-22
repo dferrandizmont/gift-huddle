@@ -14,6 +14,7 @@ class V2Health {
     this.commonPackagesFull = false,
     this.commonKeyringFull = false,
     this.retainedCommons = 0,
+    this.pendingSelfPerson,
   }) : frozenPeople = Set.unmodifiable(frozenPeople),
        unbackedCredentials = Set.unmodifiable(unbackedCredentials),
        departedDevices = Set.unmodifiable(departedDevices),
@@ -21,6 +22,11 @@ class V2Health {
 
   /// Conserva sus datos, pero este móvil no puede abrirlos hasta ser aprobado.
   final Set<String> frozenPeople;
+
+  /// Solo la interfaz (no se guarda): si este móvil espera la aprobación de
+  /// otro, la persona que ha elegido (cadena vacía si no ha elegido ninguna).
+  /// Es la que nombra el aviso de sorpresas en pausa.
+  final String? pendingSelfPerson;
 
   /// Revocación verificada, id ocupado por otras claves o servicio revocado.
   final bool revokedByOthers;

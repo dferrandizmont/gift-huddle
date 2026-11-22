@@ -40,12 +40,34 @@ export const V2_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 export const V2_MAX_SLOT_BYTES = 131_584;
 /** Unpadded base64url text of the largest slot. */
 export const V2_MAX_SLOT_CHARS = Math.ceil((V2_MAX_SLOT_BYTES * 4) / 3);
-/** `kMaxSlotsPerList`: one slot per (protected person, writer device). */
-export const V2_MAX_SLOTS = 64;
-/** From here GET `capacity.renew` is true: other writers' slots are never removed (B2). */
-export const V2_WARN_SLOTS = 48;
+/**
+ * `kMaxSlotsPerList`: one slot per (protected person, writer device). A family of
+ * 10 people with a phone each and everyone protected (automatic protection) has
+ * 10 · 9 = 90; the rest leaves room for a replaced phone's slots during their
+ * 30-day grace (1.0.6; it was 64).
+ */
+export const V2_MAX_SLOTS = 128;
+/** From here GET `capacity.renew` is true: other writers' slots are never removed (B2). Above 90. */
+export const V2_WARN_SLOTS = 104;
+/**
+ * The list cap while any active phone has not announced `slotCapacity: 2`
+ * (`POST S/capability`): the 1.0.5 app refuses a slot list longer than 64
+ * (`kMaxSlotsPerList`), so a longer one would leave it unable to sync.
+ */
+export const V2_LEGACY_MAX_SLOTS = 64;
+export const V2_LEGACY_WARN_SLOTS = 48;
+/** The slot list capacity a credential may announce (1.0.6: up to V2_MAX_SLOTS). */
+export const V2_SLOT_CAPACITY = 2;
 /** Slots one writer may hold, so a single credential cannot exhaust V2_MAX_SLOTS (B2). */
 export const V2_MAX_SLOTS_PER_WRITER = 32;
+/**
+ * Inbox slots one web may hold (1.0.6, ADR 0009): one per protected person with
+ * changes its phone has not collected yet. They count in V2_MAX_SLOTS like any
+ * other slot row.
+ */
+export const V2_MAX_WEB_SLOTS = 8;
+/** `PUT S/slots/{person}/{web}`: `{"data": <largest slot text> | null}` plus slack. */
+export const V2_MAX_WEB_SLOT_BODY_BYTES = V2_MAX_SLOT_CHARS + 64;
 /** `kMaxRegistryRecords`, `kMaxRegistryVouches`, `kMaxRegistryRevocations`. */
 export const V2_MAX_RECORDS = 64;
 export const V2_MAX_VOUCHES = 256;
@@ -150,13 +172,44 @@ export const V2_CREDENTIAL_CAP_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 export const V2_GLOBAL_NEW_LISTS_PER_DAY = 1500;
 export const V2_GLOBAL_NEW_LISTS_PER_HOUR = 250;
 export const V2_LIST_BASE_BYTES = 1.5 * 1024 * 1024;
+/** From the second counted credential: common, registry, packages and the first two slots. */
+export const V2_LIST_PAIR_BYTES = 4 * 1024 * 1024;
 export const V2_LIST_BYTES_PER_EXTRA_CREDENTIAL = 1024 * 1024;
-/** Existing resource caps remain authoritative; 64 active credentials allow 64.5 MiB. */
-export const v2ListByteLimit = (credentials: { revoked: boolean; slotsExpireAt?: number; createdAt?: number }[], now = Date.now()) => {
+/** Upper bound of [v2ListByteLimit], whatever the credentials. */
+export const V2_LIST_MAX_BYTES = 64.5 * 1024 * 1024;
+/**
+ * Existing resource caps remain authoritative. The ordinary budget is the 1.0.5
+ * one: 1.5 MiB with one counted credential, 4 MiB from the second (common,
+ * registry, packages and the first two slots) and 1 MiB per mature credential from
+ * the third. On top of it (1.0.6), the **stored bytes** of the eligible slot rows:
+ * those of the n counted phones (not webs; a revoked one only while its slots are
+ * kept in grace), at most n − 1 rows per phone (its largest), n · (n − 1) and
+ * V2_MAX_SLOTS in all, minus the two largest (the ordinary budget already holds
+ * two). Slots grow with the square of the family, so a family set up in one week
+ * needs them before any credential matures; but the supplement pays exactly for
+ * slot rows that exist, never for other resources, and a newly approved
+ * credential adds nothing until its rows do. A family of 10 with its 90 slots
+ * (15.1 MiB) fits at once; the whole limit stays at 64.5 MiB.
+ *
+ * [slotRows]: the bytes of each stored slot row (keys, version and data, as the
+ * storage accounting counts them), per writer device id.
+ */
+export const v2ListByteLimit = (
+  credentials: { deviceId?: string; role?: string; revoked: boolean; slotsExpireAt?: number; createdAt?: number }[],
+  now = Date.now(),
+  slotRows: ReadonlyMap<string, readonly number[]> = new Map(),
+) => {
   const counted = credentials.filter((c) => !c.revoked || (c.slotsExpireAt ?? 0) > now);
   if (counted.length < 2) return V2_LIST_BASE_BYTES;
   const mature = counted.slice(2).filter((c) => c.createdAt !== undefined && now - c.createdAt >= V2_CREDENTIAL_CAP_AGE_MS).length;
-  return Math.min(64.5 * 1024 * 1024, 4 * 1024 * 1024 + mature * V2_LIST_BYTES_PER_EXTRA_CREDENTIAL);
+  const ordinary = V2_LIST_PAIR_BYTES + mature * V2_LIST_BYTES_PER_EXTRA_CREDENTIAL;
+  const phones = counted.filter((c) => (c.role ?? "device") === "device" && c.deviceId !== undefined);
+  const n = phones.length;
+  const eligible: number[] = [];
+  for (const phone of phones) eligible.push(...[...(slotRows.get(phone.deviceId!) ?? [])].sort((a, b) => b - a).slice(0, Math.max(0, n - 1)));
+  eligible.sort((a, b) => b - a);
+  const paid = eligible.slice(0, Math.min(V2_MAX_SLOTS, n * (n - 1))).slice(2);
+  return Math.min(V2_LIST_MAX_BYTES, ordinary + paid.reduce((sum, bytes) => sum + bytes, 0));
 };
 
 // Daily quotas (ADR 0004, "Cupos, generaciones y renovación"): sliding 24 h windows

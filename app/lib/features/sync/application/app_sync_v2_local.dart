@@ -21,6 +21,7 @@ import '../../family/data/family_store.dart';
 import 'common_v2.dart';
 import '../data/sync_transport_v2.dart';
 import 'family_snapshot.dart';
+import 'pairing_v2_flow.dart' show pairingConfirmInProgress, revokeUnapprovedGuest;
 import 'sync_v2_engine.dart';
 import 'v2_family_lock.dart';
 
@@ -61,7 +62,15 @@ class AppSyncV2Local
         identity.listId != v2.listId) {
       return null;
     }
-    return AppSyncV2Local._(ref, v2, keys, identity.node, key);
+    final local = AppSyncV2Local._(ref, v2, keys, identity.node, key);
+    // 1.0.6: un emparejamiento que se cortó antes de aprobar no deja al
+    // invitado avalado en este registro: antes de que nadie lo lea.
+    final pending = await store.readPairingPendingGuest();
+    if (pending != null && !pairingConfirmInProgress(pending)) {
+      await revokeUnapprovedGuest(local, pending);
+      await store.savePairingPendingGuest(null);
+    }
+    return local;
   }
 
   final Ref _ref;

@@ -1381,7 +1381,8 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get syncStatusOffline => 'Sin conexión, los cambios se enviarán luego';
+  String get syncStatusOffline =>
+      'No se puede conectar ahora. Los cambios se enviarán luego.';
 
   @override
   String get syncStatusError => 'No se ha podido sincronizar';
@@ -2138,7 +2139,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get syncShortPending => 'pendiente';
 
   @override
-  String get syncShortOffline => 'sin conexión';
+  String get syncShortOffline => 'sin conectar';
 
   @override
   String get syncShortError => 'con error';
@@ -2163,6 +2164,19 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get devicesSoloBody =>
       'Conecta otro para ver la misma lista en los dos.';
+
+  @override
+  String get devicesPendingTitle => 'Conectando otro móvil';
+
+  @override
+  String get devicesPendingBody =>
+      'Esperando a que el otro móvil termine de conectarse.';
+
+  @override
+  String get connectWebPasteCode => 'Pegar el código del QR';
+
+  @override
+  String get personPickerThisPhone => 'Este móvil';
 
   @override
   String get devicesRecoveryTitle => 'Copia de recuperación guardada';
@@ -2202,10 +2216,14 @@ class AppLocalizationsEs extends AppLocalizations {
   String get syncTurnedOn => 'Sincronización encendida.';
 
   @override
-  String get devicesOfflineTitle => 'Sin conexión';
+  String get devicesOfflineTitle => 'No se puede conectar';
 
   @override
-  String get devicesOfflineBody => 'Los cambios se enviarán cuando vuelva.';
+  String get devicesOfflineBody => 'Los cambios se enviarán luego.';
+
+  @override
+  String get syncBlockedHint =>
+      'Si tienes internet, puede que tu operador esté bloqueando el servicio. Prueba con datos móviles u otra wifi.';
 
   @override
   String get devicesConnected => 'Conectados';
@@ -2355,10 +2373,6 @@ class AppLocalizationsEs extends AppLocalizations {
   String get pairingV2NoMatch => 'No coinciden';
 
   @override
-  String get pairingV2NoPersonWarning =>
-      'El otro móvil todavía no ha dicho de quién es. Puedes darle acceso igualmente: podrá elegirlo más adelante y, hasta entonces, no abrirá las sorpresas.';
-
-  @override
   String get pairingV2Approving => 'Dando acceso al otro móvil…';
 
   @override
@@ -2382,30 +2396,7 @@ class AppLocalizationsEs extends AppLocalizations {
       'Para continuar, hace falta conexión a internet y tener la sincronización encendida.';
 
   @override
-  String get pairingV2ChooseTitle => '¿De quién es este móvil?';
-
-  @override
-  String get pairingV2ChooseBody =>
-      'El que tienes en la mano. Elige a quien lo usa y Gift Huddle sabrá qué sorpresas esconderle.';
-
-  @override
-  String pairingV2ChooseBodySelf(String name) {
-    return 'Lo tenías marcado como de $name. Confírmalo o elige a otra persona.';
-  }
-
-  @override
   String get pairingV2ChooseContinue => 'Continuar';
-
-  @override
-  String get pairingV2ChooseLaterTitle => 'Elegir después';
-
-  @override
-  String get pairingV2ChooseLaterBody =>
-      'Si no eliges ahora, este móvil no abrirá las sorpresas hasta que elijas a la persona y quien te invitó lo apruebe.';
-
-  @override
-  String get pairingV2ChooseNone =>
-      'Este móvil todavía no conoce a nadie de esta familia, así que de momento no se puede elegir. Podrás hacerlo cuando llegue la lista.';
 
   @override
   String get pairingV2GuestWaitingCode =>
@@ -2970,17 +2961,6 @@ class AppLocalizationsEs extends AppLocalizations {
       'Ese código no es el de la web de Gift Huddle. Escanea el que aparece en el ordenador.';
 
   @override
-  String get connectWebWhoseTitle => '¿De quién es este ordenador?';
-
-  @override
-  String get connectWebWhoseBody =>
-      'Elige quién va a usar la lista desde el ordenador.';
-
-  @override
-  String get connectWebNoPeople =>
-      'Todavía no hay personas. Añade una persona antes de conectar la web.';
-
-  @override
   String get connectWebWaiting => 'Esperando a que el ordenador responda…';
 
   @override
@@ -3071,7 +3051,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get webSyncSaved => 'Guardado';
 
   @override
-  String get webSyncOffline => 'Sin conexión';
+  String get webSyncOffline => 'No se puede conectar';
 
   @override
   String get webSyncAwaitingConfirm =>
@@ -3095,7 +3075,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String selfChangeEffectHides(String name) {
-    return 'Si los regalos para $name están en secreto, no verás ninguno en este móvil.';
+    return 'En este móvil dejarán de verse los regalos para $name.';
   }
 
   @override
@@ -3317,6 +3297,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String protectionCannotDeactivate(String name) {
     return 'Este móvil no puede desactivarla ahora: hace falta permiso y la clave actual de $name.';
   }
+
+  @override
+  String get protectionOnlyOthersChange =>
+      'Solo otra persona de la familia puede cambiarlo, desde su móvil.';
 
   @override
   String get protectionChangeFailed =>
@@ -4682,4 +4666,208 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get deleteImpactChecking => 'Comprobando lo que se elimina…';
+
+  @override
+  String get inviteForTitle => '¿Para quién es el móvil nuevo?';
+
+  @override
+  String get inviteForBody =>
+      'Elige a la persona que lo va a usar. En su móvil no se verá ningún regalo para ella.';
+
+  @override
+  String get inviteForNeedsSelf =>
+      'Antes de conectar otro dispositivo, di de quién es este móvil.';
+
+  @override
+  String inviteForSecretNotice(String name) {
+    return 'Los regalos para $name pasan a estar en secreto: dejarán de verse en su móvil.';
+  }
+
+  @override
+  String pairingV2HostCompareFor(String name) {
+    return 'Vas a conectar el móvil de $name.';
+  }
+
+  @override
+  String get pairingV2HostUpdateHint =>
+      'Si el otro móvil da un error, actualiza Gift Huddle en ese móvil y vuelve a empezar.';
+
+  @override
+  String pairingV2ProtectFailed(String name) {
+    return 'No se han podido poner en secreto los regalos para $name, así que el móvil no se ha conectado. Ese móvil ha quedado quitado y puede que tenga que volver a conectarse. Este móvil sigue ocultando los regalos de su persona. Sincroniza e inténtalo de nuevo.';
+  }
+
+  @override
+  String get pairingV2GuestAssigned =>
+      'Quien te invita ha elegido de quién es este móvil. Lo verás al entrar.';
+
+  @override
+  String pairingV2GuestDoneFor(String name) {
+    return 'Ya estás en la familia. Este móvil es de $name: aquí no verás los regalos para $name.';
+  }
+
+  @override
+  String ownGiftsHiddenBody(String name) {
+    return 'En este móvil no se ven los regalos para $name. Solo otra persona de la familia puede cambiarlo, desde su móvil.';
+  }
+
+  @override
+  String protectionAutoReason(String name) {
+    return 'Activos porque $name tiene un móvil conectado.';
+  }
+
+  @override
+  String protectionDeactivateHasDevice(String name) {
+    return '$name tiene un móvil conectado: en él sus regalos seguirán sin verse. Si los desactivas, se verán en los dispositivos que no tienen la clave, como la web.';
+  }
+
+  @override
+  String ownGiftsAloneNotice(String name) {
+    return 'Este móvil ya no está conectado a ningún otro. Los regalos para $name que estaban en secreto no están en este móvil.';
+  }
+
+  @override
+  String get whoAreYouTitle => '¿Quién eres?';
+
+  @override
+  String get whoAreYouBody =>
+      'Antes de conectar otro dispositivo, di de quién es este móvil. En él no se verá ningún regalo para esa persona.';
+
+  @override
+  String get whoAreYouNotOnList => 'No estoy en la lista';
+
+  @override
+  String get whoAreYouNameLabel => 'Tu nombre';
+
+  @override
+  String get whoAreYouNobody => 'Nadie';
+
+  @override
+  String get whoAreYouNobodyHint => 'Para quien regala y no recibe regalos.';
+
+  @override
+  String get inviteForNotOnList => 'No está en la lista';
+
+  @override
+  String get inviteForNobody => 'Nadie: solo regala';
+
+  @override
+  String get inviteForNameLabel => 'Nombre';
+
+  @override
+  String get personNoGiftsLabel => 'Solo regala';
+
+  @override
+  String get joinQrPairingTitle => 'Conectar este móvil';
+
+  @override
+  String protectionReason_webUseMobile(String name) {
+    return 'Los regalos en secreto de $name se cambian desde tu móvil.';
+  }
+
+  @override
+  String get webSecretsPending => 'Pendiente';
+
+  @override
+  String get webSecretsReconnect =>
+      'Para ver los regalos en secreto, vuelve a conectar este ordenador desde tu móvil.';
+
+  @override
+  String get webSecretsWaitingPhone =>
+      'Abre la app en tu móvil para ver aquí los regalos en secreto. Si no aparecen, actualiza la app del móvil.';
+
+  @override
+  String get webSecretsSharedComputer =>
+      'Con los regalos en secreto a la vista, la web se bloquea a los 5 minutos sin uso. No la dejes abierta en un ordenador que comparte la familia.';
+
+  @override
+  String get webForgetPendingSecrets =>
+      'Hay cambios en regalos en secreto que tu móvil aún no ha recogido. Si olvidas este ordenador, se pierden.';
+
+  @override
+  String webSecretsDropped(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Se han descartado $count cambios en regalos en secreto: ya no se pueden aplicar (los regalos ya no existen, han pasado a otra persona o son demasiado largos).',
+      one:
+          'Se ha descartado $count cambio en un regalo en secreto: ya no se puede aplicar (el regalo ya no existe, ha pasado a otra persona o es demasiado largo).',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String ownGiftsNoticeTitle(String name) {
+    return 'Regalos para $name';
+  }
+
+  @override
+  String get webApproveSecretsNotice =>
+      'Ese ordenador podrá ver y cambiar los regalos en secreto de los demás. Confírmalo solo si lo conectaste tú.';
+
+  @override
+  String webSecretsHeld(String names) {
+    return 'Los cambios en regalos en secreto para $names no se han podido enviar todavía. Se vuelve a intentar solo.';
+  }
+
+  @override
+  String get webSecretsPendingLong => 'Pendiente de tu móvil';
+
+  @override
+  String get giftSearchOpen => 'Buscar regalos';
+
+  @override
+  String get pairingV2GuestOutdated =>
+      'El otro móvil necesita actualizar Gift Huddle para unirse.';
+
+  @override
+  String get pairingV2ApproveFailed =>
+      'No se ha podido dar acceso al otro móvil. Ha quedado quitado y puede que tenga que volver a conectarse. Este móvil sigue ocultando los regalos de su persona.';
+
+  @override
+  String get secretBlockNoteWeb => 'Este ordenador no los muestra.';
+
+  @override
+  String ownGiftsHiddenBodyWeb(String name) {
+    return 'En este ordenador no se ven los regalos para $name. Solo otra persona de la familia puede cambiarlo, desde su móvil.';
+  }
+
+  @override
+  String ownGiftsAloneNoticeWeb(String name) {
+    return 'Este ordenador ya no está conectado a ningún móvil de la familia. Los regalos para $name que estaban en secreto no están en este ordenador.';
+  }
+
+  @override
+  String get manageLockedThisDeviceWeb => 'Es la persona de este ordenador.';
+
+  @override
+  String devicePersonBlockedThisTitleWeb(String name) {
+    return 'Este ordenador es de $name';
+  }
+
+  @override
+  String devicePersonBlockedThisBodyWeb(String name) {
+    return '$name es la persona de este ordenador, así que no se puede eliminar ni archivar desde aquí.';
+  }
+
+  @override
+  String get giftNotSavedWeb =>
+      'No se ha guardado: este regalo ya no está disponible en este ordenador.';
+
+  @override
+  String get giftWriteGiftUnavailableWeb =>
+      'No se ha guardado: este regalo ya no está disponible en este ordenador.';
+
+  @override
+  String get giftNoLongerVisibleWeb =>
+      'Este regalo ya no se puede ver en este ordenador.';
+
+  @override
+  String get giftOwnRequestRestrictedWeb =>
+      'Con la protección activa, no puedes añadir ni ver regalos para ti en este ordenador. Pide a otra persona de la familia que apunte el regalo.';
+
+  @override
+  String get aboutPrivacyWeb =>
+      'Sin cuentas ni publicidad. La lista solo sale de este ordenador para sincronizarse con los móviles de tu familia, y siempre va cifrada.';
 }

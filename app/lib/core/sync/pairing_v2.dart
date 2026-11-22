@@ -118,9 +118,14 @@ Uint8List _bytes32(Object? value) {
   return bytes;
 }
 
+/// Campo de la oferta que dice que el anfitrión elige la persona del móvil
+/// nuevo (1.0.6). Sin él, un invitado 1.0.6 no entra: el anfitrión es de
+/// una versión que deja entrar sin persona.
+const String kHostPicksPersonField = 'hp';
+
 /// Lo que enseña el anfitrión: su ficha y el compromiso de su nonce.
 class PairingOffer {
-  PairingOffer._(this.host, this.commitment);
+  PairingOffer._(this.host, this.commitment, {this.hostPicksPerson = false});
 
   /// La ficha del anfitrión.
   final DeviceRecord host;
@@ -128,6 +133,13 @@ class PairingOffer {
   /// SHA-256("gift-huddle-pairing-commit-v1" ‖ 0 ‖ resumen de la ficha ‖
   /// nonce): ata el nonce a la oferta sin enseñarlo.
   final Uint8List commitment;
+
+  /// La marca [kHostPicksPersonField]: el anfitrión ha elegido para quién es
+  /// el móvil nuevo y solo acepta una respuesta de esa persona. No va
+  /// firmada: si alguien la quita o la cambia, solo consigue que el
+  /// emparejamiento falle (el anfitrión comprueba la persona en
+  /// [PairingHost.receive]).
+  final bool hostPicksPerson;
 
   /// Lista.
   String get listId => host.listId;
@@ -137,6 +149,7 @@ class PairingOffer {
     'v': kSyncProtocolV2,
     'host': host.toJson(),
     'c': encodeBase64Url(commitment),
+    if (hostPicksPerson) kHostPicksPersonField: 1,
   };
 
   /// Lee [toJson] y comprueba la firma de la ficha. Lanza
@@ -155,7 +168,11 @@ class PairingOffer {
     if (host.kind == DeviceKind.web || !await host.verify()) {
       throw const PairingException('la ficha del anfitrión no vale');
     }
-    return PairingOffer._(host, commitment);
+    return PairingOffer._(
+      host,
+      commitment,
+      hostPicksPerson: json[kHostPicksPersonField] == 1,
+    );
   }
 }
 
@@ -233,12 +250,21 @@ class PairingHost {
     this._inviteId,
     this._guestPerson,
     this._expectedFingerprint,
+    this.hostPicksPerson,
   );
 
   /// Empieza un emparejamiento con la ficha actual de este móvil.
   /// Con [expectWeb], fija el QR y la persona elegida antes de recibir la
   /// respuesta. Las tres restricciones son obligatorias y se comprueban
   /// antes de revelar el nonce. El flujo normal solo admite móviles.
+  ///
+  /// Con [hostPicksPerson] (móviles, 1.0.6) este móvil ha elegido para quién
+  /// es el móvil nuevo: [guestPerson], que tiene que existir (quien no está
+  /// en la lista se da de alta antes; «Nadie» es una persona que solo
+  /// regala). La oferta lleva la marca [kHostPicksPersonField] y solo se
+  /// acepta una respuesta con esa misma persona. Ningún móvil entra sin
+  /// persona. No se fía de lo que compruebe el servidor: la aprobación
+  /// firmada lleva también la persona ([kHostPicksPersonField]).
   static PairingHost start(
     DeviceRegistry registry,
     RegistryView view, {
@@ -246,10 +272,21 @@ class PairingHost {
     String? inviteId,
     String? guestPerson,
     String? expectedFingerprint,
+    bool hostPicksPerson = false,
   }) {
     final host = registry.recordByDigest(view.self.recordDigest)!;
     if (host.kind == DeviceKind.web) {
       throw const PairingException('una web no puede invitar');
+    }
+    if (hostPicksPerson) {
+      if (expectWeb) {
+        throw const PairingException('la web ya fija su persona');
+      }
+      // 1.0.6: un móvil nuevo siempre entra con persona («Nadie» también es
+      // una persona, que solo regala).
+      if (guestPerson == null || !view.livePeople.contains(guestPerson)) {
+        throw const PairingException('esa persona no existe en la familia');
+      }
     }
     if (expectWeb) {
       if (inviteId == null ||
@@ -272,12 +309,17 @@ class PairingHost {
     }
     final nonce = secureRandomBytes(kPairingNonceBytes);
     return PairingHost._(
-      PairingOffer._(host, Uint8List.fromList(_commitmentOf(host, nonce))),
+      PairingOffer._(
+        host,
+        Uint8List.fromList(_commitmentOf(host, nonce)),
+        hostPicksPerson: hostPicksPerson,
+      ),
       nonce,
       expectWeb,
       inviteId,
       guestPerson,
       expectedFingerprint,
+      hostPicksPerson,
     );
   }
 
@@ -291,6 +333,13 @@ class PairingHost {
   final String? _inviteId;
   final String? _guestPerson;
   final String? _expectedFingerprint;
+
+  /// Si este móvil ha elegido la persona del móvil nuevo ([start]).
+  final bool hostPicksPerson;
+
+  /// La persona que eligió este móvil para el invitado (o para la web), o
+  /// null.
+  String? get guestPerson => _guestPerson;
   PairingAnswer? _answer;
 
   /// La respuesta recibida, o null.
@@ -344,6 +393,21 @@ class PairingHost {
       }
     } else if (guest.kind != DeviceKind.mobile) {
       throw const PairingException('este flujo solo conecta móviles');
+    } else if (hostPicksPerson &&
+        (guest.personId == null || !answer.hostPicksPerson)) {
+      // Un invitado 1.0.5: responde sin persona («Elegir después», el de una
+      // instalación nueva) o sin la marca (QA 1.0.6, m1). No se gasta la
+      // respuesta y no se aprueba: el otro móvil tiene que actualizarse.
+      throw const PairingGuestOutdatedException();
+    } else if (guest.personId == null) {
+      // 1.0.6: ningún móvil entra sin persona (también un invitado viejo que
+      // responde «Elegir después»). No se gasta la única respuesta.
+      throw const PairingException('el móvil nuevo no tiene persona');
+    } else if (hostPicksPerson && guest.personId != _guestPerson) {
+      // Una respuesta con la marca cambiada por el camino: no se gasta la
+      // única respuesta. (Un 1.0.5 que eligió otra persona, o la misma, no
+      // lleva la marca y ya ha salido arriba: B1.)
+      throw const PairingException('la respuesta no es de la persona elegida');
     }
     if (guest.listId != host.listId ||
         guest.deviceId == host.deviceId ||
@@ -381,10 +445,32 @@ class PairingHost {
   }
 }
 
+/// El invitado que respondió es de una versión que no entiende que el
+/// anfitrión elija la persona (1.0.5): tiene que actualizarse antes de
+/// emparejar.
+class PairingGuestOutdatedException extends PairingException {
+  /// Crea el error.
+  const PairingGuestOutdatedException()
+    : super('el otro móvil necesita actualizarse');
+}
+
 /// Lo que responde el invitado: su ficha, su aval a la del anfitrión y un
 /// nonce suyo.
 class PairingAnswer {
-  PairingAnswer._(this.guest, this.vouchForHost, this.guestNonce);
+  PairingAnswer._(
+    this.guest,
+    this.vouchForHost,
+    this.guestNonce, {
+    this.hostPicksPerson = true,
+  });
+
+  /// Si el invitado entiende la marca [kHostPicksPersonField] (1.0.6): un
+  /// invitado 1.0.5 no la manda y rechazaría la aprobación con esa marca
+  /// después de que el Worker cree su credencial (una credencial fantasma,
+  /// revisión de seguridad, B1). El anfitrión que eligió la persona no
+  /// gasta la respuesta de un invitado así. No va firmada: quitarla solo
+  /// impide emparejar, y ponerla a un invitado viejo deja lo de antes.
+  final bool hostPicksPerson;
 
   /// La ficha del invitado.
   final DeviceRecord guest;
@@ -408,6 +494,7 @@ class PairingAnswer {
     'guest': guest.toJson(),
     'vouch': vouchForHost.toJson(),
     'gn': encodeBase64Url(guestNonce),
+    if (hostPicksPerson) kHostPicksPersonField: 1,
   };
 
   /// Lee [toJson] (se comprueba en [PairingHost.receive] y en
@@ -421,6 +508,7 @@ class PairingAnswer {
         DeviceRecord.fromJson(json['guest']),
         Vouch.fromJson(json['vouch']),
         _bytes32(json['gn']),
+        hostPicksPerson: json[kHostPicksPersonField] == 1,
       );
     } on RegistryException {
       throw const PairingException('respuesta no válida');

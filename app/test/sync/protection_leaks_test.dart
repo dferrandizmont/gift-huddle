@@ -216,7 +216,9 @@ void main() {
         doc: withLate(a.common, family.leo.id, 3),
         slots: slots,
       );
-      expect(await leo.reconcile(), isFalse, reason: 'no puede sellarlos');
+      // 1.0.6: la vuelta puede proteger sola a otras personas con móvil; lo de
+      // Nora no lo puede sellar.
+      await leo.reconcile();
       expect(liveFor(leo.common, 'nora'), hasLength(3));
       final (rec, sent) = await rounds(leo);
       expect(rec.puts, isNotEmpty);
@@ -240,7 +242,7 @@ void main() {
           doc: withLate(a.common, family.leo.id, 3),
           slots: slots,
         );
-        expect(await leo.reconcile(), isFalse);
+        await leo.reconcile(); // 1.0.6: puede proteger a otros; lo de Nora no.
         expect(liveFor(leo.common, 'nora'), hasLength(3));
         final (rec, sent) = await rounds(leo);
         expect(rec.puts, isNotEmpty);
@@ -508,7 +510,7 @@ void main() {
       await expectRefused(rev, () => rev.controller.upsertGift(gift('x')));
       final projection = await rev.projection();
       expect(projection.view.gifts, isEmpty);
-      expect(projection.lockedBlocks, [const SecretBlock('nora')]);
+      expect(projection.lockedBlocks, contains(const SecretBlock('nora')));
     });
 
     test('H: el móvil de Nora que pasa a ser de otra persona queda pendiente '
@@ -528,7 +530,7 @@ void main() {
       await expectRefused(n, () => n.controller.activateProtection('nora'));
       final projection = await n.projection();
       expect(projection.view.gifts, isEmpty);
-      expect(projection.lockedBlocks, [const SecretBlock('nora')]);
+      expect(projection.lockedBlocks, contains(const SecretBlock('nora')));
     });
   });
 
@@ -580,7 +582,8 @@ void main() {
       final keyring = await n.phone.container
           .read(deviceKeysStoreProvider)
           .readKeyring(kListId);
-      expect(keyring.people, isEmpty);
+      // 1.0.6: protege sola a las demás personas con móvil; nunca a Nora.
+      expect(keyring.people, isNot(contains('nora')));
       // Lo guardado no lleva ningún título, ni en el común ni en los slots.
       final stored = [
         jsonEncode(n.common.toJson()),

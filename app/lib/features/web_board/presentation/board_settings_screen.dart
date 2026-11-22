@@ -312,6 +312,11 @@ class _ComputerSection extends ConsumerWidget {
           persistenceDenied: ref
               .watch(webDeviceStateProvider)
               .persistenceDenied,
+          pendingSecretChanges: ref.watch(
+            webDeviceStateProvider.select(
+              (s) => s.pendingSecretGifts + s.heldSecretChanges,
+            ),
+          ),
           leading: const [LanguageRow()],
         ),
       ],

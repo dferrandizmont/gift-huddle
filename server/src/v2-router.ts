@@ -12,6 +12,7 @@ import {
   V2_MAX_INVITE_BODY_BYTES,
   V2_MAX_REVOKE_BODY_BYTES,
   V2_MAX_RENEWAL_BODY_BYTES,
+  V2_MAX_WEB_SLOT_BODY_BYTES,
   V2_WS_PROTOCOL,
 } from "./limits";
 import { matchV2, type V2Route } from "./v2-contract";
@@ -37,6 +38,7 @@ function bodyLimit(r: V2Route, match: string | null): number {
   if (r.resource === "renewal") return V2_MAX_RENEWAL_BODY_BYTES;
   if (r.resource === "guard") return V2_MAX_GUARD_BODY_BYTES;
   if (r.resource === "common") return V2_MAX_BODY_BYTES;
+  if (r.resource === "slot") return V2_MAX_WEB_SLOT_BODY_BYTES;
   if (r.resource === "revoke" || r.resource === "capability") return V2_MAX_REVOKE_BODY_BYTES;
   if (r.resource === "list") return match === '"0"' ? V2_MAX_CREATE_BODY_BYTES : V2_MAX_BODY_BYTES;
   return V2_MAX_INVITE_BODY_BYTES;
@@ -90,7 +92,7 @@ export async function routeV2(request: Request, env: Env, localRequest = false):
   if (creating &&
       !(await env.CREATE_IP_LIMITER.limit({ key: client })).success) return toResponse(err(429, "rate_limited", { "Retry-After": "60" }));
 
-  const streamed = !creating && (request.method === "PUT" || request.method === "POST") && r.resource !== "withdraw" && (r.resource === "list" || r.resource === "common" || (listRoute && recoveryPath) || r.resource === "invites" || r.inviteId !== undefined);
+  const streamed = !creating && (request.method === "PUT" || request.method === "POST") && r.resource !== "withdraw" && (r.resource === "list" || r.resource === "common" || r.resource === "slot" || (listRoute && recoveryPath) || r.resource === "invites" || r.inviteId !== undefined);
   let body: Record<string, unknown> = {};
   if (!streamed && (request.method === "PUT" || request.method === "POST") && !(r.resource === "guard" && r.action === "resume" && request.body === null)) {
     const parsed = await readJsonObject(request, bodyLimit(r, match), creating ? V2_BODY_READ_DEADLINE_MS : undefined);

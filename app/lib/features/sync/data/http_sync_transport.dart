@@ -8,6 +8,7 @@ import 'package:cryptography/cryptography.dart';
 
 import '../domain/sync_keys.dart';
 import 'sync_endpoint.dart';
+import 'sync_routes.dart';
 import 'sync_transport.dart';
 import 'sync_transport_common.dart';
 import 'sync_transport_v2.dart';
@@ -15,15 +16,54 @@ export 'sync_endpoint.dart';
 export 'sync_transport_common.dart' show parseSyncEvent;
 
 /// [SyncTransport] sobre `HttpClient` y `WebSocket` de `dart:io`.
+///
+/// Cada petición y cada WebSocket prueban los hosts de [routes] en orden:
+/// si no se puede conectar con uno en [connectTimeout] (o se corta, o falla
+/// TLS) se prueba el siguiente; un estado HTTP nunca cambia de host.
 class HttpSyncTransport extends BaseSyncTransport {
   /// Crea el cliente hacia [endpoint].
-  HttpSyncTransport(super.endpoint, {HttpClient? client, super.timeout})
-    : _client = client ?? HttpClient() {
-    _client.connectionTimeout = timeout;
+  HttpSyncTransport(
+    super.endpoint, {
+    HttpClient? client,
+    super.timeout,
+    super.routes,
+    this.connectTimeout = kSyncConnectTimeout,
+    this.largeBodyTimeout = const Duration(seconds: 30),
+  }) : _client = client ?? HttpClient() {
+    _client.connectionTimeout = connectTimeout;
     _client.userAgent = 'GiftHuddle';
   }
 
   final HttpClient _client;
+
+  /// Tiempo para conectar con cada host (TCP y TLS).
+  final Duration connectTimeout;
+
+  /// Espera de la respuesta tras subir un cuerpo de más de [largeBodyBytes]
+  /// (en bytes UTF-8): 30 s, como pide el plan para lo que lleva slots.
+  final Duration largeBodyTimeout;
+
+  /// Bytes de un cuerpo que se considera grande.
+  static const int largeBodyBytes = 64 * 1024;
+
+  /// Abre la conexión con [target]. Lo que falla aquí (nada se ha enviado
+  /// todavía) es [SyncRouteConnectFailure]: se puede probar otro host.
+  Future<HttpClientRequest> _open(String method, Uri target) async {
+    final pending = _client.openUrl(method, target);
+    try {
+      return await pending.timeout(connectTimeout);
+    } on TimeoutException {
+      // Si al final conecta, se suelta sin enviar nada.
+      unawaited(pending.then((r) => r.abort(), onError: (Object _) {}));
+      throw const SyncRouteConnectFailure('tiempo de conexión agotado');
+    } on SocketException catch (e) {
+      throw SyncRouteConnectFailure(e.message);
+    } on TlsException {
+      throw const SyncRouteConnectFailure('fallo de TLS');
+    } on HttpException catch (e) {
+      throw SyncRouteConnectFailure(e.message);
+    }
+  }
 
   @override
   Future<SyncResponse> send(
@@ -34,44 +74,10 @@ class HttpSyncTransport extends BaseSyncTransport {
     Map<String, String> headers = const {},
   }) async {
     try {
-      final request = await _client.openUrl(method, uri).timeout(timeout);
-      request.followRedirects = false;
-      request.headers.set(HttpHeaders.acceptHeader, 'application/json');
-      if (auth != null) {
-        request.headers.set(
-          HttpHeaders.authorizationHeader,
-          'Bearer ${SyncKeys.bearer(auth.authKey)}',
-        );
-      }
-      headers.forEach(request.headers.set);
-      if (body != null) {
-        final bytes = utf8.encode(jsonEncode(body));
-        request.headers.contentType = ContentType.json;
-        request.contentLength = bytes.length;
-        request.add(bytes);
-      }
-      final response = await request.close().timeout(timeout);
-      final builder = BytesBuilder(copy: false);
-      var size = 0;
-      await for (final chunk in response.timeout(timeout)) {
-        size += chunk.length;
-        if (size > maxSyncResponseBytes) {
-          throw const SyncTransportException(
-            SyncFailure.protocol,
-            'respuesta demasiado grande',
-          );
-        }
-        builder.add(chunk);
-      }
-      final responseHeaders = <String, String>{};
-      response.headers.forEach(
-        (name, values) =>
-            responseHeaders[name.toLowerCase()] = values.join(', '),
-      );
-      return SyncResponse(
-        response.statusCode,
-        responseHeaders,
-        builder.takeBytes(),
+      return await routes.run(
+        uri,
+        (target, connected) =>
+            _send(method, target, connected, auth, body, headers),
       );
     } on SyncTransportException {
       rethrow;
@@ -84,6 +90,58 @@ class HttpSyncTransport extends BaseSyncTransport {
     } on HttpException catch (e) {
       throw SyncTransportException(SyncFailure.network, e.message);
     }
+  }
+
+  Future<SyncResponse> _send(
+    String method,
+    Uri uri,
+    void Function() connected,
+    SyncCredentials? auth,
+    Object? body,
+    Map<String, String> headers,
+  ) async {
+    final request = await _open(method, uri);
+    connected();
+    request.followRedirects = false;
+    request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+    if (auth != null) {
+      request.headers.set(
+        HttpHeaders.authorizationHeader,
+        'Bearer ${SyncKeys.bearer(auth.authKey)}',
+      );
+    }
+    headers.forEach(request.headers.set);
+    var wait = timeout;
+    if (body != null) {
+      final bytes = utf8.encode(jsonEncode(body));
+      request.headers.contentType = ContentType.json;
+      request.contentLength = bytes.length;
+      request.add(bytes);
+      // Una subida grande (slots) puede tardar más en salir por datos móviles.
+      if (bytes.length > largeBodyBytes) wait = largeBodyTimeout;
+    }
+    final response = await request.close().timeout(wait);
+    final builder = BytesBuilder(copy: false);
+    var size = 0;
+    await for (final chunk in response.timeout(timeout)) {
+      size += chunk.length;
+      if (size > maxSyncResponseBytes) {
+        throw const SyncTransportException(
+          SyncFailure.protocol,
+          'respuesta demasiado grande',
+        );
+      }
+      builder.add(chunk);
+    }
+    final responseHeaders = <String, String>{};
+    response.headers.forEach(
+      (name, values) => responseHeaders[name.toLowerCase()] = values.join(', '),
+    );
+    return SyncResponse(
+      response.statusCode,
+      responseHeaders,
+      builder.takeBytes(),
+    );
   }
 
   @override
@@ -113,7 +171,15 @@ class HttpSyncTransport extends BaseSyncTransport {
   ) async* {
     final WebSocket socket;
     try {
-      socket = await _connectWebSocket(uri, protocols).timeout(timeout);
+      socket = await routes
+          .run(
+            uri,
+            (target, connected) =>
+                _connectWebSocket(target, protocols, connected),
+          )
+          .timeout(timeout);
+    } on SyncTransportException {
+      rethrow;
     } on TimeoutException {
       throw const SyncTransportException(SyncFailure.network, 'tiempo agotado');
     } on SocketException catch (e) {
@@ -163,15 +229,23 @@ class HttpSyncTransport extends BaseSyncTransport {
   /// subprotocolo `bearer.<authKey>` al destino, aunque sea otro host o
   /// `http`. Aquí cualquier respuesta que no sea `101` (3xx incluido) es un
   /// fallo y la clave no sale hacia ningún otro sitio.
-  Future<WebSocket> _connectWebSocket(Uri uri, List<String> protocols) async {
+  ///
+  /// Con los mismos hosts y el mismo orden que las peticiones: solo un
+  /// fallo al conectar ([_open]) prueba el siguiente.
+  Future<WebSocket> _connectWebSocket(
+    Uri uri,
+    List<String> protocols,
+    void Function() connected,
+  ) async {
     final random = Random.secure();
     final nonce = base64.encode(
       List<int>.generate(16, (_) => random.nextInt(256)),
     );
-    final request = await _client.openUrl(
+    final request = await _open(
       'GET',
       uri.replace(scheme: uri.scheme == 'wss' ? 'https' : 'http'),
     );
+    connected();
     request.followRedirects = false;
     request.headers
       ..set(HttpHeaders.connectionHeader, 'Upgrade')

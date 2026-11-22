@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/format/money.dart';
+import '../../../core/platform/gifts_secure_scope.dart';
 import '../../../core/format/money_input.dart';
 import '../../../core/layout/window_class.dart';
 import '../../../core/motion/animated_rows.dart';
@@ -736,7 +737,11 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
         setState(() => _busy = false);
         showRegalosSnackBar(
           context,
-          SnackBar(content: Text(giftWriteResultText(l10n, result))),
+          SnackBar(
+            content: Text(
+              giftWriteResultText(l10n, result, web: ref.read(webAppProvider)),
+            ),
+          ),
         );
       } else if (mounted) {
         // Solo lo que hace la persona lleva háptica. El visto se dibuja
@@ -776,11 +781,15 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
         // No se ha guardado nada y el formulario se conserva: el motivo, junto
         // a los campos.
         ref.read(hapticsProvider).medium();
+        final reason = protectionReasonText(
+          l10n,
+          e.reason,
+          name,
+          web: ref.read(webAppProvider),
+        );
         setState(() {
           _busy = false;
-          _rejected =
-              '${protectionReasonText(l10n, e.reason, name)} '
-              '${l10n.giftProtectedRejected}';
+          _rejected = '$reason ${l10n.giftProtectedRejected}';
         });
         unawaited(_scrollToTop());
       }
@@ -1122,7 +1131,13 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
     final style = regalosSnackBarStyle(context);
     final notice = regalosSnackBar(
       context,
-      SnackBar(content: Text(l10n.giftNoLongerVisible)),
+      SnackBar(
+        content: Text(
+          ref.read(webAppProvider)
+              ? l10n.giftNoLongerVisibleWeb
+              : l10n.giftNoLongerVisible,
+        ),
+      ),
       besideRail: SheetPane.anchorOf(context) != null,
     );
     for (final c in [
@@ -1159,7 +1174,12 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      GiftsSecureScope(child: _buildEditor(context));
+
+  Widget _buildEditor(BuildContext context) {
+    // En la web, lo que habla del propio dispositivo dice «este ordenador».
+    final web = ref.watch(webAppProvider);
     ref.listen(familyStateProvider, (_, _) => _scheduleAuthorizationCheck());
     ref.listen(
       authorizedProjectionProvider,
@@ -1237,17 +1257,20 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
         enabled: reason == null,
         hint: reason == null
             ? null
-            : protectionReasonText(l10n, reason, p.name),
+            : protectionReasonText(l10n, reason, p.name, web: web),
         leading: PersonAvatar(name: p.name, colorIndex: p.colorIndex, size: 28),
       );
     }
 
     final personOptions = [
+      // Quien solo regala no es destinatario; solo se conserva en un regalo
+      // que ya era suyo (historia).
       for (final p in people)
-        // Un regalo nuevo no se apunta a una persona archivada (salvo que ya
-        // esté elegida).
-        if (!_isNew || !p.archived || p.id == _recipientId)
-          personOption(p, gated: true),
+        if (!p.noGifts || p.id == widget.gift?.recipientId)
+          // Un regalo nuevo no se apunta a una persona archivada (salvo que
+          // ya esté elegida).
+          if (!_isNew || !p.archived || p.id == _recipientId)
+            personOption(p, gated: true),
     ];
     // Quien lo pidió puede ser cualquiera: ahí no se apaga a nadie.
     final requesterOptions = [
@@ -1270,7 +1293,12 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
           child: WarningBox(
             blockedReason == null
                 ? ''
-                : protectionReasonText(l10n, blockedReason, blockedName ?? ''),
+                : protectionReasonText(
+                    l10n,
+                    blockedReason,
+                    blockedName ?? '',
+                    web: web,
+                  ),
           ),
         ),
       ),
@@ -1292,7 +1320,9 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
         : (_busy || _deleting ? null : _save);
     // Guardar y borrar no se solapan: mientras una está en curso, la otra no
     // responde (en la hoja, el panel y el diálogo).
-    final VoidCallback? onDelete = _busy || _saved || _deleting ? null : _delete;
+    final VoidCallback? onDelete = _busy || _saved || _deleting
+        ? null
+        : _delete;
     final saveChild = _saved
         ? DrawnCheck(color: t.onFill, size: 22, strokeWidth: 2.4)
         : Text(l10n.actionSave);
@@ -1579,7 +1609,11 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
                     padding: const EdgeInsets.only(top: 12),
                     child: Semantics(
                       liveRegion: true,
-                      child: WarningBox(l10n.giftOwnRequestRestricted),
+                      child: WarningBox(
+                        web
+                            ? l10n.giftOwnRequestRestrictedWeb
+                            : l10n.giftOwnRequestRestricted,
+                      ),
                     ),
                   ),
                 ),

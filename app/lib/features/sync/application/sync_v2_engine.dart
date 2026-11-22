@@ -8,9 +8,11 @@
 library;
 
 import 'dart:convert';
+import 'dart:math' show min;
 import 'dart:typed_data';
 
 import 'package:clock/clock.dart';
+import 'package:meta/meta.dart' show visibleForTesting;
 
 import '../../../core/sync/access_policy.dart';
 import '../../../core/sync/device_keys.dart';
@@ -44,6 +46,10 @@ enum IgnoredSlotReason {
   /// (`view.device` es null): falso, ambiguo o revocado sin enlace. Se
   /// mantiene mientras siga sin serlo.
   unknownWriter,
+
+  /// Buzón de una web que no es de la persona de este móvil (1.0.6, ADR
+  /// 0009): solo lo recogen los móviles de su persona. No cuenta para nada.
+  webInbox,
 }
 
 /// Un slot que sigue en el servidor (B2: nadie borra los ajenos) pero que
@@ -68,6 +74,10 @@ class IgnoredSlot {
   int get hashCode => Object.hash(version, reason);
 }
 
+/// Cada cuánto vuelve a bajar un móvil el buzón de una web propia que espera
+/// (1.0.6, ADR 0009, B2).
+const Duration kWebInboxRetry = Duration(hours: 1);
+
 /// Lo que recuerda este móvil de la lista v2 entre una vuelta y otra.
 class V2SyncState {
   /// Crea el estado.
@@ -87,7 +97,50 @@ class V2SyncState {
     this.commonFormatV2 = false,
     this.commonMigration = false,
     this.commonMigrationPut = false,
+    this.createSent = false,
+    this.webInboxFloors = const <String, SlotVersion>{},
+    this.webInboxDone = const <String, int>{},
+    this.webTombstoneDay = 0,
+    this.webTombstoneCount = 0,
+    this.webShares = const <String, String>{},
+    this.webInboxWait = const <String, List<int>>{},
   });
+
+  /// Claves de sorpresas entregadas a webs propias (1.0.6, ADR 0009):
+  /// `web|ficha de la web|mi ficha|persona|época|kid` -> el paquete (JSON).
+  /// Se vuelve a emitir si el paquete ya no está ni en el servidor ni en la
+  /// outbox. Distingue el `kid`: dos candidatas con la misma audiencia son
+  /// dos paquetes (revisión de seguridad, M2).
+  final Map<String, String> webShares;
+
+  /// Buzones de webs propias que esperan (sin clave, freno diario, escritor
+  /// ilegible...): `persona/web` -> [versión de la lista, momento]. No se
+  /// vuelven a bajar hasta que cambien o pase [kWebInboxRetry] (B2).
+  final Map<String, List<int>> webInboxWait;
+
+  /// La creación de la lista se ha enviado al menos una vez (1.0.6): se
+  /// guarda **antes** de enviarla, así que aunque se pierda la respuesta se
+  /// sabe que la ficha de este móvil pudo salir. Con ella ya no se sustituye
+  /// la primera ficha al cambiar de persona en un móvil solo.
+  final bool createSent;
+
+  /// De cada buzón de una web propia (`persona/web`), la última versión del
+  /// slot (época y revisión) que ya está dentro del ámbito: la recogió este
+  /// móvil o la declara (`s[web]`) el slot de otro móvil de la misma persona.
+  /// Un buzón igual o más viejo no se vuelve a recoger (1.0.6, ADR 0009): el
+  /// Worker no puede reponer uno viejo y nada resucita.
+  final Map<String, SlotVersion> webInboxFloors;
+
+  /// Buzones de webs propias ya resueltos (recogidos, rechazados o viejos),
+  /// con la versión de la lista que los escribió: no se vuelven a bajar
+  /// mientras no cambien.
+  final Map<String, int> webInboxDone;
+
+  /// Día (UTC, días desde 1970) de [webTombstoneCount].
+  final int webTombstoneDay;
+
+  /// Lápidas de webs recogidas ese día ([kMaxWebTombstonesPerDay]).
+  final int webTombstoneCount;
 
   /// Si la lista ya existe en el servidor (la creó este móvil o entró en
   /// ella).
@@ -175,6 +228,13 @@ class V2SyncState {
     bool? commonFormatV2,
     bool? commonMigration,
     bool? commonMigrationPut,
+    bool? createSent,
+    Map<String, SlotVersion>? webInboxFloors,
+    Map<String, int>? webInboxDone,
+    int? webTombstoneDay,
+    int? webTombstoneCount,
+    Map<String, String>? webShares,
+    Map<String, List<int>>? webInboxWait,
   }) => V2SyncState(
     created: created ?? this.created,
     version: version ?? this.version,
@@ -192,6 +252,13 @@ class V2SyncState {
     commonFormatV2: commonFormatV2 ?? this.commonFormatV2,
     commonMigration: commonMigration ?? this.commonMigration,
     commonMigrationPut: commonMigrationPut ?? this.commonMigrationPut,
+    createSent: createSent ?? this.createSent,
+    webInboxFloors: webInboxFloors ?? this.webInboxFloors,
+    webInboxDone: webInboxDone ?? this.webInboxDone,
+    webTombstoneDay: webTombstoneDay ?? this.webTombstoneDay,
+    webTombstoneCount: webTombstoneCount ?? this.webTombstoneCount,
+    webShares: webShares ?? this.webShares,
+    webInboxWait: webInboxWait ?? this.webInboxWait,
   );
 
   /// En JSON.
@@ -217,6 +284,16 @@ class V2SyncState {
     if (commonFormatV2) 'cf': true,
     if (commonMigration) 'cm': true,
     if (commonMigrationPut) 'cmp': true,
+    if (createSent) 'cs': true,
+    if (webInboxFloors.isNotEmpty)
+      'wf': {
+        for (final e in webInboxFloors.entries)
+          e.key: [e.value.epoch, e.value.revision],
+      },
+    if (webInboxDone.isNotEmpty) 'wd': webInboxDone,
+    if (webTombstoneCount > 0) 'wt': [webTombstoneDay, webTombstoneCount],
+    if (webShares.isNotEmpty) 'ws': webShares,
+    if (webInboxWait.isNotEmpty) 'ww': webInboxWait,
   };
 
   /// Lee [toJson]; lo que no se entiende se olvida (se vuelve a bajar).
@@ -230,12 +307,49 @@ class V2SyncState {
     };
     final v = json['v'];
     final p = json['p'];
+    final wt = json['wt'];
     return V2SyncState(
+      webInboxFloors: {
+        if (json['wf'] is Map)
+          for (final e in (json['wf'] as Map).entries)
+            if (e.key is String &&
+                e.value is List &&
+                (e.value as List).length == 2 &&
+                (e.value as List)[0] is int &&
+                (e.value as List)[1] is int)
+              e.key as String: SlotVersion(
+                (e.value as List)[0] as int,
+                (e.value as List)[1] as int,
+              ),
+      },
+      webInboxDone: ints(json['wd']),
+      webShares: {
+        if (json['ws'] is Map)
+          for (final e in (json['ws'] as Map).entries)
+            if (e.key is String && e.value is String)
+              e.key as String: e.value as String,
+      },
+      webInboxWait: {
+        if (json['ww'] is Map)
+          for (final e in (json['ww'] as Map).entries)
+            if (e.key is String &&
+                e.value is List &&
+                (e.value as List).length == 2 &&
+                (e.value as List).every((x) => x is int))
+              e.key as String: (e.value as List).cast<int>(),
+      },
+      webTombstoneDay: wt is List && wt.length == 2 && wt[0] is int
+          ? wt[0] as int
+          : 0,
+      webTombstoneCount: wt is List && wt.length == 2 && wt[1] is int
+          ? wt[1] as int
+          : 0,
       health: json['health'] == null ? null : V2Health.fromJson(json['health']),
       created: json['c'] == true,
       commonFormatV2: json['cf'] == true,
       commonMigration: json['cm'] == true,
       commonMigrationPut: json['cmp'] == true,
+      createSent: json['cs'] == true,
       version: v is int && v >= 0 ? v : null,
       slotVersions: ints(json['s']),
       ignoredSlots: {
@@ -733,6 +847,19 @@ enum UnbackedRevocation {
   knownMember,
 }
 
+/// Slots bajados en una vuelta que no terminó (por ejemplo, un `429` a mitad
+/// de una lista de 128 en frío; el Worker admite 120 peticiones por minuto y
+/// credencial): la vuelta siguiente no los vuelve a pedir. Son los bytes tal
+/// como llegaron, sin verificar, por (lista, recurso, versión del recurso),
+/// y pasan las mismas comprobaciones que uno recién bajado. Se vacía al
+/// terminar la descarga de esa lista. En memoria del proceso: comparte los
+/// motores que se crean y se cierran.
+final _pendingSlotDownloads = <String, Uint8List>{};
+
+/// Se olvida lo bajado a medias (SOLO pruebas).
+@visibleForTesting
+void clearPendingSlotDownloadsForTesting() => _pendingSlotDownloads.clear();
+
 class SyncV2Engine {
   /// Crea el ciclo.
   SyncV2Engine({
@@ -857,6 +984,11 @@ class SyncV2Engine {
       } else {
         await durable.saveRecoveryBootstrap(bootstrap);
       }
+    }
+    // 1.0.6: la intención de publicar, antes de enviar (ver createSent).
+    if (!state.createSent) {
+      state = state.copyWith(createSent: true);
+      await local.saveState(state);
     }
     final result = await transport.createList(_auth, bootstrap);
     switch (result) {
@@ -1117,6 +1249,24 @@ class SyncV2Engine {
       await transport.announceCommonFormat(auth, kCommonFormatLatest);
       throw const _Restart();
     }
+    // 1.0.6: este móvil lee listas de hasta kMaxSlotsPerList slots. El Worker
+    // no deja pasar de 64 (lo que admite un 1.0.5) mientras falte un móvil
+    // activo por anunciarlo. Una vez. Solo mueve la versión si con él cambia
+    // el tope (es el último): entonces se vuelve a empezar con la instantánea
+    // nueva; si no, la vuelta sigue. Si falla, se intenta en la siguiente.
+    if (!readOnly &&
+        snap.slotCapacitySupported &&
+        myCredential != null &&
+        myCredential.role == 'device' &&
+        myCredential.slotCapacity < kV2SlotCapacity) {
+      int? moved;
+      try {
+        moved = await transport.announceSlotCapacity(auth);
+      } on SyncTransportException {
+        // Se repite en la vuelta siguiente.
+      }
+      if (moved != null && moved != snap.version) throw const _Restart();
+    }
     // Se sigue por la marca, no por el interruptor (revisión de seguridad, M2): un móvil con
     // el interruptor encendido y sin la marca también la pone.
     final follow =
@@ -1138,10 +1288,24 @@ class SyncV2Engine {
     final slotVersions = <String, int>{};
     final ignored = <String, IgnoredSlot>{};
     var unreadable = 0;
+    final webDone = <String, int>{};
+    final webWait = <String, List<int>>{};
+    final fetchMillis = clock.now().millisecondsSinceEpoch;
     for (final ref in snap.slots) {
       final was = state.ignoredSlots[ref.key];
       if (was != null && was.version == ref.version) {
         ignored[ref.key] = was;
+        continue;
+      }
+      if (state.webInboxDone[ref.key] == ref.version) {
+        webDone[ref.key] = ref.version;
+        continue;
+      }
+      final waited = state.webInboxWait[ref.key];
+      if (waited != null &&
+          waited[0] == ref.version &&
+          fetchMillis - waited[1] < kWebInboxRetry.inMilliseconds) {
+        webWait[ref.key] = waited;
         continue;
       }
       final have = localSlots.slotOf(ref.personId, ref.deviceId);
@@ -1149,12 +1313,13 @@ class SyncV2Engine {
         slotVersions[ref.key] = ref.version;
         continue;
       }
+      final pendingKey = '${auth.syncId}|${ref.key}|${ref.version}';
       final cached = readOnly && local is RecoverySlotCacheLocal
           ? await (local as RecoverySlotCacheLocal).readRecoverySlot(
               snap.version,
               ref,
             )
-          : null;
+          : (readOnly ? null : _pendingSlotDownloads[pendingKey]);
       final slot = cached == null
           ? await transport.getSlot(
               auth,
@@ -1189,6 +1354,7 @@ class SyncV2Engine {
           try {
             parsed = SealedSlot.parse(slot.data);
           } on ProtectedEnvelopeException {
+            _pendingSlotDownloads.remove(pendingKey);
             // Un slot que nadie puede leer no tumba la vuelta de la familia
             // (revisión de seguridad, M1): se rechaza, se apunta con su versión y no se
             // vuelve a bajar hasta que cambie.
@@ -1202,15 +1368,30 @@ class SyncV2Engine {
           // Una respuesta sustituida: el slot dice ser de otro recurso.
           if (parsed.header.personId != ref.personId ||
               parsed.header.writer != ref.deviceId) {
+            _pendingSlotDownloads.remove(pendingKey);
             throw const SyncTransportException(
               SyncFailure.protocol,
               'el slot no es del recurso pedido',
             );
           }
+          // Solo se guarda para la vuelta siguiente lo que tiene estructura de
+          // slot y es del recurso pedido (firma, derechos y revisión se
+          // comprueban después, igual que con uno recién bajado).
+          if (!readOnly && cached == null) {
+            if (_pendingSlotDownloads.length >= kMaxSlotsPerList) {
+              _pendingSlotDownloads.clear();
+            }
+            _pendingSlotDownloads[pendingKey] = slot.data;
+          }
           fetched.add(parsed);
           slotVersions[ref.key] = ref.version;
       }
     }
+    // La descarga de esta lista terminó: lo bajado a medias ya está en
+    // [fetched].
+    _pendingSlotDownloads.removeWhere(
+      (k, _) => k.startsWith('${auth.syncId}|'),
+    );
 
     // 2. El documento común. Con la clave común por época va después del
     // registro (ADR 0005, sección 4): primero los permisos y los paquetes.
@@ -1608,12 +1789,84 @@ class SyncV2Engine {
       await local.deleteScope(person);
     }
 
+    // 5b. Las webs de la persona de este móvil (1.0.6, ADR 0009): la clave
+    // de cada candidata de la época de cada persona que no es la suya, sin
+    // añadir la web a la audiencia. Una por (web, candidata) y ficha.
+    final ownWebs = view.ownWebs();
+    {
+      final ring = await local.updateKeyring((k) => k);
+      final present = {
+        for (final p in [...snap.keyPackages, ...state.keyPackageOutbox])
+          if (p['from'] == me) jsonEncode(p),
+      };
+      final shares = <String, String>{};
+      final bundles = <KeyBundle>[];
+      for (final web in ownWebs) {
+        for (final key in ring.keys) {
+          if (key.epoch != view.epoch ||
+              key.personId == web.personId ||
+              !view.selfEntitled(key.personId)) {
+            continue;
+          }
+          final id = [
+            web.deviceId,
+            web.recordDigest,
+            view.self.recordDigest,
+            key.personId,
+            key.epoch,
+            key.kid,
+          ].join('|');
+          final known = state.webShares[id];
+          if (known != null && present.contains(known)) {
+            shares[id] = known;
+            continue;
+          }
+          try {
+            final bundle = await KeyBundle.sealSurpriseKeyForOwnWeb(
+              sender: local.keys,
+              view: view,
+              toDevice: web.deviceId,
+              key: key,
+            );
+            bundles.add(bundle);
+            shares[id] = jsonEncode(bundle.toJson());
+          } on KeyBundleException {
+            continue;
+          }
+        }
+      }
+      if (bundles.isNotEmpty ||
+          shares.length != state.webShares.length ||
+          shares.keys.any((k) => !state.webShares.containsKey(k))) {
+        state = state.copyWith(webShares: shares);
+        await enqueue(bundles);
+        await local.saveState(state);
+      }
+    }
+    final ownWebIds = {for (final w in ownWebs) w.deviceId};
+
     // 6. Los slots: los nuevos, verificados contra el registro ya fusionado;
     // los que son más viejos de lo que el anfitrión ya conocía no entran.
     final fresh = <SealedSlot>[];
     var rejected = unreadable;
+    // Los slots de una web son buzones (1.0.6, ADR 0009): nunca entran en el
+    // conjunto. Los de las webs propias se recogen al publicar; los demás se
+    // ignoran mientras no cambien.
+    final inboxes = <String, List<SealedSlot>>{};
     for (final slot in fetched) {
       final key = '${slot.header.personId}/${slot.header.writer}';
+      if (view.device(slot.header.writer)?.kind == DeviceKind.web) {
+        if (ownWebIds.contains(slot.header.writer) &&
+            slot.header.personId != view.myPerson) {
+          (inboxes[slot.header.personId] ??= []).add(slot);
+        } else {
+          ignored[key] = IgnoredSlot(
+            slotVersions[key]!,
+            IgnoredSlotReason.webInbox,
+          );
+        }
+        continue;
+      }
       final min = state.minSlotRevisions[key];
       if (min != null && slot.header.revision < min) {
         rejected++;
@@ -1638,6 +1891,9 @@ class SyncV2Engine {
         IgnoredSlotReason.revoked => !reallyRevoked(writer),
         IgnoredSlotReason.unknownWriter => !unknown(writer),
         IgnoredSlotReason.unreadable => false,
+        IgnoredSlotReason.webInbox =>
+          view.device(writer)?.kind != DeviceKind.web ||
+              ownWebIds.contains(writer),
       };
     });
     for (final ref in snap.slots) {
@@ -1721,12 +1977,21 @@ class SyncV2Engine {
     // lista y el de cada escritor. Sustituir el propio siempre cabe.
     final onServer = {for (final ref in snap.slots) ref.key};
     final retiring = changes.length;
-    var room = kMaxSlotsPerList - (snap.slots.length - retiring);
+    // El tope que dice el Worker: 64 mientras algún móvil no haya anunciado
+    // `slotCapacity` (o si el Worker es anterior y no lo dice).
+    final listCap = min(
+      kMaxSlotsPerList,
+      snap.capacity?.slots?.max ?? kV2LegacyMaxSlots,
+    );
+    var room = listCap - (snap.slots.length - retiring);
     var ownRoom =
         kV2MaxSlotsPerWriter -
         (snap.slots.where((r) => r.deviceId == me).length - retiring);
     var slotsFull = false;
     var writerSlotsFull = false;
+    // Personas con algún buzón recogido en esta vuelta: siguen en `deferred`
+    // hasta que su slot entre (B5), para declarar `s[web]` cuanto antes.
+    final collectedPeople = <String>{};
     for (final person in order) {
       if (!view.selfEntitled(person) || frozen.contains(person)) continue;
       if (tombstoned.contains(person)) continue;
@@ -1737,16 +2002,17 @@ class SyncV2Engine {
       );
       if (sealing == null) continue;
       final mine = localSlots.slotOf(person, me)?.header;
-      if (!state.deferred.contains(person) &&
-          !slotPublishDue(
+      final due =
+          state.deferred.contains(person) ||
+          slotPublishDue(
             mine: mine,
             epoch: view.epoch,
             sealingKid: sealing.kid,
             nowMillis: nowMillis,
             commonChanged: commonChanged,
-          )) {
-        continue;
-      }
+          );
+      // Un buzón por recoger no obliga a publicar: solo si se recoge (B2).
+      if (!due && !inboxes.containsKey(person)) continue;
       if (published.length >= kV2MaxSlotsPerPut) {
         // El Worker lee como mucho 5 MiB (hallazgo 10): el resto, en la
         // vuelta siguiente.
@@ -1770,10 +2036,37 @@ class SyncV2Engine {
         view: view,
       );
       if (opened == null) continue;
-      final scope =
+      var scope =
           (await local.readScope(person) ?? FamilyDoc.empty(view.listId)).merge(
             opened.doc,
           );
+      // 1.0.6 (ADR 0009): los buzones de las webs propias para esta persona.
+      final collected = await _collectWebInboxes(
+        person: person,
+        scope: scope,
+        opened: opened,
+        inboxes: inboxes[person] ?? const [],
+        ownWebIds: ownWebIds,
+        view: view,
+        keyring: currentKeyring,
+        state: state,
+        slotVersions: slotVersions,
+        nowMillis: nowMillis,
+      );
+      if (!identical(collected.scope, scope)) {
+        scope = collected.scope;
+        await local.saveScope(person, scope);
+      }
+      webDone.addAll(collected.done);
+      for (final key in collected.waiting) {
+        webWait[key] = [slotVersions[key]!, nowMillis];
+      }
+      if (!identical(collected.state, state)) {
+        state = collected.state;
+        await local.saveState(state);
+      }
+      if (collected.collected) collectedPeople.add(person);
+      if (!due && !collected.collected) continue;
       try {
         final result = await publishScope(
           slots: localSlots,
@@ -1787,6 +2080,13 @@ class SyncV2Engine {
           revisionFloor: local is RecoverySyncLocal
               ? await (local as RecoverySyncLocal).slotRevisionFloor(person)
               : 0,
+          extraSeen: {
+            for (final e in state.webInboxFloors.entries)
+              if (e.key.startsWith('$person/') &&
+                  view.device(e.key.substring(person.length + 1))?.kind ==
+                      DeviceKind.web)
+                e.key.substring(person.length + 1): e.value,
+          },
         );
         if (local case final RecoverySyncLocal recovery) {
           await recovery.rememberSlotRevision(
@@ -1807,6 +2107,21 @@ class SyncV2Engine {
         }
       } on SlotPublishBlockedException {
         // No toca ahora (falta clave, slot propio ilegible...): no se publica.
+      }
+    }
+
+    // B6 (revisión final): un buzón propio que esta vuelta no ha resuelto
+    // (persona congelada, sin clave de sellado, sin derecho o inexistente)
+    // espera como los demás y no se vuelve a bajar en cada vuelta. Los de
+    // personas que solo se aplazan por el tope del `PUT` se miran en la
+    // siguiente.
+    for (final entry in inboxes.entries) {
+      if (deferred.contains(entry.key)) continue;
+      for (final slot in entry.value) {
+        final key = '${slot.header.personId}/${slot.header.writer}';
+        if (!webDone.containsKey(key) && !webWait.containsKey(key)) {
+          webWait[key] = [slotVersions[key]!, nowMillis];
+        }
       }
     }
 
@@ -1910,10 +2225,12 @@ class SyncV2Engine {
       throw const V2GenerationFullException();
     }
     // Los slots abandonados ya no se podan (B2): también piden renovar. Un
-    // servidor anterior no cuenta los slots en `capacity`; el manifiesto sí.
+    // servidor anterior no cuenta los slots en `capacity`; el manifiesto sí
+    // (con su aviso, el de 64 slots, o el que diga `capacity`).
     final renew =
         (snap.capacity?.renew ?? false) ||
-        snap.slots.length >= kV2WarnSlots ||
+        snap.slots.length >=
+            (snap.capacity?.slots?.warn ?? kV2LegacyWarnSlots) ||
         slotsFull ||
         commonPackagesFull;
     final retainedCommons = cycle == null
@@ -1928,7 +2245,24 @@ class SyncV2Engine {
       version: snap.version,
       slotVersions: slotVersions,
       ignoredSlots: ignored,
-      deferred: deferred,
+      deferred: {...deferred, ...collectedPeople},
+      webInboxDone: {
+        for (final ref in snap.slots)
+          if (webDone[ref.key] == ref.version) ref.key: ref.version,
+      },
+      // B1: la última recogida se conserva mientras la web siga en el
+      // registro (activa o pendiente), aunque hoy no sea propia.
+      webInboxFloors: {
+        for (final e in state.webInboxFloors.entries)
+          if (view.device(e.key.substring(e.key.indexOf('/') + 1))?.kind ==
+              DeviceKind.web)
+            e.key: e.value,
+      },
+      webInboxWait: {
+        for (final ref in snap.slots)
+          if (webWait[ref.key] case final w? when w[0] == ref.version)
+            ref.key: w,
+      },
       health: V2Health(
         unbackedCredentials: unbacked,
         departedDevices: departed,
@@ -2028,6 +2362,8 @@ class SyncV2Engine {
             slotVersions: versions,
             keyPackageOutbox: remainingPackages,
             revocationOperations: const {},
+            // El slot con lo recogido ya entró (B5).
+            deferred: deferred,
           ),
         );
         // La marca irreversible, al terminar: un cierre antes deja el
@@ -2137,6 +2473,133 @@ class SyncV2Engine {
     return out.length > 512 ? out.sublist(out.length - 512) : out;
   }
 
+  /// Recoge en [scope] los [inboxes] de las webs propias para [person]
+  /// (1.0.6, ADR 0009, A.8.4). Devuelve el ámbito (el mismo si no cambia),
+  /// el estado con las últimas recogidas y el contador de lápidas, y los
+  /// buzones resueltos (no se vuelven a bajar mientras no cambien), los que
+  /// esperan y si se recogió alguno (entonces hay que publicar).
+  Future<
+    ({
+      FamilyDoc scope,
+      V2SyncState state,
+      Map<String, int> done,
+      Set<String> waiting,
+      bool collected,
+    })
+  >
+  _collectWebInboxes({
+    required String person,
+    required FamilyDoc scope,
+    required OpenedScope opened,
+    required List<SealedSlot> inboxes,
+    required Set<String> ownWebIds,
+    required RegistryView view,
+    required SurpriseKeyring keyring,
+    required V2SyncState state,
+    required Map<String, int> slotVersions,
+    required int nowMillis,
+  }) async {
+    final floors = {...state.webInboxFloors};
+    // Recogida transitiva: lo que otro móvil de la misma persona ya declara
+    // haber recogido (`s[web]`) ya viene en su slot.
+    // También el slot propio (B1): si este móvil perdió su estado, lo que ya
+    // declaró sigue valiendo.
+    for (final part in opened.parts.entries) {
+      if (view.member(part.key)?.personId != view.myPerson) continue;
+      for (final web in ownWebIds) {
+        final seen = part.value.seen[web];
+        final key = '$person/$web';
+        if (seen != null &&
+            (floors[key] == null || seen.compareTo(floors[key]!) > 0)) {
+          floors[key] = seen;
+        }
+      }
+    }
+    final done = <String, int>{};
+    final waiting = <String>{};
+    var collected = false;
+    final day = nowMillis ~/ Duration.millisecondsPerDay;
+    var count = state.webTombstoneDay == day ? state.webTombstoneCount : 0;
+    var next = scope;
+    for (final inbox in inboxes) {
+      final h = inbox.header;
+      final key = '$person/${h.writer}';
+      final floor = floors[key];
+      final web = view.member(h.writer);
+      if (web == null || web.kind != DeviceKind.web) continue;
+      if (floor != null && h.version.compareTo(floor) <= 0) {
+        done[key] = slotVersions[key]!;
+        continue;
+      }
+      // Del futuro (época que el registro no ha abierto o revisión
+      // adelantada), o con algún escritor ilegible (no se sabe si el regalo
+      // existe, B4): espera.
+      if (h.epoch > view.epoch ||
+          h.revision > nowMillis + kMaxSlotClockSkew.inMilliseconds ||
+          opened.unreadableWriters.isNotEmpty) {
+        waiting.add(key);
+        continue;
+      }
+      if (!await inbox.verifySignature(web.signingKey)) {
+        done[key] = slotVersions[key]!;
+        continue;
+      }
+      final key2 = keyring.keyFor(person, h.epoch, h.kid);
+      // Sin la clave con que se selló, espera a que llegue.
+      if (key2 == null) {
+        waiting.add(key);
+        continue;
+      }
+      final OpenedSlot content;
+      try {
+        content = await inbox.open(
+          expectedListId: view.listId,
+          key: key2,
+          signingKey: web.signingKey,
+        );
+      } on ProtectedEnvelopeException {
+        done[key] = slotVersions[key]!;
+        continue;
+      }
+      final result = absorbWebInbox(
+        scope: next,
+        inbox: content,
+        nowMillis: nowMillis,
+        tombstoneBudget: kMaxWebTombstonesPerDay - count,
+      );
+      if (result.waiting) {
+        waiting.add(key);
+        continue;
+      }
+      floors[key] = h.version;
+      done[key] = slotVersions[key]!;
+      // Rechazado o recogido: hay que declarar `s[web]` para que la web lo
+      // deje de reenviar.
+      collected = true;
+      if (result.rejected != null) continue;
+      next = result.scope;
+      count += result.tombstones;
+    }
+    final changedFloors =
+        floors.length != state.webInboxFloors.length ||
+        floors.entries.any((e) => state.webInboxFloors[e.key] != e.value);
+    final changedCount =
+        count != (state.webTombstoneDay == day ? state.webTombstoneCount : 0);
+    return (
+      scope: next,
+      state: changedFloors || changedCount
+          ? state.copyWith(
+              webInboxFloors: floors,
+              webTombstoneDay: day,
+              webTombstoneCount: count,
+            )
+          : state,
+      done: done,
+      waiting: waiting,
+      collected: collected,
+    );
+  }
+
   bool _packageAllowed(Map<String, Object?> raw, RegistryView view) {
     try {
       final p = KeyBundle.fromJson(raw);
@@ -2148,6 +2611,19 @@ class SyncV2Engine {
         return false;
       }
       if (!view.selfEntitled(person)) return false;
+      // 1.0.6 (ADR 0009): la clave para una web propia vale mientras la web
+      // siga siendo propia con la misma ficha, sea de otra persona y la
+      // época no haya cambiado (después recibe las nuevas).
+      for (final web in view.ownWebs()) {
+        if (web.deviceId != p.toDevice) continue;
+        return person != web.personId &&
+            p.epoch == view.epoch &&
+            web.recordDigest == p.recipientRecord &&
+            view.self.recordDigest == p.senderRecord &&
+            p.audience.every(
+              (id) => id == web.deviceId || view.entitled(id, person) != null,
+            );
+      }
       final sender = view.entitled(p.fromDevice, person);
       final recipient = view.entitled(p.toDevice, person);
       return sender != null &&

@@ -14,6 +14,7 @@ import 'dart:typed_data';
 
 import '../../../core/sync/device_keys.dart' show kSyncIdPattern;
 import '../../../core/sync/envelope.dart' show decodeBase64Url, encodeBase64Url;
+import '../../../core/sync/protected_doc.dart' show kMaxSlotsPerList;
 import '../../../core/sync/renewal_protocol.dart';
 import 'sync_transport.dart';
 import 'sync_transport_common.dart';
@@ -35,7 +36,7 @@ const int kV2MaxSlotsPerPut = 10;
 /// Slots guardados en la lista desde los que conviene renovar
 /// (`V2_WARN_SLOTS` del Worker). Nadie borra los slots de otro (B2): los
 /// abandonados solo se van con la renovación.
-const int kV2WarnSlots = 48;
+const int kV2WarnSlots = 104;
 
 /// Slots que puede tener un escritor (`V2_MAX_SLOTS_PER_WRITER` del Worker):
 /// una sola credencial no llena el tope de la lista.
@@ -141,6 +142,7 @@ class V2Device {
     this.approvedBy,
     this.role = 'device',
     this.commonFormat = 1,
+    this.slotCapacity = 1,
   });
 
   /// Móvil.
@@ -160,7 +162,27 @@ class V2Device {
   /// y escribe (`POST S/capability`, ADR 0005, B4); 1 si no ha anunciado
   /// nada. Es dato del servicio, no confianza firmada.
   final int commonFormat;
+
+  /// 2 si esta credencial ha anunciado que lee listas de hasta
+  /// `kMaxSlotsPerList` slots (`POST S/capability {slotCapacity: 2}`, 1.0.6);
+  /// 1 si no (un 1.0.5 no admite más de 64). Dato del servicio, como
+  /// [commonFormat]: el Worker no deja pasar de 64 mientras falte alguno.
+  final int slotCapacity;
 }
+
+/// Capacidad de lista de slots que anuncia esta versión (1.0.6).
+const int kV2SlotCapacity = 2;
+
+/// Tope de slots de la lista mientras algún móvil no anuncia
+/// [kV2SlotCapacity] (`V2_LEGACY_MAX_SLOTS`): lo que admite un 1.0.5.
+const int kV2LegacyMaxSlots = 64;
+
+/// Aviso de renovar por slots con ese tope (`V2_LEGACY_WARN_SLOTS`).
+const int kV2LegacyWarnSlots = 48;
+
+/// Caracteres base64url del slot más grande (`V2_MAX_SLOT_CHARS` del Worker:
+/// 131.584 bytes con los ids más largos). Lo que pase no se decodifica.
+const int kV2MaxSlotChars = 175446;
 
 /// `GET /v2/lists/{syncId}`: la instantánea, sin el contenido de los slots.
 class V2Snapshot {
@@ -174,6 +196,7 @@ class V2Snapshot {
     required this.devices,
     this.capacity,
     this.minCommonFormat = 1,
+    this.slotCapacitySupported = false,
   });
 
   /// Versión de la lista.
@@ -201,6 +224,10 @@ class V2Snapshot {
   /// El formato mínimo del común que acepta esta generación (ADR 0005, B4);
   /// 1 si el servidor no lo dice.
   final int minCommonFormat;
+
+  /// Si el Worker admite el anuncio `slotCapacity` (1.0.6): sin él, el tope
+  /// de la lista es el de siempre, 64.
+  final bool slotCapacitySupported;
 }
 
 /// Un contador de [V2Capacity]: lo usado, el aviso y el tope.
@@ -640,6 +667,16 @@ abstract interface class SyncV2Transport {
     required Uint8List common,
   });
 
+  /// `PUT S/slots/{personId}/{deviceId} {data}` con `If-Match: "version"`
+  /// (1.0.6, ADR 0009): el buzón de una web, solo con su credencial y su
+  /// propio id. Con [data] null lo quita.
+  Future<V2WriteResult> putWebSlot(
+    V2Auth auth, {
+    required int version,
+    required String personId,
+    required Uint8List? data,
+  });
+
   /// `PUT S` con `If-Match: "0"`: crea la lista. [V2WriteStale] si ya existe
   /// y este móvil está en ella.
   Future<V2WriteResult> createList(V2Auth auth, V2SnapshotUpload body);
@@ -680,6 +717,10 @@ abstract interface class SyncV2Transport {
   /// que lee y escribe ese formato del común. Devuelve la versión (sube solo
   /// si cambia algo).
   Future<int> announceCommonFormat(V2Auth auth, int format);
+
+  /// `POST S/capability {slotCapacity: 2}`: esta credencial lee listas de
+  /// hasta `kMaxSlotsPerList` slots (1.0.6). Devuelve la versión.
+  Future<int> announceSlotCapacity(V2Auth auth);
 
   /// `POST S/revoke {deviceId}`: devuelve la versión nueva.
   ///
@@ -1276,6 +1317,13 @@ class SyncV2Client implements SyncV2Transport {
             'instantánea incompleta',
           );
         }
+        // Antes de bajar nada: un manifiesto más largo que el tope no vale.
+        if (slots.length > kMaxSlotsPerList) {
+          throw const SyncTransportException(
+            SyncFailure.protocol,
+            'demasiados slots',
+          );
+        }
         final refs = <V2SlotRef>[];
         final seen = <String>{};
         for (final raw in slots) {
@@ -1345,12 +1393,20 @@ class SyncV2Client implements SyncV2Transport {
                       'commonFormat',
                     );
                   }
+                  final slotCapacity = d['slotCapacity'] ?? 1;
+                  if (slotCapacity is! int || slotCapacity < 1) {
+                    throw const SyncTransportException(
+                      SyncFailure.protocol,
+                      'slotCapacity',
+                    );
+                  }
                   return V2Device(
                     deviceId: id,
                     revoked: d['revoked'] == true,
                     approvedBy: by as String?,
                     role: role as String,
                     commonFormat: format,
+                    slotCapacity: slotCapacity,
                   );
                 }(),
             ]),
@@ -1365,6 +1421,7 @@ class SyncV2Client implements SyncV2Transport {
               }
               return min;
             }(),
+            slotCapacitySupported: json['slotCapacity'] == kV2SlotCapacity,
           ),
         );
       case 304:
@@ -1409,10 +1466,18 @@ class SyncV2Client implements SyncV2Transport {
             'slot del futuro',
           );
         }
+        final text = json['data'];
+        // La longitud, antes de decodificar (un slot tiene tamaño fijo).
+        if (text is String && text.length > kV2MaxSlotChars) {
+          throw const SyncTransportException(
+            SyncFailure.protocol,
+            'slot demasiado grande',
+          );
+        }
         return V2SlotOk(
           version: got,
           slotVersion: slotVersion,
-          data: _b64(json['data'], 'data'),
+          data: _b64(text, 'data'),
         );
       case 412:
         return const V2SlotStale();
@@ -1467,6 +1532,31 @@ class SyncV2Client implements SyncV2Transport {
   }
 
   @override
+  Future<V2WriteResult> putWebSlot(
+    V2Auth auth, {
+    required int version,
+    required String personId,
+    required Uint8List? data,
+  }) async {
+    _checkPathId(personId);
+    _checkPathId(auth.deviceId);
+    final r = await sendRequest(
+      'PUT',
+      _uri('${_list(auth)}/slots/$personId/${auth.deviceId}'),
+      body: {'data': data == null ? null : encodeBase64Url(data)},
+      headers: _authed(auth, {'If-Match': _etag(version)}),
+    );
+    final result = _write(r);
+    if (result is V2WriteOk && result.version < version) {
+      throw const SyncTransportException(
+        SyncFailure.protocol,
+        'la versión ha bajado',
+      );
+    }
+    return result;
+  }
+
+  @override
   Future<V2WriteResult> deleteList(
     V2Auth auth, {
     required int version,
@@ -1492,6 +1582,18 @@ class SyncV2Client implements SyncV2Transport {
       'POST',
       _uri('${_list(auth)}/capability'),
       body: {'commonFormat': format},
+      headers: _authed(auth),
+    );
+    if (r.status == 200) return _versioned(r, r.json());
+    _fail(r);
+  }
+
+  @override
+  Future<int> announceSlotCapacity(V2Auth auth) async {
+    final r = await sendRequest(
+      'POST',
+      _uri('${_list(auth)}/capability'),
+      body: {'slotCapacity': kV2SlotCapacity},
       headers: _authed(auth),
     );
     if (r.status == 200) return _versioned(r, r.json());

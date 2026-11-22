@@ -49,11 +49,38 @@ Future<ProtectedPersonReason?> protectionRequestReason(
 }
 
 class _ProtectionContext {
-  const _ProtectionContext(this.view, this.keys, this.slots, this.keyring);
+  const _ProtectionContext(
+    this.view,
+    this.keys,
+    this.slots,
+    this.keyring, {
+    this.registry,
+    this.alone = false,
+    this.ownHidden = const <String>{},
+  });
   final RegistryView view;
   final DeviceKeys keys;
   final SlotSet slots;
   final SurpriseKeyring keyring;
+
+  /// El registro verificado del que sale [view].
+  final DeviceRegistry? registry;
+
+  /// Excepción del móvil solo ([ownProtectionLifted]).
+  final bool alone;
+
+  /// Capa de pantalla ([ownHiddenPeople]).
+  final Set<String> ownHidden;
+
+  _ProtectionContext withKeyring(SurpriseKeyring next) => _ProtectionContext(
+    view,
+    keys,
+    slots,
+    next,
+    registry: registry,
+    alone: alone,
+    ownHidden: ownHidden,
+  );
 
   bool blocked(FamilyDoc doc, String person) => publicGiftsBlockedFor(
     common: doc,
@@ -61,6 +88,7 @@ class _ProtectionContext {
     keyring: keyring,
     view: view,
     personId: person,
+    alone: alone,
   );
 
   SurpriseKey requireKey(String person) {
@@ -144,6 +172,8 @@ extension PersonProtectionActions on FamilyController {
     if (!_store.supportsSecretScopes) return null;
     final registry = await _store.readVerifiedRegistry(doc);
     if (registry == null) return null;
+    final identity = (await _current()).identity;
+    final paired = identity?.paired ?? false;
     return _ProtectionContext(
       registry.view,
       registry.keys,
@@ -151,6 +181,14 @@ extension PersonProtectionActions on FamilyController {
       await _protectionRef
           .read(deviceKeysStoreProvider)
           .readKeyring(doc.listId),
+      registry: registry.registry,
+      alone: ownProtectionLifted(view: registry.view, paired: paired),
+      ownHidden: ownHiddenPeople(
+        view: registry.view,
+        selfRecipientId: identity?.selfRecipientId,
+        paired: paired,
+        formerSelf: identity?.formerSelf ?? const <String>{},
+      ),
     );
   }
 
@@ -171,13 +209,52 @@ extension PersonProtectionActions on FamilyController {
           );
     final ctx = await _protectionContext(effectiveDoc);
     if (ctx == null) {
-      return FamilyView.fromDoc(FamilyState._safeStateDoc(effectiveDoc));
+      // 1.0.6: sin contexto de protección, la vista de los diálogos y
+      // resúmenes sigue la misma regla que la pantalla. Un v2 sin registro
+      // legible no enseña ningún regalo; un v1 oculta además los de la
+      // persona de este móvil si está emparejado.
+      final current = await _current();
+      final identity = current.identity;
+      if (_store.supportsSecretScopes &&
+          (await _store.readSyncV2() != null ||
+              syncProtocolOf(effectiveDoc) == kSyncProtocolV2)) {
+        return FamilyView.fromDoc(_withoutGiftsFor(effectiveDoc, null));
+      }
+      final own = ownHiddenPeople(
+        view: null,
+        selfRecipientId: identity?.selfRecipientId,
+        paired:
+            (identity?.paired ?? false) ||
+            current.otherDevicePeople.isNotEmpty,
+        formerSelf: identity?.formerSelf ?? const <String>{},
+      );
+      return FamilyView.fromDoc(
+        _withoutGiftsFor(FamilyState._safeStateDoc(effectiveDoc), own),
+      );
     }
     return (await _projectAuthorized(
       effectiveDoc,
       ctx,
       includePending: includePending,
     )).view;
+  }
+
+  // [doc] sin los regalos para [people], o sin ninguno con null.
+  FamilyDoc _withoutGiftsFor(FamilyDoc doc, Set<String>? people) {
+    if (people != null && people.isEmpty) return doc;
+    return FamilyDoc(
+      listId: doc.listId,
+      collections: {
+        ...doc.collections,
+        Collections.gifts: {
+          if (people != null)
+            for (final e
+                in doc.collections[Collections.gifts]?.entries ??
+                    const <MapEntry<String, SyncRecord>>[])
+              if (!people.contains(e.value['recipientId'])) e.key: e.value,
+        },
+      },
+    );
   }
 
   Future<AuthorizedProjection> _projectAuthorized(
@@ -204,6 +281,8 @@ extension PersonProtectionActions on FamilyController {
       keyring: ctx.keyring,
       view: ctx.view,
       localScopes: local,
+      ownPeople: ctx.ownHidden,
+      alone: ctx.alone,
     );
   }
 
@@ -354,6 +433,142 @@ extension PersonProtectionActions on FamilyController {
   Future<void> activateProtection(String personId) =>
       _protectionSerial(() => _transitionProtection(personId, true));
 
+  /// Como [activateProtection], para quien ya tiene el cerrojo v2 (nunca
+  /// [_protectionSerial] desde ahí: se bloquearía).
+  Future<void> activateProtectionWithinLock(String personId) =>
+      _serial(() async {
+        await _recoverProtection();
+        await _transitionProtection(personId, true);
+      });
+
+  /// QA 1.0.6, M1 (B1 y B2 de la revisión de seguridad): antes de estrenar una
+  /// generación sin nadie, con la vista de la que se deja, quién podrá volver
+  /// a sellarse ([planAloneRestore]). Para quien ya tiene el cerrojo v2. Sin
+  /// registro legible o ante cualquier fallo, nada.
+  Future<AloneRestorePlan> planAloneRestoreWithinLock() => _serial(() async {
+    try {
+      await _recoverProtection();
+      final current = await _current();
+      final identity = current.identity;
+      if (identity == null) return AloneRestorePlan.none;
+      final ctx = await _protectionContext(current.doc);
+      if (ctx == null) return AloneRestorePlan.none;
+      return planAloneRestore(
+        view: ctx.view,
+        held: {
+          ...ctx.keyring.people,
+          ...(await _store.readRecoveryScopes()).keys,
+        },
+        selfRecipientId: identity.selfRecipientId,
+        formerSelf: identity.formerSelf,
+      );
+    } on Object {
+      return AloneRestorePlan.none;
+    }
+  });
+
+  /// QA 1.0.6, M1: ya estrenada la generación sin nadie, vuelve a sellar para
+  /// este móvil, con una clave nueva cuya audiencia es solo él, las sorpresas
+  /// de los demás que ya tenía en su copia local y que permite [plan]
+  /// ([othersToRestoreWhenAlone]). Nunca las de su propia persona. Para quien
+  /// ya tiene el cerrojo v2. De mejor esfuerzo y sin lanzar (B3): lo que no
+  /// sale se arregla al volver a conectar otro móvil, como antes.
+  Future<void> restoreOthersSecretsWhenAloneWithinLock(AloneRestorePlan plan) =>
+      _serial(() async {
+        if (plan.people.isEmpty) return;
+        final Set<String> people;
+        try {
+          await _recoverProtection();
+          final current = await _current();
+          final identity = current.identity;
+          if (identity == null) return;
+          final ctx = await _protectionContext(current.doc);
+          if (ctx == null) return;
+          people = othersToRestoreWhenAlone(
+            common: current.doc,
+            view: ctx.view,
+            slots: ctx.slots,
+            keyring: ctx.keyring,
+            localScopes: (await _store.readRecoveryScopes()).keys,
+            paired: identity.paired,
+            plan: plan,
+          );
+        } on Object {
+          return;
+        }
+        for (final person in people.toList()..sort()) {
+          try {
+            await _transitionProtection(person, true);
+          } on Object {
+            continue;
+          }
+        }
+      });
+
+  /// Antes de invitar al móvil de [personId] (1.0.6), de mejor esfuerzo:
+  /// pone en secreto sus regalos si este móvil tiene derecho y aún no lo
+  /// están. No lanza: el intento que cuenta es [protectForPairingWithinLock].
+  Future<void> protectBeforeInvite(String personId) async {
+    try {
+      await _protectionSerial(() async {
+        final current = await _requireFamily();
+        final ctx = await _protectionContext(current.doc);
+        if (ctx == null ||
+            ctx.view.myPerson == personId ||
+            nothingToProtectFor(current.doc, personId) ||
+            !ctx.view.selfEntitled(personId)) {
+          return;
+        }
+        if (ctx.slots.authenticatedPolicy(personId, ctx.view)?.hideOwnGifts ==
+                true &&
+            publishedPolicy(current.doc, personId)?.hideOwnGifts == true) {
+          return;
+        }
+        await _transitionProtection(personId, true);
+      });
+    } on ProtectedPersonException {
+      // Lo vuelve a intentar antes de aprobar.
+    } on SlotPublishBlockedException {
+      // Igual.
+    }
+  }
+
+  /// Antes de aprobar un móvil nuevo para [personId] (1.0.6), dentro del
+  /// cerrojo v2 y con su ficha ya en el registro: pone en secreto los
+  /// regalos para esa persona, para que el común que fija el checkpoint no
+  /// lleve ninguno vivo. Si este móvil es de [personId] (conecta su segundo
+  /// móvil) no hay a quién ocultar nada y no hace nada. Si no lo consigue,
+  /// lanza [PairingProtectionException] y no se aprueba.
+  Future<void> protectForPairingWithinLock(String personId) =>
+      _serial(() async {
+        await _recoverProtection();
+        final current = await _requireFamily();
+        final ctx = await _protectionContext(current.doc);
+        if (ctx == null) throw PairingProtectionException(personId);
+        if (ctx.view.myPerson == personId) return;
+        // Quien solo regala no tiene regalos que ocultar.
+        if (nothingToProtectFor(current.doc, personId)) return;
+        if (ctx.slots.authenticatedPolicy(personId, ctx.view)?.hideOwnGifts !=
+                true ||
+            publishedPolicy(current.doc, personId)?.hideOwnGifts != true) {
+          try {
+            await _transitionProtection(personId, true);
+          } on ProtectedPersonException {
+            throw PairingProtectionException(personId);
+          } on SlotPublishBlockedException {
+            throw PairingProtectionException(personId);
+          }
+        }
+        final latest = await _current();
+        final after = await _protectionContext(latest.doc);
+        final policy = after?.slots.authenticatedPolicy(personId, after.view);
+        if (after == null ||
+            policy?.hideOwnGifts != true ||
+            publishedPolicy(latest.doc, personId)?.hideOwnGifts != true) {
+          throw PairingProtectionException(personId);
+        }
+      });
+
   /// Call after the UI confirms that all past gifts will become public.
   Future<void> deactivateProtection(String personId) =>
       _protectionSerial(() => _transitionProtection(personId, false));
@@ -390,7 +605,7 @@ extension PersonProtectionActions on FamilyController {
         view: ctx.view,
         keys: ctx.keys,
       );
-      ctx = _ProtectionContext(ctx.view, ctx.keys, ctx.slots, share.keyring);
+      ctx = ctx.withKeyring(share.keyring);
     }
     final key = ctx.requireKey(person);
     final opened = await ctx.open(person);
@@ -623,6 +838,20 @@ extension PersonProtectionActions on FamilyController {
       return (result: GiftWriteResult.recipientUnavailable, savedId: null);
     }
     final previousPerson = previous?['recipientId'];
+    // Capa de pantalla (1.0.6): este móvil no escribe regalos para su
+    // persona mientras esté acompañado, ni mueve los que no ve.
+    for (final involved in {
+      person,
+      ?source,
+      if (previousPerson is String) previousPerson,
+    }) {
+      if (ctx.ownHidden.contains(involved)) {
+        throw ProtectedPersonException(
+          involved,
+          reason: ProtectedPersonReason.ownGiftsHidden,
+        );
+      }
+    }
     final blocked = {
       person,
       ?source,
@@ -700,6 +929,7 @@ extension PersonProtectionActions on FamilyController {
         view: ctx.view,
         giftId: gift.id,
         fields: fields,
+        alone: ctx.alone,
       );
       if (!identical(next, current.doc)) {
         await _store.saveDoc(next);
@@ -918,9 +1148,16 @@ extension PersonProtectionActions on FamilyController {
   }
 
   /// Capacity leftovers stay local; retry never falls back to the common.
-  Future<void> retryPendingProtectedGifts(
-    String person,
-  ) => _protectionSerial(() async {
+  Future<void> retryPendingProtectedGifts(String person) =>
+      _protectionSerial(() => _retryPendingWithinLock(person));
+
+  /// [retryPendingProtectedGifts] for whoever already holds the v2 lock (the
+  /// reconciliation). With [onlyIfProgress], nothing is resealed unless at
+  /// least one pending gift now fits.
+  Future<bool> _retryPendingWithinLock(
+    String person, {
+    bool onlyIfProgress = false,
+  }) async {
     final current = await _requireFamily();
     final ctx = await _protectionContext(current.doc);
     if (ctx == null) {
@@ -947,6 +1184,11 @@ extension PersonProtectionActions on FamilyController {
         remaining.add(record);
       }
     }
+    if (onlyIfProgress &&
+        remaining.length ==
+            _livePending(scope, await _store.readOverflow(person)).length) {
+      return false;
+    }
     await _saveProtected(
       ctx,
       person,
@@ -955,7 +1197,8 @@ extension PersonProtectionActions on FamilyController {
       opened.effective(publishedPolicy(current.doc, person)),
       remaining,
     );
-  });
+    return true;
+  }
 
   Future<SyncRecord?> _secretGift(String id) async {
     final current = await _requireFamily();
@@ -1061,9 +1304,22 @@ extension PersonProtectionActions on FamilyController {
   Future<bool> reconcileProtectedPeopleWithinLock() => _serial(() async {
     await _recoverProtection();
     var changed = false;
-    final current = await _requireFamily();
+    var current = await _requireFamily();
     var ctx = await _protectionContext(current.doc);
     if (ctx == null) return false;
+    // 1.0.6: aprobada la ficha nueva, ya no hay persona de antes que ocultar.
+    final identity = current.identity;
+    if (identity != null &&
+        identity.formerSelf.isNotEmpty &&
+        ctx.view.selfApproved &&
+        ctx.view.myPerson == identity.selfRecipientId) {
+      final cleared = identity.withFormerSelf(const {});
+      await _store.saveIdentity(cleared);
+      current = current.copyWith(identity: cleared);
+      _protectionState = AsyncData(current);
+      ctx = await _protectionContext(current.doc);
+      if (ctx == null) return false;
+    }
     final otherPeople = otherMobilePeople(ctx.view);
     if (otherPeople.length != current.otherDevicePeople.length ||
         !otherPeople.containsAll(current.otherDevicePeople)) {
@@ -1071,6 +1327,31 @@ extension PersonProtectionActions on FamilyController {
         current.copyWith(otherDevicePeople: otherPeople),
       );
     }
+    // 1.0.6: toda persona con un dispositivo en la familia tiene sus regalos
+    // en secreto. La activa cualquier móvil con derecho, sin esperar a que
+    // nadie la pida; una desactivación firmada desde otro móvil se respeta
+    // (ya hay registro de su política).
+    for (final person in peopleToAutoProtect(
+      current.doc,
+      ctx.view,
+      slots: ctx.slots,
+    )) {
+      try {
+        await _transitionProtection(person, true);
+        changed = true;
+      } on ProtectedPersonException {
+        // Sin clave o sin poder abrir el bloque: lo intenta la próxima vuelta
+        // u otro móvil con derecho; mientras, la capa de pantalla oculta.
+      } on SlotPublishBlockedException {
+        // Igual.
+      }
+      ctx = await _protectionContext((await _current()).doc);
+      if (ctx == null) return changed;
+    }
+    // La propia persona, si nadie lo ha hecho aún: pide la protección para
+    // que la confirme un móvil con derecho (también uno 1.0.5, que confirma
+    // solo). Sin nadie que pueda confirmarla no publica nada.
+    if (await _requestOwnProtection(ctx!)) changed = true;
     for (final person in {
       ...publishedPolicies(current.doc).keys,
       ...ctx.keyring.people,
@@ -1151,6 +1432,71 @@ extension PersonProtectionActions on FamilyController {
       }
       ctx = await _protectionContext((await _current()).doc);
     }
+    // Lo que no cupo en el bloque y quedó guardado aquí (`saveOverflow`) se
+    // vuelve a intentar solo, por si ahora cabe (otra versión con un tope
+    // mayor, o se ha borrado algo). Sin avance no se vuelve a sellar nada.
+    for (final person in ctx?.keyring.people ?? const <String>[]) {
+      if (!ctx!.view.selfEntitled(person)) continue;
+      if ((await _store.readOverflow(person)).isEmpty) continue;
+      try {
+        if (await _retryPendingWithinLock(person, onlyIfProgress: true)) {
+          changed = true;
+        }
+      } on ProtectedPersonException {
+        // Sigue pendiente; la hoja de pendientes lo explica.
+      } on SlotPublishBlockedException {
+        // Igual.
+      }
+    }
     return changed;
   });
+
+  Future<bool> _requestOwnProtection(_ProtectionContext ctx) async {
+    final view = ctx.view;
+    final mine = view.myPerson;
+    final registry = ctx.registry;
+    if (mine == null ||
+        registry == null ||
+        nothingToProtectFor((await _current()).doc, mine) ||
+        view.self.kind != DeviceKind.mobile ||
+        !view.selfApproved ||
+        view.revokedByOthers ||
+        !view.accompanied(mine)) {
+      return false;
+    }
+    final current = await _current();
+    if (current.doc.record(Collections.policies, mine) != null ||
+        ctx.slots.authenticatedPolicy(mine, view) != null) {
+      return false;
+    }
+    final reason = await protectionRequestReason((
+      registry: registry,
+      view: view,
+      keys: ctx.keys,
+    ), mine);
+    if (reason != null) return false;
+    final next = protection_policy.requestProtection(
+      current.doc,
+      _clock!,
+      mine,
+      authenticated: null,
+    );
+    if (identical(next, current.doc)) return false;
+    await _store.saveDoc(next);
+    _protectionState = AsyncData(current.copyWith(doc: next));
+    return true;
+  }
+}
+
+/// No se han podido poner en secreto los regalos de [personId] antes de
+/// aprobar su móvil nuevo: no se aprueba (1.0.6).
+class PairingProtectionException implements Exception {
+  /// Crea el error.
+  const PairingProtectionException(this.personId);
+
+  /// La persona del móvil nuevo.
+  final String personId;
+
+  @override
+  String toString() => 'PairingProtectionException';
 }

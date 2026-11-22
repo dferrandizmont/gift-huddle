@@ -10,6 +10,8 @@ import '../core/theme/app_theme.dart';
 import '../core/theme/accent_palette.dart';
 import '../core/sync/envelope.dart';
 import '../features/family/application/family_controller.dart';
+import '../features/family/application/protection_providers.dart'
+    show screenRegistryViewProvider;
 import '../features/family/data/device_keys_store.dart';
 import '../features/family/data/family_store.dart';
 import '../features/sync/application/sync_controller.dart';
@@ -179,6 +181,13 @@ class _WebBootstrapState extends State<WebBootstrap> {
           await ref.watch(familyControllerProvider.future);
           return engine.view;
         }),
+        // La capa de pantalla, con la identidad de la web (1.0.6): su id y
+        // su persona, no las del móvil que verifica las firmas.
+        screenRegistryViewProvider.overrideWith(
+          (ref) => ref
+              .watch(familyControllerProvider)
+              .whenData((_) => engine.screenView),
+        ),
         webGateActionsProvider.overrideWithValue(gate),
         webSyncEngineProvider.overrideWithValue(engine),
       ],

@@ -32,6 +32,7 @@ import '../../sync/application/recovery_providers.dart'
     show RecoveryReadiness, recoveryStatusProvider;
 import '../../sync/application/sync_controller.dart';
 import '../../sync/application/v2_health_provider.dart';
+import '../../sync/data/sync_config.dart' show syncLikelyBlockedProvider;
 import '../../sync/data/sync_transport.dart';
 import '../../sync/domain/sync_status.dart';
 import '../../sync/presentation/invite_screen.dart';
@@ -258,6 +259,22 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
         ? (ref.watch(deviceReviewProvider).value ?? DeviceReview.empty)
         : DeviceReview.empty;
     final entries = v2Rows == null ? null : familyDeviceEntries(v2Rows, review);
+    // Un móvil ha entrado (o está entrando) y aún no cuenta como conectado:
+    // espera la aprobación o a terminar de conectarse (1.0.6, QA m3). La
+    // tarjeta lo dice en vez de «Solo en este móvil».
+    final hostPhase = ref.watch(pairingV2HostProvider.select((s) => s.phase));
+    final guestPending =
+        companions != true &&
+        (const {
+              PairingV2HostPhase.compare,
+              PairingV2HostPhase.confirmPerson,
+              PairingV2HostPhase.approving,
+              PairingV2HostPhase.done,
+            }.contains(hostPhase) ||
+            (entries?.any(
+                  (e) => !e.isSelf && e.status == FamilyDeviceStatus.pending,
+                ) ??
+                false));
     // Avisos que no son de conexión: móvil quitado por otro, sorpresas en
     // pausa, accesos sin respaldo y bajas a medias.
     final health = isV2 ? ref.watch(v2HealthProvider).value : null;
@@ -277,6 +294,7 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
     );
     // Tras pasar a la sincronización nueva, cada móvil se conecta otra vez.
     final reconnect = ref.watch(syncReconnectNeededProvider).value ?? false;
+    final likelyBlocked = ref.watch(syncLikelyBlockedProvider).value ?? false;
     final canStopSync =
         status.active ||
         (status.phase == SyncPhase.disabled && isV2 && reconnect);
@@ -313,8 +331,10 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
                         _StatusCard(
                           status: status,
                           paired: companions,
+                          guestPending: guestPending,
                           recoverySaved: recoverySaved,
                           celebrate: _result,
+                          likelyBlocked: likelyBlocked,
                           onSyncNow: _syncNow,
                           onTurnOn: _turnOn,
                         ),
@@ -737,9 +757,19 @@ class _StatusCard extends StatelessWidget {
     required this.celebrate,
     required this.onSyncNow,
     required this.onTurnOn,
+    this.likelyBlocked = false,
+    this.guestPending = false,
   });
 
   final SyncStatus status;
+
+  /// Otro móvil espera la aprobación o está terminando de conectarse: en vez
+  /// de «Solo en este móvil», la tarjeta dice que lo espera.
+  final bool guestPending;
+
+  /// Sin conexión con ninguna ruta varias veces seguidas: la frase sugiere
+  /// que el operador puede estar bloqueando el servicio.
+  final bool likelyBlocked;
 
   /// Si hay otro móvil conectado; `null` si no se sabe (el registro de móviles
   /// aún no se ha leído).
@@ -796,6 +826,9 @@ class _StatusCard extends StatelessWidget {
     Widget? below;
     String title;
     String? body;
+    // La pista del bloqueo (1.0.6): una segunda frase bajo la primera, no en su
+    // lugar, para que se vea qué pasa con los cambios y qué probar.
+    String? hint;
     // Con un solo móvil la tarjeta dice «Solo en este móvil», salvo que la
     // sincronización esté a la espera del segundo o apagada, que se dice.
     final phase =
@@ -816,6 +849,10 @@ class _StatusCard extends StatelessWidget {
         ? SyncPhase.idle
         : phase;
     switch (shown) {
+      case SyncPhase.noFamily || SyncPhase.waitingForPeer when guestPending:
+        leading = mark(SettingsIcons.phone);
+        title = l10n.devicesPendingTitle;
+        body = l10n.devicesPendingBody;
       case SyncPhase.noFamily:
         if (recoverySaved) {
           leading = mark(SettingsIcons.shield);
@@ -893,6 +930,7 @@ class _StatusCard extends StatelessWidget {
         leading = mark(SettingsIcons.cloudOff, muted: true);
         title = l10n.devicesOfflineTitle;
         body = l10n.devicesOfflineBody;
+        if (likelyBlocked) hint = l10n.syncBlockedHint;
         trailing = syncNow();
       case SyncPhase.error:
         leading = mark(tablerAlertTriangle, muted: true);
@@ -902,7 +940,7 @@ class _StatusCard extends StatelessWidget {
     }
 
     final content = Row(
-      key: ValueKey<Object>((phase, celebrate)),
+      key: ValueKey<Object>((phase, celebrate, hint != null, guestPending)),
       children: [
         if (leading != null) ...[leading, const SizedBox(width: 12)],
         Expanded(
@@ -919,6 +957,10 @@ class _StatusCard extends StatelessWidget {
               ),
               if (body != null)
                 Text(body, style: t.styles.meta.copyWith(color: t.textOnSoft)),
+              if (hint != null) ...[
+                const SizedBox(height: 4),
+                Text(hint, style: t.styles.meta.copyWith(color: t.textOnSoft)),
+              ],
               if (below != null) ...[const SizedBox(height: 8), below],
             ],
           ),

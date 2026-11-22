@@ -1855,9 +1855,9 @@
       }
     }
   },
-  "syncStatusOffline": "Sin conexión, los cambios se enviarán luego",
+  "syncStatusOffline": "No se puede conectar ahora. Los cambios se enviarán luego.",
   "@syncStatusOffline": {
-    "description": "Estado: no hay red; los cambios están guardados en el móvil."
+    "description": "Estado: no se ha podido conectar con el servidor (sin red o bloqueado); los cambios están guardados en el móvil. No dice «sin conexión»: la app no sabe si hay internet."
   },
   "syncStatusError": "No se ha podido sincronizar",
   "@syncStatusError": {
@@ -2885,7 +2885,7 @@
   "@syncShortPending": {
     "description": "Estado de la sincronización en minúsculas, tras el número de móviles."
   },
-  "syncShortOffline": "sin conexión",
+  "syncShortOffline": "sin conectar",
   "@syncShortOffline": {
     "description": "Estado de la sincronización en minúsculas, tras el número de móviles."
   },
@@ -2916,6 +2916,22 @@
   "devicesSoloBody": "Conecta otro para ver la misma lista en los dos.",
   "@devicesSoloBody": {
     "description": "Frase de la tarjeta de estado cuando no hay otro móvil conectado."
+  },
+  "devicesPendingTitle": "Conectando otro móvil",
+  "@devicesPendingTitle": {
+    "description": "Título de la tarjeta de estado mientras otro móvil espera la aprobación o termina de conectarse."
+  },
+  "devicesPendingBody": "Esperando a que el otro móvil termine de conectarse.",
+  "@devicesPendingBody": {
+    "description": "Frase de la tarjeta de estado mientras otro móvil termina de conectarse."
+  },
+  "connectWebPasteCode": "Pegar el código del QR",
+  "@connectWebPasteCode": {
+    "description": "Solo fuera de la versión de tienda: botón de Conectar la web que pega el texto del QR (pruebas sin cámara)."
+  },
+  "personPickerThisPhone": "Este móvil",
+  "@personPickerThisPhone": {
+    "description": "Nota bajo la persona de este móvil en la lista de elegir persona."
   },
   "devicesRecoveryTitle": "Copia de recuperación guardada",
   "@devicesRecoveryTitle": {
@@ -2967,13 +2983,17 @@
   "@syncTurnedOn": {
     "description": "Aviso tras encender la sincronización."
   },
-  "devicesOfflineTitle": "Sin conexión",
+  "devicesOfflineTitle": "No se puede conectar",
   "@devicesOfflineTitle": {
     "description": "Título de la tarjeta de estado sin red."
   },
-  "devicesOfflineBody": "Los cambios se enviarán cuando vuelva.",
+  "devicesOfflineBody": "Los cambios se enviarán luego.",
   "@devicesOfflineBody": {
     "description": "Frase de la tarjeta de estado sin red."
+  },
+  "syncBlockedHint": "Si tienes internet, puede que tu operador esté bloqueando el servicio. Prueba con datos móviles u otra wifi.",
+  "@syncBlockedHint": {
+    "description": "Frase de la tarjeta de estado tras tres intentos seguidos sin poder conectar con ninguna ruta del servidor (1.0.6)."
   },
   "devicesConnected": "Conectados",
   "@devicesConnected": {
@@ -3155,10 +3175,6 @@
   "@pairingV2NoMatch": {
     "description": "Botón: los códigos son distintos; se cancela."
   },
-  "pairingV2NoPersonWarning": "El otro móvil todavía no ha dicho de quién es. Puedes darle acceso igualmente: podrá elegirlo más adelante y, hasta entonces, no abrirá las sorpresas.",
-  "@pairingV2NoPersonWarning": {
-    "description": "Aviso en el móvil que invita cuando el otro no eligió persona."
-  },
   "pairingV2Approving": "Dando acceso al otro móvil…",
   "@pairingV2Approving": {
     "description": "Progreso al aprobar."
@@ -3183,39 +3199,9 @@
   "@pairingV2NotReady": {
     "description": "Error cuando no hay servidor, sincronización apagada o red."
   },
-  "pairingV2ChooseTitle": "¿De quién es este móvil?",
-  "@pairingV2ChooseTitle": {
-    "description": "Título al elegir la persona dueña del móvil al entrar."
-  },
-  "pairingV2ChooseBody": "El que tienes en la mano. Elige a quien lo usa y Gift Huddle sabrá qué sorpresas esconderle.",
-  "@pairingV2ChooseBody": {
-    "description": "Explicación de por qué se elige la persona."
-  },
-  "pairingV2ChooseBodySelf": "Lo tenías marcado como de {name}. Confírmalo o elige a otra persona.",
-  "@pairingV2ChooseBodySelf": {
-    "description": "Explicación cuando este móvil ya tenía a una persona en «Este móvil es de» y sale premarcada.",
-    "placeholders": {
-      "name": {
-        "type": "String",
-        "example": "Aritz"
-      }
-    }
-  },
   "pairingV2ChooseContinue": "Continuar",
   "@pairingV2ChooseContinue": {
-    "description": "Botón que confirma la persona premarcada como dueña de este móvil."
-  },
-  "pairingV2ChooseLaterTitle": "Elegir después",
-  "@pairingV2ChooseLaterTitle": {
-    "description": "Botón para no elegir persona ahora."
-  },
-  "pairingV2ChooseLaterBody": "Si no eliges ahora, este móvil no abrirá las sorpresas hasta que elijas a la persona y quien te invitó lo apruebe.",
-  "@pairingV2ChooseLaterBody": {
-    "description": "Aviso de lo que pasa al no elegir persona (N2)."
-  },
-  "pairingV2ChooseNone": "Este móvil todavía no conoce a nadie de esta familia, así que de momento no se puede elegir. Podrás hacerlo cuando llegue la lista.",
-  "@pairingV2ChooseNone": {
-    "description": "Texto cuando no hay personas que elegir."
+    "description": "Botón que sigue tras elegir la persona de un móvil (para quién es el móvil nuevo, o quién eres)."
   },
   "pairingV2GuestWaitingCode": "Cuando el otro móvil responda, verás aquí un código para comparar.",
   "@pairingV2GuestWaitingCode": {
@@ -3882,18 +3868,6 @@
   "@connectWebScanInvalid": {
     "description": "Aviso cuando el QR leído no es el de la web de Gift Huddle."
   },
-  "connectWebWhoseTitle": "¿De quién es este ordenador?",
-  "@connectWebWhoseTitle": {
-    "description": "Pregunta de a quién pertenece el ordenador que se conecta."
-  },
-  "connectWebWhoseBody": "Elige quién va a usar la lista desde el ordenador.",
-  "@connectWebWhoseBody": {
-    "description": "Explicación bajo la pregunta de a quién pertenece el ordenador."
-  },
-  "connectWebNoPeople": "Todavía no hay personas. Añade una persona antes de conectar la web.",
-  "@connectWebNoPeople": {
-    "description": "Aviso si no hay personas entre las que elegir al conectar la web."
-  },
   "connectWebWaiting": "Esperando a que el ordenador responda…",
   "@connectWebWaiting": {
     "description": "Mientras el ordenador responde tras escanear su código."
@@ -3998,7 +3972,7 @@
   "@webSyncSaved": {
     "description": "Estado discreto de la web: todo guardado."
   },
-  "webSyncOffline": "Sin conexión",
+  "webSyncOffline": "No se puede conectar",
   "@webSyncOffline": {
     "description": "Estado discreto de la web: sin conexión."
   },
@@ -4027,7 +4001,7 @@
   "@selfChangeConfirmIntroNobody": {
     "description": "Introducción de la hoja de cambio de persona cuando se elige Nadie."
   },
-  "selfChangeEffectHides": "Si los regalos para {name} están en secreto, no verás ninguno en este móvil.",
+  "selfChangeEffectHides": "En este móvil dejarán de verse los regalos para {name}.",
   "@selfChangeEffectHides": {
     "description": "Primera consecuencia del cambio de persona.",
     "placeholders": {
@@ -4345,6 +4319,10 @@
         "type": "String"
       }
     }
+  },
+  "protectionOnlyOthersChange": "Solo otra persona de la familia puede cambiarlo, desde su móvil.",
+  "@protectionOnlyOthersChange": {
+    "description": "Hoja de regalos en secreto en el móvil de la propia persona: no puede desactivarla ella."
   },
   "protectionChangeFailed": "No se ha podido cambiar la protección. No se ha modificado nada.",
   "@protectionChangeFailed": {
@@ -6101,5 +6079,283 @@
   "deleteImpactChecking": "Comprobando lo que se elimina…",
   "@deleteImpactChecking": {
     "description": "Texto del diálogo de eliminar mientras se recalcula lo que se elimina: no enseña títulos ni recuentos."
+  },
+  "inviteForTitle": "¿Para quién es el móvil nuevo?",
+  "@inviteForTitle": {
+    "description": "Título del paso en que quien invita elige la persona del móvil nuevo."
+  },
+  "inviteForBody": "Elige a la persona que lo va a usar. En su móvil no se verá ningún regalo para ella.",
+  "@inviteForBody": {
+    "description": "Explicación del paso de elegir la persona del móvil nuevo."
+  },
+  "inviteForNeedsSelf": "Antes de conectar otro dispositivo, di de quién es este móvil.",
+  "@inviteForNeedsSelf": {
+    "description": "Aviso cuando el móvil que invita no tiene persona."
+  },
+  "inviteForSecretNotice": "Los regalos para {name} pasan a estar en secreto: dejarán de verse en su móvil.",
+  "@inviteForSecretNotice": {
+    "description": "Aviso al elegir una persona que aún no tenía los regalos en secreto.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "pairingV2HostCompareFor": "Vas a conectar el móvil de {name}.",
+  "@pairingV2HostCompareFor": {
+    "description": "Línea en la comparación del código cuando quien invita eligió la persona.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "pairingV2HostUpdateHint": "Si el otro móvil da un error, actualiza Gift Huddle en ese móvil y vuelve a empezar.",
+  "@pairingV2HostUpdateHint": {
+    "description": "Pista en la espera del anfitrión."
+  },
+  "pairingV2ProtectFailed": "No se han podido poner en secreto los regalos para {name}, así que el móvil no se ha conectado. Ese móvil ha quedado quitado y puede que tenga que volver a conectarse. Este móvil sigue ocultando los regalos de su persona. Sincroniza e inténtalo de nuevo.",
+  "@pairingV2ProtectFailed": {
+    "description": "Fallo al aprobar porque no se pudo activar la protección.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "pairingV2GuestAssigned": "Quien te invita ha elegido de quién es este móvil. Lo verás al entrar.",
+  "@pairingV2GuestAssigned": {
+    "description": "Texto fijo en el móvil que entra: no elige persona."
+  },
+  "pairingV2GuestDoneFor": "Ya estás en la familia. Este móvil es de {name}: aquí no verás los regalos para {name}.",
+  "@pairingV2GuestDoneFor": {
+    "description": "Hoja final del móvil que entra con persona.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "ownGiftsHiddenBody": "En este móvil no se ven los regalos para {name}. Solo otra persona de la familia puede cambiarlo, desde su móvil.",
+  "@ownGiftsHiddenBody": {
+    "description": "Línea del bloque propio en el móvil de esa persona.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "protectionAutoReason": "Activos porque {name} tiene un móvil conectado.",
+  "@protectionAutoReason": {
+    "description": "Motivo de la protección automática en la hoja «Regalos en secreto».",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "protectionDeactivateHasDevice": "{name} tiene un móvil conectado: en él sus regalos seguirán sin verse. Si los desactivas, se verán en los dispositivos que no tienen la clave, como la web.",
+  "@protectionDeactivateHasDevice": {
+    "description": "Aviso al desactivar la protección de alguien con móvil.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "ownGiftsAloneNotice": "Este móvil ya no está conectado a ningún otro. Los regalos para {name} que estaban en secreto no están en este móvil.",
+  "@ownGiftsAloneNotice": {
+    "description": "Aviso al quedarse solo.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "whoAreYouTitle": "¿Quién eres?",
+  "@whoAreYouTitle": {
+    "description": "Título de la pregunta antes de invitar a otro dispositivo cuando este móvil no tiene persona."
+  },
+  "whoAreYouBody": "Antes de conectar otro dispositivo, di de quién es este móvil. En él no se verá ningún regalo para esa persona.",
+  "@whoAreYouBody": {
+    "description": "Explicación de «¿Quién eres?»."
+  },
+  "whoAreYouNotOnList": "No estoy en la lista",
+  "@whoAreYouNotOnList": {
+    "description": "Opción que da de alta a la persona con su nombre."
+  },
+  "whoAreYouNameLabel": "Tu nombre",
+  "@whoAreYouNameLabel": {
+    "description": "Campo del nombre en «No estoy en la lista»."
+  },
+  "whoAreYouNobody": "Nadie",
+  "@whoAreYouNobody": {
+    "description": "Opción para quien regala y no recibe."
+  },
+  "whoAreYouNobodyHint": "Para quien regala y no recibe regalos.",
+  "@whoAreYouNobodyHint": {
+    "description": "Aclaración bajo «Nadie»."
+  },
+  "inviteForNotOnList": "No está en la lista",
+  "@inviteForNotOnList": {
+    "description": "Opción del anfitrión que da de alta a la persona del móvil nuevo."
+  },
+  "inviteForNobody": "Nadie: solo regala",
+  "@inviteForNobody": {
+    "description": "Opción del anfitrión para alguien que regala y no recibe."
+  },
+  "inviteForNameLabel": "Nombre",
+  "@inviteForNameLabel": {
+    "description": "Campo del nombre de la persona nueva al invitar."
+  },
+  "personNoGiftsLabel": "Solo regala",
+  "@personNoGiftsLabel": {
+    "description": "Etiqueta en Personas de alguien que no recibe regalos."
+  },
+  "joinQrPairingTitle": "Conectar este móvil",
+  "@joinQrPairingTitle": {
+    "description": "Título de la pantalla del código tras leer el QR desde la bienvenida."
+  },
+  "protectionReason_webUseMobile": "Los regalos en secreto de {name} se cambian desde tu móvil.",
+  "@protectionReason_webUseMobile": {
+    "description": "Web (1.0.6): puede ver los regalos en secreto de esa persona, pero este cambio se hace desde el móvil.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "webSecretsPending": "Pendiente",
+  "@webSecretsPending": {
+    "description": "Web (1.0.6): marca corta de un regalo en secreto cambiado en la web que el móvil de su persona aún no ha recogido (el texto largo es webSecretsPendingLong)."
+  },
+  "webSecretsReconnect": "Para ver los regalos en secreto, vuelve a conectar este ordenador desde tu móvil.",
+  "@webSecretsReconnect": {
+    "description": "Web (1.0.6): ningún móvil de su persona la verifica."
+  },
+  "webSecretsWaitingPhone": "Abre la app en tu móvil para ver aquí los regalos en secreto. Si no aparecen, actualiza la app del móvil.",
+  "@webSecretsWaitingPhone": {
+    "description": "Web (1.0.6): su móvil aún no le ha dado las claves."
+  },
+  "webSecretsSharedComputer": "Con los regalos en secreto a la vista, la web se bloquea a los 5 minutos sin uso. No la dejes abierta en un ordenador que comparte la familia.",
+  "@webSecretsSharedComputer": {
+    "description": "Web (1.0.6): aviso al ver regalos en secreto."
+  },
+  "webForgetPendingSecrets": "Hay cambios en regalos en secreto que tu móvil aún no ha recogido. Si olvidas este ordenador, se pierden.",
+  "@webForgetPendingSecrets": {
+    "description": "Web (1.0.6): aviso antes de olvidar el ordenador con cambios sin recoger."
+  },
+  "webSecretsDropped": "{count, plural, one{Se ha descartado {count} cambio en un regalo en secreto: ya no se puede aplicar (el regalo ya no existe, ha pasado a otra persona o es demasiado largo).} other{Se han descartado {count} cambios en regalos en secreto: ya no se pueden aplicar (los regalos ya no existen, han pasado a otra persona o son demasiado largos).}}",
+  "@webSecretsDropped": {
+    "description": "Web (1.0.6): aviso de cambios en regalos en secreto que se han descartado porque ya no se podían aplicar.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "ownGiftsNoticeTitle": "Regalos para {name}",
+  "@ownGiftsNoticeTitle": {
+    "description": "Título del aviso que sale una vez en el móvil de una persona cuando sus regalos dejan de verse (o vuelven a poder verse).",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "webApproveSecretsNotice": "Ese ordenador podrá ver y cambiar los regalos en secreto de los demás. Confírmalo solo si lo conectaste tú.",
+  "@webApproveSecretsNotice": {
+    "description": "Aviso al aprobar una web desde el móvil (B9, ADR 0009): al avalarla, ve y edita los regalos en secreto de los demás."
+  },
+  "webSecretsHeld": "Los cambios en regalos en secreto para {names} no se han podido enviar todavía. Se vuelve a intentar solo.",
+  "@webSecretsHeld": {
+    "description": "Web (1.0.6): el servidor aún no acepta el buzón de cambios de esas personas; se reintenta.",
+    "placeholders": {
+      "names": {
+        "type": "String",
+        "example": "Nora y Leo"
+      }
+    }
+  },
+  "webSecretsPendingLong": "Pendiente de tu móvil",
+  "@webSecretsPendingLong": {
+    "description": "Web (1.0.6): texto largo de la marca «Pendiente»: ayuda y lector de pantalla."
+  },
+  "giftSearchOpen": "Buscar regalos",
+  "@giftSearchOpen": {
+    "description": "Etiqueta del botón de la lupa de Personas que despliega el buscador de regalos."
+  },
+  "pairingV2GuestOutdated": "El otro móvil necesita actualizar Gift Huddle para unirse.",
+  "@pairingV2GuestOutdated": {
+    "description": "Aviso en el anfitrión cuando el móvil que quiere entrar tiene la 1.0.5 y no entiende que se elija su persona."
+  },
+  "pairingV2ApproveFailed": "No se ha podido dar acceso al otro móvil. Ha quedado quitado y puede que tenga que volver a conectarse. Este móvil sigue ocultando los regalos de su persona.",
+  "@pairingV2ApproveFailed": {
+    "description": "Fallo al aprobar un móvil que no es de protección (B8, ADR 0009)."
+  },
+  "secretBlockNoteWeb": "Este ordenador no los muestra.",
+  "@secretBlockNoteWeb": {
+    "description": "Frase del bloque «Regalos en secreto» en la web: este ordenador no muestra esos regalos."
+  },
+  "ownGiftsHiddenBodyWeb": "En este ordenador no se ven los regalos para {name}. Solo otra persona de la familia puede cambiarlo, desde su móvil.",
+  "@ownGiftsHiddenBodyWeb": {
+    "description": "Línea del bloque propio y aviso de una vez en la web cuando el ordenador es de esa persona.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "ownGiftsAloneNoticeWeb": "Este ordenador ya no está conectado a ningún móvil de la familia. Los regalos para {name} que estaban en secreto no están en este ordenador.",
+  "@ownGiftsAloneNoticeWeb": {
+    "description": "Aviso de una vez en la web: el ordenador ya no está conectado a ningún móvil y los regalos en secreto de su persona no están en él.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "manageLockedThisDeviceWeb": "Es la persona de este ordenador.",
+  "@manageLockedThisDeviceWeb": {
+    "description": "Línea bajo el nombre en Ajustes › Personas en la web: la persona es la de este ordenador, por eso Archivar y Eliminar están desactivados."
+  },
+  "devicePersonBlockedThisTitleWeb": "Este ordenador es de {name}",
+  "@devicePersonBlockedThisTitleWeb": {
+    "description": "Título del aviso en la web al intentar eliminar o archivar a la persona de este ordenador.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "devicePersonBlockedThisBodyWeb": "{name} es la persona de este ordenador, así que no se puede eliminar ni archivar desde aquí.",
+  "@devicePersonBlockedThisBodyWeb": {
+    "description": "Texto del aviso en la web al intentar eliminar o archivar a la persona de este ordenador. En la web no se elige de quién es el ordenador en Ajustes.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "giftNotSavedWeb": "No se ha guardado: este regalo ya no está disponible en este ordenador.",
+  "@giftNotSavedWeb": {
+    "description": "Aviso en la web cuando el regalo o su persona se eliminaron en otro dispositivo."
+  },
+  "giftWriteGiftUnavailableWeb": "No se ha guardado: este regalo ya no está disponible en este ordenador.",
+  "@giftWriteGiftUnavailableWeb": {
+    "description": "Error en la web al guardar un regalo que ya no está disponible en este ordenador."
+  },
+  "giftNoLongerVisibleWeb": "Este regalo ya no se puede ver en este ordenador.",
+  "@giftNoLongerVisibleWeb": {
+    "description": "Aviso en la web cuando el regalo abierto deja de poder verse en este ordenador."
+  },
+  "giftOwnRequestRestrictedWeb": "Con la protección activa, no puedes añadir ni ver regalos para ti en este ordenador. Pide a otra persona de la familia que apunte el regalo.",
+  "@giftOwnRequestRestrictedWeb": {
+    "description": "Aviso del editor en la web cuando la persona elegida es la de este ordenador y está protegida."
+  },
+  "aboutPrivacyWeb": "Sin cuentas ni publicidad. La lista solo sale de este ordenador para sincronizarse con los móviles de tu familia, y siempre va cifrada.",
+  "@aboutPrivacyWeb": {
+    "description": "Frase de privacidad de Acerca de en la web."
   }
 }

@@ -20,6 +20,7 @@ import 'package:regalos/features/sync/application/v2_family_lock.dart';
 import 'package:regalos/features/sync/data/sync_config.dart';
 
 import '../helpers/fake_sync_server.dart';
+import '../helpers/host_person.dart';
 import '../helpers/fake_worker_v2.dart';
 import '../helpers/memory_stores.dart';
 import '../helpers/pump_app.dart';
@@ -84,8 +85,9 @@ void main() {
     final fam = a.container.read(familyControllerProvider.notifier);
     await a.container.read(familyControllerProvider.future);
     await fam.createFamily(deviceName: 'Aritz');
+    await hostWithPerson(a);
     final host = a.container.read(pairingV2HostProvider.notifier);
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     host.dismiss();
     final store = a.container.read(familyStoreProvider);
     final old = (await store.readSyncV2())!;

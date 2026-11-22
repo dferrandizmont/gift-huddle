@@ -78,6 +78,20 @@ export class ListStorageBudget {
       for (const n of table.sizes.values()) this.payload += n;
     }
   }
+  /** The bytes of each stored slot row per writer (as [size] counts them): what the slot supplement of v2ListByteLimit pays for. */
+  private slotRows(): Map<string, number[]> {
+    const rows = new Map<string, number[]>();
+    // Only the list's own slot table (person, device, ver, data) pays.
+    const columns = this.storage.sql.exec<{ name: string }>(`PRAGMA table_info("slot")`).toArray().map((c) => c.name);
+    if (!["person", "device", "ver", "data"].every((c) => columns.includes(c))) return rows;
+    const encoder = new TextEncoder();
+    for (const r of this.storage.sql.exec<{ person: string; device: string; data: number }>("SELECT person, device, LENGTH(CAST(data AS BLOB)) AS data FROM slot")) {
+      const bytes = encoder.encode(r.person).length + encoder.encode(r.device).length + 8 + r.data;
+      const list = rows.get(r.device);
+      if (list) list.push(bytes); else rows.set(r.device, [bytes]);
+    }
+    return rows;
+  }
   private meta(): Record<string, unknown> | null {
     if (!this.storage.sql.exec("SELECT 1 FROM sqlite_master WHERE name = 'state'").toArray().length) return null;
     const row = this.storage.sql.exec<{ data: string }>("SELECT data FROM state WHERE id = 1").toArray()[0];
@@ -146,7 +160,7 @@ export class ListStorageBudget {
             }
             const final = this.meta()!;
             const finalTotal = this.total(final);
-            if (!cleanup && finalTotal > before && finalTotal > v2ListByteLimit(final.credentials as Parameters<typeof v2ListByteLimit>[0])) throw new ListTooLarge();
+            if (!cleanup && finalTotal > before && finalTotal > v2ListByteLimit(final.credentials as Parameters<typeof v2ListByteLimit>[0], Date.now(), this.slotRows())) throw new ListTooLarge();
             const blocks = Math.ceil((final.storedBytes as number) / V2_STORAGE_BLOCK_BYTES);
             if (this.capacity !== undefined && blocks !== this.capacity && (!cleanup || blocks < this.capacity)) throw new StorageBlocksNeeded(blocks, this.statements!.slice());
             if (!this.previewing && this.rowContext && final.rowReports) this.rowContext.reports = final.rowReports as RowReports;

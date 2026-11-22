@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/platform/gifts_secure_scope.dart';
 import '../../../core/sync/model.dart';
 import '../../../core/theme/regalos_shape.dart';
 import '../../../core/theme/regalos_tokens.dart';
@@ -170,6 +171,17 @@ class GiftSearchResults extends ConsumerWidget {
     final people = ref.watch(familyFullViewProvider).recipientsById;
     final all = ref.watch(giftSearchProvider(query));
     final found = limit == null ? all : all.take(limit!).toList();
+    // Los resultados enseñan regalos: sin capturas en la versión de tienda.
+    return GiftsSecureScope(child: _results(context, t, l10n, people, found));
+  }
+
+  Widget _results(
+    BuildContext context,
+    RegalosTokens t,
+    AppLocalizations l10n,
+    Map<String, Recipient> people,
+    List<Gift> found,
+  ) {
     if (found.isEmpty) {
       return Padding(
         // El texto de las filas va a 12 del borde de su fondo.

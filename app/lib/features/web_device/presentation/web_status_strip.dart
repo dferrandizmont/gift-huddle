@@ -11,6 +11,7 @@ import '../application/web_sync_engine.dart'
     show WebSyncActivity, WebSyncStatus;
 import 'failed_attempts_notice.dart';
 import 'set_aside_notice.dart';
+import 'web_secrets_notice.dart';
 
 /// Lo que enseña la línea discreta de estado de la web.
 enum WebSyncIndicator {
@@ -58,7 +59,9 @@ bool webSyncInRail(WebSyncIndicator indicator) =>
     indicator != WebSyncIndicator.awaitingConfirm;
 
 /// La franja de arriba del contenido de la web: el aviso de intentos fallidos
-/// ([FailedAttemptsNotice]), el de cambios apartados ([SetAsideNotice]) y, debajo, el estado de guardado en una línea discreta.
+/// ([FailedAttemptsNotice]), los de los regalos en secreto
+/// ([WebSecretsNotice]), el de cambios apartados ([SetAsideNotice]) y, debajo,
+/// el estado de guardado en una línea discreta.
 ///
 /// Con [syncInRail] (hay raíl lateral) el estado de guardado pasa al pie del
 /// raíl ([WebRailStatus]) y la franja solo lo repite si es «sin confirmar»
@@ -90,6 +93,7 @@ class WebStatusStrip extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const FailedAttemptsNotice(),
+        const WebSecretsNotice(),
         SetAsideNotice(count: state.setAsideChanges),
         if (!syncInRail || !webSyncInRail(indicator))
           WebSyncLine(indicator: indicator),

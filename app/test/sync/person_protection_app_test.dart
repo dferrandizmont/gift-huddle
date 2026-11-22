@@ -248,7 +248,7 @@ void main() {
       ),
     );
     await a.controller.upsertGift(
-      gift('given', person: 'aritz', title: 'Puzle', actualCents: 1900),
+      gift('given', person: 'leo-guest', title: 'Puzle', actualCents: 1900),
     );
     expect(
       await a.controller.assignPersonAsGiver('given', 'nora'),
@@ -297,7 +297,7 @@ void main() {
     }
 
     final before = publicChoices();
-    expect(before.candidates, [('leo-guest', null, false)]);
+    expect(before.candidates, [('aritz', null, false)]);
     final commonBefore = a.common.canonicalJson();
     expect(
       await a.controller.assignPersonAsGiver('received', 'leo'),
@@ -312,7 +312,7 @@ void main() {
     final authorView = (await a.projection()).view;
     expect(authorView.allGifts, hasLength(2));
     expect(authorView.grid().cell('nora', giverLeo.id).giftCount, 1);
-    expect(authorView.grid().cell('aritz', giverNora.id).giftCount, 1);
+    expect(authorView.grid().cell('leo-guest', giverNora.id).giftCount, 1);
     expect(authorView.budget().total.spentCents, 9023);
 
     Future<void> expectNoraSeesOnlyGiving(String giverId) async {
@@ -321,7 +321,7 @@ void main() {
       expect(view.allGifts.map((g) => (g.title, g.plannedCents)), [
         ('Puzle', 1000),
       ]);
-      expect(view.grid().cell('aritz', giverId).giftCount, 1);
+      expect(view.grid().cell('leo-guest', giverId).giftCount, 1);
       expect(
         view.grid().cells['nora']?.values.every((cell) => cell.giftCount == 0),
         isTrue,
@@ -424,7 +424,16 @@ void main() {
     await p.controller.activateProtection('leo');
     final giver = (await p.controller.addPersonAsGiver('nora'))!;
     await p.controller.archiveGiver(giver.id);
-    final original = gift('book', person: 'aritz');
+    // Una persona sin móvil: en el de Aritz no se ve nada para Aritz (1.0.6).
+    await p.controller.upsertRecipient(
+      const Recipient(
+        id: 'leo-guest',
+        name: 'Leo',
+        colorIndex: 2,
+        archived: false,
+      ),
+    );
+    final original = gift('book', person: 'leo-guest');
     await p.controller.upsertGift(original);
     final candidate = (await p.projection()).view
         .giverPersonCandidatesFor(original.recipientId, protected: false)
@@ -651,7 +660,7 @@ void main() {
     'upsert create and recipient edit fail closed without epoch key',
     () async {
       final clock = HlcClock(node: family.aritz.id);
-      final existing = gift('public', person: 'aritz');
+      final existing = gift('public', person: 'leo');
       final doc = requestProtection(
         common.set(clock, Collections.gifts, existing.id, existing.toFields()),
         clock,
@@ -673,7 +682,7 @@ void main() {
       expect(p.common.record(Collections.gifts, 'new'), isNull);
       expect(
         p.common.record(Collections.gifts, 'public')!['recipientId'],
-        'aritz',
+        'leo',
       );
       final access = await p.phone.container.read(
         giftRecipientAccessProvider.future,
@@ -689,7 +698,7 @@ void main() {
     'authorized create and recipient edit use own slot, preserving id',
     () async {
       final p = await install(family.aritz, withKey: true);
-      final old = gift('public', person: 'aritz');
+      final old = gift('public', person: 'leo');
       expect(await p.controller.upsertGift(old), isTrue);
       await p.controller.activateProtection('nora');
       expect(await p.controller.upsertGift(gift('new')), isTrue);
@@ -1025,7 +1034,7 @@ void main() {
           isA<ProtectedPersonException>().having(
             (e) => e.reason,
             'reason',
-            ProtectedPersonReason.ownRequestsRestricted,
+            ProtectedPersonReason.ownGiftsHidden,
           ),
         ),
       );
@@ -1142,7 +1151,7 @@ void main() {
       final projection = await p.projection();
       expect(projection.view.gifts, isEmpty);
       expect(projection.view.allGifts, isEmpty);
-      expect(projection.lockedBlocks, [const SecretBlock('nora')]);
+      expect(projection.lockedBlocks, contains(const SecretBlock('nora')));
       expect(p.phone.container.read(familyViewProvider).gifts, isEmpty);
       expect(p.phone.container.read(giftsForProvider('nora')), isEmpty);
       expect(p.phone.container.read(budgetProvider).total.plannedCents, 0);
@@ -1226,13 +1235,13 @@ void main() {
   );
 
   test(
-    '51st gift stays encrypted locally and retries after freeing capacity',
+    '201st gift stays encrypted locally and retries after freeing capacity',
     () async {
       final p = await install(family.aritz, withKey: true);
       await p.controller.activateProtection('nora');
       var scope = FamilyDoc.empty(kListId);
       final clock = HlcClock(node: family.aritz.id);
-      for (var i = 0; i < 50; i++) {
+      for (var i = 0; i < kMaxSurpriseGifts; i++) {
         scope = addSurpriseGift(scope, clock, 'g$i', gift('g$i').toFields());
       }
       await p.store.saveScope('nora', scope);
@@ -1251,11 +1260,13 @@ void main() {
       );
       expect((await p.store.readOverflow('nora')).single.id, 'extra');
       expect(p.common.record(Collections.gifts, 'extra'), isNull);
-      expect(
-        (await p.phone.container.read(pendingProtectedGiftsProvider.future))
-            .map((p) => p.gift.id),
-        ['extra'],
-      );
+      // Leo aún no ha publicado su slot (podría ser un 1.0.5): de los 200
+      // solo se comparten 64 y el resto también queda pendiente en local.
+      final pending = (await p.phone.container.read(
+        pendingProtectedGiftsProvider.future,
+      )).map((p) => p.gift.id).toList();
+      expect(pending, contains('extra'));
+      expect(pending, hasLength(1 + kMaxSurpriseGifts - kLegacySlotGifts));
       p.phone.restart();
       await p.phone.container.read(familyControllerProvider.future);
       await p.controller.deleteGift('g0');
@@ -1318,7 +1329,9 @@ void main() {
         credential: family.aritz.keys.serviceCredential,
       );
       final before = (await transport.getList(auth) as V2GetOk).snapshot;
-      final firstVersion = before.slots.single.version;
+      final firstVersion = before.slots
+          .singleWhere((s) => s.personId == 'nora')
+          .version;
       final original = (await p.projection()).view.gifts.single;
       await p.controller.upsertGift(
         gift('slot-only', title: 'Puzle'),
@@ -1327,8 +1340,14 @@ void main() {
       final out = await engine.sync();
       expect(out.uploaded, isTrue);
       final after = (await transport.getList(auth) as V2GetOk).snapshot;
-      expect(after.slots.single.deviceId, family.aritz.id);
-      expect(after.slots.single.version, greaterThan(firstVersion));
+      expect(
+        after.slots.singleWhere((s) => s.personId == 'nora').deviceId,
+        family.aritz.id,
+      );
+      expect(
+        after.slots.singleWhere((s) => s.personId == 'nora').version,
+        greaterThan(firstVersion),
+      );
       final public = await open(
         after.common,
         key: p.controller.familyKey!,
@@ -1354,19 +1373,25 @@ void main() {
     );
   });
 
-  test('activation keeps gifts above fifty pending and deactivation publishes them too', () async {
+  test('activation keeps gifts above the capacity pending and deactivation publishes them too', () async {
     final clock = HlcClock(node: family.aritz.id);
     var many = common;
-    for (var i = 0; i < 52; i++) {
+    for (var i = 0; i < kMaxSurpriseGifts + 2; i++) {
       many = many.set(clock, Collections.gifts, 'g$i', gift('g$i').toFields());
     }
     final p = await install(family.aritz, doc: many);
     await p.controller.activateProtection('nora');
-    expect(liveSurpriseGifts((await p.store.readScope('nora'))!), 50);
+    expect(
+      liveSurpriseGifts((await p.store.readScope('nora'))!),
+      kMaxSurpriseGifts,
+    );
     expect(await p.store.readOverflow('nora'), hasLength(2));
     expect(FamilyView.fromDoc(p.common).gifts, isEmpty);
     await p.controller.deactivateProtection('nora');
-    expect(FamilyView.fromDoc(p.common).gifts, hasLength(52));
+    expect(
+      FamilyView.fromDoc(p.common).gifts,
+      hasLength(kMaxSurpriseGifts + 2),
+    );
     expect(await p.store.readOverflow('nora'), isEmpty);
   });
 
@@ -1428,6 +1453,15 @@ void main() {
     () async {
       final disk = ClosingDisk();
       final p = await install(family.aritz, withKey: true, disk: disk);
+      // Público y sin móvil (1.0.6: aquí no se escribe nada para Aritz).
+      await p.controller.upsertRecipient(
+        const Recipient(
+          id: 'leo-guest',
+          name: 'Leo',
+          colorIndex: 2,
+          archived: false,
+        ),
+      );
       await p.controller.activateProtection('nora');
       await p.controller.activateProtection('leo');
       await p.controller.upsertGift(gift('g'));
@@ -1443,17 +1477,29 @@ void main() {
       expect(moved.id, isNot('g'));
       expect(moved.recipientId, 'leo');
       await p.controller.upsertGift(
-        gift(moved.id, person: 'aritz'),
+        gift(moved.id, person: 'leo-guest'),
         original: moved,
       );
-      expect((await p.projection()).view.gifts.single.recipientId, 'aritz');
-      expect(FamilyView.fromDoc(p.common).gifts.single.recipientId, 'aritz');
+      expect((await p.projection()).view.gifts.single.recipientId, 'leo-guest');
+      expect(
+        FamilyView.fromDoc(p.common).gifts.single.recipientId,
+        'leo-guest',
+      );
     },
   );
 
   test('import notices do not count gifts hidden by an incoming protection request', () async {
-    final p = await install(family.nora);
-    await p.controller.upsertGift(gift('old'));
+    // 1.0.6: Nora's phone never writes a gift for Nora; it arrived earlier.
+    final old = gift('old');
+    final p = await install(
+      family.nora,
+      doc: common.set(
+        HlcClock(node: family.leo.id),
+        Collections.gifts,
+        old.id,
+        old.toFields(),
+      ),
+    );
     final remote = requestProtection(
       p.common,
       HlcClock(node: family.aritz.id),
@@ -1515,12 +1561,22 @@ void main() {
     );
   }
 
-  for (final target in ['aritz', 'leo']) {
+  // 1.0.6: the public target is a person without a phone (on Aritz's phone
+  // nothing for Aritz is written or shown).
+  for (final target in ['leo-guest', 'leo']) {
     test(
       'moving an overflow edit to $target preserves every pending field',
       () async {
         final disk = ClosingDisk();
         final p = await install(family.aritz, withKey: true, disk: disk);
+        await p.controller.upsertRecipient(
+          const Recipient(
+            id: 'leo-guest',
+            name: 'Leo',
+            colorIndex: 2,
+            archived: false,
+          ),
+        );
         await p.controller.activateProtection('nora');
         if (target == 'leo') await p.controller.activateProtection('leo');
         await p.controller.upsertGift(gift('g'));
@@ -1558,7 +1614,7 @@ void main() {
               .isDeleted,
           isTrue,
         );
-        final moved = target == 'aritz'
+        final moved = target == 'leo-guest'
             ? FamilyView.fromDoc(p.common).gifts.single
             : (await p.phone.container.read(
                 pendingProtectedGiftsProvider.future,
@@ -1780,4 +1836,44 @@ void main() {
       });
     },
   );
+
+  group('1.0.6: antes de aprobar el móvil nuevo', () {
+    test('con derecho, pone en secreto los regalos de su persona', () async {
+      final p = await install(family.aritz, withKey: true);
+      await p.controller.upsertGift(gift('old'));
+      final lock = p.phone.container.read(v2FamilyLockProvider);
+      await lock.run(() => p.controller.protectForPairingWithinLock('nora'));
+      expect(publishedPolicy(p.common, 'nora')?.hideOwnGifts, isTrue);
+      expect(
+        p.common.collections[Collections.gifts]?.values.where(
+              (r) => !r.isDeleted && r['recipientId'] == 'nora',
+            ) ??
+            const <SyncRecord>[],
+        isEmpty,
+      );
+      expect((await p.projection()).view.gifts.map((g) => g.id), ['old']);
+      final slots = await p.store.readSlots();
+      final view = await family.aritz.viewOf(family.registry);
+      expect(slots.authenticatedPolicy('nora', view)?.hideOwnGifts, isTrue);
+    });
+
+    test(
+      'sin derecho (ficha pendiente) falla en cerrado y no toca nada',
+      () async {
+        final pending = await registryOf([family.leo, family.nora])
+            .then((r) async => r.withRecord(await family.aritz.record(seq: 2)));
+        final p = await install(family.aritz, registry: pending);
+        await p.controller.upsertGift(gift('old', person: 'leo'));
+        final before = p.common.toJson();
+        final lock = p.phone.container.read(v2FamilyLockProvider);
+        await expectLater(
+          lock.run(() => p.controller.protectForPairingWithinLock('leo')),
+          throwsA(isA<PairingProtectionException>()),
+        );
+        expect(p.common.toJson(), before);
+        // Su segundo móvil (la misma persona) no tiene nada que ocultar.
+        await lock.run(() => p.controller.protectForPairingWithinLock('aritz'));
+      },
+    );
+  });
 }

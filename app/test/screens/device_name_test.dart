@@ -22,7 +22,12 @@ class _NameGuest extends PairingV2GuestController {
   @override
   Future<void> begin(String inviteId, {String deviceName = ''}) async {
     receivedName = deviceName;
-    state = const PairingV2GuestState(PairingV2GuestPhase.choosePerson);
+    // 1.0.6: el que entra ya no elige persona; basta un paso sin indicador de
+    // espera para poder asentar la pantalla.
+    state = const PairingV2GuestState(
+      PairingV2GuestPhase.compare,
+      code: '123456',
+    );
   }
 
   @override
@@ -63,6 +68,12 @@ void main() {
               ? 'Pixel de Nora'
               : typed;
           expect(guest.receivedName, qr ? (typed ?? 'Pixel de Nora') : shared);
+          if (qr) {
+            // 1.0.6: tras leer el QR, el título no habla de enlaces ni de
+            // Compartir.
+            expect(find.text('Conectar este móvil'), findsOneWidget);
+            expect(find.text('Unirme con un enlace'), findsNothing);
+          }
           await tester.pumpWidget(const SizedBox());
         },
         overrides: [

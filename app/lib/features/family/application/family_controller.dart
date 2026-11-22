@@ -35,6 +35,7 @@ import '../../sync/application/recovery_providers.dart'
 import '../../sync/application/sync_controller.dart'
     show localRegistryReadProvider;
 import '../../sync/data/sync_transport_v2.dart' show kV2MaxSlotsPerWriter;
+import '../../sync/application/sync_v2_engine.dart' show V2SyncState;
 import '../domain/delete_impact.dart';
 import '../domain/family_errors.dart';
 import 'occasion_names.dart';
@@ -490,13 +491,15 @@ class FamilyController extends AsyncNotifier<FamilyState> {
     String deviceName = '',
     String? peerName,
     bool paired = false,
+    bool setSelfRecipient = false,
+    String? selfRecipientId,
   }) => _serial(() async {
     final current = await _current();
     await requireNoPendingRestore(ref);
     final existing = current.identity;
     final same =
         existing != null && existing.listId == listId && existing.node == node;
-    final identity = same
+    var identity = same
         ? existing.copyWith(
             peerName: peerName,
             paired: paired || existing.paired,
@@ -510,6 +513,11 @@ class FamilyController extends AsyncNotifier<FamilyState> {
             peerName: peerName,
             paired: paired,
           );
+    // Al unirse a una invitación 1.0.6, «Este móvil es de» es la persona que
+    // eligió quien invita (la de la ficha firmada), también si es nadie.
+    if (setSelfRecipient) {
+      identity = identity.withSelfRecipient(selfRecipientId);
+    }
     final reconciled = reconcileGiverCopies(
       doc,
       HlcClock(node: node, last: doc.maxStamp),
@@ -517,6 +525,9 @@ class FamilyController extends AsyncNotifier<FamilyState> {
     await _store.saveFamily(
       StoredFamily(identity: identity, key: key, doc: reconciled),
     );
+    // El almacén de claves recuerda la persona: nunca guarda las de sus
+    // propias sorpresas (M7).
+    if (setSelfRecipient) await _store.saveSelfRecipient(selfRecipientId);
     _adopt(identity, key, reconciled);
     state = AsyncData(FamilyState(doc: reconciled, identity: identity));
   });
@@ -550,10 +561,13 @@ class FamilyController extends AsyncNotifier<FamilyState> {
   Future<void> markUnpaired() => _serial(() async {
     final current = await _current();
     final identity = current.identity;
-    if (identity == null || !identity.paired) {
+    if (identity == null ||
+        (!identity.paired && identity.formerSelf.isEmpty)) {
       return;
     }
-    final next = identity.copyWith(paired: false);
+    // Una generación sin nadie: ni emparejado ni personas de antes que
+    // ocultar (1.0.6; ya se purgaron).
+    final next = identity.copyWith(paired: false).withFormerSelf(const {});
     await _store.saveIdentity(next);
     state = AsyncData(current.copyWith(identity: next));
   });
@@ -640,9 +654,18 @@ class FamilyController extends AsyncNotifier<FamilyState> {
             if (identity.selfRecipientId == personId) {
               return ChangeSelfPersonResult.unchanged;
             }
+            // 1.0.6: emparejado, la persona de antes sigue oculta aquí (en
+            // v1 nadie aprueba el cambio): un regalo público tardío para
+            // ella no vuelve a verse.
+            var base = identity;
+            final old = identity.selfRecipientId;
+            if (old != null && identity.paired) {
+              base = identity.withFormerSelf({...identity.formerSelf, old});
+              await _store.saveIdentity(base);
+            }
             await _store.saveSelfRecipient(personId);
             state = AsyncData(
-              current.copyWith(identity: identity.withSelfRecipient(personId)),
+              current.copyWith(identity: base.withSelfRecipient(personId)),
             );
             return ChangeSelfPersonResult.localOnly;
           }
@@ -657,6 +680,37 @@ class FamilyController extends AsyncNotifier<FamilyState> {
             mySigningKey: keys.publicKeys.signing,
             livePeople: livePeopleOf(current.doc),
           );
+          // Choque 6 (1.0.6): un móvil solo no tiene a nadie que apruebe su
+          // ficha nueva. Si su ficha nunca ha salido de este móvil (sin lista
+          // en el servidor, ni sincronización ni recuperación), se sustituye
+          // por una primera ficha con la persona nueva: vale sin aprobación y
+          // nadie puede tener la anterior para hacerla ambigua.
+          if (await _ownRecordNeverLeft(view, identity)) {
+            if (view.myPerson == personId && view.selfApproved) {
+              await _assignSelfLocally(current, identity, personId);
+              return ChangeSelfPersonResult.unchanged;
+            }
+            final fresh = await DeviceRegistry.empty(v2.listId).withRecord(
+              await DeviceRecord.create(
+                keys: keys,
+                listId: v2.listId,
+                deviceId: v2.deviceId,
+                personId: personId,
+              ),
+            );
+            await _store.prepareSelfPersonChange(
+              personId: personId,
+              registry: fresh,
+              orphans: const [],
+              replaceRegistry: true,
+            );
+            await _finishSelfPersonChange();
+            return ChangeSelfPersonResult.localOnly;
+          }
+          // 1.0.6: hasta que otro apruebe la ficha nueva, la persona de antes
+          // sigue oculta aquí (y se purga si este móvil se queda solo). Va en
+          // la misma intención que el cambio.
+          final old = identity.selfRecipientId ?? view.myPerson;
           final RegistryChange change;
           try {
             change = await changePerson(
@@ -678,6 +732,7 @@ class FamilyController extends AsyncNotifier<FamilyState> {
           await _store.prepareSelfPersonChange(
             personId: personId,
             registry: change.registry,
+            formerSelf: old != null && old != personId ? old : null,
             orphans: [
               for (final d in change.orphans)
                 DeviceReviewItem(
@@ -694,6 +749,68 @@ class FamilyController extends AsyncNotifier<FamilyState> {
           return ChangeSelfPersonResult.pendingApproval;
         }),
       );
+
+  // La identidad local con [personId] cuando la ficha ya lo dice.
+  Future<void> _assignSelfLocally(
+    FamilyState current,
+    FamilyIdentity identity,
+    String? personId,
+  ) async {
+    if (identity.selfRecipientId == personId) return;
+    await _store.saveSelfRecipient(personId);
+    state = AsyncData(
+      current.copyWith(identity: identity.withSelfRecipient(personId)),
+    );
+  }
+
+  // Si la ficha de este móvil nunca ha salido de él: no hay otro
+  // dispositivo en el registro, no se ha emparejado, no hay lista en el
+  // servidor y ni la sincronización ni la recuperación están puestas.
+  Future<bool> _ownRecordNeverLeft(
+    RegistryView view,
+    FamilyIdentity identity,
+  ) async {
+    if (!view.alone || identity.paired) return false;
+    // La creación de la lista pudo entrar aunque se perdiera la respuesta:
+    // su intención se guarda antes de enviarla (createSent).
+    final sync = V2SyncState.fromJson(await _store.readSyncV2State());
+    if (sync.created || sync.createSent) return false;
+    if (await _store.remoteSyncEnabled()) return false;
+    if (await _store.recoveryConfigured()) return false;
+    return true;
+  }
+
+  /// «¿Quién eres?» (1.0.6), antes de invitar a otro dispositivo: este
+  /// móvil es de [personId] ([changeSelfPerson]; en un móvil solo cuya ficha
+  /// no ha salido de él, sin aprobación).
+  Future<ChangeSelfPersonResult> answerWhoAreYou(String personId) =>
+      changeSelfPerson(personId);
+
+  /// «No estoy en la lista» o, con [noGifts], «Nadie» (quien regala y no
+  /// recibe: una persona de verdad marcada [Recipient.noGifts], para que el
+  /// móvil tenga todos sus derechos): da de alta a [name] y este móvil pasa
+  /// a ser suyo ([answerWhoAreYou]). Devuelve su id y el resultado.
+  Future<(String, ChangeSelfPersonResult)> answerWhoAreYouNew(
+    String name, {
+    bool noGifts = false,
+    int? colorIndex,
+  }) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) throw ArgumentError.value(name, 'name');
+    final family = await future;
+    final id = _uuid.v4();
+    await upsertRecipient(
+      Recipient(
+        id: id,
+        name: trimmed,
+        colorIndex: colorIndex ?? family.fullView.recipients.length,
+        archived: false,
+        noGifts: noGifts,
+        inReparto: !noGifts,
+      ),
+    );
+    return (id, await answerWhoAreYou(id));
+  }
 
   /// Recupera un cambio de «Yo» bajo el cerrojo v2 y la cola de escrituras,
   /// actualiza también la identidad en memoria y relee sus vistas derivadas.
@@ -720,9 +837,16 @@ class FamilyController extends AsyncNotifier<FamilyState> {
         final identity = current.identity;
         if (identity != null) {
           final person = await _store.readSelfRecipient();
-          if (identity.selfRecipientId != person) {
+          final former = await _store.readFormerSelf();
+          if (identity.selfRecipientId != person ||
+              former.length != identity.formerSelf.length ||
+              !former.containsAll(identity.formerSelf)) {
             state = AsyncData(
-              current.copyWith(identity: identity.withSelfRecipient(person)),
+              current.copyWith(
+                identity: identity
+                    .withSelfRecipient(person)
+                    .withFormerSelf(former),
+              ),
             );
           }
         }
@@ -1166,6 +1290,14 @@ class FamilyController extends AsyncNotifier<FamilyState> {
     Gift? original, {
     String? giverPersonId,
   }) async {
+    // Quien solo regala no recibe regalos (1.0.6): ni nuevos ni movidos a
+    // él. Un regalo que ya era suyo se puede seguir editando.
+    final target = fields['recipientId'];
+    if (target is String &&
+        target != original?.recipientId &&
+        receivesNoGifts(current.doc, target)) {
+      return GiftWriteResult.recipientUnavailable;
+    }
     final context = await _protectionContext(current.doc);
     final checkReview =
         isStoreReviewEnabled &&

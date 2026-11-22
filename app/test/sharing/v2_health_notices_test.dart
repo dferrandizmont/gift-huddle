@@ -236,16 +236,16 @@ void main() {
         tester,
         V2Health(revokedByOthers: true, frozenPeople: const ['nora']),
       );
+      expect(find.text('Han quitado este móvil de la familia'), findsOneWidget);
+      expect(find.textContaining('siguen en este móvil'), findsOneWidget);
       expect(
-        find.text('Han quitado este móvil de la familia'),
+        find.textContaining('conéctalo de nuevo en persona'),
         findsOneWidget,
       );
-      expect(find.textContaining('siguen en este móvil'), findsOneWidget);
-      expect(find.textContaining('conéctalo de nuevo en persona'), findsOneWidget);
       // Lo congelado es consecuencia de esto: no sale aparte.
       expect(find.textContaining('Sorpresas en pausa'), findsNothing);
       // No se confunde con un fallo de conexión.
-      expect(find.text('Sin conexión'), findsNothing);
+      expect(find.text('No se puede conectar'), findsNothing);
       expect(find.text('No se pudo sincronizar'), findsNothing);
       expect(
         find.text('El servidor no acepta la clave de esta familia.'),
@@ -265,13 +265,30 @@ void main() {
       await _open(tester, V2Health(frozenPeople: const ['nora', 'leo', 'x']));
       expect(find.text('Sorpresas en pausa para Leo y Nora'), findsOneWidget);
       expect(find.textContaining('No se ha perdido nada'), findsOneWidget);
-      expect(
-        find.text('Han quitado este móvil de la familia'),
-        findsNothing,
-      );
+      expect(find.text('Han quitado este móvil de la familia'), findsNothing);
       await _tapText(tester, 'Revisar móviles');
       // La bandeja está vacía: dice que todo está revisado.
       expect(find.text('Todo revisado'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('un móvil que espera la aprobación nombra a su propia persona, '
+        'no a la de quien lo invitó (1.0.6)', (tester) async {
+      await _open(
+        tester,
+        V2Health(frozenPeople: const ['nora'], pendingSelfPerson: 'leo'),
+      );
+      expect(find.text('Sorpresas en pausa para Leo'), findsOneWidget);
+      expect(find.textContaining('pausa para Nora'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('sin persona elegida, el aviso es genérico', (tester) async {
+      await _open(
+        tester,
+        V2Health(frozenPeople: const ['nora'], pendingSelfPerson: ''),
+      );
+      expect(find.text('Sorpresas en pausa'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     });
 

@@ -21,6 +21,7 @@ import 'dart:typed_data';
 
 import '../../../core/sync/envelope.dart';
 import 'sync_endpoint.dart';
+import 'sync_routes.dart';
 import 'sync_transport.dart';
 import 'sync_transport_v2.dart';
 
@@ -66,9 +67,15 @@ abstract class BaseSyncTransport implements SyncTransport {
   BaseSyncTransport(
     this.endpoint, {
     this.timeout = const Duration(seconds: 20),
-  });
+    SyncRoutes? routes,
+  }) : routes = routes ?? SyncRoutes.shared(endpoint.routes);
   final SyncEndpoint endpoint;
   final Duration timeout;
+
+  /// Los hosts que se prueban para cada petición y cada WebSocket
+  /// (`sync_routes.dart`). Las direcciones se construyen siempre con
+  /// `endpoint.base`; el transporte cambia el host al enviar.
+  final SyncRoutes routes;
   Uri uri(String path, [Map<String, String>? query]) =>
       endpoint.base.replace(path: path, queryParameters: query);
   String listPath(SyncCredentials auth) => '/v1/lists/${auth.syncId}';

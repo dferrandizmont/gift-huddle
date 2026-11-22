@@ -35,6 +35,7 @@ const _v1ProofKey = 'family.v1ProofKey';
 const _pendingV2Key = 'family.pendingV2';
 const _orphansKey = 'family.orphans';
 const _selfPersonChangeKey = 'family.selfPersonChange';
+const _pairingPendingGuestKey = 'family.pairingPendingGuest';
 const _commonKeysMarkerKey = 'family.commonKeysMarker';
 const _commonFormatFloorKey = 'family.commonFormatFloor';
 const _retainedPendingKey = 'family.retainedPending';
@@ -69,6 +70,7 @@ class FamilyIdentity {
     this.peerName,
     this.paired = false,
     this.selfRecipientId,
+    this.formerSelf = const <String>{},
   });
 
   /// Lee la identidad. Lanza [FormatException] si no es válida.
@@ -85,6 +87,7 @@ class FamilyIdentity {
     }
     final peer = json['peerName'];
     final self = json['selfRecipientId'];
+    final former = json['formerSelf'];
     return FamilyIdentity(
       listId: listId,
       node: node,
@@ -92,6 +95,11 @@ class FamilyIdentity {
       peerName: peer is String ? peer : null,
       paired: json['paired'] == true,
       selfRecipientId: self is String && self.isNotEmpty ? self : null,
+      formerSelf: {
+        if (former is List)
+          for (final id in former)
+            if (id is String && id.isNotEmpty) id,
+      },
     );
   }
 
@@ -115,6 +123,12 @@ class FamilyIdentity {
   /// el nombre ni el texto «Yo» (ADR 0004). Elegirla no da permisos.
   final String? selfRecipientId;
 
+  /// Personas de las que fue este móvil antes de cambiar «Yo» estando
+  /// acompañado (1.0.6): siguen ocultas en la pantalla mientras el cambio no
+  /// está aprobado (en v1, hasta estrenar generación) y se purgan al
+  /// quedarse solo. Es local.
+  final Set<String> formerSelf;
+
   /// Copia con cambios.
   FamilyIdentity copyWith({
     String? peerName,
@@ -127,6 +141,7 @@ class FamilyIdentity {
     peerName: peerName ?? this.peerName,
     paired: paired ?? this.paired,
     selfRecipientId: selfRecipientId,
+    formerSelf: formerSelf,
   );
 
   /// Copia con otra persona de «Yo» (null la quita).
@@ -137,6 +152,18 @@ class FamilyIdentity {
     peerName: peerName,
     paired: paired,
     selfRecipientId: recipientId,
+    formerSelf: formerSelf,
+  );
+
+  /// Copia con otras personas anteriores ([formerSelf]).
+  FamilyIdentity withFormerSelf(Set<String> people) => FamilyIdentity(
+    listId: listId,
+    node: node,
+    deviceName: deviceName,
+    peerName: peerName,
+    paired: paired,
+    selfRecipientId: selfRecipientId,
+    formerSelf: Set.unmodifiable(people),
   );
 
   /// A JSON.
@@ -147,6 +174,7 @@ class FamilyIdentity {
     'peerName': peerName,
     'paired': paired,
     if (selfRecipientId != null) 'selfRecipientId': selfRecipientId,
+    if (formerSelf.isNotEmpty) 'formerSelf': formerSelf.toList()..sort(),
   };
 }
 
@@ -596,6 +624,21 @@ class FamilyStore {
   /// queue through durableGiftDeletes.
   bool get supportsSecretScopes => !durableGiftDeletes;
 
+  /// Only the web (1.0.6, ADR 0009): the people whose surprises it has open
+  /// in this session, or null when it opens none (then nothing changes).
+  Set<String>? get openedSecretPeople => null;
+
+  /// Only the web: the opened people whose surprises it can also change
+  /// (through the inbox its phone collects).
+  Set<String> get writableSecretPeople => const <String>{};
+
+  /// Only the web (final review, M1): people the screen layer also hides,
+  /// because the phone that connected the web was of them.
+  Set<String> get screenExtraHiddenPeople => const <String>{};
+
+  /// Only the web: gifts with changes waiting for its phone.
+  Set<String> get pendingSecretGiftIds => const <String>{};
+
   /// Borra de este móvil la copia local del ámbito de [personId] y lo que
   /// hubiera guardado con [saveOverflow].
   Future<void> deleteScope(String personId) => _inGeneration(() async {
@@ -788,6 +831,25 @@ class FamilyStore {
 
   Future<bool> remoteSyncEnabled() => _inGeneration(
     () async => await _secrets.read('family.remoteSyncEnabled') == 'true',
+  );
+
+  /// El móvil nuevo que se está aprobando ahora (1.0.6): se apunta antes de
+  /// guardar su ficha y se quita cuando la aprobación entra o el invitado ya
+  /// está revocado. Si queda tras un cierre, la siguiente vuelta lo revoca.
+  Future<void> savePairingPendingGuest(String? deviceId) => _inGeneration(
+    () => deviceId == null
+        ? _secrets.delete(_pairingPendingGuestKey)
+        : _secrets.write(_pairingPendingGuestKey, deviceId),
+  );
+
+  /// Ver [savePairingPendingGuest].
+  Future<String?> readPairingPendingGuest() =>
+      _inGeneration(() => _secrets.read(_pairingPendingGuestKey));
+
+  /// Si se ha configurado la recuperación (código o copia) en esta
+  /// generación: entonces su ficha ya ha salido del móvil.
+  Future<bool> recoveryConfigured() => _inGeneration(
+    () async => await _secrets.read('family.recoveryConfigured') == 'true',
   );
 
   /// Capture before load(), which can finish a person-change journal.
@@ -1133,6 +1195,20 @@ class FamilyStore {
       _inGeneration(() async => await _secrets.read(_identityKey) != null);
 
   /// La persona de «Yo» guardada, o null (también sin familia).
+  /// Las personas anteriores de la identidad guardada
+  /// ([FamilyIdentity.formerSelf]).
+  Future<Set<String>> readFormerSelf() => _inGeneration(() async {
+    final raw = await _secrets.read(_identityKey);
+    if (raw == null) return const <String>{};
+    try {
+      final json = jsonDecode(raw) as Map;
+      return FamilyIdentity.fromJson(Map<String, Object?>.from(json))
+          .formerSelf;
+    } catch (_) {
+      throw const FamilyStoreException('identidad dañada');
+    }
+  });
+
   Future<String?> readSelfRecipient() => _inGeneration(() async {
     final raw = await _secrets.read(_identityKey);
     if (raw == null) return null;
@@ -1177,10 +1253,17 @@ class FamilyStore {
 
   /// Intención en el almacén seguro, antes de purgar ni cambiar identidad o
   /// registro. El controlador mantiene el cerrojo v2 durante todo el cambio.
+  ///
+  /// Con [replaceRegistry] (móvil solo cuya ficha nunca ha salido de aquí,
+  /// 1.0.6) el registro guardado se sustituye por [registry] en vez de
+  /// fusionarse: la ficha nueva vuelve a ser la primera y no necesita
+  /// aprobación.
   Future<void> prepareSelfPersonChange({
     required String? personId,
     required DeviceRegistry registry,
     required List<Map<String, Object?>> orphans,
+    bool replaceRegistry = false,
+    String? formerSelf,
   }) => _inGeneration(() async {
     if (await _secrets.read('family.recoveryConfigured') == 'true') {
       await _secrets.write('family.recoveryPersonInvalidation', 'true');
@@ -1209,6 +1292,8 @@ class FamilyStore {
         'person': personId,
         'registry': registry.toJson(),
         'orphans': orphans,
+        if (replaceRegistry) 'replace': true,
+        'former': ?formerSelf,
       }),
     );
   });
@@ -1243,13 +1328,30 @@ class FamilyStore {
       anchor: anchor,
     );
     await saveSelfRecipient(pending['person'] as String?);
+    // 1.0.6: la persona de antes sigue oculta mientras no se apruebe.
+    final former = pending['former'];
+    if (former is String && former.isNotEmpty) {
+      final raw = await _secrets.read(_identityKey);
+      if (raw != null) {
+        final identity = FamilyIdentity.fromJson(
+          Map<String, Object?>.from(jsonDecode(raw) as Map),
+        );
+        if (!identity.formerSelf.contains(former)) {
+          await saveIdentity(
+            identity.withFormerSelf({...identity.formerSelf, former}),
+          );
+        }
+      }
+    }
     final remembered = {
       for (final o in await readOrphans()) o['d']: o,
       for (final o in pending['orphans'] as List)
         (o as Map)['d']: Map<String, Object?>.from(o),
     };
     await saveOrphans(remembered.values.toList());
-    final registry = await readRegistry(anchor: anchor);
+    final registry = pending['replace'] == true
+        ? null
+        : await readRegistry(anchor: anchor);
     await saveRegistry(
       registry == null
           ? operation
@@ -1497,6 +1599,7 @@ class FamilyStore {
     }
     await _secrets.delete(_retainedPendingKey);
     for (final key in [
+      _pairingPendingGuestKey,
       'family.remoteSyncEnabled',
       'family.recoveryRemovalPending',
       'family.pendingInviteAcknowledgement',
@@ -1557,6 +1660,7 @@ class FamilyStore {
           _pendingV2Key,
           _orphansKey,
           _selfPersonChangeKey,
+          _pairingPendingGuestKey,
           _commonKeysMarkerKey,
           _commonFormatFloorKey,
           _retainedPendingKey,

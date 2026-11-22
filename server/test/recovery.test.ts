@@ -248,6 +248,17 @@ describe("recovery CRUD, CAS and emergency metadata", () => {
 });
 
 describe("atomic claim and credential fence", () => {
+  it("forgets the slot list capacity of the old install, so the receiving one announces it again (1.0.6)", async () => {
+    const id = await setup(), r = await recovery(id);
+    expect((await call("POST", `${id.path}/capability`, { key: id.key, body: { slotCapacity: 2 } })).status).toBe(200);
+    const devices = async (key: string) => (await json<{ devices: { deviceId: string; slotCapacity?: number }[] }>(await call("GET", id.path, { key }))).devices;
+    expect((await devices(id.key)).find((d) => d.deviceId === "aritz")!.slotCapacity).toBe(2);
+    const next = await claimBody(r);
+    expect((await claim(id, r, next.body)).status).toBe(200);
+    expect((await devices(next.newKey)).find((d) => d.deviceId === "aritz")!.slotCapacity).toBeUndefined();
+    expect((await call("POST", `${id.path}/capability`, { key: next.newKey, body: { slotCapacity: 2 } })).status).toBe(200);
+    expect((await devices(next.newKey)).find((d) => d.deviceId === "aritz")!.slotCapacity).toBe(2);
+  });
   it("a lost response replays exactly after eviction and ordinary updates; altered bytes/CAS conflict and another operation is replaced", async () => {
     const id = await setup(), r = await recovery(id), next = await claimBody(r);
     const response = await claim(id, r, next.body), result = await json(response);

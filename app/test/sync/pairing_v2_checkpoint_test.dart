@@ -74,10 +74,13 @@ void main() {
     int seed = 2,
     String? person = 'leo',
   }) async {
+    // 1.0.6: el anfitrión elige la persona del móvil nuevo.
     final host = await PairingV2Host.start(
       transport: client,
       local: aritz,
       lock: lock,
+      guestPerson: person,
+      hostPicksPerson: person != null,
     );
     final guest = await PairingV2Guest.open(
       transport: client,
@@ -548,9 +551,9 @@ void main() {
       final (host, guest) = await toCodes(
         deviceId: 'phone-$n',
         seed: 10 + n,
-        person: null,
+        person: 'leo',
       );
-      await host.confirm(guestWithoutPerson: true);
+      await host.confirm(confirmedPersonId: 'leo');
       expect(await guest.finish(), isNotNull, reason: 'emparejamiento $n');
       await guest.releaseCheckpoint();
       expect(
@@ -575,11 +578,11 @@ void main() {
     final (host, _) = await toCodes(
       deviceId: 'phone-8',
       seed: 18,
-      person: null,
+      person: 'leo',
     );
     final before = await snapshot();
     await expectLater(
-      host.confirm(guestWithoutPerson: true),
+      host.confirm(confirmedPersonId: 'leo'),
       _pairing('hoy ya no caben más dispositivos nuevos en la familia'),
     );
     expect((await snapshot()).version, before.version);

@@ -151,19 +151,29 @@ Future<Giver?> addPersonAsGiverExplicitly(
   return giver;
 }
 
-/// Lo que dice el aviso de un guardado rechazado, según el motivo.
-String giftWriteResultText(AppLocalizations l10n, GiftWriteResult result) =>
-    switch (result) {
-      GiftWriteResult.saved => '',
-      GiftWriteResult.giftDeleted => l10n.giftNotSaved,
-      GiftWriteResult.giftUnavailable => l10n.giftWriteGiftUnavailable,
-      GiftWriteResult.recipientUnavailable => l10n.giftWriteRecipientGone,
-      GiftWriteResult.invalidPair => l10n.giftWriteInvalidPair,
-      GiftWriteResult.giverUnavailable => l10n.giftWriteGiverGone,
-      GiftWriteResult.giverArchived => l10n.giftWriteGiverArchived,
-      GiftWriteResult.giverPersonUnavailable => l10n.giftWritePersonGone,
-      GiftWriteResult.giverPersonArchived => l10n.giftWritePersonArchived,
-    };
+/// «No se ha guardado: este regalo ya no está disponible en este móvil.» o,
+/// en la web ([web]), «... en este ordenador.».
+String giftNotSavedText(AppLocalizations l10n, {bool web = false}) =>
+    web ? l10n.giftNotSavedWeb : l10n.giftNotSaved;
+
+/// Lo que dice el aviso de un guardado rechazado, según el motivo. Con [web],
+/// lo que habla del propio dispositivo dice «este ordenador».
+String giftWriteResultText(
+  AppLocalizations l10n,
+  GiftWriteResult result, {
+  bool web = false,
+}) => switch (result) {
+  GiftWriteResult.saved => '',
+  GiftWriteResult.giftDeleted => giftNotSavedText(l10n, web: web),
+  GiftWriteResult.giftUnavailable =>
+    web ? l10n.giftWriteGiftUnavailableWeb : l10n.giftWriteGiftUnavailable,
+  GiftWriteResult.recipientUnavailable => l10n.giftWriteRecipientGone,
+  GiftWriteResult.invalidPair => l10n.giftWriteInvalidPair,
+  GiftWriteResult.giverUnavailable => l10n.giftWriteGiverGone,
+  GiftWriteResult.giverArchived => l10n.giftWriteGiverArchived,
+  GiftWriteResult.giverPersonUnavailable => l10n.giftWritePersonGone,
+  GiftWriteResult.giverPersonArchived => l10n.giftWritePersonArchived,
+};
 
 /// Asigna [candidate] como quién regala [gift], al momento (Reparto). En un
 /// regalo secreto pasa antes por el paso explícito. Devuelve el resultado de

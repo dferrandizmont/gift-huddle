@@ -14,6 +14,7 @@ import 'package:regalos/features/sync/data/sync_config.dart';
 import 'package:regalos/features/sync/data/sync_transport_v2.dart';
 
 import '../helpers/fake_sync_server.dart';
+import '../helpers/host_person.dart';
 import '../helpers/fake_worker_v2.dart';
 import '../helpers/memory_stores.dart';
 import '../helpers/pump_app.dart';
@@ -93,6 +94,7 @@ void main() {
     () async {
       final a = await owner();
       final guest = await WebPairingGuest.create(transport: counting());
+      await hostWithPerson(a);
       final host = a.container.read(pairingV2HostProvider.notifier);
       await host.startWeb(
         guest.qr.url(origin: 'https://web.gifthuddle.app'),
@@ -124,8 +126,9 @@ void main() {
   test('the host polls by itself while waiting and stops on cancel, restart '
       'and close', () async {
     final a = await owner();
+    await hostWithPerson(a);
     final host = a.container.read(pairingV2HostProvider.notifier);
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     expect(
       a.container.read(pairingV2HostProvider).phase,
       PairingV2HostPhase.waiting,
@@ -141,7 +144,7 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 200));
     expect(invitePolls(first), afterCancel, reason: 'no poll after cancel');
 
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     final again = a.container.read(pairingV2HostProvider).link!;
     final second = again.substring(again.indexOf('#') + 1);
     await eventually(() => invitePolls(second) >= 1, reason: 'polls again');
@@ -161,13 +164,13 @@ void main() {
     () async {
       final a = await owner();
       final b = await phone();
+      await hostWithPerson(a);
       final host = a.container.read(pairingV2HostProvider.notifier);
-      await host.start();
+      await host.start(guestPerson: kGuestGiver);
       final link = a.container.read(pairingV2HostProvider).link!;
       final id2 = link.substring(link.indexOf('#') + 1);
       final guest = b.container.read(pairingV2GuestProvider.notifier);
       await guest.begin(id2);
-      await guest.choosePerson(null);
       await eventually(() => guest.polling, reason: 'a poll is scheduled');
       await eventually(
         () =>
@@ -196,7 +199,10 @@ void main() {
       return link.substring(link.indexOf('#') + 1);
     }
 
-    await a.container.read(pairingV2HostProvider.notifier).start();
+    await hostWithPerson(a);
+    await a.container
+        .read(pairingV2HostProvider.notifier)
+        .start(guestPerson: kGuestGiver);
     final guest = b.container.read(pairingV2GuestProvider.notifier);
     await guest.begin(inviteOf(a));
     await guest.choosePerson(null);
@@ -206,7 +212,10 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     guest.cancel();
     // Attempt B, with another family's invitation.
-    await c.container.read(pairingV2HostProvider.notifier).start();
+    await hostWithPerson(c);
+    await c.container
+        .read(pairingV2HostProvider.notifier)
+        .start(guestPerson: kGuestGiver);
     await guest.begin(inviteOf(c));
     await guest.choosePerson(null);
     expect(guest.polling, isTrue);

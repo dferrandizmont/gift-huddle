@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/format/dates.dart';
+import '../../../core/platform/gifts_secure_scope.dart';
 import '../../../core/layout/content_gutter.dart';
 import '../../../core/layout/content_width.dart';
 import '../../../core/motion/animated_rows.dart';
@@ -80,9 +81,12 @@ class OccasionDetailScreen extends ConsumerWidget {
         .watch(familyFullViewProvider)
         .occasionsById[occasionId];
     final body = _Body(occasionId: occasionId, fromPeople: fromPeople);
-    return occasion == null
-        ? body
-        : OccasionScope(occasion: occasionThemeFor(occasion), child: body);
+    // Enseña los regalos de la ocasión: sin capturas en la versión de tienda.
+    return GiftsSecureScope(
+      child: occasion == null
+          ? body
+          : OccasionScope(occasion: occasionThemeFor(occasion), child: body),
+    );
   }
 }
 

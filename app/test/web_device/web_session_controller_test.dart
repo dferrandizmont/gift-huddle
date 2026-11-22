@@ -13,10 +13,12 @@ void main() {
   late FakeLockHub hub;
   late WebSessionController session;
   late List<String> events;
+  var secretsOpen = false;
   WebSessionController build(
     FakeSessionPlatform adapter, {
     Future<void> Function(String)? unlock,
   }) => WebSessionController(
+    secretsOpen: () => secretsOpen,
     platform: adapter,
     clock: clock,
     cover: () => events.add('cover'),
@@ -35,7 +37,52 @@ void main() {
     events = [];
     session = build(platform);
   });
-  tearDown(() => session.dispose());
+  tearDown(() {
+    secretsOpen = false;
+    return session.dispose();
+  });
+  test('M4: surprises that open after unlocking still lock at 5 minutes', () async {
+    await session.unlock('123456');
+    clock.elapse(const Duration(seconds: 10));
+    secretsOpen = true;
+    session.secretsChanged();
+    clock.elapse(const Duration(minutes: 4, seconds: 49));
+    expect(session.state, WebSessionState.abierta);
+    clock.elapse(const Duration(seconds: 2));
+    expect(session.state, WebSessionState.bloqueada);
+  });
+  test('B2: after a second unlock, surprises that open later still lock at '
+      '5 minutes', () async {
+    secretsOpen = true;
+    await session.unlock('123456');
+    session.secretsChanged();
+    session.lock();
+    secretsOpen = false;
+    await session.unlock('123456');
+    session.secretsChanged();
+    clock.elapse(const Duration(seconds: 10));
+    secretsOpen = true;
+    session.secretsChanged();
+    clock.elapse(const Duration(minutes: 5));
+    expect(session.state, WebSessionState.bloqueada);
+  });
+  test('M4: opening surprises after 6 idle minutes locks at once', () async {
+    await session.unlock('123456');
+    clock.elapse(const Duration(minutes: 6));
+    secretsOpen = true;
+    session.secretsChanged();
+    expect(session.state, WebSessionState.bloqueada);
+  });
+  test('1.0.6: with surprises open the idle lock is 5 minutes', () async {
+    secretsOpen = true;
+    await session.unlock('123456');
+    clock.elapse(const Duration(minutes: 4));
+    session.activity();
+    clock.elapse(const Duration(minutes: 4));
+    expect(session.state, WebSessionState.abierta);
+    clock.elapse(const Duration(minutes: 1));
+    expect(session.state, WebSessionState.bloqueada);
+  });
   test('idle deadline uses real clock and activity extends it', () async {
     await session.unlock('123456');
     clock.elapse(const Duration(minutes: 14));

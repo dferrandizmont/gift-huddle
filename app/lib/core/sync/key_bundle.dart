@@ -297,6 +297,53 @@ class KeyBundle {
         ),
   ];
 
+  /// Cifra la clave de sorpresas [key] para [toDevice], una web de la persona
+  /// de este móvil ([RegistryView.ownWebs], 1.0.6, ADR 0009): la web lee las
+  /// sorpresas de los demás como extensión de su móvil.
+  ///
+  /// La audiencia de la candidata no cambia (la web no se añade a [key]); en
+  /// la cabecera del paquete va la audiencia más la web, porque un paquete
+  /// siempre nombra a su destinatario en ella. Lanza [KeyBundleException] si
+  /// [toDevice] no es una web propia, si [key] es de la persona de la web (la
+  /// web nunca ve lo de su persona), si este móvil no tiene derecho o si la
+  /// clave no se puede sellar con el registro de ahora.
+  static Future<KeyBundle> sealSurpriseKeyForOwnWeb({
+    required DeviceKeys sender,
+    required RegistryView view,
+    required String toDevice,
+    required SurpriseKey key,
+  }) async {
+    KnownDevice? web;
+    for (final w in view.ownWebs()) {
+      if (w.deviceId == toDevice) web = w;
+    }
+    if (web == null ||
+        web.personId == null ||
+        web.personId == key.personId ||
+        !view.selfEntitled(key.personId) ||
+        key.epoch > view.epoch ||
+        !key.audience.contains(view.me) ||
+        key.audience.contains(toDevice) ||
+        !key.sealableFor(view.entitledDevices(key.personId).toSet())) {
+      throw const KeyBundleException(
+        'esa web no puede recibir esta clave de sorpresas',
+      );
+    }
+    return _seal(
+      sender: sender,
+      fromDevice: view.me,
+      toDevice: toDevice,
+      senderRecord: view.self.recordDigest,
+      recipientRecord: web.recordDigest,
+      recipientAgreementKey: web.agreementKey,
+      listId: view.listId,
+      scope: KeyScope.surprise(key.personId),
+      epoch: key.epoch,
+      key: key.bytes,
+      audience: [...key.audience, toDevice],
+    );
+  }
+
   /// Cifra la `familyKey` de la época [epoch] para otro móvil activo de la
   /// familia (rotación); su audiencia son los activos que ve este móvil.
   /// Lanza [KeyBundleException] si no lo es.
@@ -483,6 +530,64 @@ class KeyBundle {
       epoch: epoch,
       bytes: bytes,
       audience: audience,
+    );
+  }
+
+  /// Abre en la web [webDeviceId] un paquete de sorpresas dirigido a ella
+  /// (1.0.6, ADR 0009). [view] es la vista de una raíz móvil de la misma
+  /// persona que la web, fijada por la web y verificada; con ella se decide
+  /// lo mismo que vería ese móvil.
+  ///
+  /// Exige: que la raíz sea un móvil no revocado de la persona de la web y
+  /// con derecho a esas sorpresas; que la web esté activa en esa vista, con
+  /// persona y que no sea la de las sorpresas (la web nunca ve lo de su
+  /// persona); que el emisor sea un móvil de la misma persona con derecho
+  /// según la raíz; y las comprobaciones de siempre (fichas actuales, época,
+  /// firma, X25519 y GCM). No exige estar en la audiencia de la candidata: la
+  /// clave que devuelve lleva la audiencia sin la web, la de la candidata.
+  Future<SurpriseKey> openSurpriseKeyAsWeb({
+    required DeviceKeys mine,
+    required RegistryView view,
+    required String webDeviceId,
+  }) async {
+    final person = KeyScope.personOf(scope);
+    if (person == null) {
+      throw const KeyBundleException('no es un paquete de sorpresas');
+    }
+    final web = view.member(webDeviceId);
+    final webPerson = web?.personId;
+    if (web == null ||
+        web.kind != DeviceKind.web ||
+        toDevice != webDeviceId ||
+        webPerson == null ||
+        webPerson == person ||
+        view.self.kind != DeviceKind.mobile ||
+        view.revokedByOthers ||
+        view.myPerson != webPerson ||
+        !view.selfEntitled(person)) {
+      throw const KeyBundleException(
+        'esta web no puede aceptar esta clave de sorpresas',
+      );
+    }
+    final sender = view.entitled(fromDevice, person);
+    if (sender == null ||
+        sender.kind != DeviceKind.mobile ||
+        sender.personId != webPerson) {
+      throw const KeyBundleException(
+        'esta clave de sorpresas no la manda un móvil de la misma persona',
+      );
+    }
+    final bytes = await _open(
+      mine: mine,
+      view: view,
+      sender: sender,
+      recipient: web,
+    );
+    return SurpriseKey(
+      personId: person,
+      epoch: epoch,
+      bytes: bytes,
+      audience: audience.where((id) => id != webDeviceId),
     );
   }
 

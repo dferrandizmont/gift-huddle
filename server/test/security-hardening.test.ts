@@ -5,7 +5,7 @@ import { ListStorageBudget } from "../src/list-storage-budget";
 import { StorageLedgerObject } from "../src/storage-ledger-object";
 import { readJsonObject } from "../src/http";
 import { routeV2 } from "../src/v2-router";
-import { V2_CREDENTIAL_CAP_AGE_MS, V2_GLOBAL_STORAGE_CEILING_BYTES, V2_STORAGE_BLOCK_BYTES, V2_LIST_ROWS_PER_DAY, LIST_TTL_MS, V2_MAX_CREATE_BODY_BYTES, v2ListByteLimit } from "../src/limits";
+import { MAX_ENVELOPE_CHARS, V2_CREDENTIAL_CAP_AGE_MS, V2_GLOBAL_STORAGE_CEILING_BYTES, V2_STORAGE_BLOCK_BYTES, V2_LIST_ROWS_PER_DAY, LIST_TTL_MS, V2_MAX_CREATE_BODY_BYTES, V2_MAX_SLOT_CHARS, V2_MAX_SLOTS, V2_WARN_SLOTS, v2ListByteLimit } from "../src/limits";
 import { b64u, call, newList, rand } from "./helpers";
 
 const snapshot = () => ({ deviceId: "aritz", common: "AAAA", registry: { v: 2, l: "family", records: [{ d: "aritz", e: b64u(rand(32)) }], vouches: [], revocations: [] }, keyPackages: [], slots: [] });
@@ -174,6 +174,67 @@ describe("credential storage capacity", () => {
     expect(v2ListByteLimit([fresh, { ...fresh, revoked: true, slotsExpireAt: now + 1 }], now)).toBe(4 * 1048576);
     expect(v2ListByteLimit([fresh, { ...mature, revoked: true, slotsExpireAt: now }], now)).toBe(1.5 * 1048576);
     expect(v2ListByteLimit(Array.from({ length: 64 }, () => mature), now)).toBe(64.5 * 1048576);
+  });
+
+  describe("slot supplement (1.0.6): the stored bytes of slot rows of phones that may write them", () => {
+    const now = Date.now();
+    /** A stored slot row at its largest: the data plus short keys and the version. */
+    const ROW = V2_MAX_SLOT_CHARS + 40;
+    const phone = (n: number, extra: object = {}) => ({ deviceId: `phone${n}`, role: "device", revoked: false, createdAt: now, ...extra });
+    const web = (n: number) => ({ deviceId: `web${n}`, role: "web", revoked: false, createdAt: now });
+    /** Every device of [ids] holds [each] rows of [bytes]. */
+    const rows = (ids: string[], each: number, bytes = ROW) => new Map(ids.map((d) => [d, Array.from({ length: each }, () => bytes)]));
+
+    it("a family of 10 that all protect each other gets room for its 90 slots in the first week", () => {
+      const phones = Array.from({ length: 10 }, (_, n) => phone(n));
+      const limit = v2ListByteLimit(phones, now, rows(phones.map((p) => p.deviceId), 9));
+      expect(limit).toBe(4 * 1048576 + 88 * ROW);
+      // The 90 slots at their largest, the largest common, registry and packages at their caps.
+      expect(limit).toBeGreaterThanOrEqual(90 * ROW + MAX_ENVELOPE_CHARS + 2 * 256 * 1024 - 2 * ROW);
+      // Six phones paired in the same week (the 1.0.5 limit refused their 30 slots).
+      const six = phones.slice(0, 6);
+      expect(v2ListByteLimit(six, now, rows(six.map((p) => p.deviceId), 5))).toBe(4 * 1048576 + 28 * ROW);
+    });
+
+    it("pays the real bytes of each row, not a fixed allowance: smaller rows give less", () => {
+      const phones = Array.from({ length: 3 }, (_, n) => phone(n));
+      const ids = phones.map((p) => p.deviceId);
+      expect(v2ListByteLimit(phones, now, rows(ids, 2, 1000))).toBe(4 * 1048576 + 4 * 1000);
+      // The two largest rows are the ones the ordinary budget already holds.
+      const mixed = new Map([["phone0", [5000, 100]], ["phone1", [100, 100]], ["phone2", [7000, 100]]]);
+      expect(v2ListByteLimit(phones, now, mixed)).toBe(4 * 1048576 + 400);
+    });
+
+    it("the same ten credentials without slot rows only get the ordinary budget for other resources", () => {
+      const phones = Array.from({ length: 10 }, (_, n) => phone(n));
+      expect(v2ListByteLimit(phones, now)).toBe(4 * 1048576);
+      expect(v2ListByteLimit(phones, now, rows(["phone0"], 2))).toBe(4 * 1048576);
+    });
+
+    it("one phone and nine webs get nothing extra, whatever the webs store", () => {
+      const creds = [phone(0), ...Array.from({ length: 9 }, (_, n) => web(n))];
+      expect(v2ListByteLimit(creds, now, rows(creds.map((c) => c.deviceId), 9))).toBe(4 * 1048576);
+    });
+
+    it("each phone is paid for at most one row per other phone; revoked phones only in grace", () => {
+      const phones = Array.from({ length: 3 }, (_, n) => phone(n));
+      // A newly approved phone writing 32 junk rows adds 2 (n − 1), not 32.
+      expect(v2ListByteLimit(phones, now, new Map([["phone0", [ROW, ROW]], ["phone1", [ROW, ROW]], ["phone2", Array(32).fill(ROW)]]))).toBe(4 * 1048576 + 4 * ROW);
+      const gone = [...phones, phone(3, { revoked: true, slotsExpireAt: now - 1 })];
+      expect(v2ListByteLimit(gone, now, rows(gone.map((p) => p.deviceId), 3))).toBe(4 * 1048576 + 4 * ROW);
+      const grace = [...phones, phone(3, { revoked: true, slotsExpireAt: now + 1 })];
+      expect(v2ListByteLimit(grace, now, rows(grace.map((p) => p.deviceId), 3))).toBe(4 * 1048576 + 10 * ROW);
+    });
+
+    it("stops at V2_MAX_SLOTS and 64.5 MiB", () => {
+      const phones = Array.from({ length: 12 }, (_, n) => phone(n));
+      expect(v2ListByteLimit(phones, now, rows(phones.map((p) => p.deviceId), 11))).toBe(4 * 1048576 + (V2_MAX_SLOTS - 2) * ROW);
+      const many = Array.from({ length: 64 }, (_, n) => phone(n, { createdAt: now - V2_CREDENTIAL_CAP_AGE_MS }));
+      expect(v2ListByteLimit(many, now, rows(many.map((p) => p.deviceId), 63))).toBe(64.5 * 1048576);
+      expect(V2_MAX_SLOTS).toBeGreaterThanOrEqual(90);
+      expect(V2_WARN_SLOTS).toBeGreaterThan(90);
+      expect(V2_WARN_SLOTS).toBeLessThan(V2_MAX_SLOTS);
+    });
   });
 });
 

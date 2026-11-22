@@ -1,5 +1,24 @@
+/// Hosts del Worker v2, en orden (1.0.6): el principal y la reserva, en otra
+/// zona de Cloudflare, que solo se usa si no se puede conectar con el
+/// principal (`sync_routes.dart`). Lista fija y compilada: nada la cambia
+/// desde fuera. El segundo nombre es definitivo (Daniel, 1.0.6) y es un
+/// compromiso permanente: va compilado en los binarios de tienda, así que la
+/// zona no se suelta nunca (misma WAF, TLS mínimo, sin registros ni Logpush:
+/// las URL llevan ids de lista). Solo está aquí, en `server/wrangler.toml` y
+/// en `web/_headers`.
+const List<String> kSyncHosts = ['sync.gifthuddle.app', 'sync-gh.mainshai.com'];
+
 /// Servidor de sincronización por defecto (Worker v2 en el dominio propio).
 const String kDefaultSyncHost = 'https://sync.gifthuddle.app';
+
+/// Si la compilación fija el servidor (`SYNC_API_ORIGIN` o `SYNC_HOST`):
+/// entonces se usa solo ese host, sin reserva, aunque sea el principal.
+/// Nunca en una compilación de tienda (`STORE_BUILD=true`): ahí el host
+/// principal lleva siempre su reserva, aunque un comando antiguo lo pase.
+const bool kSyncOriginExplicit =
+    !bool.fromEnvironment('STORE_BUILD') &&
+    (bool.hasEnvironment('SYNC_API_ORIGIN') ||
+        bool.hasEnvironment('SYNC_HOST'));
 
 /// Origen por defecto de los enlaces de invitación (`/i#<id>`), que abre la
 /// app por App Links y Universal Links.
@@ -26,10 +45,14 @@ const String kInvitationOrigin = String.fromEnvironment(
 
 /// A dónde apunta la sincronización.
 class SyncEndpoint {
-  const SyncEndpoint._(this.base, this.invitationOrigin);
+  const SyncEndpoint._(this.base, this.invitationOrigin, this.routes);
 
   /// Dirección base (`https://host` o, en desarrollo, `http://localhost:8787`).
   final Uri base;
+
+  /// Los hosts que se prueban, en orden: todos los de [kSyncHosts] si [base]
+  /// es el principal; si no (desarrollo, `SYNC_API_ORIGIN`), solo [base].
+  final List<Uri> routes;
 
   final Uri invitationOrigin;
 
@@ -44,7 +67,14 @@ class SyncEndpoint {
   /// completa. Solo se admite `http` hacia el propio equipo o el emulador de
   /// Android (`localhost`, `127.0.0.1`, `10.0.2.2`); lo demás es `https`.
   /// Devuelve `null` si está vacío o no vale.
-  static SyncEndpoint? parse(String raw, {String invitationOrigin = ''}) {
+  ///
+  /// [explicitOrigin] (por defecto, [kSyncOriginExplicit]): el host lo fijó
+  /// la compilación, así que no hay reserva.
+  static SyncEndpoint? parse(
+    String raw, {
+    String invitationOrigin = '',
+    bool explicitOrigin = kSyncOriginExplicit,
+  }) {
     final text = raw.trim();
     if (text.isEmpty) {
       return null;
@@ -78,6 +108,19 @@ class SyncEndpoint {
         ? base
         : parse(invitationOrigin)?.base;
     if (invitations == null) return null;
-    return SyncEndpoint._(base, invitations);
+    final main =
+        !explicitOrigin &&
+        base.scheme == 'https' &&
+        !base.hasPort &&
+        base.host == kSyncHosts.first;
+    return SyncEndpoint._(
+      base,
+      invitations,
+      List.unmodifiable(
+        main
+            ? [for (final h in kSyncHosts) Uri(scheme: 'https', host: h)]
+            : [base],
+      ),
+    );
   }
 }

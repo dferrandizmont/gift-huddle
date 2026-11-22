@@ -4,7 +4,15 @@ name = "gift-huddle-sync"
 main = "src/index.ts"
 compatibility_date = "2026-10-01"
 
-routes = [{ pattern = "sync.gifthuddle.app", custom_domain = true }]
+# The second host is the fallback route the app tries only when the first one cannot be
+# reached (1.0.6, `kSyncHosts` in app/lib/features/sync/data/sync_endpoint.dart): same
+# Worker and objects, another zone, so an IP block of the first one may not catch it.
+# Its zone needs the same WAF rules as gifthuddle.app before it is deployed. The name is
+# final: store builds send credentials to it, so the zone is never released.
+routes = [
+  { pattern = "sync.gifthuddle.app", custom_domain = true },
+  { pattern = "sync-gh.mainshai.com", custom_domain = true },
+]
 # workers.dev and preview URLs stay closed so the WAF rules of the domain cannot be
 # bypassed (see README). Closed on 2026-11-13, once every phone left the pre.18 app.
 workers_dev = false

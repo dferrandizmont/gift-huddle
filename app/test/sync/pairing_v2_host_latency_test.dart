@@ -11,6 +11,7 @@ import 'package:regalos/features/sync/data/sync_transport_v2.dart';
 import 'package:regalos/features/web_device/application/web_pairing_guest.dart';
 
 import '../helpers/fake_sync_server.dart';
+import '../helpers/host_person.dart';
 import '../helpers/fake_worker_v2.dart';
 import '../helpers/memory_stores.dart';
 import '../helpers/pump_app.dart';
@@ -125,6 +126,7 @@ void main() {
             time,
             WebPairingGuest.create(transport: transport),
           );
+          complete(time, hostWithPerson(phone));
           final host = phone.container.read(pairingV2HostProvider.notifier);
           complete(time, host.startWeb(web.qr.url(), guestPerson: 'nora'));
           time.elapse(const Duration(milliseconds: 2100));

@@ -88,10 +88,13 @@ void main() {
     String? person = 'leo',
     bool withoutPerson = false,
   }) async {
+    // 1.0.6: el anfitrión elige la persona del móvil nuevo.
     final host = await PairingV2Host.start(
       transport: client,
       local: aritz,
       lock: lock,
+      guestPerson: person,
+      hostPicksPerson: person != null,
     );
     final guest = await PairingV2Guest.open(
       transport: client,
@@ -369,7 +372,7 @@ void main() {
     await expectLater(guest.code(), throwsA(isA<PairingException>()));
   });
 
-  test('N2: sin persona solo a propósito en los dos lados', () async {
+  test('N2 y 1.0.6: ningún móvil entra sin persona, ni a propósito', () async {
     final host = await PairingV2Host.start(
       transport: client,
       local: aritz,
@@ -383,11 +386,9 @@ void main() {
     );
     await expectLater(guest.answer(), throwsA(isA<PairingException>()));
     await guest.answer(withoutPerson: true);
-    final answered = (await host.poll())!;
-    expect(answered.guestPersonId, isNull);
-    await expectLater(host.confirm(), throwsA(isA<PairingException>()));
-    await host.confirm(guestWithoutPerson: true);
-    expect(worker.devicesOf(kV2Sync).keys, contains('leo-phone'));
+    // El anfitrión no acepta la respuesta y borra la invitación.
+    await expectLater(host.poll(), throwsA(isA<PairingException>()));
+    expect(worker.devicesOf(kV2Sync).keys, isNot(contains('leo-phone')));
   });
 
   test('ataque (hallazgo 3): el anfitrión no avala la persona del invitado '

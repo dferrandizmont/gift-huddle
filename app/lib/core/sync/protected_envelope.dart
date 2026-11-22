@@ -24,15 +24,22 @@
 //   se rellena y al final se cifra:
 //     uint32 BE = longitud L | deflate en bruto (L bytes) | ceros
 //   y lo comprimido es el JSON canónico de
-//     {"d": FamilyDoc del ámbito, "s": {escritor: [época, revisión]}, "v": 2}
+//     {"cap": 2, "d": FamilyDoc del ámbito,
+//      "s": {escritor: [época, revisión]}, "v": 2}
 //   «s» dice qué slot de cada otro escritor estaba ya fusionado en esta
 //   instantánea: con eso se sabe cuándo todos conocen una lápida y se puede
-//   compactar sin que nada resucite.
+//   compactar sin que nada resucite. «cap» (desde la 1.0.6) anuncia que el
+//   escritor sabe abrir slots de kMaxSlotGifts regalos; sin él (1.0.5 y
+//   antes) solo abre hasta kLegacySlotGifts. Un 1.0.5 no mira esa clave.
 // - Capacidad: kMaxSurpriseGifts regalos vivos por persona añadidos desde la
 //   interfaz o al activar, más kMaxReconcileGifts de cupo propio para los
-//   que mueve la reconciliación (N2); en total kMaxSlotGifts. Cada regalo
-//   vivo, como mucho kMaxSurpriseGiftBytes, y el JSON entero, como mucho
-//   kMaxSlotJsonBytes (M4). Lo mismo se exige al abrir que al sellar (N3).
+//   que mueve la reconciliación (N2); en total kMaxSlotGifts, mientras lo
+//   comprimido quepa en el relleno. Solo se sellan más de kLegacySlotGifts
+//   cuando todos los demás escritores con derecho anuncian «cap» 2
+//   (slotGiftLimitFor); si no, los que sobran se quedan en local. Cada
+//   regalo vivo, como mucho kMaxSurpriseGiftBytes, y el JSON entero, como
+//   mucho kMaxSlotJsonBytes (M4). Lo mismo se exige al abrir que al sellar
+//   (N3), con el límite que anuncia el propio slot.
 library;
 
 import 'dart:convert';
@@ -51,11 +58,22 @@ import 'hlc.dart';
 import 'model.dart' show Collections;
 
 /// Regalos sorpresa vivos que caben por persona (decisión de producto): los
-/// que se añaden desde la interfaz y los que se mueven al activar.
-const int kMaxSurpriseGifts = 50;
+/// que se añaden desde la interfaz y los que se mueven al activar. Hasta la
+/// 1.0.5 eran 50. `test/sync/protected_capacity_test.dart` mide que tantos
+/// regalos normales caben con margen en [kSlotPlainBytes].
+const int kMaxSurpriseGifts = 200;
 
-/// Regalos vivos que admite un slot.
-const int kMaxSlotGifts = 64;
+/// Regalos vivos que admite un slot que anuncia «cap» 2 (desde la 1.0.6).
+/// No hay garantía de que tantos quepan siempre: [fitScopeToSlot] deja
+/// fuera lo que, comprimido, no cabe.
+const int kMaxSlotGifts = 232;
+
+/// Regalos vivos que admite un slot sin «cap» (lo que abre un 1.0.5). Con
+/// [kMaxSurpriseGiftBytes] por regalo, tantos siempre caben comprimidos.
+const int kLegacySlotGifts = 64;
+
+/// Capacidad que anuncian los slots que sella esta versión («cap»).
+const int kSlotCapacity = 2;
 
 /// Cupo propio de los regalos que mueve la reconciliación (los que alguien
 /// escribió en público para la persona protegida): no gastan el de la
@@ -66,8 +84,22 @@ const int kMaxReconcileGifts = kMaxSlotGifts - kMaxSurpriseGifts;
 /// reconciliación (cuenta para [kMaxReconcileGifts]). No sale al publicar.
 const String kMovedInField = 'movedIn';
 
+/// Campo de un regalo del buzón de una web (1.0.6, ADR 0009): el regalo es
+/// un alta de la web. El móvil que recoge el buzón lo quita al aplicarlo.
+const String kWebNewField = 'webNew';
+
+/// Registros (vivos y lápidas) que admite un buzón de una web: si trae más,
+/// se rechaza entero.
+const int kMaxWebInboxRecords = 40;
+
+/// Lápidas que admite un buzón de una web.
+const int kMaxWebInboxTombstones = 10;
+
+/// Lápidas de webs que recoge un móvil en un día (UTC); lo demás espera.
+const int kMaxWebTombstonesPerDay = 20;
+
 /// Tamaño máximo del JSON canónico de un regalo vivo del bloque secreto. Con
-/// [kMaxSlotGifts] regalos así, lo comprimido siempre cabe en el relleno.
+/// [kLegacySlotGifts] regalos así, lo comprimido siempre cabe en el relleno.
 const int kMaxSurpriseGiftBytes = 1900;
 
 /// Tamaño máximo del JSON del slot sin comprimir: muy por debajo de lo que
@@ -274,7 +306,14 @@ class OpenedSlot {
     required this.header,
     required this.doc,
     required this.seen,
+    this.cap = 1,
+    this.foreignRecords = 0,
   });
+
+  /// Registros que el escritor metió y que no son del ámbito (de otra
+  /// persona u otra colección): al abrir se descartan. Un móvil no los
+  /// escribe nunca; en el buzón de una web hacen que se rechace entero.
+  final int foreignRecords;
 
   /// Cabecera.
   final SlotHeader header;
@@ -285,6 +324,10 @@ class OpenedSlot {
 
   /// Qué slot de cada otro escritor estaba fusionado en esta instantánea.
   final Map<String, SlotVersion> seen;
+
+  /// Capacidad que anuncia el escritor: 1 sin «cap» (1.0.5 y antes, abre
+  /// hasta [kLegacySlotGifts]) y [kSlotCapacity] desde la 1.0.6.
+  final int cap;
 
   /// Política con la que escribió el escritor (autenticada).
   PolicyState get policy => header.policy;
@@ -383,8 +426,10 @@ class SealedSlot {
   /// [policy] en la cabecera y [seen] (qué slots de otros lleva fusionados).
   ///
   /// [doc] solo puede tener la colección de regalos, y todos sus regalos
-  /// vivos deben ser de `key.personId`. Lanza [SurpriseCapacityException]
-  /// con más de [kMaxSlotGifts] regalos vivos,
+  /// vivos deben ser de `key.personId`. El slot anuncia [kSlotCapacity].
+  /// Lanza [SurpriseCapacityException] con más de [kMaxSlotGifts] regalos
+  /// vivos (quien publica ajusta antes al límite de los demás escritores con
+  /// [fitScopeToSlot] y [slotGiftLimitFor]),
   /// [SurpriseGiftTooLargeException] si uno pasa de
   /// [kMaxSurpriseGiftBytes] y [SurpriseSlotFullException] si el JSON pasa
   /// de [kMaxSlotJsonBytes] o lo comprimido no cabe. Antes de devolverlo lo
@@ -494,21 +539,33 @@ class SealedSlot {
     FamilyDoc doc,
     Map<String, SlotVersion> seen,
   ) {
-    final json = utf8.encode(
-      canonicalJsonOf(<String, Object?>{
-        'd': doc.toJson(),
-        's': <String, Object?>{
-          for (final e in seen.entries)
-            e.key: <int>[e.value.epoch, e.value.revision],
-        },
-        'v': _version,
-      }),
-    );
+    final json = _bodyJson(doc, seen);
     if (json.length > kMaxSlotJsonBytes) return null;
     final compressed = Deflate(json).getBytes();
     if (compressed.length > kSlotPlainBytes - _lengthPrefix) return null;
     return compressed;
   }
+
+  /// Bytes de lo comprimido (sin el tope del relleno), o infinito si el
+  /// JSON pasa de [kMaxSlotJsonBytes].
+  static double _compressedBytes(FamilyDoc doc, Map<String, SlotVersion> seen) {
+    final json = _bodyJson(doc, seen);
+    if (json.length > kMaxSlotJsonBytes) return double.infinity;
+    return Deflate(json).getBytes().length.toDouble();
+  }
+
+  static List<int> _bodyJson(FamilyDoc doc, Map<String, SlotVersion> seen) =>
+      utf8.encode(
+        canonicalJsonOf(<String, Object?>{
+          'cap': kSlotCapacity,
+          'd': doc.toJson(),
+          's': <String, Object?>{
+            for (final e in seen.entries)
+              e.key: <int>[e.value.epoch, e.value.revision],
+          },
+          'v': _version,
+        }),
+      );
 
   /// Si la firma es del escritor, con su clave pública [signingKey]. No
   /// necesita la clave de sorpresas.
@@ -592,9 +649,21 @@ class SealedSlot {
       if (doc.listId != header.listId) {
         throw const SlotWrongScopeException('documento de otra lista');
       }
+      final cap = _capOf(raw['cap']);
       final scope = scopeDocOnly(doc, header.personId);
+      var foreign = 0;
+      for (final entry in doc.collections.entries) {
+        foreign += entry.key == Collections.gifts
+            ? entry.value.length -
+                  (scope.collections[Collections.gifts]?.length ?? 0)
+            : entry.value.length;
+      }
       try {
-        _checkScopeDoc(scope, header.personId);
+        _checkScopeDoc(
+          scope,
+          header.personId,
+          maxLive: cap >= kSlotCapacity ? kMaxSlotGifts : kLegacySlotGifts,
+        );
       } on ProtectedEnvelopeException {
         // Lo que no se podría sellar tampoco se acepta al abrir (N3).
         throw const SlotFormatException('contenido fuera de los límites');
@@ -603,12 +672,23 @@ class SealedSlot {
         header: header,
         doc: scope,
         seen: _seenOf(raw['s'] as Map),
+        cap: cap,
+        foreignRecords: foreign,
       );
     } on ProtectedEnvelopeException {
       rethrow;
     } on FormatException {
       throw const SlotFormatException('contenido dañado');
     }
+  }
+
+  /// «cap» del JSON: 1 si no está (1.0.5), un entero positivo si está.
+  static int _capOf(Object? raw) {
+    if (raw == null) return 1;
+    if (raw is! int || raw < 1) {
+      throw const SlotFormatException('contenido no válido');
+    }
+    return raw;
   }
 
   static Map<String, SlotVersion> _seenOf(Map<Object?, Object?> raw) {
@@ -635,7 +715,11 @@ class SealedSlot {
     ...unsigned,
   ];
 
-  static void _checkScopeDoc(FamilyDoc doc, String personId) {
+  static void _checkScopeDoc(
+    FamilyDoc doc,
+    String personId, {
+    int maxLive = kMaxSlotGifts,
+  }) {
     for (final name in doc.collections.keys) {
       if (name != Collections.gifts) {
         throw ArgumentError.value(
@@ -661,21 +745,41 @@ class SealedSlot {
       }
       live++;
     }
-    if (live > kMaxSlotGifts) {
+    if (live > maxLive) {
       throw SurpriseCapacityException(live);
     }
   }
 }
 
-/// Si [doc] cabe en un slot (sin cifrar nada). Lo usa la reconciliación
-/// para no dejar nunca un ámbito que no se pueda sellar.
+/// Regalos vivos que puede sellar un escritor, según lo que anuncian los
+/// slots abiertos de los demás escritores con derecho ([peers]; null si de
+/// alguno no hay slot abierto). Solo se pasa de [kLegacySlotGifts] si todos
+/// anuncian [kSlotCapacity]: un 1.0.5 no abriría un slot más grande, y uno
+/// que aún no ha publicado o no se ha podido leer podría ser un 1.0.5.
+int slotGiftLimitFor(Iterable<OpenedSlot?> peers) =>
+    peers.every((p) => p != null && p.cap >= kSlotCapacity)
+    ? kMaxSlotGifts
+    : kLegacySlotGifts;
+
+/// Qué parte del relleno de un slot ocupa [doc] comprimido (0 vacío, 1
+/// lleno; más de 1 si no cabe). Para el medidor «casi lleno» de la interfaz.
+double slotUsage(
+  FamilyDoc doc, {
+  Map<String, SlotVersion> seen = const <String, SlotVersion>{},
+}) =>
+    SealedSlot._compressedBytes(doc, seen) / (kSlotPlainBytes - _lengthPrefix);
+
+/// Si [doc] cabe en un slot de [maxLive] regalos vivos (sin cifrar nada). Lo
+/// usa la reconciliación para no dejar nunca un ámbito que no se pueda
+/// sellar.
 bool scopeFitsInSlot(
   FamilyDoc doc,
   String personId, {
   Map<String, SlotVersion> seen = const <String, SlotVersion>{},
+  int maxLive = kMaxSlotGifts,
 }) {
   try {
-    SealedSlot._checkScopeDoc(doc, personId);
+    SealedSlot._checkScopeDoc(doc, personId, maxLive: maxLive);
   } on ProtectedEnvelopeException {
     return false;
   } on ArgumentError {
@@ -688,7 +792,8 @@ bool scopeFitsInSlot(
 /// fuera (N3).
 ///
 /// Lo normal es que quepa todo. Si al fusionar varios escritores hay más de
-/// [kMaxSlotGifts] vivos (cada uno llenó el suyo sin red), este escritor
+/// [maxLive] vivos (cada uno llenó el suyo sin red, o algún otro escritor es
+/// un 1.0.5: [slotGiftLimitFor]) o lo comprimido no cabe, este escritor
 /// sella los que caben, por orden: primero los de la interfaz por id y
 /// después los que movió la reconciliación. Los demás siguen en su copia
 /// local y en los slots de quien los escribió, y vuelven a entrar cuando
@@ -698,8 +803,11 @@ bool scopeFitsInSlot(
   FamilyDoc doc,
   String personId, {
   Map<String, SlotVersion> seen = const <String, SlotVersion>{},
+  int maxLive = kMaxSlotGifts,
 }) {
-  if (scopeFitsInSlot(doc, personId, seen: seen)) return (doc, const []);
+  if (scopeFitsInSlot(doc, personId, seen: seen, maxLive: maxLive)) {
+    return (doc, const []);
+  }
   final gifts = doc.collections[Collections.gifts] ?? const {};
   final dead = <String, SyncRecord>{
     for (final r in gifts.values)
@@ -723,22 +831,32 @@ bool scopeFitsInSlot(
       Collections.gifts: {...dead, for (final r in live.take(n)) r.id: r},
     },
   );
-  var n = live.length < kMaxSlotGifts ? live.length : kMaxSlotGifts;
-  while (n >= 0) {
-    final candidate = withFirst(n);
-    if (scopeFitsInSlot(candidate, personId, seen: seen)) {
-      final kept = {for (final r in live.take(n)) r.id};
-      return (
-        candidate,
-        [
-          for (final r in gifts.values)
-            if (!r.isDeleted && !kept.contains(r.id)) r.id,
-        ]..sort(),
-      );
+  bool fits(int n) =>
+      scopeFitsInSlot(withFirst(n), personId, seen: seen, maxLive: maxLive);
+  if (!fits(0)) throw const SurpriseSlotFullException();
+  // Búsqueda binaria de un n que cabe: con hasta kMaxSlotGifts, ir de uno en
+  // uno comprimiría el bloque entero cientos de veces. DEFLATE no garantiza
+  // que con menos regalos lo comprimido no crezca, así que puede quedar fuera
+  // alguno que habría cabido; lo que se devuelve siempre está comprobado (y
+  // el sellado lo vuelve a comprobar), y lo que queda fuera sigue en local.
+  var low = 0;
+  var high = live.length < maxLive ? live.length : maxLive;
+  while (low < high) {
+    final mid = (low + high + 1) ~/ 2;
+    if (fits(mid)) {
+      low = mid;
+    } else {
+      high = mid - 1;
     }
-    n--;
   }
-  throw const SurpriseSlotFullException();
+  final kept = {for (final r in live.take(low)) r.id};
+  return (
+    withFirst(low),
+    [
+      for (final r in gifts.values)
+        if (!r.isDeleted && !kept.contains(r.id)) r.id,
+    ]..sort(),
+  );
 }
 
 /// Bytes del JSON canónico de un registro (sus campos con sus marcas).

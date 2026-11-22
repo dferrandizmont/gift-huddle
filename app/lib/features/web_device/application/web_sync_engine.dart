@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' show max;
 import 'dart:typed_data';
 
 import '../../../core/sync/access_policy.dart';
@@ -14,6 +15,8 @@ import '../../../core/sync/hlc.dart';
 import '../../../core/sync/key_bundle.dart';
 import '../../../core/sync/model.dart';
 import '../../../core/sync/pairing_v2.dart' show syncProtocolOf;
+import '../../../core/sync/protected_doc.dart';
+import '../../../core/sync/protected_envelope.dart';
 import '../../sync/application/common_v2.dart';
 import '../../sync/application/common_v2_cutover.dart';
 import '../../sync/application/sync_v2_engine.dart' show V2RollbackException;
@@ -23,6 +26,49 @@ import '../data/vault_store.dart';
 import 'pending_queue.dart';
 import 'vault_service.dart';
 import 'web_common.dart';
+import 'web_secrets.dart';
+
+/// The web's inbox history in the vault (1.0.6, ADR 0009): per person, the
+/// inbox slots it sealed (epoch, revision and the queue entries inside).
+const String kWebInboxField = 'webInbox';
+
+/// The people of all the records of each phone that vouched [screen]'s own
+/// record (the web's current one) while that phone was of the web's person
+/// (final review, M1). If the phone that connected the web later changes
+/// person, its screen layer hides the old and the new person while the change
+/// waits; the web cannot change person, so it hides them too. A phone of
+/// another person that vouched the web (an older flow) adds nothing.
+Set<String> webPhonePeople(DeviceRegistry registry, RegistryView screen) {
+  final web = screen.self;
+  final person = web.personId;
+  if (person == null) return const {};
+  final byDigest = {for (final r in registry.records) r.digest: r};
+  final phones = <String>{
+    for (final v in registry.vouches)
+      if (v.recordDigest == web.recordDigest)
+        if (byDigest[v.byRecord] case final then?
+            when then.kind == DeviceKind.mobile &&
+                then.personId == person &&
+                then.deviceId != web.deviceId)
+          then.deviceId,
+  };
+  return {
+    for (final r in registry.records)
+      if (phones.contains(r.deviceId) && r.personId != null) r.personId!,
+  };
+}
+
+/// Inbox slots one web may hold at once (`V2_MAX_WEB_SLOTS`).
+const int kMaxWebInboxSlots = 8;
+
+/// The last inbox revision the web sealed per person, kept after the
+/// history empties (security review, B7): a clock going back never seals
+/// below a phone's mark.
+const String kWebInboxRevisionField = 'webInboxRevision';
+
+/// How long an inbox the Worker refused (cap, size, renewal, an old Worker)
+/// waits before the web tries it again (security review, M3).
+const Duration kWebInboxHold = Duration(minutes: 10);
 
 /// Product operations unavailable to a restricted web identity.
 class WebOperationException implements Exception {
@@ -181,6 +227,58 @@ class WebSyncEngine {
   FamilyDoc? candidate;
   FamilyDoc? _publicationCandidate;
   RegistryView? view;
+
+  /// The registry seen as this web (its own id and person), for the screen
+  /// layer only: [view] is anchored at the phone that verifies signatures,
+  /// so its `accompanied` and `myPerson` are the phone's, not the web's.
+  /// Null while it cannot be read (then the web hides its own person).
+  RegistryView? screenView;
+
+  /// The people of every record of the phone that vouched this web's current
+  /// record while it was of the web's person (final review, M1): if that
+  /// phone changes person, the web follows the screen layer of the phone and
+  /// hides both. See [webPhonePeople].
+  Set<String> phonePeople = const {};
+
+  /// The people whose gifts this web never paints: its own (screen layer,
+  /// [screenView]) and [phonePeople].
+  Set<String> get screenHiddenPeople => {
+    ...ownHiddenPeople(
+      view: screenView,
+      selfRecipientId: vault.opened.data['personId'] as String?,
+      paired: true,
+    ),
+    ...phonePeople,
+  };
+
+  /// Session-only surprise keys, slots and opened scopes (1.0.6, ADR 0009).
+  final WebSecrets secrets = WebSecrets();
+
+  /// Whether surprises are open in this session (idle lock at 5 minutes).
+  bool get secretsOpen => secrets.isOpen;
+
+  /// Gifts with changes waiting in an inbox for the owner's phone
+  /// («Pendiente de tu móvil»).
+  Set<String> pendingSecretGiftIds = const {};
+
+  /// Inbox changes that wait because the surprises are not open now (no
+  /// keys, or the web's phone is not there).
+  int heldSecretCount = 0;
+
+  /// Inbox changes dropped because their gift no longer exists.
+  int discardedSecretCount = 0;
+
+  Map<String, List<PendingEntry>> _inbox = const {};
+
+  /// Inboxes the Worker refused, until when they wait (M3). The common
+  /// keeps publishing meanwhile.
+  final Map<String, DateTime> _inboxHeld = {};
+
+  /// People whose inbox the Worker refused in this session.
+  Set<String> get heldInboxPeople => {
+    for (final e in _inboxHeld.entries)
+      if (now().isBefore(e.value)) e.key,
+  };
   WebSyncStatus status = WebSyncStatus.pending;
   int setAsideCount = 0;
   bool get hasRoots => (vault.opened.data['roots'] as List).isNotEmpty;
@@ -372,6 +470,11 @@ class WebSyncEngine {
     candidate = null;
     _publicationCandidate = null;
     view = null;
+    screenView = null;
+    phonePeople = const {};
+    secrets.clear();
+    _inbox = const {};
+    pendingSecretGiftIds = const {};
   }
 
   void _disconnect() {
@@ -454,17 +557,32 @@ class WebSyncEngine {
     }
     if (delta.collections.values.every((v) => v.isEmpty)) return;
     _check(g);
+    final giftPeople = {
+      for (final id in delta.collections[Collections.gifts]?.keys ?? <String>[])
+        id: {
+          before.record(Collections.gifts, id)?['recipientId'],
+          after.record(Collections.gifts, id)?['recipientId'],
+        }.whereType<String>().toList(),
+    };
+    // 1.0.6 (ADR 0009): with surprises open, an action on the gifts of one
+    // protected person the web can write for goes to that person's inbox.
+    final inboxPerson = _inboxPerson(
+      PendingEntry('', delta, giftPeople: giftPeople),
+      await savedCommon(),
+    );
+    _check(g);
     await queue.add(
       delta,
+      inboxPerson: secrets.writablePeople.contains(inboxPerson)
+          ? inboxPerson
+          : null,
       undoGiftId: undoGiftId,
       publishAfter: publishAfter,
-      giftPeople: {
+      giftPeople: giftPeople,
+      newGifts: {
         for (final id
             in delta.collections[Collections.gifts]?.keys ?? <String>[])
-          id: {
-            before.record(Collections.gifts, id)?['recipientId'],
-            after.record(Collections.gifts, id)?['recipientId'],
-          }.whereType<String>().toList(),
+          if (before.record(Collections.gifts, id) == null) id,
       },
     );
     _check(g);
@@ -520,11 +638,20 @@ class WebSyncEngine {
 
   Future<void> _syncOnce(int g) async {
     try {
+      var inboxWrites = 0;
       for (var attempt = 0; attempt < 4; attempt++) {
         final snap = await _read(g);
         if (snap == null) return;
         var admitted = await _candidate(g);
         if (status != WebSyncStatus.confirmed) return;
+        // 1.0.6 (ADR 0009): the inbox for the owner's phone first. A write
+        // moves the version: read again. Inbox writes do not spend the
+        // conflict attempts (B7), up to two per inbox slot.
+        if (await _syncInbox(g, snap)) {
+          if (++inboxWrites <= 2 * kMaxWebInboxSlots) attempt--;
+          continue;
+        }
+        if (_stopped) return;
         if (commonStatus == null || commonStatus == RemoteCommonStatus.opened) {
           final beforeRepair = _publicationCandidate!;
           final repaired = reconcileGiverCopies(
@@ -877,6 +1004,7 @@ class WebSyncEngine {
         'registryLocal': registry.toLocalStoreJson(),
     });
     _check(g);
+    await _refreshSecrets(g, s, registry, selected, keys);
     version = s.version;
     view = selected;
     return s;
@@ -1089,10 +1217,380 @@ class WebSyncEngine {
           )
         : null;
     _check(g);
+    await _refreshSecrets(g, s, registry, current, keys);
     version = s.version;
     view = current;
     return s;
   }
+
+  /// Rebuilds the screen view and the session surprises from snapshot [s]
+  /// (1.0.6, ADR 0009). [root] is the verified phone view of this read.
+  Future<void> _refreshSecrets(
+    int g,
+    V2Snapshot s,
+    DeviceRegistry? registry,
+    RegistryView? root,
+    DeviceKeys keys,
+  ) async {
+    screenView = null;
+    phonePeople = const {};
+    if (registry == null || root == null) {
+      secrets.clear();
+      return;
+    }
+    try {
+      screenView = await registry.viewFor(
+        me: auth.deviceId,
+        mySigningKey: keys.publicKeys.signing,
+        livePeople: root.livePeople,
+      );
+    } on RegistryException {
+      screenView = null;
+    }
+    _check(g);
+    final screen = screenView;
+    if (screen != null) phonePeople = webPhonePeople(registry, screen);
+    if (status != WebSyncStatus.confirmed) {
+      secrets.clear();
+      return;
+    }
+    await secrets.refresh(
+      snap: s,
+      registry: registry,
+      root: root,
+      webDeviceId: auth.deviceId,
+      keys: keys,
+      transport: transport,
+      auth: auth,
+      check: () => _check(g),
+    );
+  }
+
+  /// The only person whose protected gifts [entry] touches, if it touches
+  /// nothing but gifts of exactly one person who is not this web's: then it
+  /// goes to that person's inbox. Null otherwise (set aside).
+  String? _inboxPerson(PendingEntry entry, FamilyDoc common) {
+    for (final c in entry.delta.collections.entries) {
+      if (c.value.isNotEmpty && c.key != Collections.gifts) return null;
+    }
+    final gifts = entry.delta.collections[Collections.gifts];
+    if (gifts == null || gifts.isEmpty) return null;
+    final people = <String>{};
+    for (final r in gifts.values) {
+      people.addAll(entry.giftPeople[r.id] ?? const []);
+      for (final id in [
+        r['recipientId'],
+        common.record(Collections.gifts, r.id)?['recipientId'],
+      ]) {
+        if (id is String) people.add(id);
+      }
+    }
+    if (people.length != 1) return null;
+    final person = people.single;
+    final mine = vault.opened.data['personId'];
+    if (person == mine || person == secrets.person) return null;
+    return person;
+  }
+
+  /// What the web shows and edits with surprises open: the common lane, the
+  /// opened scopes with the inbox entries on top, without the gifts of a
+  /// protected person it cannot open and without its own person's.
+  FamilyDoc _secretCandidate(
+    FamilyDoc common,
+    Map<String, List<PendingEntry>> inbox,
+  ) {
+    final gifts = <String, SyncRecord>{
+      ...?common.collections[Collections.gifts],
+    };
+    final secretIds = <String>{};
+    for (final e in secrets.opened.entries) {
+      var scope = e.value.doc;
+      for (final entry in inbox[e.key] ?? const <PendingEntry>[]) {
+        scope = scope.merge(
+          FamilyDoc(
+            listId: scope.listId,
+            collections: {
+              Collections.gifts:
+                  entry.delta.collections[Collections.gifts] ?? const {},
+            },
+          ),
+        );
+      }
+      for (final record
+          in scope.collections[Collections.gifts]?.values ??
+              const <SyncRecord>[]) {
+        gifts[record.id] = record;
+        if (!record.isDeleted) secretIds.add(record.id);
+      }
+    }
+    final v = secrets.view;
+    final protected = <String>{
+      for (final e in publishedPolicies(common).entries)
+        if (e.value.hideOwnGifts) e.key,
+      if (v != null)
+        for (final p in secrets.slots.people)
+          if (secrets.slots.authenticatedPolicy(p, v)?.hideOwnGifts == true) p,
+      ...secrets.opened.keys,
+    };
+    final own = screenHiddenPeople;
+    gifts.removeWhere(
+      (id, record) =>
+          (protected.contains(record['recipientId']) &&
+              !secretIds.contains(id)) ||
+          own.contains(record['recipientId']),
+    );
+    return FamilyDoc(
+      listId: common.listId,
+      collections: {...common.collections, Collections.gifts: gifts},
+    );
+  }
+
+  Map<String, List<({int epoch, int revision, Set<String> ids})>>
+  _inboxHistory() {
+    final raw = vault.opened.data[kWebInboxField];
+    return {
+      if (raw is Map)
+        for (final e in raw.entries)
+          if (e.key is String && e.value is List)
+            e.key as String: [
+              for (final item in e.value as List)
+                if (item is Map &&
+                    item['e'] is int &&
+                    item['r'] is int &&
+                    item['ids'] is List)
+                  (
+                    epoch: item['e'] as int,
+                    revision: item['r'] as int,
+                    ids: {...(item['ids'] as List).whereType<String>()},
+                  ),
+            ],
+    };
+  }
+
+  Future<void> _saveInboxHistory(
+    int g,
+    Map<String, List<({int epoch, int revision, Set<String> ids})>> history,
+  ) async {
+    await vault.saveData({
+      ...vault.opened.data,
+      kWebInboxField: {
+        for (final e in history.entries)
+          if (e.value.isNotEmpty)
+            e.key: [
+              for (final h in e.value)
+                {'e': h.epoch, 'r': h.revision, 'ids': (h.ids.toList()..sort())},
+            ],
+      },
+    });
+    _check(g);
+  }
+
+  int _inboxRevision(String person) {
+    final raw = vault.opened.data[kWebInboxRevisionField];
+    final r = raw is Map ? raw[person] : null;
+    return r is int ? r : 0;
+  }
+
+  Future<void> _saveInboxRevision(int g, String person, int revision) async {
+    final raw = vault.opened.data[kWebInboxRevisionField];
+    await vault.saveData({
+      ...vault.opened.data,
+      kWebInboxRevisionField: {
+        if (raw is Map)
+          for (final e in raw.entries)
+            if (e.key is String && e.value is int) e.key as String: e.value,
+        person: max(revision, _inboxRevision(person)),
+      },
+    });
+    _check(g);
+  }
+
+  /// One inbox write. A refusal the web cannot fix by retrying soon (cap,
+  /// size, renewal freeze, an old Worker without the route...) holds that
+  /// inbox for [kWebInboxHold] and returns null, so the common still
+  /// publishes (security review, M3). Network, server, rate and credential
+  /// failures go up as always.
+  Future<V2WriteResult?> _putInbox(
+    int g,
+    V2Snapshot snap,
+    String person,
+    Uint8List? data,
+  ) async {
+    try {
+      final put = await transport.putWebSlot(
+        auth,
+        version: snap.version,
+        personId: person,
+        data: data,
+      );
+      _check(g);
+      _inboxHeld.remove(person);
+      return put;
+    } on SyncTransportException catch (e) {
+      _check(g);
+      if (const {
+        SyncFailure.network,
+        SyncFailure.server,
+        SyncFailure.rateLimited,
+        SyncFailure.unauthorized,
+      }.contains(e.failure)) {
+        rethrow;
+      }
+      _inboxHeld[person] = now().add(kWebInboxHold);
+      onError?.call(e);
+      return null;
+    }
+  }
+
+  /// Confirms, seals or removes this web's inbox slots (1.0.6, ADR 0009,
+  /// A.8.5). An entry is confirmed when a slot of a phone of the web's
+  /// person already holds it, or declares (`s[web]`) an inbox that held it.
+  /// Returns true after a write (the version moved).
+  Future<bool> _syncInbox(int g, V2Snapshot snap) async {
+    final v = secrets.view;
+    if (v == null || secrets.person == null) return false;
+    final me = auth.deviceId;
+    final history = _inboxHistory();
+    var acked = false;
+    final people = {..._inbox.keys, ...secrets.ownInbox.keys}.toList()..sort();
+    for (final person in people) {
+      final opened = secrets.opened[person];
+      if (opened == null) continue;
+      final held = _inboxHeld[person];
+      final waitHeld = held != null && now().isBefore(held);
+      final all = _inbox[person] ?? const <PendingEntry>[];
+      final phones = [
+        for (final part in opened.parts.entries)
+          if (part.key != me && secrets.ownPhone(part.key)) part.value,
+      ];
+      final past = history[person] ?? const [];
+      final remaining = <PendingEntry>[];
+      for (final entry in all) {
+        if (entry.publishAfter != null) continue;
+        final gifts = FamilyDoc(
+          listId: opened.doc.listId,
+          collections: {
+            Collections.gifts:
+                entry.delta.collections[Collections.gifts] ?? const {},
+          },
+        );
+        final inSlot = phones.any(
+          (part) =>
+              part.doc.merge(gifts).canonicalJson() ==
+              part.doc.canonicalJson(),
+        );
+        final declared = past.any(
+          (h) =>
+              h.ids.contains(entry.id) &&
+              phones.any((part) {
+                final seen = part.seen[me];
+                return seen != null &&
+                    seen.compareTo(SlotVersion(h.epoch, h.revision)) >= 0;
+              }),
+        );
+        if (inSlot || declared) {
+          await queue.ack(entry.id, confirmation: {'inbox': person});
+          _check(g);
+          acked = true;
+        } else {
+          remaining.add(entry);
+        }
+      }
+      final waiting = all.any((e) => e.publishAfter != null);
+      if (!secrets.writablePeople.contains(person) || waitHeld) continue;
+      final build = buildWebInbox(
+        personId: person,
+        scope: opened.doc,
+        entries: [
+          for (final e in remaining)
+            WebInboxEntry(id: e.id, delta: e.delta, newGifts: e.newGifts),
+        ],
+      );
+      for (final id in [...build.moot, ...build.discarded]) {
+        await queue.ack(id, confirmation: {'inbox': person, 'dropped': true});
+        _check(g);
+        acked = true;
+      }
+      discardedSecretCount += build.discarded.length;
+      final onServer = secrets.ownInbox.containsKey(person);
+      if (build.isEmpty) {
+        if (!waiting && build.deferred.isEmpty) {
+          if (history.remove(person) != null) await _saveInboxHistory(g, history);
+          if (onServer) {
+            final put = await _putInbox(g, snap, person, null);
+            if (put == null) continue;
+            if (put is V2WriteNotFound) {
+              _disconnect();
+              return false;
+            }
+            return true;
+          }
+        }
+        continue;
+      }
+      final last = past.isEmpty ? null : past.last;
+      if (onServer &&
+          last != null &&
+          last.ids.length == build.included.length &&
+          last.ids.containsAll(build.included)) {
+        continue;
+      }
+      if (!onServer && secrets.ownInbox.length >= kMaxWebInboxSlots) continue;
+      final key = secrets.sealingKeyFor(person);
+      final policy = opened.authenticatedPolicy;
+      if (key == null || policy == null) continue;
+      final SealedSlot slot;
+      try {
+        slot = await SealedSlot.seal(
+          writerKeys: await DeviceKeys.fromJson(
+            Map<String, Object?>.from(vault.opened.data['deviceKeys'] as Map),
+          ),
+          writer: me,
+          revision: max(
+            now().millisecondsSinceEpoch,
+            max(
+                  past.isEmpty ? 0 : past.map((h) => h.revision).reduce(max),
+                  _inboxRevision(person),
+                ) +
+                1,
+          ),
+          key: key,
+          policy: policy,
+          doc: build.doc,
+        );
+      } on ProtectedEnvelopeException {
+        continue;
+      } on ArgumentError {
+        continue;
+      }
+      _check(g);
+      // The history goes first: an inbox may enter without an answer.
+      final kept = [
+        ...past,
+        (
+          epoch: slot.header.epoch,
+          revision: slot.header.revision,
+          ids: build.included.toSet(),
+        ),
+      ];
+      history[person] = kept.length > 16
+          ? kept.sublist(kept.length - 16)
+          : kept;
+      await _saveInboxHistory(g, history);
+      await _saveInboxRevision(g, person, slot.header.revision);
+      _flag(uploading: true);
+      final put = await _putInbox(g, snap, person, slot.bytes);
+      if (put == null) continue;
+      if (put is V2WriteNotFound) {
+        _disconnect();
+        return false;
+      }
+      return true;
+    }
+    if (acked) await _candidate(g);
+    return false;
+  }
+
 
   Future<List<String>> _candidate(int g) async {
     final data = vault.opened.data;
@@ -1108,6 +1606,8 @@ class WebSyncEngine {
     );
     final entries = await queue.entries(expireUndoAt: now());
     final admitted = <String>[];
+    final inbox = <String, List<PendingEntry>>{};
+    var held = 0;
     DateTime? deadline;
     _undoDeadline?.cancel();
     setAsideCount = 0;
@@ -1118,9 +1618,24 @@ class WebSyncEngine {
       if (waiting) {
         if (deadline == null || due.isBefore(deadline)) deadline = due;
       }
-      if (entry.setAside || !webEntryAllowed(doc, entry, blocked)) {
-        if (!entry.setAside) await queue.setAside(entry.id);
+      if (entry.setAside) {
         setAsideCount++;
+      } else if (!webEntryAllowed(doc, entry, blocked)) {
+        // 1.0.6 (ADR 0009): an action on the gifts of one protected person
+        // (not this web's) goes to that person's inbox; anything else that
+        // touches a protected person is still set aside («hazlo desde el
+        // móvil»).
+        final person = entry.inboxPerson != null &&
+                _inboxPerson(entry, doc) == entry.inboxPerson
+            ? entry.inboxPerson
+            : null;
+        if (person == null) {
+          await queue.setAside(entry.id);
+          setAsideCount++;
+        } else {
+          (inbox[person] ??= []).add(entry);
+          if (!secrets.openedPeople.contains(person)) held++;
+        }
       } else {
         doc = doc.merge(entry.delta);
         if (!waiting) {
@@ -1130,7 +1645,14 @@ class WebSyncEngine {
       }
     }
     _check(g);
-    candidate = doc;
+    _inbox = inbox;
+    heldSecretCount = held;
+    pendingSecretGiftIds = {
+      for (final list in inbox.values)
+        for (final e in list)
+          ...?e.delta.collections[Collections.gifts]?.keys,
+    };
+    candidate = secrets.isOpen ? _secretCandidate(doc, inbox) : doc;
     _publicationCandidate = publication;
     _uploading = admitted.isNotEmpty && !commonHeld;
     if (deadline != null) {

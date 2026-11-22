@@ -1,3 +1,5 @@
+import '../../web_device/application/web_app_provider.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -27,7 +29,7 @@ final lockedRecipientsProvider = Provider<List<Recipient>>((ref) {
 /// Los bloques secretos de [people], uno bajo otro, con el margen de 16 de los
 /// lados. Cada uno entra y sale plegándose como una fila (con fundido suave:
 /// llegan por sincronización). [onOpen] abre la ficha de la persona.
-class SecretBlockList extends StatelessWidget {
+class SecretBlockList extends ConsumerWidget {
   /// Crea la lista.
   const SecretBlockList({super.key, required this.people, this.onOpen});
 
@@ -38,7 +40,8 @@ class SecretBlockList extends StatelessWidget {
   final ValueChanged<Recipient>? onOpen;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final web = ref.watch(webAppProvider);
     var order = 0;
     return AnimatedRows(
       key: const ValueKey<String>('secret-blocks'),
@@ -55,6 +58,7 @@ class SecretBlockList extends StatelessWidget {
                   key: ValueKey<String>('secret-block:${p.id}'),
                   name: p.name,
                   colorIndex: p.colorIndex,
+                  web: web,
                   onTap: onOpen == null ? null : () => onOpen!(p),
                 ),
               ),

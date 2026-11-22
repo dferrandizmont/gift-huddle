@@ -42,7 +42,7 @@ export type Snapshot = { common: string; registry: Record<string, unknown>; keyP
 export type Role = "device" | "web";
 /** Service permissions and provenance, never signed registry trust. approvedBy
  * is absent on the creator and credentials stored before that field existed. */
-export type V2Device = { deviceId: string; revoked: boolean; role: Role; approvedBy?: string; commonFormat?: number };
+export type V2Device = { deviceId: string; revoked: boolean; role: Role; approvedBy?: string; commonFormat?: number; slotCapacity?: number };
 
 export function validateCommon(common: unknown): 400 | 413 | null {
   if (typeof common !== "string" || !isB64UrlText(common)) return 400;
@@ -152,16 +152,29 @@ export function validateSnapshot(b: Record<string, unknown>): 400 | 413 | null {
   }
   if (bytes(r) > V2_MAX_REGISTRY_BYTES || bytes(b.keyPackages) > V2_MAX_PACKAGES_BYTES) return 413;
   for (const s of b.slots as SlotChange[]) {
-    if (s.data === null) continue;
-    if (!isB64UrlText(s.data)) return 400;
-    if (Math.floor((s.data.length * 3) / 4) > V2_MAX_SLOT_BYTES) return 413;
-    // Only the header is decoded (CPU per request is scarce on the free plan).
-    const head = decodeB64Url(s.data.length <= SLOT_HEADER_CHARS ? s.data : s.data.slice(0, SLOT_HEADER_CHARS));
-    const ids = head && slotIds(head);
-    if (!ids || ids.personId !== s.personId || ids.writer !== s.deviceId) return 400;
-    // The exact size, from the text length alone (the body is never decoded).
-    if (Math.floor((s.data.length * 3) / 4) !== ids.headerBytes + SLOT_BODY_BYTES) return 400;
+    const invalid = validateSlotData(s);
+    if (invalid) return invalid;
   }
+  return null;
+}
+
+/**
+ * The data of one slot change, already shaped as a [SlotChange]: base64url
+ * text of exactly one sealed slot whose header names the same person and
+ * writer as the resource. `null` (removal) is always acceptable here.
+ */
+export function validateSlotData(s: SlotChange): 400 | 413 | null {
+  if (s.data === null) return null;
+  if (typeof s.data !== "string") return 400;
+  if (s.data.length > V2_MAX_SLOT_CHARS) return 413;
+  if (!isB64UrlText(s.data)) return 400;
+  if (Math.floor((s.data.length * 3) / 4) > V2_MAX_SLOT_BYTES) return 413;
+  // Only the header is decoded (CPU per request is scarce on the free plan).
+  const head = decodeB64Url(s.data.length <= SLOT_HEADER_CHARS ? s.data : s.data.slice(0, SLOT_HEADER_CHARS));
+  const ids = head && slotIds(head);
+  if (!ids || ids.personId !== s.personId || ids.writer !== s.deviceId) return 400;
+  // The exact size, from the text length alone (the body is never decoded).
+  if (Math.floor((s.data.length * 3) / 4) !== ids.headerBytes + SLOT_BODY_BYTES) return 400;
   return null;
 }
 
@@ -228,7 +241,8 @@ export function matchV2(path: string): V2Route | null {
     }
   }
   if (p[4] === "slots" && p.length === 7 && identifier(p[5]) && identifier(p[6])) {
-    return { syncId, resource: "slot", personId: p[5], deviceId: p[6], methods: ["GET"] };
+    // PUT: only a web, for its own inbox slot (1.0.6, ADR 0009).
+    return { syncId, resource: "slot", personId: p[5], deviceId: p[6], methods: ["GET", "PUT"] };
   }
   if (p[4] === "invites" && id16(p[5])) {
     if (p.length === 6) return { syncId, inviteId: p[5], resource: "invite", methods: ["GET", "DELETE"] };

@@ -10,6 +10,8 @@ import '../../../core/sync/family_candidate.dart';
 import '../../../core/sync/family_doc.dart';
 import '../../../core/sync/model.dart' show Collections;
 import '../../../core/sync/pairing_v2.dart';
+import '../../../core/sync/protected_doc.dart'
+    show ownGiftsWereHidden, purgeOwnGiftsOnLeaving;
 import 'device_keys_store.dart';
 import 'family_store.dart';
 import 'generation_storage.dart';
@@ -429,6 +431,50 @@ class GenerationStore {
       throw StateError('destination already exists');
     }
     final deviceId = encodeBase64Url(secureRandomBytes(16));
+    var doc = family.doc;
+    if (localOnly) {
+      // 1.0.6: la generación local sin nadie vuelve a enseñar lo de la
+      // persona de este móvil; antes se quitan los regalos para ella que la
+      // protección aún no había pasado al bloque secreto. Solo en la local:
+      // una renovación con los demás conserva el común tal cual.
+      DeviceRegistry? registry;
+      var unreadable = false;
+      try {
+        registry = await source.family.readRegistry();
+      } on FamilyStoreException {
+        // Sin poder leerlo, se supone que hubo compañía.
+        unreadable = true;
+      }
+      DeviceRecord? self;
+      for (final r in registry?.records ?? const <DeviceRecord>[]) {
+        if (r.deviceId == sourceIdentity.deviceId &&
+            (self == null || r.seq > self.seq)) {
+          self = r;
+        }
+      }
+      final people = [
+        family.identity.selfRecipientId,
+        self?.personId,
+        ...family.identity.formerSelf,
+        // Las de todas las fichas de este móvil (revisión de seguridad,
+        // B4): con un cambio pendiente la capa también las oculta.
+        for (final r in registry?.records ?? const <DeviceRecord>[])
+          if (r.deviceId == sourceIdentity.deviceId) r.personId,
+      ];
+      doc = purgeOwnGiftsOnLeaving(
+        doc,
+        node: deviceId,
+        people: people,
+        // La misma regla que la capa de pantalla (ownHiddenPeople).
+        hadCompany: ownGiftsWereHidden(
+          registry: registry,
+          me: sourceIdentity.deviceId,
+          people: people,
+          paired: family.identity.paired,
+          unreadable: unreadable,
+        ),
+      );
+    }
     final identity = SyncIdentityV2(
       listId: sourceIdentity.listId,
       deviceId: deviceId,
@@ -442,9 +488,17 @@ class GenerationStore {
           node: deviceId,
           deviceName: family.identity.deviceName,
           selfRecipientId: family.identity.selfRecipientId,
+          // Una renovación con los demás sigue acompañada: sin estas marcas
+          // la generación nueva nacería «sola» y levantaría la capa con el
+          // común sin purgar hasta que entrara el primero (revisión final de
+          // la revisión, B3). La local sin nadie sí empieza de cero.
+          paired: !localOnly && family.identity.paired,
+          formerSelf: localOnly
+              ? const <String>{}
+              : family.identity.formerSelf,
         ),
         key: await FamilyKey.generate(),
-        doc: family.doc,
+        doc: doc,
       ),
       deviceKeys: await DeviceKeys.generate(),
       commonFormatFloor: 2,

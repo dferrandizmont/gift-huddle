@@ -70,8 +70,12 @@ class V2HealthNotices extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // Un móvil que espera la aprobación de otro nombra a su propia persona
+    // (1.0.6, QA m4), no a la de quien lo invitó.
+    final pendingSelf = health.pendingSelfPerson;
     final names = [
-      for (final id in health.frozenPeople)
+      for (final id
+          in pendingSelf != null ? <String>[pendingSelf] : health.frozenPeople)
         if ((people[id] ?? '').isNotEmpty) people[id]!,
     ]..sort();
     Widget gap(Widget child) =>

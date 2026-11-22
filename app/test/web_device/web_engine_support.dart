@@ -16,7 +16,11 @@ import '../sync/v2_harness.dart';
 import 'test_support.dart';
 
 class WebHarness {
-  WebHarness({this.commonV2Ready = false});
+  WebHarness({this.commonV2Ready = false, this.webPerson = 'leo'});
+
+  /// The person the phone pairs the web for (1.0.6: its own, by default in
+  /// the app; the older tests use Leo).
+  final String webPerson;
 
   /// ADR 0005, B5: whether this web announces the common format 2.
   final bool commonV2Ready;
@@ -67,7 +71,7 @@ class WebHarness {
       local: phone,
       lock: V2FamilyLock(),
       web: guest.qr,
-      guestPerson: 'leo',
+      guestPerson: webPerson,
     );
     await guest.poll();
     final answered = (await host.poll())!;
@@ -76,10 +80,14 @@ class WebHarness {
     if (!approve) return;
     guest.confirmCode();
     await beforeApprove?.call();
-    await host.confirm(confirmedPersonId: 'leo');
+    await host.confirm(confirmedPersonId: webPerson);
     await beforeFinish?.call();
     await guest.poll();
-    expect(guest.personName, 'Leo');
+    expect(guest.personName, {
+      'aritz': 'Aritz',
+      'nora': 'Nora',
+      'leo': 'Leo',
+    }[webPerson]);
     if (enroll) {
       await guest.enroll(vault, '123456');
       await engine.sync();

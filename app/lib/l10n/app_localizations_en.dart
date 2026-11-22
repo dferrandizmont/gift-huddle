@@ -1377,7 +1377,8 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get syncStatusOffline => 'Offline, changes will be sent later';
+  String get syncStatusOffline =>
+      'Can\'t connect right now. Changes will be sent later.';
 
   @override
   String get syncStatusError => 'Could not sync';
@@ -2130,7 +2131,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncShortPending => 'pending';
 
   @override
-  String get syncShortOffline => 'offline';
+  String get syncShortOffline => 'not connected';
 
   @override
   String get syncShortError => 'error';
@@ -2154,6 +2155,19 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get devicesSoloBody =>
       'Connect another one to see the same list on both.';
+
+  @override
+  String get devicesPendingTitle => 'Connecting another phone';
+
+  @override
+  String get devicesPendingBody =>
+      'Waiting for the other phone to finish connecting.';
+
+  @override
+  String get connectWebPasteCode => 'Paste the QR code';
+
+  @override
+  String get personPickerThisPhone => 'This phone';
 
   @override
   String get devicesRecoveryTitle => 'Recovery copy saved';
@@ -2193,11 +2207,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncTurnedOn => 'Sync turned on.';
 
   @override
-  String get devicesOfflineTitle => 'Offline';
+  String get devicesOfflineTitle => 'Can\'t connect';
 
   @override
-  String get devicesOfflineBody =>
-      'Your changes will sync when you are back online.';
+  String get devicesOfflineBody => 'Your changes will be sent later.';
+
+  @override
+  String get syncBlockedHint =>
+      'If you are online, your provider may be blocking the service. Try mobile data or another Wi-Fi network.';
 
   @override
   String get devicesConnected => 'Connected';
@@ -2347,10 +2364,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get pairingV2NoMatch => 'They do not match';
 
   @override
-  String get pairingV2NoPersonWarning =>
-      'The other phone has not said whose it is yet. You can still let it in: it can choose later and, until then, it will not open the surprises.';
-
-  @override
   String get pairingV2Approving => 'Letting the other phone in…';
 
   @override
@@ -2374,30 +2387,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'To continue, you need an internet connection and sync must be on.';
 
   @override
-  String get pairingV2ChooseTitle => 'Whose phone is this?';
-
-  @override
-  String get pairingV2ChooseBody =>
-      'The one in your hand. Pick who uses it so Gift Huddle knows which surprises to hide from them.';
-
-  @override
-  String pairingV2ChooseBodySelf(String name) {
-    return 'You had this phone set as $name\'s. Confirm it or pick someone else.';
-  }
-
-  @override
   String get pairingV2ChooseContinue => 'Continue';
-
-  @override
-  String get pairingV2ChooseLaterTitle => 'Choose later';
-
-  @override
-  String get pairingV2ChooseLaterBody =>
-      'If you do not choose now, this phone will not open the surprises until you pick the person and whoever invited you approves it.';
-
-  @override
-  String get pairingV2ChooseNone =>
-      'This phone does not know anyone in this family yet, so you cannot choose for now. You will be able to once the list arrives.';
 
   @override
   String get pairingV2GuestWaitingCode =>
@@ -2957,17 +2947,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'That is not the Gift Huddle web code. Scan the one shown on the computer.';
 
   @override
-  String get connectWebWhoseTitle => 'Whose computer is this?';
-
-  @override
-  String get connectWebWhoseBody =>
-      'Choose who will use the list on the computer.';
-
-  @override
-  String get connectWebNoPeople =>
-      'There are no people yet. Add a person before connecting the web.';
-
-  @override
   String get connectWebWaiting => 'Waiting for the computer to answer…';
 
   @override
@@ -3058,7 +3037,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get webSyncSaved => 'Saved';
 
   @override
-  String get webSyncOffline => 'Offline';
+  String get webSyncOffline => 'Can\'t connect';
 
   @override
   String get webSyncAwaitingConfirm => 'Awaiting confirmation from a phone';
@@ -3081,7 +3060,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String selfChangeEffectHides(String name) {
-    return 'If gifts for $name are secret, you will not see any of them on this phone.';
+    return 'This phone will stop showing gifts for $name.';
   }
 
   @override
@@ -3305,6 +3284,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String protectionCannotDeactivate(String name) {
     return 'This phone cannot turn it off right now: it needs permission and the current key for $name.';
   }
+
+  @override
+  String get protectionOnlyOthersChange =>
+      'Only another person in the family can change this, from their own phone.';
 
   @override
   String get protectionChangeFailed =>
@@ -4650,4 +4633,210 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get deleteImpactChecking => 'Checking what will be deleted…';
+
+  @override
+  String get inviteForTitle => 'Who is the new phone for?';
+
+  @override
+  String get inviteForBody =>
+      'Choose the person who will use it. Their phone will not show any gifts for them.';
+
+  @override
+  String get inviteForNeedsSelf =>
+      'Before connecting another device, say whose phone this is.';
+
+  @override
+  String inviteForSecretNotice(String name) {
+    return 'Gifts for $name become secret: they will no longer show on their phone.';
+  }
+
+  @override
+  String pairingV2HostCompareFor(String name) {
+    return 'You are connecting $name\'s phone.';
+  }
+
+  @override
+  String get pairingV2HostUpdateHint =>
+      'If the other phone shows an error, update Gift Huddle on that phone and start again.';
+
+  @override
+  String pairingV2ProtectFailed(String name) {
+    return 'Gifts for $name could not be made secret, so the phone was not connected. That phone has been removed and may need to connect again. This phone keeps hiding the gifts for its own person. Sync and try again.';
+  }
+
+  @override
+  String get pairingV2GuestAssigned =>
+      'The person inviting you has chosen whose phone this is. You will see it once you are in.';
+
+  @override
+  String pairingV2GuestDoneFor(String name) {
+    return 'You are in the family. This phone belongs to $name: gifts for $name are not shown here.';
+  }
+
+  @override
+  String ownGiftsHiddenBody(String name) {
+    return 'This phone does not show gifts for $name. Only another person in the family can change that, from their own phone.';
+  }
+
+  @override
+  String protectionAutoReason(String name) {
+    return 'On because $name has a phone connected.';
+  }
+
+  @override
+  String protectionDeactivateHasDevice(String name) {
+    return '$name has a phone connected: their gifts will still not show on it. If you turn this off, they will show on devices that do not have the key, such as the web.';
+  }
+
+  @override
+  String ownGiftsAloneNotice(String name) {
+    return 'This phone is no longer connected to any other. The gifts for $name that were secret are not on this phone.';
+  }
+
+  @override
+  String get whoAreYouTitle => 'Who are you?';
+
+  @override
+  String get whoAreYouBody =>
+      'Before connecting another device, say whose phone this is. It will not show any gifts for that person.';
+
+  @override
+  String get whoAreYouNotOnList => 'I am not on the list';
+
+  @override
+  String get whoAreYouNameLabel => 'Your name';
+
+  @override
+  String get whoAreYouNobody => 'Nobody';
+
+  @override
+  String get whoAreYouNobodyHint =>
+      'For someone who gives gifts and does not receive any.';
+
+  @override
+  String get inviteForNotOnList => 'Not on the list';
+
+  @override
+  String get inviteForNobody => 'Nobody: only gives gifts';
+
+  @override
+  String get inviteForNameLabel => 'Name';
+
+  @override
+  String get personNoGiftsLabel => 'Only gives gifts';
+
+  @override
+  String get joinQrPairingTitle => 'Connect this phone';
+
+  @override
+  String protectionReason_webUseMobile(String name) {
+    return '$name\'s secret gifts are changed from your phone.';
+  }
+
+  @override
+  String get webSecretsPending => 'Pending';
+
+  @override
+  String get webSecretsReconnect =>
+      'To see secret gifts, connect this computer again from your phone.';
+
+  @override
+  String get webSecretsWaitingPhone =>
+      'Open the app on your phone to see secret gifts here. If they don\'t show up, update the app on your phone.';
+
+  @override
+  String get webSecretsSharedComputer =>
+      'With secret gifts on screen, the web locks after 5 minutes without use. Don\'t leave it open on a computer the family shares.';
+
+  @override
+  String get webForgetPendingSecrets =>
+      'There are changes to secret gifts that your phone hasn\'t picked up yet. If you forget this computer, they will be lost.';
+
+  @override
+  String webSecretsDropped(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          '$count changes to secret gifts were discarded: they can no longer be applied (the gifts no longer exist, moved to another person or are too long).',
+      one:
+          '$count change to a secret gift was discarded: it can no longer be applied (the gift no longer exists, moved to another person or is too long).',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String ownGiftsNoticeTitle(String name) {
+    return 'Gifts for $name';
+  }
+
+  @override
+  String get webApproveSecretsNotice =>
+      'That computer will be able to see and change everyone else\'s secret gifts. Confirm it only if you connected it yourself.';
+
+  @override
+  String webSecretsHeld(String names) {
+    return 'Changes to secret gifts for $names could not be sent yet. It will try again by itself.';
+  }
+
+  @override
+  String get webSecretsPendingLong => 'Waiting for your phone';
+
+  @override
+  String get giftSearchOpen => 'Search gifts';
+
+  @override
+  String get pairingV2GuestOutdated =>
+      'The other phone needs to update Gift Huddle to join.';
+
+  @override
+  String get pairingV2ApproveFailed =>
+      'Access could not be given to the other phone. It has been removed and may need to connect again. This phone keeps hiding the gifts for its own person.';
+
+  @override
+  String get secretBlockNoteWeb => 'This computer does not show them.';
+
+  @override
+  String ownGiftsHiddenBodyWeb(String name) {
+    return 'This computer does not show gifts for $name. Only another person in the family can change that, from their own phone.';
+  }
+
+  @override
+  String ownGiftsAloneNoticeWeb(String name) {
+    return 'This computer is no longer connected to any phone in the family. The gifts for $name that were secret are not on this computer.';
+  }
+
+  @override
+  String get manageLockedThisDeviceWeb =>
+      'This computer belongs to this person.';
+
+  @override
+  String devicePersonBlockedThisTitleWeb(String name) {
+    return 'This computer belongs to $name';
+  }
+
+  @override
+  String devicePersonBlockedThisBodyWeb(String name) {
+    return 'You cannot delete or archive $name from this computer because it belongs to them.';
+  }
+
+  @override
+  String get giftNotSavedWeb =>
+      'Not saved: this gift is no longer available on this computer.';
+
+  @override
+  String get giftWriteGiftUnavailableWeb =>
+      'Not saved: this gift is no longer available on this computer.';
+
+  @override
+  String get giftNoLongerVisibleWeb =>
+      'You can no longer view this gift on this computer.';
+
+  @override
+  String get giftOwnRequestRestrictedWeb =>
+      'While protection is on, you cannot add or view gifts for yourself on this computer. Ask someone else in the family to add the gift.';
+
+  @override
+  String get aboutPrivacyWeb =>
+      'No accounts or ads. Your list only leaves this computer to sync with your family\'s phones, and it is always encrypted.';
 }

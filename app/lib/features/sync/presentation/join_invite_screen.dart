@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/root_navigator.dart';
+import '../../../core/prefs/shared_preferences_provider.dart';
 import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/device/device_name.dart';
 import '../../../core/layout/content_width.dart';
@@ -12,6 +15,9 @@ import '../../../core/theme/theme.dart';
 import '../../../core/widgets/screen_header.dart';
 import '../../../core/widgets/sheet_parts.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../family/application/family_controller.dart';
+import '../../family/application/own_gifts_notice.dart'
+    show markOwnGiftsHiddenSeen;
 import '../../sharing/presentation/paired_sheet.dart';
 import '../application/pairing_v2_controller.dart';
 import '../data/sync_config.dart';
@@ -32,6 +38,23 @@ final joinInvitePresenceProvider = Provider<JoinInvitePresence>(
   (ref) => JoinInvitePresence(),
 );
 
+/// Lo que dice la hoja final del móvil que entra (1.0.6): de quién es este
+/// móvil y que no verá sus regalos, si se conoce el nombre de la persona que
+/// eligió quien invitó; si aún no ha llegado la lista, la frase de siempre.
+String joinedBody(WidgetRef ref, AppLocalizations l10n) {
+  final id = ref.read(pairingV2GuestProvider).assignedPersonId;
+  String? name;
+  if (id != null) {
+    final family = ref.read(familyControllerProvider).value;
+    for (final r in family?.fullView.recipients ?? const []) {
+      if (r.id == id && r.name.trim().isNotEmpty) name = r.name.trim();
+    }
+  }
+  return name == null
+      ? l10n.pairingV2GuestDoneBody
+      : l10n.pairingV2GuestDoneFor(name);
+}
+
 /// Ajustes › Compartir › Unirme con un enlace: pega el enlace de invitación,
 /// espera la aprobación, compara el código con quien invitó y entra.
 class JoinInviteScreen extends ConsumerStatefulWidget {
@@ -41,8 +64,12 @@ class JoinInviteScreen extends ConsumerStatefulWidget {
     super.key,
     this.initialInvite,
     this.fromWelcome = false,
+    this.fromQr = false,
     this.deviceName = '',
   });
+
+  /// Si se abrió al leer un QR (1.0.6): el título no habla de enlaces.
+  final bool fromQr;
 
   /// Si se abrió desde la bienvenida, antes de tener ninguna lista: la
   /// cabecera no habla de Ajustes › Compartir y «volver» vuelve a la
@@ -177,7 +204,15 @@ class _JoinInviteScreenState extends ConsumerState<JoinInviteScreen> {
         key: ValueKey<String>(invite),
         inviteId: invite,
         deviceName: _v2Name,
-        onDone: () => _finish(l10n.pairingV2GuestDoneBody),
+        onDone: () {
+          final body = joinedBody(ref, l10n);
+          // La hoja final ya dice que no verá sus regalos: el aviso de una vez
+          // no se repite.
+          if (body != l10n.pairingV2GuestDoneBody) {
+            markOwnGiftsHiddenSeen(ref.read(sharedPreferencesProvider));
+          }
+          unawaited(_finish(body));
+        },
         onExit: () => setState(() => _v2Invite = null),
       );
     }
@@ -420,7 +455,9 @@ class _JoinInviteScreenState extends ConsumerState<JoinInviteScreen> {
               maxWidth: RegalosLayout.onboardingColumn,
               child: ScreenHeader(
                 eyebrow: widget.fromWelcome ? null : l10n.settingsShare,
-                title: l10n.joinInviteRowTitle,
+                title: widget.fromQr
+                    ? l10n.joinQrPairingTitle
+                    : l10n.joinInviteRowTitle,
                 backLabel: widget.fromWelcome
                     ? l10n.actionBack
                     : l10n.backTo(l10n.settingsShare),

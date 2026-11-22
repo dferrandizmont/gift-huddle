@@ -39,6 +39,9 @@ final v2HealthProvider = FutureProvider<V2Health>((ref) async {
   }
   return V2Health(
     frozenPeople: frozen,
+    // Mientras este móvil espera la aprobación de otro, el aviso nombra a la
+    // persona que ha elegido (1.0.6, QA m4), no a la de quien lo invitó.
+    pendingSelfPerson: view.selfApproved ? null : (view.self.personId ?? ''),
     revokedByOthers:
         view.revokedByOthers || (observed?.revokedByOthers ?? false),
     unbackedCredentials: observed?.unbackedCredentials ?? const [],

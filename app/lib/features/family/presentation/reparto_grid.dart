@@ -571,11 +571,15 @@ class RepartoGrid extends StatefulWidget {
     this.stage,
     this.filterKey,
     this.selfId,
+    this.web = false,
   });
 
   /// La persona dueña de este móvil («Yo»), o `null`: su nombre lleva la
   /// etiqueta «Yo».
   final String? selfId;
+
+  /// Si es la web: el bloque en secreto habla de este ordenador.
+  final bool web;
 
   /// Las filas.
   final List<Recipient> recipients;
@@ -739,6 +743,7 @@ class _RepartoGridState extends State<RepartoGrid> {
                   excludedText: widget.excludedText,
                   skipLabel: widget.skipLabels[e.item.id],
                   isSelf: e.item.id == widget.selfId,
+                  web: widget.web,
                   onOpenCell: widget.onOpenCell,
                   onOpenPerson: widget.onOpenPerson,
                 ),
@@ -1452,6 +1457,7 @@ class _RecipientRow extends StatelessWidget {
     required this.excludedText,
     required this.skipLabel,
     required this.isSelf,
+    required this.web,
     required this.onOpenCell,
     required this.onOpenPerson,
   });
@@ -1476,6 +1482,9 @@ class _RecipientRow extends StatelessWidget {
 
   /// Si es la persona dueña de este móvil («Yo»).
   final bool isSelf;
+
+  /// Si es la web (el bloque en secreto habla de este ordenador).
+  final bool web;
   final void Function(Recipient, Giver?, Rect, Color) onOpenCell;
   final void Function(Recipient, Rect) onOpenPerson;
 
@@ -1665,6 +1674,7 @@ class _RecipientRow extends StatelessWidget {
                         shown: !excluded,
                         name: recipient.name,
                         colorIndex: recipient.colorIndex,
+                        web: web,
                       ),
                     ),
                 ],

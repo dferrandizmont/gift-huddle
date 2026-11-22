@@ -31,6 +31,7 @@ import {
   V2_MAX_REVEAL_BYTES,
   V2_MAX_SLOTS,
   V2_MAX_SLOTS_PER_WRITER,
+  V2_MAX_WEB_SLOTS,
   V2_NEW_DEVICES_PER_LIST,
   V2_NEW_LISTS_PER_HOUR,
   V2_NEW_LISTS_PER_DAY,
@@ -52,10 +53,13 @@ import {
   V2_WARN_DEVICES,
   V2_WARN_KNOWN_RECORDS,
   V2_WARN_SLOTS,
+  V2_LEGACY_MAX_SLOTS,
+  V2_LEGACY_WARN_SLOTS,
+  V2_SLOT_CAPACITY,
   V2_WS_PROTOCOL,
   WINDOW_MS,
 } from "./limits";
-import { bytes, canonicalJson, commonFormatError, commonFormatValue, identifier, storedCommonFormat, key32, object, validateCommon, validateSnapshot, type SlotChange, type Snapshot, type V2Route, type V2Device, type Role } from "./v2-contract";
+import { bytes, canonicalJson, commonFormatError, commonFormatValue, identifier, storedCommonFormat, key32, object, validateCommon, validateSlotData, validateSnapshot, type SlotChange, type Snapshot, type V2Route, type V2Device, type Role } from "./v2-contract";
 import { PinGuard } from "./pin-guard";
 import { renewalCanClose, renewalProjection, renewalHash, renewalCommand, verifyRenewalSignature, transitionRenewal, type RenewalState, type RenewalCommand, type RenewalHistory } from "./renewal";
 import { V2_RENEWAL_REQUESTS, V2_RENEWAL_WRITES, V2_MAX_RENEWAL_PARTICIPANTS, V2_RENEWAL_LOG_COMMANDS, V2_RENEWAL_LOG_BYTES, V2_RENEWAL_LOG_PAGE_COMMANDS, V2_RENEWAL_LOG_PAGE_BYTES } from "./limits";
@@ -91,6 +95,13 @@ type Credential = {
    * server can only delay or break availability, never decrypt.
    */
   commonFormat?: number;
+  /**
+   * 2 once this credential announced it reads slot lists of up to V2_MAX_SLOTS
+   * (`POST S/capability {slotCapacity: 2}`, 1.0.6). Absent: 1, the 1.0.5 cap of
+   * V2_LEGACY_MAX_SLOTS. Service data like `commonFormat`: a lying server or
+   * phone can only break availability.
+   */
+  slotCapacity?: number;
 };
 type Meta = {
   /** Invitation lifetime, extended only by a new invitation within the fixed cap. */
@@ -176,7 +187,8 @@ function isCurrentMeta(v: unknown): v is Meta {
         ((c as Credential).approvedBy === undefined || identifier((c as Credential).approvedBy)) &&
         ((c as Credential).role === undefined || (c as Credential).role === "device" || (c as Credential).role === "web") &&
         numbers((c as Credential).records) &&
-        ((c as Credential).commonFormat === undefined || storedCommonFormat((c as Credential).commonFormat)),
+        ((c as Credential).commonFormat === undefined || storedCommonFormat((c as Credential).commonFormat)) &&
+        ((c as Credential).slotCapacity === undefined || (c as Credential).slotCapacity === V2_SLOT_CAPACITY),
     ) &&
     (m.minCommonFormat === undefined || storedCommonFormat(m.minCommonFormat)) &&
     (m.renewalReturned === undefined || (Array.isArray(m.renewalReturned) && m.renewalReturned.length <= V2_MAX_RENEWAL_PARTICIPANTS && m.renewalReturned.every(identifier) && new Set(m.renewalReturned).size === m.renewalReturned.length)) &&
@@ -320,6 +332,8 @@ function webAllowed(auth: Credential, c: V2Call): boolean {
   return (c.method === "GET" && ["list", "slot", "ws", "renewal"].includes(r.resource)) ||
     (c.method === "PUT" && r.resource === "renewal" && ["ack", "resume", "capability"].includes(c.body.action as string)) ||
     (c.method === "PUT" && r.resource === "common") ||
+    // 1.0.6 (ADR 0009): a web writes only its own inbox slots.
+    (c.method === "PUT" && r.resource === "slot" && r.deviceId === auth.deviceId) ||
     // ADR 0005, B5: a web announces the common format it reads and writes.
     (c.method === "POST" && r.resource === "capability") ||
     (c.method === "POST" && r.resource === "revoke" && c.body.deviceId === auth.deviceId) ||
@@ -488,7 +502,11 @@ export class ListV2Object extends DurableObject<Env> {
         JSON.stringify(value),
       );
     }
-    for (const slot of s.slots) {
+    this.writeSlots(s.slots, version);
+  }
+
+  private writeSlots(slots: SlotChange[], version: number): void {
+    for (const slot of slots) {
       if (slot.data === null) {
         this.sql.exec("DELETE FROM slot WHERE person = ? AND device = ?", slot.personId, slot.deviceId);
       } else {
@@ -662,7 +680,9 @@ export class ListV2Object extends DurableObject<Env> {
       if (c.body.action === "revoke") {
         const target = m.credentials.find((a) => a.deviceId === c.body.participantDeviceId)!;
         m.denied.push(target.verifier!); target.verifier = null; target.revoked = true;
-        target.slotsExpireAt = Date.now() + V2_REVOKED_SLOTS_GRACE_MS;
+        // A web's inbox slots go at once, as in `revoke` (ADR 0009, B3).
+        if (target.role === "web") this.sql.exec("DELETE FROM slot WHERE device = ?", target.deviceId);
+        else target.slotsExpireAt = Date.now() + V2_REVOKED_SLOTS_GRACE_MS;
         this.retireDeviceRecoveries(m, target.deviceId);
         new PinGuard(this.sql).delete(target.deviceId);
       }
@@ -692,6 +712,16 @@ export class ListV2Object extends DurableObject<Env> {
         "SELECT person AS personId, device AS deviceId, ver AS version FROM slot ORDER BY person, device",
       )
       .toArray();
+  }
+
+  /**
+   * Slots the list may hold now: V2_MAX_SLOTS once every active phone announced
+   * `slotCapacity` 2, otherwise the 1.0.5 cap. Webs run the deployed bundle and
+   * revoked credentials no longer sync, so neither holds the list back.
+   */
+  private slotLimit(m: Meta): number {
+    const legacy = m.credentials.some((a) => !a.revoked && (a.role ?? "device") === "device" && (a.slotCapacity ?? 1) < V2_SLOT_CAPACITY);
+    return legacy ? V2_LEGACY_MAX_SLOTS : V2_MAX_SLOTS;
   }
 
   private slotKeys(): Set<string> {
@@ -1165,7 +1195,7 @@ export class ListV2Object extends DurableObject<Env> {
     const renewal = this.readRenewal();
     if (renewal !== null && renewal.abortion === null) {
       if ((r.resource === "invites" && c.method === "POST") || r.resource === "approve") return err(409, "renewal_in_progress");
-      if (renewal.barrierVersion !== null && c.method === "PUT" && (r.resource === "list" || r.resource === "common")) return err(409, "renewal_frozen");
+      if (renewal.barrierVersion !== null && c.method === "PUT" && (r.resource === "list" || r.resource === "common" || r.resource === "slot")) return err(409, "renewal_frozen");
     }
     switch (r.resource) {
       case "renewal":
@@ -1175,6 +1205,7 @@ export class ListV2Object extends DurableObject<Env> {
         if (c.method === "PUT") return this.put(m, auth, c);
         return this.remove(m, c, auth);
       case "slot":
+        if (c.method === "PUT") return this.putWebSlot(m, auth, c);
         return this.readSlot(m, c);
       case "common":
         return this.putCommon(m, c);
@@ -1481,6 +1512,8 @@ export class ListV2Object extends DurableObject<Env> {
       await this.commit(() => {
         store.retireVerifier(c.verifier!, auth!.deviceId);
         auth!.verifier = fresh;
+        // The receiving install may be an older app: it announces again (1.0.6).
+        delete auth!.slotCapacity;
         auth!.lastRequest = activityHour(Date.now());
         m.version++;
         m.lastAccess = activityHour(Date.now());
@@ -1748,8 +1781,11 @@ export class ListV2Object extends DurableObject<Env> {
         // a later-revoked device approved without publishing it in the registry.
         devices: m.credentials.map((a): V2Device => ({ deviceId: a.deviceId, revoked: a.revoked, role: a.role ?? "device",
           ...(a.approvedBy === undefined ? {} : { approvedBy: a.approvedBy }),
-          ...((a.commonFormat ?? 1) > 1 ? { commonFormat: a.commonFormat } : {}) })),
+          ...((a.commonFormat ?? 1) > 1 ? { commonFormat: a.commonFormat } : {}),
+          ...((a.slotCapacity ?? 1) > 1 ? { slotCapacity: a.slotCapacity } : {}) })),
         capacity: this.capacity(m),
+        // This server takes `slotCapacity` announcements (1.0.6).
+        slotCapacity: V2_SLOT_CAPACITY,
         ...((m.minCommonFormat ?? 1) > 1 ? { minCommonFormat: m.minCommonFormat } : {}),
       },
     };
@@ -1764,7 +1800,8 @@ export class ListV2Object extends DurableObject<Env> {
     const records = { used: m.knownRecords.length, warn: V2_WARN_KNOWN_RECORDS, max: V2_MAX_KNOWN_RECORDS };
     // Nobody removes another writer's slot (B2): abandoned ones fill the cap
     // until their writers replace them or the family renews.
-    const slots = { used: this.slotKeys().size, warn: V2_WARN_SLOTS, max: V2_MAX_SLOTS };
+    const legacy = this.slotLimit(m) < V2_MAX_SLOTS;
+    const slots = { used: this.slotKeys().size, warn: legacy ? V2_LEGACY_WARN_SLOTS : V2_WARN_SLOTS, max: this.slotLimit(m) };
     return { credentials, records, slots, renew: credentials.used >= credentials.warn || records.used >= records.warn || slots.used >= slots.warn };
   }
 
@@ -1812,7 +1849,9 @@ export class ListV2Object extends DurableObject<Env> {
       if (x.data === null) keys.delete(`${x.personId}/${x.deviceId}`);
       else keys.add(`${x.personId}/${x.deviceId}`);
     }
-    if (keys.size > V2_MAX_SLOTS) return err(413, "too_many_slots");
+    // Above the cap a list only refuses growth: replacing or removing still works
+    // (a phone that never announced may have paired after the list grew).
+    if (keys.size > this.slotLimit(m) && keys.size > this.slotKeys().size) return err(413, "too_many_slots");
     // One credential cannot fill the list's cap on its own (B2: nobody else may
     // remove its slots). A writer already above it may still replace or remove.
     const own = (set: Set<string>) => [...set].filter((k) => k.endsWith(`/${auth.deviceId}`)).length;
@@ -1851,6 +1890,44 @@ export class ListV2Object extends DurableObject<Env> {
     return this.versioned(m);
   }
 
+  /**
+   * `PUT S/slots/{person}/{device} {data}` (1.0.6, ADR 0009): a web's inbox
+   * slot, the changes it made to the surprises of one person, for the phones
+   * of its own person to collect. Only a web credential and only its own
+   * device id (phones keep `PUT S`); `data: null` removes it. Same header and
+   * size checks as a phone's slot, the global ETag and the list's slot cap,
+   * plus [V2_MAX_WEB_SLOTS] per web. The server never reads the content.
+   */
+  private async putWebSlot(m: Meta, auth: Credential, c: V2Call): Promise<ApiResult> {
+    if ((auth.role ?? "device") !== "web") return err(403, "forbidden_role");
+    if (c.route.deviceId !== auth.deviceId) return err(403, "forbidden_slot");
+    const failed = this.precondition(m, c.match);
+    if (failed) return failed;
+    if (Object.keys(c.body).length !== 1 || !("data" in c.body)) return err(400, "bad_request");
+    const data = c.body.data;
+    if (data !== null && typeof data !== "string") return err(400, "bad_request");
+    const change: SlotChange = { personId: c.route.personId!, deviceId: auth.deviceId, data };
+    const invalid = validateSlotData(change);
+    if (invalid) return snapshotError(invalid);
+    const keys = this.slotKeys();
+    const key = `${change.personId}/${change.deviceId}`;
+    const had = keys.has(key);
+    if (data === null && !had) return this.versioned(m);
+    if (data !== null && !had) {
+      keys.add(key);
+      if (keys.size > this.slotLimit(m)) return err(413, "too_many_slots");
+      if ([...keys].filter((k) => k.endsWith(`/${auth.deviceId}`)).length > V2_MAX_WEB_SLOTS) return err(413, "too_many_writer_slots");
+    }
+    m.version++;
+    m.lastAccess = activityHour(Date.now());
+    await this.commit(() => {
+      this.writeSlots([change], m.version);
+      this.saveMeta(m);
+    });
+    this.notify(m);
+    return this.versioned(m);
+  }
+
   private async putCommon(m: Meta, c: V2Call): Promise<ApiResult> {
     const failed = this.precondition(m, c.match);
     if (failed) return failed;
@@ -1878,19 +1955,28 @@ export class ListV2Object extends DurableObject<Env> {
   private async capability(m: Meta, auth: Credential, c: V2Call): Promise<ApiResult> {
     if (this.readRenewal()?.abortion === null) return err(409, "renewal_signed_capability_required");
     const format = c.body.commonFormat;
-    if (Object.keys(c.body).some((k) => k !== "commonFormat" && k !== "renewalProtocol") ||
-      !commonFormatValue(format) || format < 2 ||
+    const slotOnly = !("commonFormat" in c.body) && "slotCapacity" in c.body;
+    if (Object.keys(c.body).some((k) => k !== "commonFormat" && k !== "renewalProtocol" && k !== "slotCapacity") ||
+      (!slotOnly && (!commonFormatValue(format) || format < 2)) ||
+      ("slotCapacity" in c.body && c.body.slotCapacity !== V2_SLOT_CAPACITY) ||
       ("renewalProtocol" in c.body && c.body.renewalProtocol !== 1)) return err(400, "bad_request");
     // Mobiles and webs (B5): both read and write the common.
     if (!["device", "web"].includes(auth.role ?? "device")) return err(403, "forbidden_role");
     const announceRenewal = c.body.renewalProtocol === 1 && auth.renewalProtocol !== 1;
-    if ((auth.commonFormat ?? 1) >= format && !announceRenewal) return this.versioned(m);
-    auth.commonFormat = Math.max(auth.commonFormat ?? 1, format);
+    const announceSlots = c.body.slotCapacity === V2_SLOT_CAPACITY && (auth.slotCapacity ?? 1) < V2_SLOT_CAPACITY;
+    if ((slotOnly || (auth.commonFormat ?? 1) >= (format as number)) && !announceRenewal && !announceSlots) return this.versioned(m);
+    const limitBefore = this.slotLimit(m);
+    if (!slotOnly) auth.commonFormat = Math.max(auth.commonFormat ?? 1, format as number);
     if (announceRenewal) auth.renewalProtocol = 1;
-    m.version++;
+    if (announceSlots) auth.slotCapacity = V2_SLOT_CAPACITY;
+    // `slotCapacity` alone only moves the version (new ETag, notify) when it
+    // changes the effective cap (the last phone announcing: 64 -> 128), so a
+    // reader that kept 64 does not get a 304. Otherwise it is stored quietly.
+    const bump = !slotOnly || announceRenewal || this.slotLimit(m) !== limitBefore;
+    if (bump) m.version++;
     m.lastAccess = activityHour(Date.now());
     await this.commit(() => this.saveMeta(m));
-    this.notify(m);
+    if (bump) this.notify(m);
     return this.versioned(m);
   }
 
@@ -1931,7 +2017,11 @@ export class ListV2Object extends DurableObject<Env> {
       m.denied.push(target.verifier!);
       target.verifier = null;
       target.revoked = true;
-      target.slotsExpireAt = Date.now() + V2_REVOKED_SLOTS_GRACE_MS;
+      // A web's inbox slots go at once (1.0.6, ADR 0009): no honest reader
+      // needs them after the revocation, and what its phone has not
+      // collected yet is dropped with them. A phone's slots keep their grace.
+      const web = target.role === "web";
+      if (!web) target.slotsExpireAt = Date.now() + V2_REVOKED_SLOTS_GRACE_MS;
       m.version++;
       if (!m.credentials.some((credential) => !credential.revoked)) {
         // Preserve the v2 revoke response for installed clients; erase all content.
@@ -1947,6 +2037,7 @@ export class ListV2Object extends DurableObject<Env> {
           this.dropCheckpoints(i.id);
         }
         new PinGuard(this.sql).delete(deviceId);
+        if (web) this.sql.exec("DELETE FROM slot WHERE device = ?", deviceId);
         // Surviving readers get a fixed grace before the alarm erases slots.
         this.retireDeviceRecoveries(m, deviceId);
         this.saveMeta(m);
@@ -2148,7 +2239,9 @@ export class ListV2Object extends DurableObject<Env> {
       if (!object(answer) || answer.v !== 2 || !object(answer.guest) || !identifier(answer.guest.d) || (answer.guest.k !== undefined && answer.guest.k !== "web") || !object(answer.vouch) || !key32(verifier)) {
         return err(400, "bad_answer");
       }
-      if (i.guestPerson != null && answer.guest.p !== i.guestPerson) return err(400, "person_mismatch");
+      // QA 1.0.6, m1: an answer without a person (a 1.0.5 guest, which sends "p": null) reaches the
+      // host, which refuses it and tells its user to update; another person is still rejected here.
+      if (i.guestPerson != null && answer.guest.p != null && answer.guest.p !== i.guestPerson) return err(400, "person_mismatch");
       const guest = answer.guest.d;
       if (this.denied(m, verifier)) return UNAUTHORIZED;
       const prior = this.invites().filter((other) => other.id !== i.id && other.verifier === verifier);

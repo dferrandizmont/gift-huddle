@@ -65,6 +65,15 @@ class WebFamilyStore extends FamilyStore {
   @override
   bool get supportsRecovery => false;
   @override
+  Set<String>? get openedSecretPeople =>
+      engine.secrets.isOpen ? engine.secrets.openedPeople : null;
+  @override
+  Set<String> get writableSecretPeople => engine.secrets.writablePeople;
+  @override
+  Set<String> get pendingSecretGiftIds => engine.pendingSecretGiftIds;
+  @override
+  Set<String> get screenExtraHiddenPeople => engine.phonePeople;
+  @override
   Future<void> assertWritable() async {
     // Web writes are gated by the open vault and checked again by the engine
     // when persisted. Mobile transfer and restore flags do not exist here.

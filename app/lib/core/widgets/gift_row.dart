@@ -31,6 +31,7 @@ class GiftRow extends StatelessWidget {
     this.onStatusTap,
     this.onStatusLongPress,
     this.tags = const <String>[],
+    this.tagHints = const <String, String>{},
     this.bordered = true,
     this.columnsFrom,
     this.linkHost,
@@ -54,6 +55,9 @@ class GiftRow extends StatelessWidget {
 
   /// Etiquetas pequeñas junto al nombre («Sorpresa», «Encargo»).
   final List<String> tags;
+
+  /// El texto largo de las etiquetas que lo tienen (ayuda y lector).
+  final Map<String, String> tagHints;
   final bool bordered;
 
   /// El ancho de fila desde el que va en columnas; `null`, nunca.
@@ -139,7 +143,7 @@ class GiftRow extends StatelessWidget {
                   style: t.styles.rowTitle,
                 ),
               ),
-              for (final tag in tags) TagLabel(tag),
+              for (final tag in tags) TagLabel(tag, hint: tagHints[tag]),
             ],
           );
 

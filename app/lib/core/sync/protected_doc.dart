@@ -54,8 +54,11 @@ import 'protected_envelope.dart';
 const int kMaxReconcileMoves = 8;
 
 /// Slots que se aceptan de una vez (de la red, de un fichero o de una
-/// copia). El tope se comprueba antes de leer o verificar ninguno.
-const int kMaxSlotsPerList = 64;
+/// copia). El tope se comprueba antes de leer o verificar ninguno. Es
+/// `V2_MAX_SLOTS` del Worker: una familia de 10 personas con móvil y todas
+/// protegidas tiene 10 · 9 = 90, y caben los de un móvil revocado en su
+/// plazo de gracia.
+const int kMaxSlotsPerList = 128;
 
 /// Cada cuánto vuelve a sellar su slot un móvil aunque no haya cambiado nada
 /// en público (M5): lo que se edita en secreto sale, como muy tarde, con la
@@ -619,6 +622,7 @@ Future<PublishedSlot> publishScope({
   required FamilyDoc doc,
   required int nowMillis,
   int revisionFloor = 0,
+  Map<String, SlotVersion> extraSeen = const <String, SlotVersion>{},
 }) async {
   final personId = opened.personId;
   if (!view.selfEntitled(personId)) {
@@ -649,11 +653,23 @@ Future<PublishedSlot> publishScope({
     );
   }
   final seen = <String, SlotVersion>{
+    // Los buzones de webs propias ya recogidos (1.0.6, ADR 0009): los demás
+    // móviles de la misma persona saben así que ya están dentro.
+    for (final e in extraSeen.entries)
+      if (e.key != view.me) e.key: e.value,
     for (final e in opened.parts.entries)
       if (e.key != view.me) e.key: e.value.header.version,
   };
   final scope = compactScope(doc: doc, opened: opened, view: view);
-  final (sealed, leftOut) = fitScopeToSlot(scope, personId, seen: seen);
+  final (sealed, leftOut) = fitScopeToSlot(
+    scope,
+    personId,
+    seen: seen,
+    maxLive: slotGiftLimitFor([
+      for (final device in view.entitledDevices(personId))
+        if (device != view.me) opened.parts[device],
+    ]),
+  );
   return PublishedSlot(
     scope: scope,
     slot: await SealedSlot.seal(
@@ -936,17 +952,293 @@ class AuthorizedProjection {
 /// la clave): la autenticada de las cabeceras de los slots, y si no hay
 /// ninguna y hay slots, alguna clave o un registro `policies/<persona>`,
 /// «ocultar» (N1 y hallazgo 3a).
+///
+/// Excepción del móvil solo (1.0.6): con [alone], si [personId] es la
+/// persona de este móvil y en su registro no hay ninguna ficha de otro
+/// dispositivo ([RegistryView.alone]), vale «sin protección». Es solo local:
+/// no publica ni autentica nada, y deja de valer en cuanto entra otro
+/// dispositivo. Lo que estaba en secreto no vuelve: nunca estuvo en este
+/// móvil. La aplicación solo la pide ([ownProtectionLifted]) en una
+/// generación que este móvil ha estrenado sin nadie y después de purgar lo
+/// que quedaba en el común ([purgeOwnPublicGifts]).
 PolicyState lockedPolicy({
   required FamilyDoc common,
   required SlotSet slots,
   required RegistryView view,
   required String personId,
   bool hasKey = false,
-}) => effectivePolicy(
-  published: publishedPolicy(common, personId),
-  authenticated: slots.authenticatedPolicy(personId, view),
-  failClosed: hasKey || slots.slotsFor(personId).isNotEmpty,
-);
+  bool alone = false,
+}) => alone && view.alone && personId == view.myPerson
+    ? PolicyState.initial
+    : effectivePolicy(
+        published: publishedPolicy(common, personId),
+        authenticated: slots.authenticatedPolicy(personId, view),
+        failClosed: hasKey || slots.slotsFor(personId).isNotEmpty,
+      );
+
+/// Las personas cuyos regalos este móvil no pinta (capa de pantalla, 1.0.6):
+/// la suya ([selfRecipientId] y la de su ficha) mientras esté acompañado. No
+/// depende de la política ni de la versión de los demás, y no tiene
+/// interruptor en este móvil.
+///
+/// - Con registro: si hay una ficha de otro dispositivo de otra persona
+///   ([RegistryView.accompanied]), o si este móvil ya se ha emparejado
+///   ([paired]) aunque su registro todavía no tenga a nadie (una familia v1
+///   que pasa a v2).
+/// - Sin registro (v1, o mientras carga): si está emparejado.
+///
+/// Mientras un cambio de persona no está aprobado (en v1, siempre), también
+/// las personas de antes ([formerSelf] y las de las fichas anteriores de
+/// este móvil): un regalo público tardío para ellas no vuelve a verse.
+Set<String> ownHiddenPeople({
+  required RegistryView? view,
+  required String? selfRecipientId,
+  required bool paired,
+  Set<String> formerSelf = const <String>{},
+}) {
+  final pendingChange = view == null || !view.selfApproved;
+  final own = <String>{
+    ?selfRecipientId,
+    ?view?.myPerson,
+    if (pendingChange) ...formerSelf,
+    if (view != null && pendingChange)
+      for (final r in view.registry.records)
+        if (r.deviceId == view.me) ?r.personId,
+  };
+  if (view == null) return paired ? own : const <String>{};
+  return {
+    for (final person in own)
+      if (view.accompanied(person) || (paired && view.alone)) person,
+  };
+}
+
+/// Si a este móvil le vale la excepción del móvil solo ([lockedPolicy]): su
+/// registro no tiene a nadie más ([RegistryView.alone]) y no se ha
+/// emparejado en esta generación ([paired]).
+bool ownProtectionLifted({required RegistryView? view, required bool paired}) =>
+    view != null && view.alone && !paired;
+
+/// Lo que un móvil puede volver a sellar para sí al quedarse solo (QA 1.0.6,
+/// M1), decidido con la vista de la generación que deja, ANTES de estrenar la
+/// otra ([planAloneRestore]; revisión de seguridad de la revisión, B1 y B2).
+class AloneRestorePlan {
+  /// Crea el plan.
+  const AloneRestorePlan({
+    this.people = const <String>{},
+    this.own = const <String>{},
+  });
+
+  /// Nada que restaurar.
+  static const none = AloneRestorePlan();
+
+  /// Personas a cuyas sorpresas este móvil tenía derecho en la generación que
+  /// deja ([RegistryView.selfEntitled]): sin revocar, con la ficha aprobada,
+  /// con su persona y la de cada una vivas y sin congelar.
+  final Set<String> people;
+
+  /// Personas que son o fueron de este móvil: la suya, las de antes
+  /// (`formerSelf`) y las de todas sus fichas. Nunca se restauran.
+  final Set<String> own;
+}
+
+/// El plan de [othersToRestoreWhenAlone], con la vista [view] de la
+/// generación que se deja y antes de tocar nada (ni el llavero, ni el
+/// registro, ni `formerSelf`). [held] son las personas de las que este móvil
+/// tiene clave o copia local.
+///
+/// Una persona entra solo si este móvil tiene derecho a sus sorpresas en esa
+/// vista ([RegistryView.selfEntitled]): un móvil revocado por otro, con un
+/// cambio de persona sin aprobar, o con su persona borrada no recupera nada,
+/// y tampoco una persona borrada o congelada (`SurpriseRotation.frozenPeople`
+/// son justo las del llavero sin ese derecho).
+AloneRestorePlan planAloneRestore({
+  required RegistryView view,
+  required Iterable<String> held,
+  String? selfRecipientId,
+  Set<String> formerSelf = const <String>{},
+}) {
+  final own = <String>{
+    ?selfRecipientId,
+    ...formerSelf,
+    ?view.myPerson,
+    for (final r in view.registry.records)
+      if (r.deviceId == view.me) ?r.personId,
+  };
+  if (view.self.kind != DeviceKind.mobile) {
+    return AloneRestorePlan(own: Set.unmodifiable(own));
+  }
+  return AloneRestorePlan(
+    people: Set.unmodifiable({
+      for (final person in held)
+        if (!own.contains(person) && view.selfEntitled(person)) person,
+    }),
+    own: Set.unmodifiable(own),
+  );
+}
+
+/// Las personas cuyas sorpresas vuelve a sellar para sí un móvil que se ha
+/// quedado solo (QA 1.0.6, M1). Al estrenar una generación sin nadie
+/// ([ownProtectionLifted]) el llavero y los slots de la anterior se tiran,
+/// pero la copia local de cada ámbito que este móvil podía abrir
+/// ([localScopes]) se queda: sin una clave de la generación nueva, esos
+/// regalos quedaban cerrados para él aunque los tuviera.
+///
+/// Quién puede volver lo decide [plan], con la generación que se deja: solo
+/// las personas de [AloneRestorePlan.people] y nunca las de
+/// [AloneRestorePlan.own]. En la generación nueva hace falta, además:
+/// - el registro verificado sin ninguna ficha de otro dispositivo, ni
+///   siquiera revocada ([RegistryView.alone]), sin haberse emparejado en ella
+///   ([paired]) y en un móvil;
+/// - la copia local de esa persona;
+/// - que no sea la suya y tenga derecho también aquí
+///   ([RegistryView.selfEntitled]);
+/// - la protección puesta en el común (`policies/<persona>` dice «ocultar»);
+/// - y que aún no haya clave ni slot suyos (es idempotente).
+///
+/// La clave nueva nace en [createSurpriseKey] con la audiencia de siempre,
+/// que aquí es solo este móvil; no se publica nada hasta volver a conectar
+/// otro móvil, y entonces el reparto sigue a [RegistryView.entitled].
+Set<String> othersToRestoreWhenAlone({
+  required FamilyDoc common,
+  required RegistryView view,
+  required SlotSet slots,
+  required SurpriseKeyring keyring,
+  required Iterable<String> localScopes,
+  required bool paired,
+  required AloneRestorePlan plan,
+}) {
+  if (paired || !view.alone || view.self.kind != DeviceKind.mobile) {
+    return const <String>{};
+  }
+  return {
+    for (final person in localScopes)
+      if (plan.people.contains(person) &&
+          !plan.own.contains(person) &&
+          person != view.myPerson &&
+          view.selfEntitled(person) &&
+          publishedPolicy(common, person)?.hideOwnGifts == true &&
+          !keyring.people.contains(person) &&
+          slots.slotsFor(person).isEmpty)
+        person,
+  };
+}
+
+/// Si este móvil ocultaba algo de [people] en la generación que deja
+/// (1.0.6, la misma regla que [ownHiddenPeople]): en [registry] hay una
+/// ficha de otro dispositivo de otra persona, aunque esté revocado, o no hay
+/// ninguna otra y se había emparejado ([paired]). Con solo dispositivos de
+/// la misma persona no se ocultaba nada y no se purga. Sin poder leer el
+/// registro ([unreadable]), se supone que sí.
+bool ownGiftsWereHidden({
+  required DeviceRegistry? registry,
+  required String me,
+  required Iterable<String?> people,
+  required bool paired,
+  bool unreadable = false,
+}) {
+  if (unreadable) return true;
+  final others = [
+    for (final r in registry?.records ?? const <DeviceRecord>[])
+      if (r.deviceId != me) r,
+  ];
+  if (others.isEmpty) return paired;
+  return people.whereType<String>().any(
+    (p) => others.any((r) => r.personId != p),
+  );
+}
+
+/// Borra (lápida vacía) los regalos vivos para [personId] del documento
+/// común. Se usa al estrenar una generación sin nadie, antes de levantar la
+/// capa de pantalla: lo único que puede quedar son regalos que la protección
+/// aún no había pasado al bloque secreto y que este móvil no pintaba. Nunca
+/// se llama sobre un común que vaya a subir a una lista compartida.
+FamilyDoc purgeOwnPublicGifts(
+  FamilyDoc common,
+  String personId,
+  HlcClock clock,
+) {
+  var next = common;
+  for (final record
+      in common.collections[Collections.gifts]?.values.toList() ??
+          const <SyncRecord>[]) {
+    if (record.isDeleted || record['recipientId'] != personId) continue;
+    next = next.delete(clock, Collections.gifts, record.id);
+  }
+  return next;
+}
+
+/// El común de la generación que este móvil estrena sin nadie (salir de la
+/// familia, dejar de sincronizar, la lista ya no está): si en la anterior
+/// tuvo compañía ([hadCompany]), sin los regalos vivos para su persona
+/// ([people]: la de «Yo» y la de su ficha), antes de que la excepción del
+/// móvil solo levante la capa de pantalla ([purgeOwnPublicGifts]). Lo que
+/// estaba en secreto no vuelve porque nunca estuvo aquí. Sin compañía no
+/// borra nada: esos regalos los escribió este móvil y siempre los ha visto.
+FamilyDoc purgeOwnGiftsOnLeaving(
+  FamilyDoc doc, {
+  required String node,
+  required Iterable<String?> people,
+  required bool hadCompany,
+}) {
+  if (!hadCompany) return doc;
+  final clock = HlcClock(node: node, last: doc.maxStamp);
+  var next = doc;
+  for (final person in people.whereType<String>().toSet()) {
+    next = purgeOwnPublicGifts(next, person, clock);
+  }
+  return next;
+}
+
+/// Si [personId] solo regala ([Recipient.noGifts]): no recibe regalos, así
+/// que no hay nada que poner en secreto.
+bool receivesNoGifts(FamilyDoc common, String personId) {
+  final record = common.record(Collections.recipients, personId);
+  return record != null && Recipient.fromRecord(record)?.noGifts == true;
+}
+
+/// Si la protección de [personId] se puede saltar porque no hay nada que
+/// ocultar: solo regala ([receivesNoGifts]) y además en [common] no queda
+/// ningún regalo vivo para ella. La marca `noGifts` es un campo del común sin
+/// autenticar, y un 1.0.5 la trata como una persona normal y le apunta
+/// regalos (revisión de seguridad, B5): con alguno vivo, se protege.
+bool nothingToProtectFor(FamilyDoc common, String personId) =>
+    receivesNoGifts(common, personId) &&
+    !(common.collections[Collections.gifts]?.values.any(
+          (r) => !r.isDeleted && r['recipientId'] == personId,
+        ) ??
+        false);
+
+/// Si en el común [common] los regalos para [personId] están en secreto: hay
+/// una política publicada que dice «ocultar» y ningún regalo vivo suyo. Es
+/// lo que comprueba el anfitrión en el checkpoint exacto antes de aprobar el
+/// móvil de esa persona (1.0.6).
+bool commonHidesGiftsFor(FamilyDoc common, String personId) =>
+    publishedPolicy(common, personId)?.hideOwnGifts == true &&
+    !(common.collections[Collections.gifts]?.values.any(
+          (r) => !r.isDeleted && r['recipientId'] == personId,
+        ) ??
+        false);
+
+/// Las personas cuya protección activa este móvil por su cuenta (1.0.6):
+/// tienen algún dispositivo en el registro ([RegistryView.devicePeople]), no
+/// son la de este móvil ni solo regalan ([receivesNoGifts]), este móvil
+/// tiene derecho a sus sorpresas ([RegistryView.selfEntitled]) y todavía no
+/// hay registro `policies/<persona>` ni política autenticada en [slots]. Con
+/// un registro publicado manda la política: una desactivación firmada desde
+/// otro móvil se respeta.
+Set<String> peopleToAutoProtect(
+  FamilyDoc common,
+  RegistryView view, {
+  SlotSet? slots,
+}) => {
+  for (final person in view.devicePeople)
+    if (person != view.myPerson &&
+        !nothingToProtectFor(common, person) &&
+        view.selfEntitled(person) &&
+        common.record(Collections.policies, person) == null &&
+        slots?.authenticatedPolicy(person, view) == null)
+      person,
+};
 
 /// Construye la vista de este móvil.
 ///
@@ -963,6 +1255,8 @@ Future<AuthorizedProjection> projectAuthorized({
   bool includeArchived = false,
   Set<String> hiddenGiftIds = const <String>{},
   Map<String, FamilyDoc> localScopes = const {},
+  Set<String> ownPeople = const <String>{},
+  bool alone = false,
 }) async {
   final published = publishedPolicies(common);
   final people = <String>{
@@ -989,6 +1283,7 @@ Future<AuthorizedProjection> projectAuthorized({
         view: view,
         personId: person,
         hasKey: keyring.people.contains(person),
+        alone: alone,
       );
       if (published.containsKey(person) || policy != PolicyState.initial) {
         policies[person] = policy;
@@ -1016,6 +1311,21 @@ Future<AuthorizedProjection> projectAuthorized({
         policies[record['recipientId']]?.hideOwnGifts == true &&
         !secretIds.contains(id),
   );
+  // Capa de pantalla (1.0.6): en el móvil de una persona acompañada no se
+  // pinta ningún regalo para ella ([ownHiddenPeople]), tenga o no política;
+  // solo queda su bloque de tamaño fijo.
+  if (ownPeople.isNotEmpty) {
+    gifts.removeWhere(
+      (id, record) => ownPeople.contains(record['recipientId']),
+    );
+    secretIds.removeWhere((id) => !gifts.containsKey(id));
+    for (final person in ownPeople) {
+      if (!locked.contains(SecretBlock(person))) {
+        locked.add(SecretBlock(person));
+      }
+    }
+    locked.sort((a, b) => a.personId.compareTo(b.personId));
+  }
   final merged = FamilyDoc(
     listId: common.listId,
     collections: {...common.collections, Collections.gifts: gifts},
@@ -1074,25 +1384,38 @@ enum ProtectedPersonReason {
   writerSlotsFull,
   slotsFull,
   requiresV2,
+
+  /// Capa de pantalla (1.0.6): este móvil es de esa persona y está
+  /// acompañado, así que no ve ni escribe regalos para ella.
+  ownGiftsHidden,
+
+  /// La web (1.0.6, ADR 0009) ve los regalos en secreto de esa persona pero
+  /// no puede cambiarlos ahora (le falta la clave con que sella su móvil, o
+  /// el cambio pasa un regalo de una persona a otra): «hazlo desde el
+  /// móvil».
+  webUseMobile,
 }
 
 /// Si este móvil no debe escribir en el documento común regalos para
 /// [personId]: tiene la protección pedida o puesta, o tiene su clave, slots
 /// suyos o un registro de su política sin una política autenticada que diga
 /// «publicar» (requisito 14 y hallazgo 3a). Un regalo así acabaría en el
-/// bloque secreto, o a la vista de quien no debe.
+/// bloque secreto, o a la vista de quien no debe. Con [alone] vale la
+/// excepción del móvil solo ([lockedPolicy]).
 bool publicGiftsBlockedFor({
   required FamilyDoc common,
   required SlotSet slots,
   required SurpriseKeyring keyring,
   required RegistryView view,
   required String personId,
+  bool alone = false,
 }) => lockedPolicy(
   common: common,
   slots: slots,
   view: view,
   personId: personId,
   hasKey: keyring.people.contains(personId),
+  alone: alone,
 ).hideOwnGifts;
 
 /// El único «común publicable»: lo que puede salir de este móvil (subida al
@@ -1165,6 +1488,7 @@ FamilyDoc addPublicGift({
   required RegistryView view,
   required String giftId,
   required Map<String, Object?> fields,
+  bool alone = false,
 }) {
   final previous = common.record(Collections.gifts, giftId);
   for (final person in {fields['recipientId'], previous?['recipientId']}) {
@@ -1175,6 +1499,7 @@ FamilyDoc addPublicGift({
           keyring: keyring,
           view: view,
           personId: person,
+          alone: alone,
         )) {
       throw ProtectedPersonException(person);
     }
@@ -1562,4 +1887,337 @@ List<SyncRecord> _publicGiftsOf(FamilyDoc common, String personId) => [
     nextScope = nextScope.delete(scopeClock, Collections.gifts, record.id);
   }
   return (common: nextCommon, scope: nextScope);
+}
+
+// ------------------------------------------------------- buzón de una web
+
+/// Por qué se rechaza entero el buzón de una web (1.0.6, ADR 0009).
+enum WebInboxRejection {
+  /// Más de [kMaxWebInboxRecords] registros.
+  tooManyRecords,
+
+  /// Más de [kMaxWebInboxTombstones] lápidas.
+  tooManyTombstones,
+
+  /// Registros de otra persona u otra colección.
+  foreignRecords,
+
+  /// Alguna marca va más de [kMaxHlcDrift] por delante de este reloj: si
+  /// entrara, ganaría todas las fusiones futuras.
+  futureStamp,
+}
+
+/// Lo que pasa al recoger el buzón de una web en el móvil de su persona.
+class WebInboxAbsorption {
+  /// Crea el resultado.
+  const WebInboxAbsorption({
+    required this.scope,
+    this.applied = 0,
+    this.discarded = 0,
+    this.tombstones = 0,
+    this.rejected,
+    this.waiting = false,
+  });
+
+  /// El ámbito con lo recogido (el de entrada si no se recoge nada).
+  final FamilyDoc scope;
+
+  /// Registros aplicados: altas, ediciones y borrados.
+  final int applied;
+
+  /// Registros descartados: ediciones o borrados de un regalo que no existe
+  /// o que ya es una lápida, y altas de un regalo borrado.
+  final int discarded;
+
+  /// Lápidas aplicadas (cuentan para [kMaxWebTombstonesPerDay]).
+  final int tombstones;
+
+  /// Si se rechaza entero, por qué; entonces no se recoge nunca.
+  final WebInboxRejection? rejected;
+
+  /// Si no se puede recoger todavía (no caben más lápidas hoy o el ámbito
+  /// pasaría de [kMaxSurpriseGifts]): el buzón espera.
+  final bool waiting;
+
+  /// Si se recogió (aunque fuera para descartarlo todo).
+  bool get absorbed => rejected == null && !waiting;
+}
+
+/// Campos que una web no escribe nunca (revisión de seguridad, B6): la marca
+/// del alta, la del cupo de la reconciliación y la sal de publicación. Un
+/// buzón los trae, como mucho, copiados del ámbito; al recoger se ignoran.
+const _webReservedFields = {kWebNewField, kMovedInField, kPublishSaltField};
+
+SyncRecord _withoutWebNew(SyncRecord record) =>
+    record.fields.keys.any(_webReservedFields.contains)
+    ? SyncRecord(
+        id: record.id,
+        fields: {
+          for (final e in record.fields.entries)
+            if (!_webReservedFields.contains(e.key)) e.key: e.value,
+        },
+      )
+    : record;
+
+/// Aplica el buzón abierto [inbox] de una web sobre [scope], el ámbito ya
+/// fusionado de su persona protegida (1.0.6, ADR 0009). Función pura.
+///
+/// Se valida entero o se rechaza entero ([WebInboxRejection]). Después,
+/// registro a registro: un alta (`webNew`) de un id que no existe entra; un
+/// registro de un id vivo se fusiona por campo; una lápida de un id vivo lo
+/// borra; todo lo demás (un id que no existe y no es alta, o que ya es una
+/// lápida) se descarta. Así no resucita un regalo cuya lápida ya se
+/// compactó, sin tocar la compactación. [tombstoneBudget] son las lápidas de
+/// webs que este móvil aún puede recoger hoy.
+WebInboxAbsorption absorbWebInbox({
+  required FamilyDoc scope,
+  required OpenedSlot inbox,
+  required int nowMillis,
+  int tombstoneBudget = kMaxWebTombstonesPerDay,
+}) {
+  if (inbox.foreignRecords > 0) {
+    return WebInboxAbsorption(
+      scope: scope,
+      rejected: WebInboxRejection.foreignRecords,
+    );
+  }
+  final records = [
+    ...?inbox.doc.collections[Collections.gifts]?.values,
+  ]..sort((a, b) => a.id.compareTo(b.id));
+  if (records.length > kMaxWebInboxRecords) {
+    return WebInboxAbsorption(
+      scope: scope,
+      rejected: WebInboxRejection.tooManyRecords,
+    );
+  }
+  if (records.where((r) => r.isDeleted).length > kMaxWebInboxTombstones) {
+    return WebInboxAbsorption(
+      scope: scope,
+      rejected: WebInboxRejection.tooManyTombstones,
+    );
+  }
+  final limit = nowMillis + kMaxHlcDrift.inMilliseconds;
+  for (final record in records) {
+    if (record.fields.values.any((f) => f.stamp.millis > limit)) {
+      return WebInboxAbsorption(
+        scope: scope,
+        rejected: WebInboxRejection.futureStamp,
+      );
+    }
+  }
+  var next = scope;
+  var applied = 0;
+  var discarded = 0;
+  var tombstones = 0;
+  for (final record in records) {
+    final existing = scope.record(Collections.gifts, record.id);
+    final apply = existing == null
+        ? !record.isDeleted && record[kWebNewField] == true
+        : !existing.isDeleted;
+    if (!apply) {
+      discarded++;
+      continue;
+    }
+    final clean = _withoutWebNew(record);
+    final merged = next.merge(
+      FamilyDoc(
+        listId: scope.listId,
+        collections: {
+          Collections.gifts: {clean.id: clean},
+        },
+      ),
+    );
+    // Lo fusionado tiene que seguir cabiendo en un regalo (revisión final,
+    // B7): campos nuevos de la web podrían hacerlo crecer y dejarlo fuera
+    // del slot, a él y a los que van detrás.
+    final result = merged.record(Collections.gifts, record.id)!;
+    if (!result.isDeleted &&
+        surpriseRecordBytes(result) > kMaxSurpriseGiftBytes) {
+      discarded++;
+      continue;
+    }
+    if (record.isDeleted) tombstones++;
+    next = merged;
+    applied++;
+  }
+  if (tombstones > tombstoneBudget ||
+      (liveOwnSurpriseGifts(next) > kMaxSurpriseGifts &&
+          liveOwnSurpriseGifts(next) > liveOwnSurpriseGifts(scope))) {
+    return WebInboxAbsorption(scope: scope, waiting: true);
+  }
+  return WebInboxAbsorption(
+    scope: next,
+    applied: applied,
+    discarded: discarded,
+    tombstones: tombstones,
+  );
+}
+
+/// Una acción de la web pendiente para el buzón de una persona.
+class WebInboxEntry {
+  /// Crea la entrada.
+  const WebInboxEntry({
+    required this.id,
+    required this.delta,
+    this.newGifts = const <String>{},
+  });
+
+  /// Id de la entrada en la cola de la web.
+  final String id;
+
+  /// Lo que escribió la acción (solo regalos de una persona).
+  final FamilyDoc delta;
+
+  /// Regalos que la acción creó (no existían antes en la web).
+  final Set<String> newGifts;
+}
+
+/// El contenido del buzón de una web para una persona y qué entradas van
+/// dentro (1.0.6, ADR 0009).
+class WebInboxBuild {
+  /// Crea el resultado.
+  const WebInboxBuild({
+    required this.doc,
+    required this.included,
+    required this.moot,
+    required this.discarded,
+    required this.deferred,
+  });
+
+  /// Los registros del buzón: los regalos tocados, completos como los ve la
+  /// web, con `webNew` en las altas.
+  final FamilyDoc doc;
+
+  /// Entradas que van en el buzón.
+  final List<String> included;
+
+  /// Entradas que ya no hacen nada: solo tocan regalos que ya son lápidas.
+  final List<String> moot;
+
+  /// Entradas que no se pueden aplicar (editan un regalo que ya no existe,
+  /// lo pasan a otra persona o no cabe en un regalo): se descartan con
+  /// aviso.
+  final List<String> discarded;
+
+  /// Entradas que esperan al siguiente buzón (topes de registros y
+  /// lápidas).
+  final List<String> deferred;
+
+  /// Si el buzón no lleva nada.
+  bool get isEmpty => included.isEmpty;
+}
+
+/// Construye el buzón de [personId] desde [scope] (el ámbito fusionado de
+/// los slots de los móviles, tal como lo abre la web) y las [entries]
+/// pendientes, en orden. Función pura: no cifra nada.
+WebInboxBuild buildWebInbox({
+  required String personId,
+  required FamilyDoc scope,
+  required List<WebInboxEntry> entries,
+}) {
+  var work = scope;
+  final touched = <String>{};
+  final created = <String>{};
+  final included = <String>[];
+  final moot = <String>[];
+  final discarded = <String>[];
+  final deferred = <String>[];
+  var full = false;
+  for (final entry in entries) {
+    if (full) {
+      deferred.add(entry.id);
+      continue;
+    }
+    final gifts =
+        entry.delta.collections[Collections.gifts] ??
+        const <String, SyncRecord>{};
+    var dead = 0;
+    var unknown = false;
+    for (final record in gifts.values) {
+      final existing = work.record(Collections.gifts, record.id);
+      if (existing?.isDeleted ?? false) {
+        dead++;
+      } else if (existing == null && !entry.newGifts.contains(record.id)) {
+        unknown = true;
+      }
+    }
+    if (gifts.isEmpty || dead == gifts.length) {
+      moot.add(entry.id);
+      continue;
+    }
+    if (unknown) {
+      discarded.add(entry.id);
+      continue;
+    }
+    final next = work.merge(
+      FamilyDoc(listId: work.listId, collections: {Collections.gifts: gifts}),
+    );
+    final ids = {...touched, ...gifts.keys};
+    var tombstones = 0;
+    var bad = false;
+    for (final id in ids) {
+      final record = next.record(Collections.gifts, id)!;
+      // Un alta lleva además `webNew` (B7): se mide con él.
+      final creates =
+          (created.contains(id) || entry.newGifts.contains(id)) &&
+          scope.record(Collections.gifts, id) == null;
+      if (record.isDeleted) {
+        tombstones++;
+      } else if (record['recipientId'] != personId ||
+          surpriseRecordBytes(creates ? _withWebNew(record) : record) >
+              kMaxSurpriseGiftBytes) {
+        bad = true;
+      }
+    }
+    if (bad) {
+      discarded.add(entry.id);
+      continue;
+    }
+    if (ids.length > kMaxWebInboxRecords ||
+        tombstones > kMaxWebInboxTombstones) {
+      full = true;
+      deferred.add(entry.id);
+      continue;
+    }
+    work = next;
+    touched.addAll(gifts.keys);
+    for (final id in gifts.keys) {
+      if (entry.newGifts.contains(id) &&
+          scope.record(Collections.gifts, id) == null) {
+        created.add(id);
+      }
+    }
+    included.add(entry.id);
+  }
+  final out = <String, SyncRecord>{};
+  for (final id in touched) {
+    final record = work.record(Collections.gifts, id)!;
+    out[id] = created.contains(id) && !record.isDeleted
+        ? _withWebNew(record)
+        : record;
+  }
+  return WebInboxBuild(
+    doc: FamilyDoc(
+      listId: scope.listId,
+      collections: {Collections.gifts: out},
+    ),
+    included: included,
+    moot: moot,
+    discarded: discarded,
+    deferred: deferred,
+  );
+}
+
+SyncRecord _withWebNew(SyncRecord record) {
+  Hlc? newest;
+  for (final f in record.fields.values) {
+    if (newest == null || f.stamp > newest) newest = f.stamp;
+  }
+  return SyncRecord(
+    id: record.id,
+    fields: {
+      ...record.fields,
+      kWebNewField: FieldValue(value: true, stamp: newest!),
+    },
+  );
 }

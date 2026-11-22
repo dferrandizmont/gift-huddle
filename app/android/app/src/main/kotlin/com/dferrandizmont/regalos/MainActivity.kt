@@ -38,8 +38,9 @@ import java.util.concurrent.atomic.AtomicBoolean
  *
  * - FlutterFragmentActivity: lo exige local_auth para la huella.
  * - Sin miniatura en el selector de apps. Las capturas en primer plano se
- *   permiten en las prereleases; en la versión de tienda (`--dart-define=
- *   STORE_BUILD=true`) Flutter pide `secureScreen` y se bloquean siempre.
+ *   permiten en las prereleases. Desde la 1.0.6, la versión de tienda ya no
+ *   bloquea toda la app: Flutter pide `setSecure` solo mientras se ve una
+ *   pantalla con regalos (`GiftsSecureScope`). `secureScreen` ya no se pide.
  * - `setSecure`: pone o quita FLAG_SECURE solo mientras se ven las palabras o el QR
  *   del código de recuperación (también en las prereleases).
  * - Recibe los ficheros .regalos que se abren o comparten con la app y se los

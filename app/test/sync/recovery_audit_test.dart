@@ -32,6 +32,7 @@ import 'package:regalos/features/sync/data/sync_transport_common.dart';
 import 'package:regalos/features/sync/data/sync_transport_v2.dart';
 
 import '../helpers/fake_sync_server.dart';
+import '../helpers/host_person.dart';
 import '../helpers/memory_stores.dart';
 import '../helpers/pump_app.dart';
 import 'recovery_engine_test.dart' show RecoveryWorker;
@@ -490,9 +491,12 @@ void main() {
     await recovery.createCode();
     final store = a.container.read(familyStoreProvider);
     final sid = (await store.readSyncV2())!.syncId;
+    // 1.0.6: los dos móviles, de quien solo regala: nadie protege a nadie, así
+    // que al quitar el otro no quedan slots suyos que conservar.
+    await hostWithPerson(a, id: kGuestGiver);
     final host = a.container.read(pairingV2HostProvider.notifier);
     final guest = b.container.read(pairingV2GuestProvider.notifier);
-    await host.start();
+    await host.start(guestPerson: kGuestGiver);
     final link = a.container.read(pairingV2HostProvider).link!;
     await guest.begin(link.substring(link.indexOf('#') + 1));
     await guest.choosePerson(null);

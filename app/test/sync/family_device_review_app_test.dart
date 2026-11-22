@@ -1,6 +1,12 @@
 // Quitar un móvil y aprobar un huérfano con el controlador real (fase 3, lote
 // «Móviles»): tres móviles emparejados por v2 en cadena (Aritz - Nora - Leo),
 // el arnés de `pairing_v2_app_test.dart`.
+//
+// 1.0.6: cada vuelta también pone en secreto los regalos de cada persona con
+// móvil (claves y slots nuevos), así que la cadena de tres tarda más.
+@Timeout(Duration(minutes: 2))
+library;
+
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/core/sync/device_registry.dart';
@@ -19,6 +25,7 @@ import 'package:regalos/features/sync/data/sync_transport_v2.dart';
 import 'package:regalos/core/prefs/shared_preferences_provider.dart';
 
 import '../helpers/fake_sync_server.dart';
+import '../helpers/host_person.dart';
 import '../helpers/fake_worker_v2.dart';
 import '../helpers/memory_stores.dart';
 import '../helpers/pump_app.dart';
@@ -63,12 +70,12 @@ void main() {
     FakePhone guestPhone, {
     String? personId,
   }) async {
+    await hostWithPerson(host);
     final h = host.container.read(pairingV2HostProvider.notifier);
-    await h.start();
+    await h.start(guestPerson: personId ?? kGuestGiver);
     final link = host.container.read(pairingV2HostProvider).link!;
     final guest = guestPhone.container.read(pairingV2GuestProvider.notifier);
     await guest.begin(link.substring(link.indexOf('#') + 1));
-    await guest.choosePerson(personId);
     await eventually(
       () =>
           host.container.read(pairingV2HostProvider).phase ==

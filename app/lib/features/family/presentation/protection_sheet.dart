@@ -21,6 +21,7 @@ import '../../sync/application/sync_controller.dart'
 import '../application/family_controller.dart' show familyControllerProvider;
 import '../application/family_providers.dart';
 import '../data/family_store.dart' show familyStoreProvider;
+import '../domain/family_errors.dart' show DevicePersonOwner;
 import 'protection_actions.dart';
 import 'protection_texts.dart';
 
@@ -234,12 +235,21 @@ class _ProtectionSheetState extends ConsumerState<ProtectionSheet> {
     });
   }
 
+  /// Si la persona tiene un móvil conectado (1.0.6): en él sus regalos no se
+  /// ven pase lo que pase, y por eso la protección va activa sola.
+  bool _hasDevice() =>
+      ref.read(familyStateProvider)?.devicePersonOwner(widget.personId) ==
+      DevicePersonOwner.otherDevice;
+
   Future<void> _deactivate(String name) async {
     final l10n = AppLocalizations.of(context);
     final ok = await showRegalosConfirm(
       context,
       title: l10n.protectionDeactivateTitle(name),
-      body: l10n.protectionDeactivateBody(name),
+      body: _hasDevice()
+          ? '${l10n.protectionDeactivateBody(name)}\n\n'
+                '${l10n.protectionDeactivateHasDevice(name)}'
+          : l10n.protectionDeactivateBody(name),
       confirmLabel: l10n.protectionDeactivateConfirm,
       cancelLabel: l10n.actionCancel,
     );
@@ -256,6 +266,8 @@ class _ProtectionSheetState extends ConsumerState<ProtectionSheet> {
     final l10n = AppLocalizations.of(context);
     final t = RegalosTokens.of(context);
     final accessAsync = ref.watch(giftRecipientAccessProvider);
+    // Se repinta si la persona gana o pierde un móvil conectado.
+    ref.watch(familyStateProvider);
     // Mientras se vuelve a leer (por ejemplo, tras un rechazo) el valor
     // anterior sigue a la vista, pero sus acciones no se pueden pulsar.
     final reloading = accessAsync.isLoading;
@@ -311,7 +323,10 @@ class _ProtectionSheetState extends ConsumerState<ProtectionSheet> {
       ),
       PersonProtectionStatus.active => (
         l10n.protectionActiveTitle,
-        l10n.protectionActiveBody(name),
+        _hasDevice()
+            ? '${l10n.protectionActiveBody(name)}\n\n'
+                  '${l10n.protectionAutoReason(name)}'
+            : l10n.protectionActiveBody(name),
       ),
     };
 
@@ -364,7 +379,15 @@ class _ProtectionSheetState extends ConsumerState<ProtectionSheet> {
                 onPressed: _busy || reloading ? null : () => _deactivate(name),
                 child: Text(l10n.protectionDeactivate),
               )
-            : Text(l10n.protectionCannotDeactivate(name), style: t.styles.meta),
+            : Text(
+                // En el móvil de la propia persona no es cuestión de permisos:
+                // solo otra persona de la familia lo puede cambiar.
+                access.viewerIsRecipient
+                    ? l10n.protectionOnlyOthersChange
+                    : l10n.protectionCannotDeactivate(name),
+                key: const ValueKey<String>('protectionCannotDeactivate'),
+                style: t.styles.meta,
+              ),
     };
 
     final effects = [

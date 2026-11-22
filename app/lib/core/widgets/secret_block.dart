@@ -69,9 +69,18 @@ class _BlurredBars extends StatelessWidget {
   }
 }
 
+/// La frase del bloque: «Este móvil no los muestra.» o, en la web ([web]),
+/// «Este ordenador no los muestra.».
+String secretBlockNoteText(AppLocalizations l10n, {bool web = false}) =>
+    web ? l10n.secretBlockNoteWeb : l10n.secretBlockNote;
+
 /// El texto de lectura de pantalla de un bloque: título y frase, sin cifras.
-String secretBlockLabel(AppLocalizations l10n, String name) =>
-    '${l10n.secretBlockTitle(name)}. ${l10n.secretBlockNote}';
+/// Con [web], la frase habla de este ordenador.
+String secretBlockLabel(
+  AppLocalizations l10n,
+  String name, {
+  bool web = false,
+}) => '${l10n.secretBlockTitle(name)}. ${secretBlockNoteText(l10n, web: web)}';
 
 /// El bloque «Regalos en secreto para [name]»: tamaño fijo, fondo borroso y
 /// candado. Con [onTap] se puede tocar (abre la ficha de la persona).
@@ -82,10 +91,20 @@ class SecretBlockCard extends StatelessWidget {
     required this.name,
     this.colorIndex = 0,
     this.onTap,
+    this.note,
+    this.web = false,
   });
 
   /// Nombre de la persona protegida.
   final String name;
+
+  /// Si es la web: la frase dice «este ordenador» en lugar de «este móvil».
+  final bool web;
+
+  /// Otra frase en lugar de «Este móvil no los muestra.»: el bloque de la
+  /// persona de este móvil (1.0.6) dice que en él no se ven sus regalos y que
+  /// solo otra persona puede cambiarlo.
+  final String? note;
 
   /// Su color.
   final int colorIndex;
@@ -95,6 +114,13 @@ class SecretBlockCard extends StatelessWidget {
 
   /// Alto fijo del bloque.
   static const double height = 88;
+
+  /// De 88 como mínimo: con letra grande o con [note] crece para que quepa el
+  /// texto, nunca por lo que hay detrás (ni cifras ni filas).
+  Widget _sized(Widget child) => ConstrainedBox(
+    constraints: const BoxConstraints(minHeight: height),
+    child: child,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -108,9 +134,8 @@ class SecretBlockCard extends StatelessWidget {
           borderRadius: RegalosShape.card,
           border: Border.all(color: t.separator),
         ),
-        child: SizedBox(
-          height: height,
-          child: Stack(
+        child: _sized(
+          Stack(
             children: [
               Positioned.fill(
                 child: _BlurredBars(colorIndex: colorIndex, bars: 3),
@@ -119,7 +144,10 @@ class SecretBlockCard extends StatelessWidget {
                 child: ColoredBox(color: t.surface.withValues(alpha: 0.55)),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
+                padding: EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: note == null ? 0 : 14,
+                ),
                 child: Row(
                   children: [
                     ExcludeSemantics(
@@ -154,9 +182,11 @@ class SecretBlockCard extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            l10n.secretBlockNote,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                            note ?? secretBlockNoteText(l10n, web: web),
+                            maxLines: note == null ? 2 : null,
+                            overflow: note == null
+                                ? TextOverflow.ellipsis
+                                : TextOverflow.visible,
                             style: t.styles.meta,
                           ),
                         ],
@@ -173,7 +203,9 @@ class SecretBlockCard extends StatelessWidget {
     return Semantics(
       container: true,
       button: onTap != null,
-      label: secretBlockLabel(l10n, name),
+      label: note == null
+          ? secretBlockLabel(l10n, name, web: web)
+          : '${l10n.secretBlockTitle(name)}. $note',
       excludeSemantics: true,
       onTap: onTap,
       child: onTap == null
@@ -200,10 +232,14 @@ class SecretStrip extends StatelessWidget {
     required this.name,
     this.colorIndex = 0,
     this.onTap,
+    this.web = false,
   });
 
   /// Si hay que enseñarla.
   final bool shown;
+
+  /// Si es la web: la lectura de pantalla dice «este ordenador».
+  final bool web;
 
   /// Nombre de la persona protegida.
   final String name;
@@ -285,7 +321,7 @@ class SecretStrip extends StatelessWidget {
           child: Semantics(
             container: true,
             button: onTap != null,
-            label: secretBlockLabel(l10n, name),
+            label: secretBlockLabel(l10n, name, web: web),
             excludeSemantics: true,
             onTap: onTap,
             child: onTap == null

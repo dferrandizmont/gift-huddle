@@ -8,11 +8,16 @@ import '../application/family_providers.dart' show PersonProtectionStatus;
 // hoja digan lo mismo.
 
 /// El motivo, en una o dos frases llanas, para la persona llamada [name].
+///
+/// Con [web] (la versión web), lo que habla del propio dispositivo dice «este
+/// ordenador», y lo que solo se arregla con la versión nueva en un móvil
+/// ([ProtectedPersonReason.requiresV2]) remite al móvil.
 String protectionReasonText(
   AppLocalizations l10n,
   ProtectedPersonReason reason,
   String name, {
   bool ownPhone = false,
+  bool web = false,
 }) => switch (reason) {
   ProtectedPersonReason.protectedPerson =>
     l10n.protectionReason_protectedPerson(name),
@@ -52,7 +57,15 @@ String protectionReasonText(
   ProtectedPersonReason.writerSlotsFull =>
     l10n.protectionReason_writerSlotsFull(name),
   ProtectedPersonReason.slotsFull => l10n.protectionReason_slotsFull(name),
-  ProtectedPersonReason.requiresV2 => l10n.protectionReason_requiresV2(name),
+  ProtectedPersonReason.requiresV2 =>
+    web
+        ? l10n.protectionReason_webUseMobile(name)
+        : l10n.protectionReason_requiresV2(name),
+  ProtectedPersonReason.ownGiftsHidden =>
+    web ? l10n.ownGiftsHiddenBodyWeb(name) : l10n.ownGiftsHiddenBody(name),
+  ProtectedPersonReason.webUseMobile => l10n.protectionReason_webUseMobile(
+    name,
+  ),
 };
 
 /// El nombre corto del estado de la protección.

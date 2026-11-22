@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'sync_endpoint.dart';
+import 'sync_routes.dart';
 import 'sync_transport_factory.dart';
 import 'sync_transport.dart';
 import 'sync_transport_common.dart';
@@ -11,7 +12,9 @@ export 'sync_endpoint.dart'
         kDefaultInvitationOrigin,
         kDefaultSyncHost,
         kInvitationOrigin,
-        kSyncHost;
+        kSyncHost,
+        kSyncHosts;
+export 'sync_routes.dart' show kSyncBlockedHintAfter;
 
 /// Tiempos de la sincronización. Las pruebas los acortan.
 class SyncTiming {
@@ -137,3 +140,12 @@ final syncV2TransportProvider = Provider<SyncV2Transport?>((ref) {
 
 /// Tiempos de la sincronización.
 final syncTimingProvider = Provider<SyncTiming>((ref) => const SyncTiming());
+
+/// Si conviene decir que quizá el operador bloquea el servicio: no se ha
+/// podido conectar con ningún host [kSyncBlockedHintAfter] veces seguidas
+/// (`sync_routes.dart`). Sin servidor, false.
+final syncLikelyBlockedProvider = StreamProvider<bool>((ref) {
+  final endpoint = ref.watch(syncEndpointProvider);
+  if (endpoint == null) return Stream.value(false);
+  return SyncRoutes.shared(endpoint.routes).watchBlocked();
+});

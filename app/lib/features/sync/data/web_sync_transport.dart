@@ -7,19 +7,41 @@ import 'package:web/web.dart' as web;
 
 import '../domain/sync_keys.dart';
 import 'sync_endpoint.dart';
+import 'sync_routes.dart';
 import 'sync_transport.dart';
 import 'sync_transport_common.dart';
 import 'sync_transport_v2.dart';
 
 /// Fetch omits credentials and rejects redirects. The API authenticates
 /// WebSockets exclusively through the bearer subprotocol, never cookies.
+///
+/// Hosts ([routes], 1.0.6): a browser has no connect timeout and does not
+/// say why a fetch failed, and a fetch that times out may already have been
+/// applied by the Worker. So only reads (GET) try the next host, when the
+/// fetch is rejected or has no response headers within [connectTimeout]. A
+/// mutation is sent once, to the route a safe read chose
+/// ([SyncRoutes.runOnce]): never repeated on the other host. The WebSocket
+/// opens on that same route. An HTTP status never changes the route.
 class WebSyncTransport extends BaseSyncTransport {
   WebSyncTransport(
     super.endpoint, {
     super.timeout,
+    super.routes,
+    this.connectTimeout = kWebConnectTimeout,
+    this.largeBodyTimeout = const Duration(seconds: 30),
     this.openSocket = _openSocket,
   });
   final web.WebSocket Function(String uri, List<String> protocols) openSocket;
+
+  /// Wait for the response headers of a read before trying the next host.
+  final Duration connectTimeout;
+
+  /// Wait for the response headers of a request with a body over
+  /// [quickBodyBytes]: the upload itself may take that long on a slow link.
+  final Duration largeBodyTimeout;
+
+  /// UTF-8 bytes of a body that counts as large.
+  static const int quickBodyBytes = 64 * 1024;
 
   static web.WebSocket _openSocket(String uri, List<String> protocols) =>
       web.WebSocket(uri, protocols.map((s) => s.toJS).toList().toJS);
@@ -41,12 +63,54 @@ class WebSyncTransport extends BaseSyncTransport {
         'cliente cerrado',
       );
     }
+    final text = body == null ? null : jsonEncode(body);
+    final large = text != null && utf8.encode(text).length > quickBodyBytes;
+    final read = method == 'GET' || method == 'HEAD';
+    if (read) {
+      return routes.run(
+        uri,
+        (target, connected) => _send(
+          method,
+          target,
+          connected,
+          auth,
+          text,
+          headers,
+          connectTimeout,
+        ),
+      );
+    }
+    return routes.runOnce(
+      uri,
+      probe: (target, connected) =>
+          _send('GET', target, connected, null, null, const {}, connectTimeout),
+      attempt: (target, connected) => _send(
+        method,
+        target,
+        connected,
+        auth,
+        text,
+        headers,
+        large ? largeBodyTimeout : timeout,
+      ),
+    );
+  }
+
+  Future<SyncResponse> _send(
+    String method,
+    Uri uri,
+    void Function() connected,
+    SyncCredentials? auth,
+    String? body,
+    Map<String, String> headers,
+    Duration headersWithin,
+  ) async {
     final abort = web.AbortController();
     _requests.add(abort);
     Timer? timer;
-    void armTimeout() {
+    void armTimeout([Duration? wait]) {
       timer?.cancel();
-      timer = Timer(timeout, () => abort.abort());
+      timer = Timer(wait ?? timeout, () => abort.abort());
     }
 
     final h = web.Headers()..set('Accept', 'application/json');
@@ -56,21 +120,35 @@ class WebSyncTransport extends BaseSyncTransport {
     headers.forEach((name, value) => h.set(name, value));
     if (body != null) h.set('Content-Type', 'application/json');
     try {
-      armTimeout();
-      final response = await web.window
-          .fetch(
-            uri.toString().toJS,
-            web.RequestInit(
-              method: method,
-              headers: h,
-              credentials: 'omit',
-              redirect: 'manual',
-              cache: 'no-store',
-              signal: abort.signal,
-              body: body == null ? null : jsonEncode(body).toJS,
-            ),
-          )
-          .toDart;
+      armTimeout(headersWithin);
+      final web.Response response;
+      try {
+        response = await web.window
+            .fetch(
+              uri.toString().toJS,
+              web.RequestInit(
+                method: method,
+                headers: h,
+                credentials: 'omit',
+                redirect: 'manual',
+                cache: 'no-store',
+                signal: abort.signal,
+                body: body?.toJS,
+              ),
+            )
+            .toDart;
+      } catch (_) {
+        if (_closed) {
+          throw const SyncTransportException(
+            SyncFailure.network,
+            'petición cancelada',
+          );
+        }
+        // Rejected or no headers in time: a read tries the next host, a
+        // mutation fails without being repeated (`SyncRoutes.runOnce`).
+        throw const SyncRouteConnectFailure('fallo de red');
+      }
+      connected();
       final builder = BytesBuilder(copy: false);
       var size = 0;
       final stream = response.body;
@@ -107,6 +185,8 @@ class WebSyncTransport extends BaseSyncTransport {
           if (response.headers.get(name) case final String value) name: value,
       }, builder.takeBytes());
     } on SyncTransportException {
+      rethrow;
+    } on SyncRouteConnectFailure {
       rethrow;
     } catch (_) {
       throw const SyncTransportException(SyncFailure.network, 'fallo de red');
@@ -170,6 +250,79 @@ class WebSyncTransport extends BaseSyncTransport {
       stop();
     }
 
+    // The route the HTTP requests chose ([SyncRoutes.current]). Before `open`
+    // the browser reports a 401, a 403 or a 503 exactly like a network
+    // failure, so the socket never picks a host by itself: the requests and
+    // the existing polling do, and the next reconnect follows them.
+    final (index, target) = routes.targets(uri).first;
+
+    void connect() {
+      try {
+        final ws = openSocket(target.toString(), protocols);
+        socket = ws;
+        listeners['open'] = ((web.Event _) {
+          connectTimer?.cancel();
+          if (stopped) return;
+          if (ws.protocol != protocols.first) {
+            fail();
+            return;
+          }
+          routes.markConnected(index);
+          events.add(const SyncOpenEvent());
+          ping = Timer.periodic(const Duration(seconds: 30), (_) {
+            if (stopped) return;
+            pongDeadline = Timer(const Duration(seconds: 10), fail);
+            try {
+              ws.send('ping'.toJS);
+            } catch (_) {
+              fail();
+            }
+          });
+        }).toJS;
+        listeners['message'] = ((web.Event event) {
+          if (stopped) return;
+          // Any inbound message proves that the connection still works.
+          pongDeadline?.cancel();
+          pongDeadline = null;
+          final data = (event as web.MessageEvent).data;
+          if (data.isA<JSString>()) {
+            final message = (data as JSString).toDart;
+            if (utf8.encode(message).length > maxSyncResponseBytes) {
+              fail();
+              return;
+            }
+            if (message == 'pong') {
+              events.add(const SyncAliveEvent());
+              return;
+            }
+            final parsed = parse(message);
+            if (parsed != null) events.add(parsed);
+          }
+        }).toJS;
+        listeners['error'] = ((web.Event _) {
+          fail();
+        }).toJS;
+        listeners['close'] = ((web.Event event) {
+          if (stopped) return;
+          final code = (event as web.CloseEvent).code;
+          if (code == kWsClosedGone) {
+            events.add(const SyncGoneEvent());
+          } else if (code == 4410 && event.reason == 'credential_replaced') {
+            events.add(const SyncTransferredEvent());
+          } else if (code == kWsClosedRevoked) {
+            events.add(const SyncRevokedEvent());
+          }
+          stop();
+        }).toJS;
+        listeners.forEach(
+          (name, listener) => ws.addEventListener(name, listener),
+        );
+        connectTimer = Timer(timeout, fail);
+      } catch (_) {
+        fail();
+      }
+    }
+
     events = StreamController<SyncEvent>(
       onListen: () {
         if (_closed) {
@@ -177,69 +330,7 @@ class WebSyncTransport extends BaseSyncTransport {
           return;
         }
         _watches.add(stop);
-        try {
-          final ws = openSocket(uri.toString(), protocols);
-          socket = ws;
-          listeners['open'] = ((web.Event _) {
-            connectTimer?.cancel();
-            if (stopped) return;
-            if (ws.protocol != protocols.first) {
-              fail();
-              return;
-            }
-            events.add(const SyncOpenEvent());
-            ping = Timer.periodic(const Duration(seconds: 30), (_) {
-              if (stopped) return;
-              pongDeadline = Timer(const Duration(seconds: 10), fail);
-              try {
-                ws.send('ping'.toJS);
-              } catch (_) {
-                fail();
-              }
-            });
-          }).toJS;
-          listeners['message'] = ((web.Event event) {
-            if (stopped) return;
-            // Any inbound message proves that the connection still works.
-            pongDeadline?.cancel();
-            pongDeadline = null;
-            final data = (event as web.MessageEvent).data;
-            if (data.isA<JSString>()) {
-              final message = (data as JSString).toDart;
-              if (utf8.encode(message).length > maxSyncResponseBytes) {
-                fail();
-                return;
-              }
-              if (message == 'pong') {
-                events.add(const SyncAliveEvent());
-                return;
-              }
-              final parsed = parse(message);
-              if (parsed != null) events.add(parsed);
-            }
-          }).toJS;
-          listeners['error'] = ((web.Event _) {
-            fail();
-          }).toJS;
-          listeners['close'] = ((web.Event event) {
-            if (stopped) return;
-            final code = (event as web.CloseEvent).code;
-            if (code == kWsClosedGone) {
-              events.add(const SyncGoneEvent());
-            } else if (code == 4410 && event.reason == 'credential_replaced') {
-              events.add(const SyncTransferredEvent());
-            } else if (code == kWsClosedRevoked) {
-              events.add(const SyncRevokedEvent());
-            }
-            stop();
-          }).toJS;
-          listeners.forEach(
-            (name, listener) => ws.addEventListener(name, listener),
-          );
-          connectTimer = Timer(timeout, fail);
-        } catch (_) {
-          fail();
-        }
+        connect();
       },
       onCancel: stop,
     );

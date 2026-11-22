@@ -10,12 +10,17 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/device/device_name.dart';
+import '../../../core/sync/access_policy.dart' show livePeopleOf;
 import '../../../core/sync/device_keys.dart';
 import '../../../core/sync/device_registry.dart';
 import '../../../core/sync/envelope.dart' show FamilyKey;
 import '../../../core/sync/hlc.dart';
+import '../../../core/sync/model.dart' show Recipient;
+import '../../../core/sync/protected_doc.dart'
+    show commonHidesGiftsFor, nothingToProtectFor;
 import '../../../core/sync/pairing_v2.dart';
 import '../../family/application/family_controller.dart';
+import '../../family/application/gift_logic.dart' show newId;
 import '../../family/data/device_keys_store.dart';
 import '../../family/data/family_store.dart';
 import '../data/sync_config.dart';
@@ -173,6 +178,11 @@ enum PairingV2HostPhase {
   /// Nada en marcha.
   idle,
 
+  /// «¿Para quién es el móvil nuevo?» (1.0.6): quien invita elige la persona
+  /// antes de crear nada ([PairingV2HostController.choose] y después
+  /// [PairingV2HostController.start]).
+  choosePerson,
+
   /// La familia sigue en v1 con otros móviles conectados: pasarla a v2 no se
   /// puede deshacer y hay que confirmarlo antes
   /// ([PairingV2HostController.confirmMigration]; hallazgo 8).
@@ -219,10 +229,51 @@ class PairingV2HostState {
     this.notReady = false,
     this.failureCode,
     this.needsNewWebQr = false,
+    this.people = const [],
+    this.selfPersonId,
+    this.hostPicked = false,
+    this.needsSelfPerson = false,
+    this.protectFailed = false,
+    this.guestOutdated = false,
+    this.approveFailed = false,
   });
+
+  /// Si antes de invitar hay que preguntar «¿Quién eres?»
+  /// (`selfPersonGateProvider`).
+  bool get needsWhoAreYou => selfPersonId == null;
 
   /// Fase.
   final PairingV2HostPhase phase;
+
+  /// Las personas de la familia, para [PairingV2HostPhase.choosePerson].
+  final List<PairingV2Person> people;
+
+  /// De quién es este móvil («Este móvil es de»), o null. Sin persona, este
+  /// móvil no puede conectar el de otra persona ([needsSelfPerson]).
+  final String? selfPersonId;
+
+  /// Este móvil ha elegido la persona del móvil nuevo (1.0.6): entonces
+  /// [guestPersonId] y [guestPersonName] son esa persona desde
+  /// [PairingV2HostPhase.waiting] (null: «alguien que no está en la lista»),
+  /// y al coincidir los códigos se aprueba sin otro paso.
+  final bool hostPicked;
+
+  /// Falló porque este móvil no tiene persona y quería conectar el móvil de
+  /// otra: antes hay que decir de quién es este (no se ha creado nada).
+  final bool needsSelfPerson;
+
+  /// Falló al aprobar porque no se pudieron poner en secreto los regalos
+  /// para [guestPersonName]: el móvil nuevo no se ha conectado.
+  final bool protectFailed;
+
+  /// Falló porque el móvil que quería entrar tiene la 1.0.5 y no entiende que
+  /// este móvil elija su persona: tiene que actualizarse
+  /// ([PairingGuestOutdatedException]).
+  final bool guestOutdated;
+
+  /// Falló al aprobar (sea por la protección o por otra causa): el otro móvil
+  /// queda quitado y puede que tenga que volver a conectarse (B8, ADR 0009).
+  final bool approveFailed;
 
   /// Enlace de la invitación (`https://<origen>/i#<id>`): lo lleva el QR y
   /// es lo que se comparte. No lleva ninguna clave.
@@ -260,6 +311,7 @@ class PairingV2HostState {
     guestPersonId: guestPersonId,
     guestPersonName: guestPersonName,
     failureCode: failureCode,
+    hostPicked: hostPicked,
   );
 }
 
@@ -267,6 +319,9 @@ class PairingV2HostState {
 class PairingV2HostController extends Notifier<PairingV2HostState> {
   WebPairingQr? _webQr;
   String? _webPerson;
+
+  /// La persona que eligió este móvil para el móvil nuevo ([start]).
+  String? _guestPerson;
   PairingV2Host? _host;
   Timer? _timer;
   InvitePollPacer? _pacer;
@@ -300,29 +355,89 @@ class PairingV2HostController extends Notifier<PairingV2HostState> {
     return identity != null && identity.paired;
   }
 
-  /// Empieza (o vuelve a empezar) un emparejamiento. Si la familia sigue en
-  /// v1 con otros móviles conectados, primero pide confirmación
+  /// Primer paso (1.0.6): enseña las personas para elegir de quién es el
+  /// móvil nuevo ([PairingV2HostPhase.choosePerson]). No crea nada; si había
+  /// una invitación en marcha, la cancela.
+  Future<void> choose() async {
+    final run = ++_run;
+    _stop();
+    final previous = _host;
+    _host = null;
+    if (previous != null) unawaited(previous.cancel());
+    final fam = await familySnapshot(ref);
+    if (run != _run || !ref.mounted) return;
+    final live = livePeopleOf(fam.doc);
+    final self = fam.identity?.selfRecipientId;
+    final hasSelf = self != null && live.contains(self);
+    state = PairingV2HostState(
+      PairingV2HostPhase.choosePerson,
+      people: [
+        for (final r in fam.view.recipients) PairingV2Person(r.id, r.name),
+      ],
+      selfPersonId: hasSelf ? self : null,
+    );
+  }
+
+  /// «No está en la lista» o, con [noGifts], «Nadie» para el móvil nuevo
+  /// (1.0.6): da de alta a [name] (con [noGifts], alguien que solo regala) y
+  /// empieza la invitación para esa persona ([start]).
+  Future<void> startForNewPerson(String name, {bool noGifts = false}) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) throw ArgumentError.value(name, 'name');
+    final family = ref.read(familyControllerProvider.notifier);
+    final fam = await familySnapshot(ref);
+    final id = newId();
+    await family.upsertRecipient(
+      Recipient(
+        id: id,
+        name: trimmed,
+        colorIndex: fam.fullView.recipients.length,
+        archived: false,
+        noGifts: noGifts,
+        inReparto: !noGifts,
+      ),
+    );
+    await start(guestPerson: id);
+  }
+
+  /// Empieza (o vuelve a empezar) un emparejamiento para el móvil de
+  /// [guestPerson], la persona que ha elegido este móvil (1.0.6: el móvil
+  /// nuevo entra ya con esa persona, sin elegir nada él; quien no está en la
+  /// lista se da de alta antes con [startForNewPerson], y «Nadie» es una
+  /// persona que solo regala). Si la familia sigue en v1 con otros móviles
+  /// conectados, primero pide confirmación
   /// ([PairingV2HostPhase.confirmMigration]) y no toca nada.
-  Future<void> start() {
+  ///
+  /// Este móvil tiene que ser de alguien: si no, falla con
+  /// [PairingV2HostState.needsSelfPerson] sin crear nada («¿Quién eres?»).
+  /// Antes de crear la invitación intenta poner en secreto los regalos para
+  /// [guestPerson]; el intento que cuenta es el de antes de aprobar.
+  Future<void> start({required String guestPerson}) {
     _webQr = null;
     _webPerson = null;
+    _guestPerson = guestPerson;
     return _start(migrationConfirmed: false);
   }
 
-  /// Mobile UI: scan, choose a live person, then call this method. No offer is
-  /// created until both QR and person have been supplied and validated.
+  /// Mobile UI: scan, then call this method. No offer is created until the
+  /// QR has been validated. 1.0.6 (ADR 0009): the web is an extension of
+  /// this phone, so by default it inherits this phone's person
+  /// ([guestPerson] stays only for tests and older flows).
   Future<void> startWeb(
     String qr, {
-    required String guestPerson,
+    String? guestPerson,
     String origin = kWebPairingOrigin,
   }) async {
     final parsed = WebPairingQr.parse(qr, origin: origin);
     final family = await familySnapshot(ref);
-    if (!family.fullView.recipients.any((p) => p.id == guestPerson)) {
+    final person = guestPerson ?? family.identity?.selfRecipientId;
+    if (person != null &&
+        !family.fullView.recipients.any((p) => p.id == person)) {
       throw const PairingException('esa persona no existe');
     }
     _webQr = parsed;
-    _webPerson = guestPerson;
+    _webPerson = person;
+    _guestPerson = null;
     await _start(migrationConfirmed: false);
   }
 
@@ -423,7 +538,44 @@ class PairingV2HostController extends Notifier<PairingV2HostState> {
     }
     var phase = 'migration';
     final sync = ref.read(syncControllerProvider.notifier);
+    final picked = _webQr == null;
+    final person = picked ? _guestPerson : null;
+    String? personName;
     try {
+      // 1.0.6: para invitar a otro dispositivo (móvil o web), este móvil
+      // tiene que ser de una persona («¿Quién eres?», antes de crear la
+      // familia v2; «Nadie» también es una persona, que solo regala).
+      phase = 'person';
+      final fam = await familySnapshot(ref);
+      if (run != _run || !ref.mounted) return;
+      final live = livePeopleOf(fam.doc);
+      final self = fam.identity?.selfRecipientId;
+      final hasSelf = self != null && live.contains(self);
+      if (person != null) {
+        for (final r in fam.fullView.recipients) {
+          if (r.id == person) personName = r.name;
+        }
+        if (!live.contains(person) || personName == null) {
+          throw const PairingException('esa persona no existe');
+        }
+      }
+      // Sin persona, este móvil no tiene derecho a las sorpresas de nadie:
+      // no podría poner en secreto los regalos del móvil nuevo.
+      if (!hasSelf) {
+        state = PairingV2HostState(
+          PairingV2HostPhase.failed,
+          needsSelfPerson: true,
+          hostPicked: picked,
+          guestPersonId: person,
+          guestPersonName: personName,
+          failureCode: _failureCode(
+            phase,
+            const PairingException('este móvil no tiene persona'),
+          ),
+        );
+        return;
+      }
+      phase = 'migration';
       if (!migrationConfirmed) {
         final ask = await _migrationNeedsConsent();
         if (run != _run || !ref.mounted) return;
@@ -446,15 +598,29 @@ class PairingV2HostController extends Notifier<PairingV2HostState> {
           !await store.remoteSyncEnabled() &&
           !await store.recoveryActivationPending();
       if (inviteCopy) await sync.markV2InviteCopy(local.identity.syncId);
+      // La web también (1.0.6): los regalos para su persona, igual que para
+      // un móvil. Si es la de este móvil, no hay nada que ocultar.
+      final protectFirst = picked ? person : _webPerson;
+      if (protectFirst != null) {
+        // Primer intento (1.0.6): los regalos para esa persona, en secreto
+        // antes de enseñar nada. Si este móvil aún no puede (por ejemplo,
+        // espera a que aprueben su persona), vale el intento de antes de
+        // aprobar, que falla en cerrado.
+        phase = 'protect';
+        await ref
+            .read(familyControllerProvider.notifier)
+            .protectBeforeInvite(protectFirst);
+      }
       final host = await PairingV2Host.start(
         transport: transport,
         local: local,
         lock: ref.read(v2FamilyLockProvider),
         onPhase: (next) => phase = next,
         web: _webQr,
-        guestPerson: _webPerson,
+        guestPerson: picked ? person : _webPerson,
         inviteCopy: inviteCopy,
         v1Key: await _legacyV1Key(local.identity.listId),
+        hostPicksPerson: picked,
       );
       if (run != _run || !ref.mounted) {
         unawaited(host.cancel());
@@ -472,6 +638,10 @@ class PairingV2HostController extends Notifier<PairingV2HostState> {
       state = PairingV2HostState(
         PairingV2HostPhase.waiting,
         link: inviteLink(endpoint.invitationHost, host.inviteId),
+        hostPicked: picked,
+        guestPersonId: person,
+        guestPersonName: personName,
+        guestWithoutPerson: picked && person == null,
       );
       _schedule(run);
     } on V2InviteConflictException catch (e) {
@@ -601,6 +771,7 @@ class PairingV2HostController extends Notifier<PairingV2HostState> {
         guestWithoutPerson: person == null,
         guestPersonId: person,
         guestPersonName: name,
+        hostPicked: host.hostPicksPerson,
       );
       _schedule(run);
     } on InviteGoneException catch (e) {
@@ -611,13 +782,21 @@ class PairingV2HostController extends Notifier<PairingV2HostState> {
       if (run != _run || !ref.mounted) return;
       // La respuesta no valía (o era de una persona que no existe) y la
       // invitación ya está borrada.
-      _end(PairingV2HostPhase.failed, failureCode: _failureCode('poll', e));
+      _end(
+        PairingV2HostPhase.failed,
+        failureCode: _failureCode('poll', e),
+        guestOutdated: e is PairingGuestOutdatedException,
+      );
     } on Object catch (e) {
       if (run == _run && ref.mounted) {
         state = PairingV2HostState(
           state.phase,
           link: state.link,
           failureCode: _failureCode('poll', e),
+          hostPicked: state.hostPicked,
+          guestPersonId: state.guestPersonId,
+          guestPersonName: state.guestPersonName,
+          guestWithoutPerson: state.guestWithoutPerson,
         );
       }
       final limited =
@@ -632,15 +811,18 @@ class PairingV2HostController extends Notifier<PairingV2HostState> {
     }
   }
 
-  /// «Coinciden». Si el otro móvil dice ser de alguien, antes hay que
-  /// confirmarlo aparte ([confirmPerson]); si no, da acceso al otro móvil.
+  /// «Coinciden». Si la persona la eligió este móvil (1.0.6), da acceso al
+  /// otro móvil como de esa persona. Si no (la web y las versiones viejas) y
+  /// el otro móvil dice ser de alguien, antes hay que confirmarlo aparte
+  /// ([confirmPerson]); si no, da acceso al otro móvil.
   Future<void> confirm() async {
-    if (_host == null || state.phase != PairingV2HostPhase.compare) return;
-    if (state.guestPersonId != null) {
+    final host = _host;
+    if (host == null || state.phase != PairingV2HostPhase.compare) return;
+    if (state.guestPersonId != null && !host.hostPicksPerson) {
       state = state._as(PairingV2HostPhase.confirmPerson);
       return;
     }
-    await _approve(confirmedPersonId: null);
+    await _approve(confirmedPersonId: state.guestPersonId);
   }
 
   /// «Sí, es de…»: da acceso al otro móvil como de esa persona.
@@ -657,10 +839,40 @@ class PairingV2HostController extends Notifier<PairingV2HostState> {
     final current = state;
     _stop();
     state = current._as(PairingV2HostPhase.approving);
+    // La web pasa por el mismo intento obligatorio que un móvil (1.0.6).
+    final protect = host.hostPicksPerson || _webQr != null
+        ? confirmedPersonId
+        : null;
+    final store = ref.read(familyStoreProvider);
     try {
+      final fam = await familySnapshot(ref);
+      // Hay que ocultar algo si el móvil nuevo es de otra persona que recibe
+      // regalos (no el segundo móvil de la misma persona).
+      final mustHide =
+          protect != null &&
+          protect != fam.identity?.selfRecipientId &&
+          !nothingToProtectFor(fam.doc, protect);
       await host.confirm(
         guestWithoutPerson: current.guestWithoutPerson,
         confirmedPersonId: confirmedPersonId,
+        // Segundo intento, el que cuenta (1.0.6): con la ficha del móvil
+        // nuevo ya guardada y antes del checkpoint. Si no se puede, no se
+        // aprueba.
+        beforePublish: protect == null
+            ? null
+            : () => ref
+                  .read(familyControllerProvider.notifier)
+                  .protectForPairingWithinLock(protect),
+        // Y en cada intento, el común exacto que se aprueba.
+        verifyCheckpoint: mustHide
+            ? (common) async => commonHidesGiftsFor(common, protect)
+            // Quien solo regala se salta la protección solo si el común
+            // exacto que se aprueba sigue sin ningún regalo vivo suyo (B5).
+            : protect != null && protect != fam.identity?.selfRecipientId
+            ? (common) async => nothingToProtectFor(common, protect)
+            : null,
+        onPending: store.savePairingPendingGuest,
+        onSettled: () => store.savePairingPendingGuest(null),
       );
       if (run != _run || !ref.mounted) return;
       await ref.read(familyControllerProvider.notifier).markPaired();
@@ -671,7 +883,15 @@ class PairingV2HostController extends Notifier<PairingV2HostState> {
     } on Object catch (e) {
       if (run != _run || !ref.mounted) return;
       await host.cancel();
-      _end(PairingV2HostPhase.failed, failureCode: _failureCode('approve', e));
+      _end(
+        PairingV2HostPhase.failed,
+        failureCode: _failureCode('approve', e),
+        protectFailed:
+            e is PairingProtectionException ||
+            e is PairingCheckpointUnprotectedException,
+        approveFailed: true,
+        personName: current.guestPersonName,
+      );
     }
   }
 
@@ -714,10 +934,22 @@ class PairingV2HostController extends Notifier<PairingV2HostState> {
     String? code,
     String? failureCode,
     bool dropCopy = true,
+    bool protectFailed = false,
+    bool guestOutdated = false,
+    bool approveFailed = false,
+    String? personName,
   }) {
     _stop();
     final sync = ref.read(syncControllerProvider.notifier)..setV2Pairing(false);
-    state = PairingV2HostState(phase, code: code, failureCode: failureCode);
+    state = PairingV2HostState(
+      phase,
+      code: code,
+      failureCode: failureCode,
+      protectFailed: protectFailed,
+      guestOutdated: guestOutdated,
+      approveFailed: approveFailed,
+      guestPersonName: protectFailed ? personName : null,
+    );
     if (dropCopy && phase != PairingV2HostPhase.done) {
       unawaited(sync.dropV2InviteCopy());
     }
@@ -795,10 +1027,20 @@ class PairingV2GuestState {
     this.versionMismatch = false,
     this.failureCode,
     this.leftoverDevice = false,
+    this.hostAssigned = false,
+    this.assignedPersonId,
   });
 
   /// Fase.
   final PairingV2GuestPhase phase;
+
+  /// Quien invita ha elegido de quién es este móvil (1.0.6): no hay que
+  /// elegir nada. El nombre solo se conoce al llegar la lista.
+  final bool hostAssigned;
+
+  /// La persona que eligió quien invita (id estable), o null («alguien que
+  /// no está en la lista»).
+  final String? assignedPersonId;
 
   /// Falló después de que el otro móvil diera acceso (B7, M3): este móvil ha
   /// abandonado esa credencial y puede volver a intentarlo, pero en la
@@ -850,6 +1092,19 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
   DeviceKeys? _keys;
   String? _replaced;
   String _confirmedDeviceName = '';
+
+  /// La persona que eligió quien invita ([PairingV2Guest.assignedPerson]).
+  String? _assigned;
+
+  PairingV2GuestState _assignedState(
+    PairingV2GuestPhase phase, {
+    String? code,
+  }) => PairingV2GuestState(
+    phase,
+    code: code,
+    hostAssigned: true,
+    assignedPersonId: _assigned,
+  );
 
   @override
   PairingV2GuestState build() {
@@ -953,11 +1208,17 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
       );
       // Una apertura vieja no pisa lo de la que está en marcha.
       if (run != _run || !ref.mounted) return;
+      // 1.0.6: quien invita elige la persona. Un anfitrión sin la marca es
+      // de una versión que deja entrar sin persona: no se entra («actualiza»).
+      if (!guest.hostPicksPerson) {
+        throw const PairingV2VersionMismatchException();
+      }
       _sameList = sameList;
       _deviceId = deviceId;
       _guest = guest;
       _pacer = pacer;
       _keys = keys;
+      _assigned = guest.assignedPerson;
       if (!replacing &&
           !_sameList &&
           identity != null &&
@@ -965,7 +1226,7 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
         state = const PairingV2GuestState(PairingV2GuestPhase.confirmReplace);
         return;
       }
-      _askPerson(fam);
+      await _answerAssigned(run);
     } on RecoveryApplicationException catch (e) {
       _set(
         run,
@@ -1034,21 +1295,25 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
     if (run == _run && ref.mounted) state = next;
   }
 
-  void _askPerson(FamilyState fam) {
-    final people = _sameList
-        ? [
-            for (final r in fam.fullView.recipients)
-              PairingV2Person(r.id, r.name),
-          ]
-        : const <PairingV2Person>[];
-    // La identidad de este móvil sigue intacta hasta `_install`: de ahí sale
-    // «Este móvil es de». Solo vale si esa persona está en la lista.
-    final self = fam.identity?.selfRecipientId;
-    state = PairingV2GuestState(
-      PairingV2GuestPhase.choosePerson,
-      people: people,
-      selfId: self != null && people.any((p) => p.id == self) ? self : null,
-    );
+  /// Responde con la persona que eligió quien invita (1.0.6): este móvil no
+  /// elige nada. El anfitrión solo acepta esa persona.
+  Future<void> _answerAssigned(int run) async {
+    final guest = _guest;
+    if (guest == null || run != _run || !ref.mounted) return;
+    final person = _assigned;
+    try {
+      // 1.0.6: ningún móvil entra sin persona.
+      if (person == null) throw const PairingV2VersionMismatchException();
+      await guest.answer(personId: person);
+      _set(run, _assignedState(PairingV2GuestPhase.waitingCode));
+      _schedule(run);
+    } on InviteTakenException catch (e) {
+      _guestFailure(run, 'answer', e, gone: true);
+    } on InviteGoneException catch (e) {
+      _guestFailure(run, 'answer', e, gone: true);
+    } on Object catch (e) {
+      _guestFailure(run, 'answer', e);
+    }
   }
 
   /// Sí, sustituir la familia de este móvil por la de la invitación. La
@@ -1125,10 +1390,7 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
           if (code == null) {
             _schedule(run);
           } else {
-            _set(
-              run,
-              PairingV2GuestState(PairingV2GuestPhase.compare, code: code),
-            );
+            _set(run, _assignedState(PairingV2GuestPhase.compare, code: code));
           }
         case PairingV2GuestPhase.waitingApproval:
           final joined = await guest.finish();
@@ -1147,7 +1409,7 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
             );
             _set(
               run,
-              PairingV2GuestState(PairingV2GuestPhase.done, code: state.code),
+              _assignedState(PairingV2GuestPhase.done, code: state.code),
             );
           }
         default:
@@ -1172,6 +1434,8 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
           state.phase,
           code: state.code,
           failureCode: _failureCode(phase, e),
+          hostAssigned: state.hostAssigned,
+          assignedPersonId: state.assignedPersonId,
         ),
       );
       final limited = e.failure == SyncFailure.rateLimited;
@@ -1190,7 +1454,7 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
     final guest = _guest;
     if (guest == null || state.phase != PairingV2GuestPhase.compare) return;
     guest.confirmCode();
-    state = PairingV2GuestState(
+    state = _assignedState(
       PairingV2GuestPhase.waitingApproval,
       code: state.code,
     );
@@ -1318,6 +1582,10 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
       doc: doc,
       deviceName: deviceName,
       paired: true,
+      // «Este móvil es de» la persona que eligió quien invita, la de la
+      // ficha firmada (también si es nadie).
+      setSelfRecipient: true,
+      selfRecipientId: _assigned,
     );
     _replaced = null;
     // Tras el corte, nace con la marca irreversible antes de la identidad:

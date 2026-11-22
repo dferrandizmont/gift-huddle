@@ -33,8 +33,11 @@ const Size desktop1280 = Size(1280, 800);
 /// tocar el disco.
 class FakeFamily extends FamilyController {
   /// Crea la familia con [people] (nombre → archivada).
-  FakeFamily([Map<String, bool>? people])
+  FakeFamily([Map<String, bool>? people, this.self])
     : people = people ?? const {'Aritz': false, 'Nora': false, 'Leo': false};
+
+  /// La persona de «Yo» de este móvil, si tiene.
+  final String? self;
 
   /// Nombre de cada persona y si está archivada.
   final Map<String, bool> people;
@@ -58,10 +61,11 @@ class FakeFamily extends FamilyController {
     }
     return FamilyState(
       doc: doc,
-      identity: const FamilyIdentity(
+      identity: FamilyIdentity(
         listId: 'lista',
         node: 'prueba',
         deviceName: 'Pixel de prueba',
+        selfRecipientId: self,
       ),
     );
   }
@@ -95,7 +99,7 @@ class FakeHost extends PairingV2HostController {
   @override
   Future<void> startWeb(
     String qr, {
-    required String guestPerson,
+    String? guestPerson,
     String origin = kWebPairingOrigin,
   }) async {
     calls.add('startWeb:$guestPerson');

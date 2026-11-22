@@ -113,7 +113,7 @@ final giftsForProvider = Provider.family<List<Gift>, String>(
 
 /// La vista con solo los regalos de las personas activas, para el presupuesto.
 FamilyView _activeGifts(FamilyView view) {
-  final active = {for (final r in view.recipients) r.id};
+  final active = {for (final r in view.giftRecipients) r.id};
   return FamilyView(
     recipients: view.recipients,
     givers: view.givers,

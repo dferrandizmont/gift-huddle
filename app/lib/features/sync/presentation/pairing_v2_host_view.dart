@@ -12,10 +12,18 @@ import '../../../core/theme/regalos_shape.dart';
 import '../../../core/theme/regalos_tokens.dart';
 import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/widgets/sheet_parts.dart';
+import '../../../core/widgets/soft_note.dart';
+import '../../../core/widgets/stroke_icon.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../family/application/family_providers.dart'
+    show giftRecipientAccessProvider;
 import '../../sharing/presentation/pairing_qr_view.dart';
+import '../application/family_device_rows.dart';
+import '../application/family_devices.dart' show FamilyDeviceRow;
 import '../application/pairing_v2_controller.dart';
 import 'code_card.dart';
+import 'person_picker.dart';
+import 'who_are_you_step.dart';
 
 /// El emparejamiento v2 desde el móvil que invita: el QR («Está aquí») o el
 /// enlace («Está lejos»), el número que hay que comparar y el resultado.
@@ -43,6 +51,19 @@ class _PairingV2HostViewState extends ConsumerState<PairingV2HostView> {
   late final PairingV2HostController _controller;
   bool _asking = false;
 
+  /// Los móviles con nombre cuando se dio acceso (1.0.6, QA m3): cuando
+  /// aparece otro, el invitado ha terminado y «Acceso enviado» se cierra
+  /// solo.
+  Set<String> _namedAtDone = const <String>{};
+  bool _closing = false;
+
+  Set<String> _namedOthers() => {
+    for (final r
+        in ref.read(familyDeviceRowsProvider).value ??
+            const <FamilyDeviceRow>[])
+      if (!r.isSelf && (r.deviceName?.trim().isNotEmpty ?? false)) r.deviceId,
+  };
+
   @override
   void initState() {
     super.initState();
@@ -52,7 +73,8 @@ class _PairingV2HostViewState extends ConsumerState<PairingV2HostView> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted &&
           ref.read(pairingV2HostProvider).phase == PairingV2HostPhase.idle) {
-        unawaited(_controller.start());
+        // 1.0.6: primero se elige para quién es el móvil nuevo.
+        unawaited(_controller.choose());
       }
     });
   }
@@ -121,10 +143,42 @@ class _PairingV2HostViewState extends ConsumerState<PairingV2HostView> {
           previous?.phase != PairingV2HostPhase.confirmMigration) {
         unawaited(_askMigration());
       }
+      if (next.phase == PairingV2HostPhase.done &&
+          previous?.phase != PairingV2HostPhase.done) {
+        _namedAtDone = _namedOthers();
+        _closing = false;
+      }
+    });
+    // El invitado ha terminado de conectarse: su nombre llega con su primera
+    // copia. La hoja se cierra sola.
+    ref.listen<AsyncValue<List<FamilyDeviceRow>?>>(familyDeviceRowsProvider, (
+      previous,
+      next,
+    ) {
+      if (_closing ||
+          ref.read(pairingV2HostProvider).phase != PairingV2HostPhase.done) {
+        return;
+      }
+      if (_namedOthers().difference(_namedAtDone).isNotEmpty) {
+        _closing = true;
+        unawaited(Navigator.of(context).maybePop());
+      }
     });
     final state = ref.watch(pairingV2HostProvider);
     final Widget body;
+    final name = state.guestPersonName ?? '';
     switch (state.phase) {
+      case PairingV2HostPhase.choosePerson:
+        body = _ChoosePerson(
+          people: state.people,
+          selfPersonId: state.selfPersonId,
+          needsSelf: state.needsWhoAreYou,
+          onChoose: (id) => _controller.start(guestPerson: id),
+          onNew: (name, {required noGifts}) =>
+              _controller.startForNewPerson(name, noGifts: noGifts),
+          // Con persona ya, vuelve a la lista para elegir la del móvil nuevo.
+          onSelfAnswered: _controller.choose,
+        );
       case PairingV2HostPhase.idle:
       case PairingV2HostPhase.confirmMigration:
       case PairingV2HostPhase.preparing:
@@ -139,7 +193,8 @@ class _PairingV2HostViewState extends ConsumerState<PairingV2HostView> {
       case PairingV2HostPhase.compare:
         body = _Compare(
           code: state.code ?? '',
-          withoutPerson: state.guestWithoutPerson,
+          hostPicked: state.hostPicked,
+          personName: state.guestPersonName,
           busy: false,
           onMatch: _controller.confirm,
           onNoMatch: _controller.cancel,
@@ -153,7 +208,7 @@ class _PairingV2HostViewState extends ConsumerState<PairingV2HostView> {
         );
       case PairingV2HostPhase.approving:
         // Se queda en el paso desde el que se aprobó, con el indicador.
-        body = state.guestPersonId != null
+        body = state.guestPersonId != null && !state.hostPicked
             ? _ConfirmPerson(
                 name: state.guestPersonName ?? '',
                 busy: true,
@@ -162,7 +217,8 @@ class _PairingV2HostViewState extends ConsumerState<PairingV2HostView> {
               )
             : _Compare(
                 code: state.code ?? '',
-                withoutPerson: state.guestWithoutPerson,
+                hostPicked: state.hostPicked,
+                personName: state.guestPersonName,
                 busy: true,
                 onMatch: () {},
                 onNoMatch: () {},
@@ -172,14 +228,22 @@ class _PairingV2HostViewState extends ConsumerState<PairingV2HostView> {
       case PairingV2HostPhase.cancelled:
         body = _Failure(
           text: l10n.pairingV2HostCancelled,
-          onRestart: _controller.start,
+          onRestart: _controller.choose,
         );
       case PairingV2HostPhase.failed:
         body = _Failure(
-          text: state.notReady
+          text: state.needsSelfPerson
+              ? l10n.inviteForNeedsSelf
+              : state.protectFailed
+              ? l10n.pairingV2ProtectFailed(name)
+              : state.guestOutdated
+              ? l10n.pairingV2GuestOutdated
+              : state.approveFailed
+              ? l10n.pairingV2ApproveFailed
+              : state.notReady
               ? l10n.pairingV2NotReady
               : l10n.pairingV2HostFailed,
-          onRestart: _controller.start,
+          onRestart: _controller.choose,
         );
     }
     // Cada fase entra con el mismo cambio de paso que las hojas, y la altura
@@ -187,7 +251,7 @@ class _PairingV2HostViewState extends ConsumerState<PairingV2HostView> {
     // se aprueba; avisar de la migración, el mismo que preparar.
     final step = switch (state.phase) {
       PairingV2HostPhase.approving =>
-        state.guestPersonId != null
+        state.guestPersonId != null && !state.hostPicked
             ? PairingV2HostPhase.confirmPerson
             : PairingV2HostPhase.compare,
       PairingV2HostPhase.idle ||
@@ -216,6 +280,63 @@ class _Progress extends StatelessWidget {
           Text(text, style: t.styles.body, textAlign: TextAlign.center),
         ],
       ),
+    );
+  }
+}
+
+/// «¿Para quién es el móvil nuevo?» (1.0.6) y, antes, «¿Quién eres?» si este
+/// móvil no es de nadie. Elegir a alguien que aún no tenía los regalos en
+/// secreto lo avisa antes de seguir ([PersonPicker]).
+class _ChoosePerson extends ConsumerWidget {
+  const _ChoosePerson({
+    required this.people,
+    required this.selfPersonId,
+    required this.needsSelf,
+    required this.onChoose,
+    required this.onNew,
+    required this.onSelfAnswered,
+  });
+
+  final List<PairingV2Person> people;
+  final String? selfPersonId;
+  final bool needsSelf;
+  final ValueChanged<String> onChoose;
+  final void Function(String name, {required bool noGifts}) onNew;
+  final VoidCallback onSelfAnswered;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    if (needsSelf) {
+      return WhoAreYouStep(people: people, onAnswered: onSelfAnswered);
+    }
+    // Quien ya tiene los regalos en secreto, o solo regala, o es la persona de
+    // este móvil, no recibe el aviso. Sin saberlo todavía, se avisa.
+    final access = ref.watch(giftRecipientAccessProvider).value;
+    String? noticeFor(String id) {
+      if (id == selfPersonId) return null;
+      final found = access?.where((a) => a.recipient.id == id).firstOrNull;
+      if (found != null && (found.isProtected || found.recipient.noGifts)) {
+        return null;
+      }
+      final name = people.where((p) => p.id == id).firstOrNull?.name;
+      return name == null ? null : l10n.inviteForSecretNotice(name);
+    }
+
+    return PersonPicker(
+      title: l10n.inviteForTitle,
+      body: l10n.inviteForBody,
+      people: people,
+      notOnListLabel: l10n.inviteForNotOnList,
+      nobodyLabel: l10n.inviteForNobody,
+      nameLabel: l10n.inviteForNameLabel,
+      noticeFor: noticeFor,
+      newNotice: l10n.inviteForSecretNotice,
+      // La persona de este móvil lleva su nota (1.0.6, QA m6); no sale
+      // elegida: quien invita decide.
+      thisPhonePersonId: selfPersonId,
+      onPerson: onChoose,
+      onNew: onNew,
     );
   }
 }
@@ -288,6 +409,12 @@ class _Waiting extends StatelessWidget {
           style: t.styles.meta,
           textAlign: TextAlign.center,
         ),
+        const SizedBox(height: 8),
+        Text(
+          l10n.pairingV2HostUpdateHint,
+          style: t.styles.meta,
+          textAlign: TextAlign.center,
+        ),
         if (far) ...[
           const SizedBox(height: 8),
           TextButton(onPressed: onCancel, child: Text(l10n.inviteCancel)),
@@ -300,14 +427,16 @@ class _Waiting extends StatelessWidget {
 class _Compare extends StatelessWidget {
   const _Compare({
     required this.code,
-    required this.withoutPerson,
     required this.busy,
     required this.onMatch,
     required this.onNoMatch,
+    this.hostPicked = false,
+    this.personName,
   });
 
   final String code;
-  final bool withoutPerson;
+  final bool hostPicked;
+  final String? personName;
   final bool busy;
   final VoidCallback onMatch;
   final VoidCallback onNoMatch;
@@ -335,9 +464,12 @@ class _Compare extends StatelessWidget {
           code: code,
           confirmed: busy,
         ),
-        if (withoutPerson) ...[
+        if (hostPicked && personName != null) ...[
           const SizedBox(height: 12),
-          WarningBox(l10n.pairingV2NoPersonWarning),
+          SoftNote(
+            icon: AppIcons.people,
+            text: l10n.pairingV2HostCompareFor(personName!),
+          ),
         ],
         const SizedBox(height: 20),
         if (busy) ...[
@@ -516,12 +648,11 @@ class _Failure extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final t = RegalosTokens.of(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(text, style: t.styles.body),
+        Semantics(liveRegion: true, child: WarningBox(text)),
         const SizedBox(height: 16),
         FilledButton(onPressed: onRestart, child: Text(l10n.joinInviteRestart)),
       ],

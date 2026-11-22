@@ -1,3 +1,5 @@
+import '../../web_device/application/web_app_provider.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -79,7 +81,12 @@ class AboutScreen extends ConsumerWidget {
               Text(l10n.appTitle, style: t.styles.screenTitle),
               Text(l10n.aboutVersion(kAppVersion), style: t.styles.meta),
               const SizedBox(height: 16),
-              Text(l10n.aboutPrivacy, style: t.styles.body),
+              Text(
+                ref.watch(webAppProvider)
+                    ? l10n.aboutPrivacyWeb
+                    : l10n.aboutPrivacy,
+                style: t.styles.body,
+              ),
             ],
           ),
         ),

@@ -77,7 +77,10 @@ void main() {
       ..addPerson('aritz', 'Aritz')
       ..addPerson('leo', 'Leo')
       ..addPerson('nora', 'Nora')
-      ..addGift('g-1', 'leo', 'Libro');
+      // 1.0.6: los regalos de quien tiene móvil se ponen en secreto solos;
+      // estos son para alguien sin móvil.
+      ..addPerson('leo-guest', 'Leo')
+      ..addGift('g-1', 'leo-guest', 'Libro');
     await vouchAll([a, b, c]);
     await a.engine(client).ensureCreated();
     for (final p in [b, c]) {
@@ -153,7 +156,7 @@ void main() {
     await family().upsertGift(
       const Gift(
         id: 'g-app',
-        recipientId: 'leo',
+        recipientId: 'leo-guest',
         title: 'Puzle',
         status: GiftStatus.idea,
         rawStatus: 'idea',
@@ -167,7 +170,7 @@ void main() {
     await b.mergeCommon(opened.doc, fromNode: opened.fromNode);
     expect(b.giftTitles, containsAll({'Libro', 'Puzle'}));
     // Abrir.
-    b.addGift('g-leo', 'nora', 'Cometa');
+    b.addGift('g-leo', 'leo-guest', 'Cometa');
     final summary = await share().importEnvelopeBytes(
       await ExchangeV2(b).export(),
     );
@@ -201,7 +204,7 @@ void main() {
       ),
     );
     final docBefore = b.doc;
-    b.addGift('g-file', 'aritz', 'Solo en el fichero');
+    b.addGift('g-file', 'leo-guest', 'Solo en el fichero');
     final file = ExchangeFile.parse(await ExchangeV2(b).export());
     b.doc = docBefore;
     final stripped = ExchangeFile(

@@ -11,9 +11,12 @@ import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/widgets/settings_icons.dart';
 import '../../../core/widgets/settings_row.dart';
 import '../../../core/widgets/sheet_parts.dart';
+import '../../../core/widgets/soft_note.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../sync/application/family_device_review.dart';
 import '../../sync/application/family_devices.dart' show FamilyDeviceRow;
+import '../../sync/application/family_device_rows.dart'
+    show familyDeviceRowsProvider;
 import '../../sync/application/pairing_v2_controller.dart';
 
 // Hojas de «Móviles de la familia» (fase 3, lote 2): el detalle de un móvil,
@@ -302,7 +305,12 @@ class _ReviewBody extends StatelessWidget {
     required this.onApprove,
     required this.onRemove,
     this.onLater,
+    this.isWeb = false,
   });
+
+  /// Si el dispositivo es una web: al aprobarla recibe las claves de los
+  /// regalos en secreto de los demás (B9, ADR 0009) y se avisa.
+  final bool isWeb;
 
   final DeviceReviewItem item;
   final String? personName;
@@ -331,6 +339,13 @@ class _ReviewBody extends StatelessWidget {
             _reasonText(l10n, item),
             style: t.styles.body.copyWith(color: t.textSecondary),
           ),
+          if (isWeb) ...[
+            const SizedBox(height: 12),
+            SoftNote(
+              icon: SettingsIcons.lock,
+              text: l10n.webApproveSecretsNotice,
+            ),
+          ],
           if (notice != null) ...[
             const SizedBox(height: 12),
             Semantics(
@@ -697,6 +712,7 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
           ),
           _ReviewBody(
             item: review!,
+            isWeb: widget.entry.row.isWeb,
             personName: _person,
             busy: _busy,
             notice: _changed ? l10n.deviceChangedNotice : null,
@@ -881,6 +897,12 @@ class _ReviewSheetState extends ConsumerState<_ReviewSheet> {
         ),
         _ReviewBody(
           item: current,
+          isWeb:
+              ref
+                  .watch(familyDeviceRowsProvider)
+                  .value
+                  ?.any((r) => r.deviceId == current.deviceId && r.isWeb) ??
+              false,
           personName: person,
           busy: _busy,
           notice: _changedIds.contains(current.deviceId)

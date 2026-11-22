@@ -91,17 +91,17 @@ void main() {
       expect(liveSurpriseGifts(opened.doc), kMaxSurpriseGifts);
     });
 
-    test('desde la interfaz caben 50: el 51 da un error claro', () {
+    test('desde la interfaz caben 200: el 201 da un error claro', () {
       final clock = clockOf('aritz-phone', 1000);
       var doc = FamilyDoc.empty(kListId);
       for (var i = 0; i < kMaxSurpriseGifts; i++) {
         doc = addSurpriseGift(doc, clock, 'g$i', giftFields('nora', 'R$i'));
       }
-      expect(liveSurpriseGifts(doc), 50);
+      expect(liveSurpriseGifts(doc), 200);
       expect(
-        () => addSurpriseGift(doc, clock, 'g50', giftFields('nora', 'R50')),
+        () => addSurpriseGift(doc, clock, 'g200', giftFields('nora', 'R200')),
         throwsA(
-          isA<SurpriseCapacityException>().having((e) => e.count, 'count', 51),
+          isA<SurpriseCapacityException>().having((e) => e.count, 'count', 201),
         ),
       );
       // Editar uno que ya está sí se puede.
@@ -137,11 +137,12 @@ void main() {
       expect(liveSurpriseGifts(opened.doc), 64);
     });
 
-    test('64 regalos al tope de tamaño, incomprimibles, caben', () async {
+    test('64 regalos al tope de tamaño, incomprimibles, caben (lo que abre '
+        'un 1.0.5)', () async {
       final rnd = Random(11);
       var doc = FamilyDoc.empty(kListId);
       final clock = clockOf('aritz-phone', 1000);
-      for (var i = 0; i < kMaxSlotGifts; i++) {
+      for (var i = 0; i < kLegacySlotGifts; i++) {
         doc = doc.set(clock, Collections.gifts, 'g$i', giftFields('nora', 'T'));
         final record = doc.record(Collections.gifts, 'g$i')!;
         final room = kMaxSurpriseGiftBytes - surpriseRecordBytes(record) - 4;
@@ -156,7 +157,7 @@ void main() {
         );
       }
       final opened = await openAsLeo(await sealAs(family.aritz, doc));
-      expect(liveSurpriseGifts(opened.doc), kMaxSlotGifts);
+      expect(liveSurpriseGifts(opened.doc), kLegacySlotGifts);
     });
 
     test('un regalo demasiado grande: error, sin crecer (M4)', () async {

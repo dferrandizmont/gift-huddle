@@ -136,6 +136,19 @@ it("privacy: signed renewal revocation also expires secret slots after 30 days",
     expect(await runInDurableObject(stub(id), (_o, s) => s.storage.sql.exec("SELECT * FROM slot").toArray())).toEqual([]);
   } finally { vi.useRealTimers(); }
 });
+it("1.0.6 (ADR 0009, B3): a signed renewal revocation of a web erases its inbox slots at once", async () => {
+  const id = await setup();
+  await add(id, "nora", "web");
+  await migrated(id, ["aritz", "nora"]);
+  await runInDurableObject(stub(id), (_o, s) => {
+    s.storage.sql.exec("INSERT INTO slot (person, device, ver, data) VALUES ('leo', 'nora', 1, 'ciphertext')");
+    s.storage.sql.exec("INSERT INTO slot (person, device, ver, data) VALUES ('leo', 'aritz', 1, 'ciphertext')");
+  });
+  expect((await revoke(id, "nora")).status).toBe(200);
+  expect(await runInDurableObject(stub(id), (_o, s) => s.storage.sql.exec("SELECT device FROM slot").toArray())).toEqual([{ device: "aritz" }]);
+  const state = await runInDurableObject(stub(id), (_o, s) => JSON.parse(s.storage.sql.exec<{ data: string }>("SELECT data FROM state").one().data));
+  expect(state.credentials.find((c: { deviceId: string }) => c.deviceId === "nora").slotsExpireAt).toBeUndefined();
+});
 async function capability(id: Setup): Promise<Response> {
   const before = await get(id);
   return send(id, await command({ ...id, targetSyncId: before.renewal!.targetSyncId }, before.version, "capability", {

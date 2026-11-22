@@ -170,8 +170,17 @@ List<Override> _overrides({
   ProtectedPersonReason? requestReason,
   bool ownPhone = false,
   Set<String> locked = const <String>{},
+  Set<String> withDevice = const <String>{},
 }) => [
   familyControllerProvider.overrideWith(_Family.new),
+  // 1.0.6: las personas con un móvil conectado (su protección va activa sola).
+  if (withDevice.isNotEmpty)
+    familyStateProvider.overrideWith(
+      (ref) => ref
+          .watch(familyControllerProvider)
+          .value
+          ?.copyWith(otherDevicePeople: withDevice),
+    ),
   protectionActionsProvider.overrideWith(_Actions.new),
   protectionAvailableProvider.overrideWithValue(true),
   giftRecipientAccessProvider.overrideWith((ref) async {
@@ -241,7 +250,9 @@ void main() {
         expect(find.text('Regalos en secreto para Nora'), findsOneWidget);
         // Qué significa, en llano.
         expect(
-          find.textContaining('Nora no ve en su móvil qué regalos hay para Nora'),
+          find.textContaining(
+            'Nora no ve en su móvil qué regalos hay para Nora',
+          ),
           findsOneWidget,
         );
         expect(
@@ -291,6 +302,56 @@ void main() {
         expect(find.text('Pedir protección'), findsOneWidget);
         expect(find.text('Protección activa'), findsNothing);
         expect(tester.takeException(), isNull);
+      },
+      size: tall,
+      overrides: _overrides(),
+    );
+
+    screenTest(
+      '1.0.6: con un móvil conectado, la hoja dice por qué está activa y el '
+      'aviso de desactivar lo recuerda',
+      (tester, phone) async {
+        await seedSample(tester, phone);
+        await pumpRegalos(tester, phone);
+        await _openNoraSheet(tester);
+        await tester.tap(find.text('Regalos en secreto'));
+        await settle(tester);
+        await tapText(tester, 'Pedir protección');
+        await tapText(tester, 'Activar ahora');
+        expect(find.text('Protección activa'), findsOneWidget);
+        expect(
+          find.textContaining('Activos porque Nora tiene un móvil conectado.'),
+          findsOneWidget,
+        );
+        await tapText(tester, 'Desactivar protección');
+        expect(
+          find.textContaining(
+            'Nora tiene un móvil conectado: en él sus regalos seguirán sin '
+            'verse.',
+          ),
+          findsOneWidget,
+        );
+        await tapText(tester, 'Cancelar');
+        expect(tester.takeException(), isNull);
+      },
+      size: tall,
+      overrides: _overrides(withDevice: {'nora'}),
+    );
+
+    screenTest(
+      '1.0.6: sin móvil conectado no hay motivo automático ni aviso extra',
+      (tester, phone) async {
+        await seedSample(tester, phone);
+        await pumpRegalos(tester, phone);
+        await _openNoraSheet(tester);
+        await tester.tap(find.text('Regalos en secreto'));
+        await settle(tester);
+        await tapText(tester, 'Pedir protección');
+        await tapText(tester, 'Activar ahora');
+        expect(find.textContaining('Activos porque'), findsNothing);
+        await tapText(tester, 'Desactivar protección');
+        expect(find.textContaining('tiene un móvil conectado'), findsNothing);
+        await tapText(tester, 'Cancelar');
       },
       size: tall,
       overrides: _overrides(),
@@ -362,12 +423,13 @@ void main() {
           findsNothing,
         );
         expect(
-          find.textContaining(
-            'Pide a otra persona de la familia que lo haga',
-          ),
+          find.textContaining('Pide a otra persona de la familia que lo haga'),
           findsOneWidget,
         );
-        expect(find.textContaining('elige de quién es este móvil'), findsNothing);
+        expect(
+          find.textContaining('elige de quién es este móvil'),
+          findsNothing,
+        );
         expect(
           find.textContaining('Desde este móvil no se pueden proteger'),
           findsOneWidget,
@@ -444,6 +506,34 @@ void main() {
       },
       size: tall,
       overrides: _overrides(canDeactivate: false),
+    );
+
+    screenTest(
+      'activa en el móvil de la propia persona: dice que solo otra persona de '
+      'la familia puede cambiarlo, sin hablar de permisos ni de la clave',
+      (tester, phone) async {
+        await seedSample(tester, phone);
+        await pumpRegalos(tester, phone);
+        await _openNoraSheet(tester);
+        await tester.tap(find.text('Regalos en secreto'));
+        await settle(tester);
+        await tapText(tester, 'Pedir protección');
+        await tapText(tester, 'Activar ahora');
+        expect(find.text('Protección activa'), findsOneWidget);
+        expect(find.text('Desactivar protección'), findsNothing);
+        expect(
+          find.text(
+            'Solo otra persona de la familia puede cambiarlo, desde su móvil.',
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('no puede desactivarla ahora'),
+          findsNothing,
+        );
+      },
+      size: tall,
+      overrides: _overrides(canDeactivate: false, ownPhone: true),
     );
 
     screenTest(
