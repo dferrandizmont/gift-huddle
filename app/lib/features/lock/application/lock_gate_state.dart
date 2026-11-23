@@ -12,11 +12,15 @@ LockGateContent lockGateContent({
   required AsyncValue<FamilyState> family,
   required AsyncValue<AppLockState> lock,
   required bool recoveryHeld,
+  bool replacingFamily = false,
 }) {
   if (family.isLoading || lock.isLoading) return LockGateContent.loading;
   if (lock.hasError) return LockGateContent.error;
   final current = lock.value;
-  if (family.value?.hasFamily != true || current == null || !current.enabled) {
+  // «Sustituir y unirme» pasa un momento sin familia entre borrar la lista y
+  // instalar la nueva: no es un primer uso y el bloqueo sigue valiendo (M1).
+  final hasFamily = family.value?.hasFamily == true || replacingFamily;
+  if (!hasFamily || current == null || !current.enabled) {
     return LockGateContent.none;
   }
   if (current.needsSetup) {

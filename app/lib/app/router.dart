@@ -29,6 +29,7 @@ import '../features/recovery/presentation/recovery_restore_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/settings/presentation/settings_sections.dart';
 import '../features/sharing/presentation/join_qr_screen.dart';
+import '../features/sync/application/replace_join_hold.dart';
 import '../features/sync/presentation/join_invite_screen.dart';
 import '../features/tour/application/tour_state.dart';
 import '../features/tour/presentation/tour_screen.dart';
@@ -401,6 +402,10 @@ final routerProvider = Provider<GoRouter>((ref) {
   final hold = ref.read(recoveryHoldProvider);
   void onHold() => refresh.value++;
   hold.addListener(onHold);
+  // «Sustituir y unirme» pasa un momento sin familia entre borrar la lista de
+  // este móvil e instalar la nueva: eso no es un primer uso (M1).
+  final replacing = ref.read(replaceJoinHoldProvider);
+  replacing.addListener(onHold);
   final router = buildRouter(
     refreshListenable: refresh,
     redirect: (context, state) {
@@ -420,7 +425,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           location == AppRoutes.recover ||
           location == AppRoutes.recoverFile;
       if (!family.hasFamily && !firstRun) {
-        return AppRoutes.welcome;
+        return replacing.value ? null : AppRoutes.welcome;
       }
       if (family.hasFamily && location == AppRoutes.welcome) {
         // «Recuperar con el código» se abre encima de la bienvenida y la
@@ -461,6 +466,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.onDispose(() {
     panes.twoPanes.removeListener(onPanes);
     hold.removeListener(onHold);
+    replacing.removeListener(onHold);
     router.dispose();
     refresh.dispose();
   });

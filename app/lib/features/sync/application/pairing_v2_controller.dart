@@ -40,6 +40,7 @@ import 'migration_v2.dart';
 import 'pairing_v2_flow.dart';
 import 'recovery_providers.dart'
     show RecoveryApplicationException, requireNoPendingRestore;
+import 'replace_join_hold.dart';
 import 'sync_controller.dart';
 import 'sync_v2_engine.dart';
 
@@ -1096,6 +1097,27 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
   /// La persona que eligió quien invita ([PairingV2Guest.assignedPerson]).
   String? _assigned;
 
+  /// Si [_install] está en marcha: ni [begin], ni [reset] ni [cancel] la
+  /// cortan.
+  bool _installing = false;
+
+  /// Si el «hecho» publicado ya lo ha recogido alguien ([claimDone]).
+  bool _doneClaimed = false;
+
+  /// Quien enseña el final (la pantalla que entra o, sin ella, la app) lo
+  /// pide aquí tras ver «hecho»: solo el primero recibe `true`, una vez por
+  /// cada entrada. Vale aunque luego se haya vuelto a reposo o abierto otra
+  /// invitación (la vista que se desmonta repone en un microtask).
+  bool claimDone() {
+    if (_doneClaimed) return false;
+    _doneClaimed = true;
+    return true;
+  }
+
+  /// Si se está instalando la familia que entra: un enlace que llega ahora
+  /// no abre otra pantalla de unirse.
+  bool get installing => _installing;
+
   PairingV2GuestState _assignedState(
     PairingV2GuestPhase phase, {
     String? code,
@@ -1114,13 +1136,17 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
 
   /// Abre la invitación [inviteId] (del QR o del enlace). [deviceName] solo
   /// lleva el nombre ya escrito o aceptado en un campo; no propone el modelo.
-  Future<void> begin(String inviteId, {String deviceName = ''}) {
+  Future<void> begin(String inviteId, {String deviceName = ''}) async {
+    // Una instalación en marcha no se pisa: ni su invitación, ni su nombre, ni
+    // su intento (su «hecho» y su acuse se quedan con la que entra).
+    if (_installing) return;
     ref.read(familyStoreProvider).requireMobileOperation('pairMobile');
     _confirmedDeviceName = deviceName;
     return _open(inviteId, replacing: false);
   }
 
   Future<void> _open(String inviteId, {required bool replacing}) async {
+    if (_installing) return;
     final run = ++_run;
     _timer?.cancel();
     _replacing = replacing;
@@ -1400,13 +1426,21 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
             _schedule(run);
           } else {
             phase = 'install';
-            await ref.read(v2FamilyLockProvider).run(() => _install(joined));
+            // Lo instalado ya no se deshace: aunque la pantalla se cierre a
+            // medias (y la reponga), «hecho» se publica igual.
+            _installing = true;
+            try {
+              await ref.read(v2FamilyLockProvider).run(() => _install(joined));
+            } finally {
+              _installing = false;
+            }
             // Installation is complete: acknowledge removal of the whole invitation.
             unawaited(guest.releaseCheckpoint());
             if (ref.mounted) ref.invalidate(localRegistryReadProvider);
             unawaited(
               ref.read(syncControllerProvider.notifier).resumeAfterPairing(),
             );
+            if (run == _run && ref.mounted) _doneClaimed = false;
             _set(
               run,
               _assignedState(PairingV2GuestPhase.done, code: state.code),
@@ -1461,16 +1495,21 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
     _schedule(_run);
   }
 
-  /// «No coinciden» o cancelar: este móvil no usa la invitación.
+  /// «No coinciden» o cancelar: este móvil no usa la invitación. Con la
+  /// instalación ya en marcha no hay vuelta atrás: no hace nada.
   void cancel() {
+    if (_installing) return;
     _run++;
     _timer?.cancel();
     _guest = null;
     state = const PairingV2GuestState(PairingV2GuestPhase.cancelled);
   }
 
-  /// Vuelve a reposo.
+  /// Vuelve a reposo. Con la instalación en marcha (la pantalla que entra se
+  /// cierra a medias) no corta nada: este móvil ya está entrando, y «hecho»
+  /// se publica para que lo recoja quien quede ([PairingV2GuestPhase.done]).
   void reset() {
+    if (_installing) return;
     _run++;
     _timer?.cancel();
     _guest = null;
@@ -1509,6 +1548,18 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
 
   Future<void> _install(PairingV2Joined joined) async {
     await requireNoPendingRestore(ref);
+    if (!_replacing) return _installInto(joined);
+    // Entre borrar la lista de este móvil e instalar la nueva la app no tiene
+    // familia: el router no lo toma por un primer uso (M1).
+    final hold = ref.read(replaceJoinHoldProvider)..acquire();
+    try {
+      await _installInto(joined);
+    } finally {
+      hold.release();
+    }
+  }
+
+  Future<void> _installInto(PairingV2Joined joined) async {
     final store = ref.read(familyStoreProvider);
     final family = ref.read(familyControllerProvider.notifier);
     if (_replacing) {

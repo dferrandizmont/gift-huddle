@@ -11,6 +11,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../family/application/family_controller.dart';
 import '../../recovery/application/recovery_hold.dart';
 import '../../review/application/review_providers.dart';
+import '../../sync/application/replace_join_hold.dart';
 import '../application/lock_controller.dart';
 import '../application/lock_gate_state.dart';
 import '../data/biometrics.dart';
@@ -76,6 +77,9 @@ class _LockGateState extends ConsumerState<LockGate>
 
   late final ValueNotifier<bool> _hold = ref.read(recoveryHoldProvider);
 
+  /// «Sustituir y unirme» en marcha: sin familia un momento, pero bloqueada.
+  late final ValueNotifier<bool> _replacing = ref.read(replaceJoinHoldProvider);
+
   /// La recuperación con el código retiene o suelta la entrada: se repinta.
   void _onDeferralChanged() {
     if (mounted) {
@@ -88,6 +92,7 @@ class _LockGateState extends ConsumerState<LockGate>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _hold.addListener(_onDeferralChanged);
+    _replacing.addListener(_onDeferralChanged);
     if (isStoreReviewEnabled) {
       _reviewVisibility = ref.read(reviewVisibilityProvider);
     }
@@ -97,6 +102,7 @@ class _LockGateState extends ConsumerState<LockGate>
   void dispose() {
     _reviewVisibility?.isLockGateClear = false;
     _hold.removeListener(_onDeferralChanged);
+    _replacing.removeListener(_onDeferralChanged);
     WidgetsBinding.instance.removeObserver(this);
     _revealTimer?.cancel();
     _safetyTimer?.cancel();
@@ -172,6 +178,7 @@ class _LockGateState extends ConsumerState<LockGate>
       family: family,
       lock: lockAsync,
       recoveryHeld: _hold.value,
+      replacingFamily: _replacing.value,
     );
     Widget? overlay = switch (content) {
       LockGateContent.none => null,

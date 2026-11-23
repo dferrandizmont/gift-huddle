@@ -1,12 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../app/root_navigator.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../family/application/family_controller.dart';
 import '../../lock/application/lock_controller.dart';
 import '../../lock/application/lock_gate_state.dart';
 import '../../recovery/application/recovery_hold.dart';
 
+import '../application/pairing_v2_controller.dart';
+import '../application/replace_join_hold.dart';
 import '../invites/incoming_invite.dart';
 import 'join_invite_screen.dart';
 
@@ -66,7 +72,11 @@ class _InviteLinkListenerState extends ConsumerState<InviteLinkListener> {
     }
     // Ignore every link while this join is mounted, including its exit
     // transition: v2 views share a controller and reset it on disposal.
-    if (_joining || ref.read(joinInvitePresenceProvider).isActive) {
+    // Nor while a join is installing (its screen may already be closed): the
+    // new screen could not open anything and would show that progress.
+    if (_joining ||
+        ref.read(joinInvitePresenceProvider).isActive ||
+        ref.read(pairingV2GuestProvider.notifier).installing) {
       ref.read(incomingInviteProvider.notifier).consume();
       return;
     }
@@ -74,6 +84,7 @@ class _InviteLinkListenerState extends ConsumerState<InviteLinkListener> {
           family: ref.read(familyControllerProvider),
           lock: ref.read(lockControllerProvider),
           recoveryHeld: _hold.value,
+          replacingFamily: ref.read(replaceJoinHoldProvider).value,
         ) !=
         LockGateContent.none) {
       return;
@@ -94,8 +105,47 @@ class _InviteLinkListenerState extends ConsumerState<InviteLinkListener> {
     });
   }
 
+  /// Este móvil ya está dentro, pero quizá ninguna vista de unirse lo va a
+  /// recoger (la que entraba se cerró a media instalación; otra pantalla de
+  /// unirse abierta después se queda en el formulario). Las vistas lo piden al
+  /// momento; esto espera al final del fotograma y, si nadie lo ha pedido,
+  /// cierra las pantallas de unirse que queden, va a Personas y enseña la hoja
+  /// final ([PairingV2GuestController.claimDone]: una sola vez).
+  void _joinedWithoutScreen(String? assignedPersonId) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final guest = ref.read(pairingV2GuestProvider.notifier);
+      final navigator = widget.navigatorKey.currentState;
+      final navigatorContext = widget.navigatorKey.currentContext;
+      if (navigator == null || navigatorContext == null) return;
+      if (!guest.claimDone()) return;
+      ref.read(joinInvitePresenceProvider).closeAll(navigator);
+      unawaited(
+        finishJoin(
+          container: ProviderScope.containerOf(context, listen: false),
+          l10n: AppLocalizations.of(navigatorContext),
+          router: GoRouter.maybeOf(navigatorContext),
+          // La de esta entrada, leída al llegar «hecho»: para ahora el
+          // emparejamiento puede haber vuelto a reposo.
+          assignedPersonId: assignedPersonId,
+        ),
+      );
+      // El emparejamiento vuelve a reposo, si nadie lo ha movido ya.
+      if (ref.read(pairingV2GuestProvider).phase == PairingV2GuestPhase.done) {
+        guest.reset();
+      }
+    });
+    WidgetsBinding.instance.scheduleFrame();
+  }
+
   @override
   Widget build(BuildContext context) {
+    ref.listen<PairingV2GuestState>(pairingV2GuestProvider, (previous, next) {
+      if (next.phase == PairingV2GuestPhase.done &&
+          previous?.phase != PairingV2GuestPhase.done) {
+        _joinedWithoutScreen(next.assignedPersonId);
+      }
+    });
     ref.listen<String?>(incomingInviteProvider, (_, _) => _retryWhenReady());
     ref.listen(familyControllerProvider, (_, _) => _retryWhenReady());
     ref.listen(lockControllerProvider, (_, _) => _retryWhenReady());
