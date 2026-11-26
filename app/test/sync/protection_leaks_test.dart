@@ -15,6 +15,9 @@ import 'package:regalos/core/sync/hlc.dart';
 import 'package:regalos/core/sync/model.dart';
 import 'package:regalos/core/sync/pairing_v2.dart';
 import 'package:regalos/core/sync/protected_doc.dart';
+import 'package:regalos/core/sync/protected_envelope.dart';
+import 'package:regalos/core/sync/wish.dart';
+import 'package:regalos/core/sync/wish_plan.dart';
 import 'package:regalos/features/family/application/family_controller.dart';
 import 'package:regalos/features/family/application/family_providers.dart';
 import 'package:regalos/features/family/data/device_keys_store.dart';
@@ -401,6 +404,7 @@ void main() {
         bytes,
         key: leo.controller.familyKey!,
         expectedListId: kListId,
+        acceptFileVersion: true,
       );
       final doc = FamilyDoc.fromJson(opened.doc);
       expect(liveFor(doc, 'nora'), isEmpty);
@@ -421,6 +425,7 @@ void main() {
         bytes,
         key: a.controller.familyKey!,
         expectedListId: kListId,
+        acceptFileVersion: true,
       );
       final doc = FamilyDoc.fromJson(opened.doc);
       expect(doc.record(Collections.gifts, 's1'), isNull);
@@ -592,6 +597,181 @@ void main() {
       ].join('\n');
       expect(stored, isNot(contains('Secreto')));
       expect(stored, isNot(contains('Antiguo')));
+    });
+  });
+
+  group('3: deseos y planes (ADR 0010)', () {
+    const wishId = 'wbike';
+
+    /// Aritz con la protección de Nora activa, el deseo de Nora ya escrito
+    /// en su móvil y recibido por Aritz, y un plan con datos privados.
+    Future<(_Phone, _Phone)> withPlan() async {
+      final a = await install(family.aritz, withKey: true);
+      await a.controller.activateProtection('nora');
+      // Leo's phone, up to date, has published its slot of Nora's block: a
+      // plan is only written when every other reader announces plans.
+      final leoSlot = await SealedSlot.seal(
+        writerKeys: family.leo.keys,
+        writer: family.leo.id,
+        revision: 1,
+        key: family.key,
+        policy: const PolicyState(hideOwnGifts: true, rev: 1),
+        doc: FamilyDoc.empty(kListId),
+      );
+      final (withLeo, _) = await (await a.store.readSlots()).merge([
+        leoSlot,
+      ], view: family.view);
+      await a.store.saveSlots(withLeo);
+      final n = await install(
+        family.nora,
+        doc: a.common,
+        slots: await a.store.readSlots(),
+      );
+      final w = await n.controller.createOwnWish(
+        const VisibleWishPatch(title: 'Bicicleta', year: 2026),
+        id: wishId,
+      );
+      expect(w.ok, isTrue, reason: '${w.error} ${w.authorError}');
+      await a.controller.mergeRemote(n.common, fromNode: family.nora.id);
+      expect((await a.controller.claimWish(wishId, planId: 'p1')).ok, isTrue);
+      final edit = await a.controller.editWishPlan(
+        'nora',
+        'p1',
+        const PrivatePlanPatch(
+          store: 'Tienda del plan',
+          giverNote: 'Nota del plan',
+          plannedCents: 3000,
+        ),
+      );
+      expect(edit.ok, isTrue);
+      return (a, n);
+    }
+
+    const secrets = [
+      'Tienda del plan',
+      'Nota del plan',
+      'wishPlans',
+      'sourceWishId',
+      'claimantPersonId',
+    ];
+
+    test('J: el sobre de siempre lleva el deseo y nunca el plan', () async {
+      final (a, _) = await withPlan();
+      final bytes = await a.phone.container
+          .read(shareServiceProvider)
+          .buildEnvelope();
+      final opened = await open(
+        bytes,
+        key: a.controller.familyKey!,
+        expectedListId: kListId,
+        acceptFileVersion: true,
+      );
+      final doc = FamilyDoc.fromJson(opened.doc);
+      expect(doc.wishesFor('nora').map((w) => w.title), ['Bicicleta']);
+      final raw = jsonEncode(opened.doc);
+      for (final secret in secrets) {
+        expect(raw, isNot(contains(secret)));
+      }
+    });
+
+    test('A/B: el común que sube tampoco lleva planes, ni con regalos vacíos '
+        'ni con un plan colado en el común local', () async {
+      final (a, _) = await withPlan();
+      // Un común local sucio: un plan colado y un campo de plan.
+      final dirty = a.common.set(
+        HlcClock(node: family.aritz.id, last: a.common.maxStamp),
+        ScopeCollections.wishPlans,
+        'pX',
+        {
+          'recipientId': 'nora',
+          'sourceWishId': wishId,
+          'claimantPersonId': 'aritz',
+          'title': 'Bicicleta',
+          'status': 'decided',
+          'giverNote': 'Nota del plan',
+        },
+      );
+      await a.store.saveDoc(dirty);
+      final (rec, sent) = await rounds(a);
+      expect(rec.puts, isNotEmpty);
+      expect(sent, isNotEmpty);
+      for (final doc in sent) {
+        expect(
+          doc.collections.containsKey(ScopeCollections.wishPlans),
+          isFalse,
+        );
+        expect(jsonEncode(doc.toJson()), isNot(contains('Nota del plan')));
+        expect(doc.wishesFor('nora'), hasLength(1));
+      }
+    });
+
+    test(
+      'I: lo que llega por un fichero o la red no mete planes en el común',
+      () async {
+        final (a, n) = await withPlan();
+        final hostile = n.common.set(
+          HlcClock(node: 'x', last: n.common.maxStamp),
+          ScopeCollections.wishPlans,
+          'pZ',
+          {'recipientId': 'nora', 'sourceWishId': wishId, 'title': 'T'},
+        );
+        await n.controller.mergeRemote(hostile, fromNode: 'x');
+        expect(
+          n.common.collections.containsKey(ScopeCollections.wishPlans),
+          isFalse,
+        );
+        expect(n.common.wishesFor('nora'), hasLength(1));
+        expect(a.common.wishesFor('nora'), hasLength(1));
+      },
+    );
+
+    test('C/G/H: el móvil de Nora no coge, un revocado no escribe y quien '
+        'cambia de persona no coge', () async {
+      final (a, n) = await withPlan();
+      // C: ni con la clave en el móvil.
+      await n.phone.container
+          .read(deviceKeysStoreProvider)
+          .saveKeyring(kListId, family.authorizedKeyring);
+      final before = n.common.canonicalJson();
+      final claim = await n.controller.claimWish(wishId, planId: 'pN');
+      expect(claim.ok, isFalse);
+      expect(n.common.canonicalJson(), before);
+      expect((await n.projection()).plansByWish, isEmpty);
+      // G: un móvil revocado que lo sabe no escribe deseos ni coge.
+      final change = await revokeDevice(
+        registry: family.registry,
+        view: family.view,
+        myKeys: family.aritz.keys,
+        deviceId: family.leo.id,
+      );
+      final rev = await install(
+        family.leo,
+        withKey: true,
+        doc: a.common,
+        slots: await a.store.readSlots(),
+        registry: change.registry,
+      );
+      final revBefore = rev.common.canonicalJson();
+      expect(
+        (await rev.controller.claimWish(wishId, planId: 'pL')).ok,
+        isFalse,
+      );
+      expect(
+        (await rev.controller.createOwnWish(
+          const VisibleWishPatch(title: 'Algo', year: 2026),
+        )).ok,
+        isFalse,
+      );
+      expect(rev.common.canonicalJson(), revBefore);
+      expect((await rev.projection()).plansByWish, isEmpty);
+      // H: el móvil de Nora que pasa a ser de Leo queda pendiente.
+      await n.controller.changeSelfPerson('leo');
+      final view = (await n.phone.container.read(
+        localRegistryViewProvider.future,
+      ))!;
+      expect(view.selfEntitled('nora'), isFalse);
+      expect((await n.controller.claimWish(wishId, planId: 'pH')).ok, isFalse);
+      expect((await n.projection()).plansByWish, isEmpty);
     });
   });
 }

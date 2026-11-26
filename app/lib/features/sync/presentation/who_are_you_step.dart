@@ -50,6 +50,14 @@ class WhoAreYouStep extends ConsumerWidget {
       nameLabel: l10n.whoAreYouNameLabel,
       suggestedName: gate?.suggestedName ?? '',
       thisPhonePersonId: gate?.selfId,
+      // Escribir un nombre que ya está en la lista pregunta «¿Eres tú?» antes
+      // de crear a otra persona igual (QA 1.0.7, m8).
+      sameNameAsk: SameNameAsk(
+        title: l10n.personSameNameTitle,
+        body: l10n.whoAreYouSameNameBody,
+        yes: l10n.whoAreYouSameNameYes,
+        no: l10n.personSameNameOther,
+      ),
       onPerson: (id) => answer((a) => a.choose(id)),
       onNew: (name, {required noGifts}) =>
           answer((a) => noGifts ? a.nobody(name) : a.notOnList(name)),

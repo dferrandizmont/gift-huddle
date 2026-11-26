@@ -9,6 +9,7 @@ import '../../../core/sync/model.dart';
 import '../../../core/theme/regalos_motion.dart';
 import '../../../core/theme/regalos_shape.dart';
 import '../../../core/theme/regalos_tokens.dart';
+import '../../../core/widgets/count_text.dart';
 import '../../../core/widgets/person_avatar.dart';
 import '../../../core/widgets/pointer_surface.dart';
 import '../../../core/widgets/stroke_icon.dart';
@@ -628,7 +629,14 @@ class _PersonItemState extends ConsumerState<_PersonItem> {
     final t = RegalosTokens.of(context);
     final compact = _Compact.of(context);
     final colors = boardColorsOf(t, personPalette(widget.colorIndex));
+    final l10n = AppLocalizations.of(context);
     final count = ref.watch(boardPersonCountProvider(widget.personId));
+    // Los deseos sin coger, como en Personas y en la cabecera de la lista
+    // (mismas reglas de privacidad: los que no verías en tu móvil no cuentan).
+    final wishes = ref.watch(freeWishCountsProvider).ofPerson(widget.personId);
+    final meta = wishes > 0
+        ? giftsAndWishesText(l10n, count.total, wishes)
+        : null;
     final avatar = PersonAvatar(
       key: _avatar,
       name: widget.name,
@@ -637,7 +645,7 @@ class _PersonItemState extends ConsumerState<_PersonItem> {
     );
     return _Row(
       id: boardPersonId(widget.personId),
-      label: widget.name,
+      label: meta == null ? widget.name : '${widget.name}. $meta',
       selected: widget.selected,
       onTap: _tap,
       child: compact
@@ -647,13 +655,28 @@ class _PersonItemState extends ConsumerState<_PersonItem> {
                 avatar,
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    widget.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: t.styles.label.copyWith(
-                      color: widget.selected ? colors.ink : t.text,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        widget.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: t.styles.label.copyWith(
+                          color: widget.selected ? colors.ink : t.text,
+                        ),
+                      ),
+                      if (meta != null)
+                        Text(
+                          meta,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: t.styles.caption.copyWith(
+                            color: widget.selected ? colors.ink : null,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 if (count.total > 0)

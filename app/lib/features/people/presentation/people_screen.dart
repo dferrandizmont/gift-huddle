@@ -24,6 +24,7 @@ import '../../../core/sync/model.dart';
 import '../../../core/theme/regalos_motion.dart';
 import '../../../core/theme/regalos_shape.dart';
 import '../../../core/theme/regalos_tokens.dart';
+import '../../../core/widgets/count_text.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/gift_segments.dart';
 import '../../../core/motion/unfold_section.dart';
@@ -368,7 +369,8 @@ class _PeopleListPaneState extends ConsumerState<PeopleListPane> {
       onTap: _add,
     );
     // Sin regalos no hay nada que buscar: sin lupa.
-    final hasGifts = view.gifts.isNotEmpty;
+    // Los deseos también se buscan (ADR 0010).
+    final hasGifts = view.gifts.isNotEmpty || view.visibleWishes.isNotEmpty;
     final searchButton = HeaderIconButton(
       key: const ValueKey<String>('people-gift-search-button'),
       icon: AppIcons.search,
@@ -397,7 +399,7 @@ class _PeopleListPaneState extends ConsumerState<PeopleListPane> {
         // paneles, el botón es el del detalle, para la persona elegida.
         floatingActionButton: people.isEmpty || panes
             ? null
-            : const AddGiftButton(),
+            : AddGiftButton(hidden: _searchOpen),
         body: StaggerScope(
           child: SafeArea(
             bottom: false,
@@ -445,7 +447,7 @@ class _PeopleListPaneState extends ConsumerState<PeopleListPane> {
                           )
                         : _withSearch(
                             context,
-                            hasGifts: view.gifts.isNotEmpty,
+                            hasGifts: hasGifts,
                             child: ContentListView(
                               maxWidth: RegalosLayout.listColumn,
                               storageKey: const PageStorageKey<String>(
@@ -552,7 +554,9 @@ class _PeopleListPaneState extends ConsumerState<PeopleListPane> {
                                             index: order++,
                                             child: _PersonRow(
                                               person: person,
-                                              gifts: view.giftsFor(person.id),
+                                              gifts: ref.watch(
+                                                giftsForProvider(person.id),
+                                              ),
                                               now: now,
                                               panes: panes,
                                               selected:
@@ -684,6 +688,10 @@ class _PersonRow extends ConsumerWidget {
     // cuántos regalos hay ni cuántos faltan; en su lugar, el bloque fijo.
     final locked = ref.watch(lockedPeopleProvider).contains(person.id);
     final web = ref.watch(webAppProvider);
+    // El bloque fijo de la propia persona se llama «Sorpresas» (ADR 0010).
+    final surprises = ref.watch(ownHiddenPeopleProvider).contains(person.id)
+        ? l10n.surprisesTitle
+        : null;
     final pending = gifts.where(needsBuying).length;
     // Quien solo regala (1.0.6) no recibe regalos: en vez de «0 regalos», lo
     // dice la etiqueta.
@@ -691,16 +699,20 @@ class _PersonRow extends ConsumerWidget {
     final pendingText = locked || onlyGives || gifts.isEmpty
         ? null
         : (pending > 0 ? l10n.personPendingBuy(pending) : l10n.personAllBought);
+    // Los deseos sin coger, aparte de los regalos (QA 1.0.7, m1).
+    final freeWishes = ref.watch(freeWishCountsProvider).ofPerson(person.id);
     final meta = <String>[
       ?person.relation,
       ?ageText(l10n, person, now),
       if (onlyGives)
         l10n.personNoGiftsLabel
-      else if (!locked)
-        l10n.giftCount(gifts.length),
+      else if (!locked) ...[
+        // Sin regalos pero con deseos: solo «4 deseos» (QA 1.0.7, m11).
+        giftsAndWishesText(l10n, gifts.length, freeWishes),
+      ],
     ].join(' · ');
     final semanticLabel =
-        '${person.name}. ${[if (meta.isNotEmpty) meta, ?pendingText, if (locked) secretBlockLabel(l10n, person.name, web: web)].join(' · ')}';
+        '${person.name}. ${[if (meta.isNotEmpty) meta, ?pendingText, if (locked) secretBlockLabel(l10n, person.name, web: web, title: surprises)].join(' · ')}';
     void open() {
       if (panes) {
         ref.read(paneSelectionProvider).userChose(person.id);
@@ -768,6 +780,7 @@ class _PersonRow extends ConsumerWidget {
                         shown: true,
                         name: person.name,
                         colorIndex: person.colorIndex,
+                        title: surprises,
                         web: web,
                       ),
                     ),
@@ -865,6 +878,7 @@ class _PersonRow extends ConsumerWidget {
                                     shown: true,
                                     name: person.name,
                                     colorIndex: person.colorIndex,
+                                    title: surprises,
                                     web: web,
                                   ),
                                 ),

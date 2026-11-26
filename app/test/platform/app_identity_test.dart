@@ -4,7 +4,14 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  const appId = 'es.gifthuddle.app';
+  // Android pasó a la app de Play de la cuenta Mainshai (2026-11-23); iOS no cambia.
+  const androidId = 'es.gifthuddle.android';
+  const iosId = 'es.gifthuddle.app';
+  // Paquete de Play anterior: sus App Links siguen activos mientras queden
+  // instalaciones por migrar.
+  const previousAndroidId = 'es.gifthuddle.app';
+  const uploadKey =
+      'D3:6B:C9:55:46:E6:30:10:35:94:98:FD:87:36:FD:C6:16:D2:96:2A:E6:7E:76:CA:DE:23:EA:B1:74:DE:43:CE';
 
   test(
     'Android defaults to the new ID and opts into the bridge ID and manifest',
@@ -19,7 +26,7 @@ void main() {
       expect(
         gradle,
         contains(
-          'applicationId = if (legacyAppId) "app.gifthuddle" else "$appId"',
+          'applicationId = if (legacyAppId) "app.gifthuddle" else "$androidId"',
         ),
       );
       expect(gradle, contains('namespace = "com.dferrandizmont.regalos"'));
@@ -84,32 +91,39 @@ void main() {
         .map((match) => match.group(1)!)
         .toList();
     expect(identifiers, hasLength(6));
-    expect(identifiers.where((id) => id == appId), hasLength(3));
-    expect(identifiers.where((id) => id == '$appId.RunnerTests'), hasLength(3));
+    expect(identifiers.where((id) => id == iosId), hasLength(3));
+    expect(identifiers.where((id) => id == '$iosId.RunnerTests'), hasLength(3));
   });
 
   test(
-    'App Links identify the new app with the Play and upload keys',
+    'App Links identify only the Mainshai app',
     () {
       final assetLinks = jsonDecode(
         File('../web/public/.well-known/assetlinks.json').readAsStringSync(),
       ) as List<dynamic>;
-      final target = assetLinks.single['target'] as Map<String, dynamic>;
-      expect(target['package_name'], appId);
-      final fingerprints = (target['sha256_cert_fingerprints'] as List<dynamic>)
-          .cast<String>();
-      // La firma de apps de Google Play y la de subida, sin marcadores.
-      expect(fingerprints, hasLength(2));
-      for (final f in fingerprints) {
-        expect(f, matches(RegExp(r'^([0-9A-F]{2}:){31}[0-9A-F]{2}$')));
-      }
+      Map<String, dynamic> targetFor(String package) => assetLinks
+          .map((s) => s['target'] as Map<String, dynamic>)
+          .singleWhere((t) => t['package_name'] == package);
+      List<String> fingerprintsOf(Map<String, dynamic> target) =>
+          (target['sha256_cert_fingerprints'] as List<dynamic>).cast<String>();
+      // Solo la app nueva (Daniel, 2026-11-23, QA 1.0.7 R3): con las dos, un
+      // enlace de invitación abría el selector de Android con dos «Gift
+      // Huddle», y la anterior no puede unirse a una familia 1.0.7.
+      expect(assetLinks, hasLength(1));
+      expect(
+        assetLinks.map((s) => s['target']['package_name']),
+        isNot(contains(previousAndroidId)),
+      );
+
+      // App nueva: la clave de firma de Play es la de subida (PEPK).
+      expect(fingerprintsOf(targetFor(androidId)), [uploadKey]);
 
       final association = jsonDecode(
         File('../web/public/.well-known/apple-app-site-association')
             .readAsStringSync(),
       ) as Map<String, dynamic>;
       final details = association['applinks']['details'] as List<dynamic>;
-      expect(details.single['appIDs'], ['4J74M2FPLP.$appId']);
+      expect(details.single['appIDs'], ['4J74M2FPLP.$iosId']);
     },
     skip:
         !File('../web/public/.well-known/assetlinks.json').existsSync() ||

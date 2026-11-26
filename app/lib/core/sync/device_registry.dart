@@ -1567,6 +1567,22 @@ class DeviceRegistry {
       // La clave de firma de cada id enlazado desde este móvil sin
       // ambigüedad (también los revocados, a los que se llega): con ella se
       // reconoce al creador de una clave común (ADR 0005, B1, R1).
+      approvedByActive: (vouched[mine.digest] ?? const <String>{}).any((d) {
+        final then = _records[d]!;
+        return then.deviceId != me &&
+            active.contains(then.deviceId) &&
+            _recordNode(then) == _recordNode(current[then.deviceId]!);
+      }),
+      approvedBySamePersonMobile:
+          mine.personId != null &&
+          (vouched[mine.digest] ?? const <String>{}).any((d) {
+            final then = _records[d]!;
+            return then.deviceId != me &&
+                then.kind == DeviceKind.mobile &&
+                then.personId == mine.personId &&
+                active.contains(then.deviceId) &&
+                _recordNode(then) == _recordNode(current[then.deviceId]!);
+          }),
       linkedSigningKeys: Map.unmodifiable(<String, Uint8List>{
         for (final e in keysById.entries)
           if (e.key != me && !ambiguous.contains(e.key) && e.value.length == 1)
@@ -1621,6 +1637,8 @@ class RegistryView {
     required this.selfApproved,
     required this._cleanFor,
     required this._linkedSigningKeys,
+    required this.approvedByActive,
+    required this.approvedBySamePersonMobile,
   });
 
   final Set<String> _ownWebIds;
@@ -1684,6 +1702,15 @@ class RegistryView {
   final bool selfApproved;
   final Set<String> Function(String) _cleanFor;
   final Map<String, Uint8List> _linkedSigningKeys;
+
+  /// Si la ficha actual de este dispositivo la avala (otro) dispositivo
+  /// activo, sea cual sea su `seq`. A diferencia de [selfApproved] no da por
+  /// buena una primera ficha sin más: es lo que exigen los deseos (ADR 0010).
+  final bool approvedByActive;
+
+  /// Si la ficha actual de este dispositivo la avaló un móvil activo que era
+  /// de su misma persona cuando avaló (las webs, ADR 0009).
+  final bool approvedBySamePersonMobile;
 
   /// La clave de firma con la que [deviceId] está enlazado desde este móvil
   /// (activo, pendiente o revocado al que se llega por avales), o null si no
@@ -1757,6 +1784,18 @@ class RegistryView {
   /// siquiera revocada: una generación que este móvil acaba de estrenar o un
   /// móvil que nunca se ha conectado a otro.
   bool get alone => _otherRecords.isEmpty;
+
+  /// Si no hay ningún **otro móvil** sin revocar en el registro. Las webs no
+  /// cuentan como compañía (el emparejamiento guarda el aval móvil → web pero
+  /// no web → móvil, así que el fundador no se lo da a sí mismo al enlazar
+  /// su primera web) y los revocados tampoco (revocar al único invitado deja
+  /// al fundador solo). El registro no marca quién creó la lista, así que
+  /// esto es lo que reconoce al fundador: un móvil sin nadie más vivo. Es lo
+  /// que usan los deseos (ADR 0010) para aprobar una primera ficha que nadie
+  /// ha avalado.
+  bool get aloneAmongLiveMobiles => _otherRecords.every(
+    (r) => r.kind != DeviceKind.mobile || revoked.contains(r.deviceId),
+  );
 
   /// El móvil activo [deviceId], o null (desconocido, revocado o pendiente).
   KnownDevice? member(String deviceId) => _active[deviceId];

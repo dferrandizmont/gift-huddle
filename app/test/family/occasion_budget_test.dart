@@ -255,6 +255,7 @@ void main() {
         bytes,
         key: controller.familyKey!,
         expectedListId: (await doc()).listId,
+        acceptFileVersion: true,
       );
       return FamilyDoc.fromJson(opened.doc)
           .record(Collections.occasions, _christmas.id)!;

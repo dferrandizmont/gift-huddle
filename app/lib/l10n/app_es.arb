@@ -425,6 +425,18 @@
   "@giftDiscardBody": {
     "description": "Cuerpo del aviso al cerrar el editor de regalos con cambios sin guardar."
   },
+  "wishDiscardBody": "Los cambios de este deseo todavía no se han guardado.",
+  "@wishDiscardBody": {
+    "description": "Cuerpo del aviso al cerrar el editor de deseos con cambios sin guardar."
+  },
+  "giftMoreDetails": "Más detalles",
+  "@giftMoreDetails": {
+    "description": "Sección plegable del editor de regalos con los campos opcionales (precio real, tienda, enlace, talla, nota)."
+  },
+  "giftFieldActualPrice": "Precio real",
+  "@giftFieldActualPrice": {
+    "description": "Campo del precio real, dentro de «Más detalles»."
+  },
   "actionDiscard": "Descartar",
   "@actionDiscard": {
     "description": "Botón destructivo que descarta los cambios sin guardar."
@@ -595,13 +607,13 @@
   "@giverUs": {
     "description": "Nombre de quien regala que se crea al empezar: la propia casa."
   },
-  "giverHouseholdPays": "Paga la casa",
+  "giverHouseholdPays": "Cuenta como gasto de casa",
   "@giverHouseholdPays": {
-    "description": "Etiqueta y campo: lo que regala esta persona lo paga la casa y cuenta en el presupuesto."
+    "description": "Etiqueta y campo: lo que regala esta persona cuenta como gasto de casa y entra en el presupuesto."
   },
-  "giverHouseholdPaysHint": "Si lo activas, sus regalos cuentan en el presupuesto de la casa.",
+  "giverHouseholdPaysHint": "Sus regalos suman en el gasto de la casa.",
   "@giverHouseholdPaysHint": {
-    "description": "Explicación bajo el interruptor «Paga la casa»."
+    "description": "Explicación bajo el interruptor «Cuenta como gasto de casa»."
   },
   "countdownDaysForBirthday": "{count, plural, one{día para el cumpleaños de {name}} other{días para el cumpleaños de {name}}}",
   "@countdownDaysForBirthday": {
@@ -684,7 +696,7 @@
   "@obGiversTitle": {
     "description": "Título del paso de quién regala."
   },
-  "obGiversBody": "«Nosotros» ya está en la lista para los regalos que pagáis en casa. También puedes añadir a los abuelos, los tíos…",
+  "obGiversBody": "«Nosotros» ya está en la lista para los regalos que cuentan como gasto de casa. También puedes añadir a los abuelos, los tíos…",
   "@obGiversBody": {
     "description": "Explicación del paso de quién regala."
   },
@@ -906,18 +918,25 @@
   "@budgetOf": {
     "description": "Palabra entre lo gastado y lo previsto: «72 € de 145 €»."
   },
-  "budgetHouseFor": "La casa · {name}",
-  "@budgetHouseFor": {
-    "description": "Mini presupuesto de la casa para una persona.",
+  "budgetHouseTotal": "Gasto de casa · total",
+  "@budgetHouseTotal": {
+    "description": "Mini presupuesto del gasto de casa en total."
+  },
+  "budgetBought": "Comprado",
+  "@budgetBought": {
+    "description": "Palabra delante de lo comprado en la tira de una persona o del gasto de casa: «Comprado 809 € de 879 €»."
+  },
+  "budgetBoughtBarLabel": "Comprado: {bought} de {total}",
+  "@budgetBoughtBarLabel": {
+    "description": "Etiqueta accesible de la barra de lo comprado sobre el total de los regalos.",
     "placeholders": {
-      "name": {
+      "bought": {
+        "type": "String"
+      },
+      "total": {
         "type": "String"
       }
     }
-  },
-  "budgetHouseTotal": "La casa · total",
-  "@budgetHouseTotal": {
-    "description": "Mini presupuesto de la casa en total."
   },
   "budgetBarLabel": "Gastado: {spent} de {planned}",
   "@budgetBarLabel": {
@@ -1353,11 +1372,11 @@
   "@budgetTitle": {
     "description": "Título de la pantalla del presupuesto."
   },
-  "budgetSubtitle": "Puedes poner un presupuesto en cada ocasión. «Gastado» suma los precios reales de los regalos que paga la casa. Si ya se ha comprado un regalo y falta el precio real, cuenta el previsto.",
+  "budgetSubtitle": "Puedes poner un presupuesto en cada ocasión. «Gastado» suma los precios reales de los regalos que cuentan como gasto de casa. Si ya se ha comprado un regalo y falta el precio real, cuenta el previsto.",
   "@budgetSubtitle": {
     "description": "Subtítulo del presupuesto cuando ninguna ocasión tiene presupuesto."
   },
-  "budgetSubtitleBudgeted": "Puedes poner un presupuesto en cada ocasión. Las tres cifras solo incluyen ocasiones con presupuesto. «Gastado» suma los precios reales de los regalos que paga la casa. Si ya se ha comprado un regalo y falta el precio real, cuenta el previsto.",
+  "budgetSubtitleBudgeted": "Puedes poner un presupuesto en cada ocasión. Las tres cifras solo incluyen ocasiones con presupuesto. «Gastado» suma los precios reales de los regalos que cuentan como gasto de casa. Si ya se ha comprado un regalo y falta el precio real, cuenta el previsto.",
   "@budgetSubtitleBudgeted": {
     "description": "Subtítulo del presupuesto cuando alguna ocasión tiene presupuesto: las tres cifras solo cuentan esas."
   },
@@ -1385,11 +1404,11 @@
   "@budgetByOccasion": {
     "description": "Cabecera del presupuesto por ocasión."
   },
-  "budgetNote": "Solo suma lo que paga la casa. Los regalos que pagan otras personas, como los abuelos, quedan fuera del gasto de la casa.",
+  "budgetNote": "Solo suma los regalos que cuentan como gasto de casa. Los que pagan otras personas, como los abuelos, quedan fuera.",
   "@budgetNote": {
     "description": "Nota al pie del presupuesto."
   },
-  "budgetEmpty": "Todavía no hay regalos que pague la casa. Activa «Paga la casa» en la ficha de quien regala y añade el precio previsto al regalo.",
+  "budgetEmpty": "Todavía no hay regalos que cuenten como gasto de casa. Activa «Cuenta como gasto de casa» en la ficha de quien regala y añade el precio previsto al regalo.",
   "@budgetEmpty": {
     "description": "Estado vacío del presupuesto."
   },
@@ -2612,9 +2631,9 @@
   "@manageLockedThisDevice": {
     "description": "Línea bajo el nombre en Ajustes › Personas: explica por qué Archivar y Eliminar están desactivados para la persona elegida en «Este móvil es de»."
   },
-  "manageLockedOtherDevice": "Es la persona de otro móvil de la familia.",
+  "manageLockedOtherDevice": "Esta persona tiene otro dispositivo conectado a la familia.",
   "@manageLockedOtherDevice": {
-    "description": "Línea bajo el nombre en Ajustes › Personas: explica por qué Archivar y Eliminar están desactivados para la persona dueña de otro móvil conectado de la familia."
+    "description": "Línea bajo el nombre en Ajustes › Personas: explica por qué Archivar y Eliminar están desactivados para la persona dueña de otro dispositivo conectado de la familia."
   },
   "deletePersonTitle": "¿Eliminar a {name}?",
   "@deletePersonTitle": {
@@ -2637,6 +2656,15 @@
   "deletePersonGifts": "{count, plural, =0{} one{También se eliminará el regalo que hay para esta persona.} other{También se eliminarán los {count} regalos que hay para esta persona.}}",
   "@deletePersonGifts": {
     "description": "Consecuencia de eliminar a una persona: sus regalos se eliminan con ella. Vacío si no tiene.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "deletePersonWishes": "{count, plural, one{También se eliminará 1 deseo de esta persona.} other{También se eliminarán {count} deseos de esta persona.}}",
+  "@deletePersonWishes": {
+    "description": "Número de deseos visibles que se eliminan al borrar a una persona",
     "placeholders": {
       "count": {
         "type": "int"
@@ -2675,11 +2703,15 @@
   },
   "deleteGiverBudget": "Sus importes dejan de contar en el presupuesto de la casa.",
   "@deleteGiverBudget": {
-    "description": "Consecuencia de eliminar a quien regala si pagaba la casa y tenía regalos."
+    "description": "Consecuencia de eliminar a quien regala si contaba como gasto de casa y tenía regalos."
   },
   "deleteError": "No se ha podido eliminar. Inténtalo de nuevo.",
   "@deleteError": {
     "description": "Aviso cuando falla el guardado al eliminar."
+  },
+  "deleteDevicesNeedUpdate": "Para eliminar esto, todos los móviles de la familia necesitan la última versión.",
+  "@deleteDevicesNeedUpdate": {
+    "description": "Aviso cuando eliminar una persona, quien regala o una ocasión se rechaza porque algún móvil de la familia aún no entiende los planes de deseos."
   },
   "giftNotSaved": "No se ha guardado: este regalo ya no está disponible en este móvil.",
   "@giftNotSaved": {
@@ -3794,6 +3826,7 @@
   "@webSettingsPersistenceDenied": {
     "description": "Aviso cuando el navegador no garantiza guardar los datos de la web."
   },
+  "webRecipientDeleteRejected": "No se ha podido eliminar a esta persona desde la web porque afecta a los regalos en secreto de otra persona. Hazlo desde un móvil.",
   "webSetAsideNotice": "{count, plural, one{Hay {count} cambio que no se puede subir porque es para una persona protegida. Se guarda en este ordenador.} other{Hay {count} cambios que no se pueden subir porque son para una persona protegida. Se guardan en este ordenador.}}",
   "@webSetAsideNotice": {
     "description": "Aviso dentro de la web sobre cambios apartados por ser de una persona protegida.",
@@ -5937,18 +5970,18 @@
       }
     }
   },
-  "devicePersonBlockedOtherTitle": "{name} tiene su propio móvil",
+  "devicePersonBlockedOtherTitle": "{name} tiene un dispositivo conectado",
   "@devicePersonBlockedOtherTitle": {
-    "description": "Título del aviso al intentar eliminar o archivar a la persona dueña de otro móvil de la familia.",
+    "description": "Título del aviso al intentar eliminar o archivar a la persona dueña de otro dispositivo de la familia.",
     "placeholders": {
       "name": {
         "type": "String"
       }
     }
   },
-  "devicePersonBlockedOtherBody": "{name} tiene su propio móvil en la familia, así que no se puede eliminar ni archivar desde aquí.",
+  "devicePersonBlockedOtherBody": "{name} tiene un dispositivo conectado a la familia, así que no se puede eliminar ni archivar desde aquí.",
   "@devicePersonBlockedOtherBody": {
-    "description": "Texto del aviso al intentar eliminar o archivar a la persona dueña de otro móvil de la familia.",
+    "description": "Texto del aviso al intentar eliminar o archivar a la persona dueña de otro dispositivo de la familia.",
     "placeholders": {
       "name": {
         "type": "String"
@@ -6192,6 +6225,35 @@
   "@whoAreYouNobody": {
     "description": "Opción para quien regala y no recibe."
   },
+  "personSameNameTitle": "Ya hay alguien llamado {name} en la lista",
+  "@personSameNameTitle": {
+    "description": "Título del aviso al escribir, en «No está en la lista», el nombre de alguien que ya existe.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "personSameNameOther": "Es otra persona",
+  "@personSameNameOther": {
+    "description": "Botón del aviso: se da de alta otra persona con el mismo nombre."
+  },
+  "whoAreYouSameNameBody": "¿Eres tú? Si eliges «Es otra persona», se añade otra con el mismo nombre.",
+  "@whoAreYouSameNameBody": {
+    "description": "Cuerpo del aviso cuando quien se une escribe el nombre de alguien que ya existe."
+  },
+  "whoAreYouSameNameYes": "Soy yo",
+  "@whoAreYouSameNameYes": {
+    "description": "Botón del aviso: este móvil es de la persona que ya existe."
+  },
+  "inviteForSameNameBody": "¿Es esa persona? Si eliges «Es otra persona», se añade otra con el mismo nombre.",
+  "@inviteForSameNameBody": {
+    "description": "Cuerpo del aviso cuando quien invita escribe el nombre de alguien que ya existe."
+  },
+  "inviteForSameNameYes": "Es esa persona",
+  "@inviteForSameNameYes": {
+    "description": "Botón del aviso: el móvil nuevo es de la persona que ya existe."
+  },
   "whoAreYouNobodyHint": "Para quien regala y no recibe regalos.",
   "@whoAreYouNobodyHint": {
     "description": "Aclaración bajo «Nadie»."
@@ -6357,5 +6419,339 @@
   "aboutPrivacyWeb": "Sin cuentas ni publicidad. La lista solo sale de este ordenador para sincronizarse con los móviles de tu familia, y siempre va cifrada.",
   "@aboutPrivacyWeb": {
     "description": "Frase de privacidad de Acerca de en la web."
+  },
+  "wishTag": "Deseo",
+  "@wishTag": {
+    "description": "Etiqueta pequeña de una fila que es un deseo."
+  },
+  "surprisesTitle": "Sorpresas",
+  "@surprisesTitle": {
+    "description": "Título del bloque fijo de la propia persona; sin cifras, fechas ni ocasión."
+  },
+  "wishCount": "{count, plural, =0{Sin deseos} one{{count} deseo} other{{count} deseos}}",
+  "@wishCount": {
+    "description": "Número de deseos de una persona.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "wishAdd": "Añadir deseo",
+  "@wishAdd": {
+    "description": "Botón para apuntar un deseo propio."
+  },
+  "wishEditorNewTitle": "Nuevo deseo",
+  "@wishEditorNewTitle": {
+    "description": "Título del editor de un deseo nuevo."
+  },
+  "wishEditorEditTitle": "Editar deseo",
+  "@wishEditorEditTitle": {
+    "description": "Título del editor de un deseo existente."
+  },
+  "wishFieldDescription": "Descripción",
+  "@wishFieldDescription": {
+    "description": "Campo de la descripción de un deseo."
+  },
+  "wishEmptyTitle": "Aún no has apuntado ningún deseo",
+  "@wishEmptyTitle": {
+    "description": "Lista de deseos vacía de la propia persona."
+  },
+  "wishEmptyMessage": "Apunta lo que te gustaría recibir. Tu familia lo verá, pero tú no sabrás quién lo regala.",
+  "@wishEmptyMessage": {
+    "description": "Explica qué pasa con un deseo."
+  },
+  "wishDelete": "Quitar de mi lista",
+  "@wishDelete": {
+    "description": "Botón para quitar un deseo propio."
+  },
+  "wishDeleteTitle": "¿Quitar «{name}» de tu lista?",
+  "@wishDeleteTitle": {
+    "description": "Pregunta antes de quitar un deseo.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "wishDeleteBody": "Se quita de tu lista y de la que ve tu familia. No se puede deshacer.",
+  "@wishDeleteBody": {
+    "description": "Consecuencia de quitar un deseo."
+  },
+  "wishDeleteConfirm": "Quitar",
+  "@wishDeleteConfirm": {
+    "description": "Botón que confirma quitar un deseo."
+  },
+  "wishSavedPending": "Guardado solo en este móvil. Se compartirá cuando haya sitio.",
+  "@wishSavedPending": {
+    "description": "Aviso cuando un cambio de un plan queda solo en este móvil."
+  },
+  "wishClaim": "Lo regalo yo",
+  "@wishClaim": {
+    "description": "Botón para coger un deseo de otra persona."
+  },
+  "wishClaimFor": "Lo regalo yo: {title}",
+  "@wishClaimFor": {
+    "description": "Lo que lee el lector de pantalla en el botón de coger un deseo: la acción y el deseo, porque en la lista hay varios iguales.",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "wishClaimNeedsFamily": "Para coger deseos, este móvil tiene que estar conectado a la familia con la versión nueva.",
+  "@wishClaimNeedsFamily": {
+    "description": "Aviso al tocar «Lo regalo yo» cuando este móvil aún no está conectado a la familia con la versión nueva."
+  },
+  "wishClaimHowToConnect": "Cómo conectarlo",
+  "@wishClaimHowToConnect": {
+    "description": "Acción del aviso anterior: lleva a Móviles de la familia, donde se conecta este móvil."
+  },
+  "wishAvailableNote": "Nadie lo ha cogido",
+  "@wishAvailableNote": {
+    "description": "Estado de un deseo disponible."
+  },
+  "wishClaimedBy": "Lo ha cogido {name}",
+  "@wishClaimedBy": {
+    "description": "Estado de un deseo cogido.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "wishClaimedByYou": "Lo has cogido tú",
+  "@wishClaimedByYou": {
+    "description": "Estado de un deseo cogido por quien mira."
+  },
+  "wishConflict": "Dos personas lo han cogido. Que una lo suelte.",
+  "@wishConflict": {
+    "description": "Aviso de dos reservas del mismo deseo."
+  },
+  "wishRemovedFromList": "{name} lo quitó de su lista",
+  "@wishRemovedFromList": {
+    "description": "Aviso cuando la persona quitó un deseo que otro había cogido.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "wishPlanTitle": "Deseo cogido",
+  "@wishPlanTitle": {
+    "description": "Título del editor de un deseo cogido."
+  },
+  "wishPlanNote": "El deseo es de {name}. Aquí solo apuntas lo tuyo.",
+  "@wishPlanNote": {
+    "description": "Explica qué se edita en un deseo cogido.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "wishPlanReadOnly": "Solo {name} puede cambiarlo o soltarlo.",
+  "@wishPlanReadOnly": {
+    "description": "Aviso en el deseo que ha cogido otra persona: quien mira solo lo ve.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "wishFieldPurchaseUrl": "Enlace de compra",
+  "@wishFieldPurchaseUrl": {
+    "description": "Campo del enlace de compra de un plan."
+  },
+  "wishPurchaseUrlInvalid": "El enlace de compra no es válido.",
+  "@wishPurchaseUrlInvalid": {
+    "description": "Error del campo del enlace de compra de un plan cuando no es un enlace http o https."
+  },
+  "wishPlanRelease": "Soltar",
+  "@wishPlanRelease": {
+    "description": "Botón para soltar un deseo cogido."
+  },
+  "wishReleaseTitle": "¿Soltar «{name}»?",
+  "@wishReleaseTitle": {
+    "description": "Pregunta antes de soltar un deseo.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "wishReleaseBody": "Volverá a estar disponible para otra persona. Lo que apuntaste (quién regala, precios, tienda y notas) se pierde.",
+  "@wishReleaseBody": {
+    "description": "Consecuencia de soltar un deseo."
+  },
+  "wishPlanDelete": "Eliminar mi reserva",
+  "@wishPlanDelete": {
+    "description": "Botón para borrar el plan de un deseo que ya no está en la lista."
+  },
+  "wishPlanDeleteTitle": "¿Eliminar tu reserva de «{name}»?",
+  "@wishPlanDeleteTitle": {
+    "description": "Pregunta antes de borrar un plan.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "wishPlanDeleteBody": "Se elimina lo que apuntaste. No se puede deshacer.",
+  "@wishPlanDeleteBody": {
+    "description": "Consecuencia de borrar un plan."
+  },
+  "wishPlanConvert": "Convertir en sorpresa",
+  "@wishPlanConvert": {
+    "description": "Botón para pasar un plan a sorpresa independiente."
+  },
+  "wishPlanConvertHint": "Pasa a ser un regalo sorpresa, separado del deseo.",
+  "@wishPlanConvertHint": {
+    "description": "Pista de convertir un plan en sorpresa."
+  },
+  "wishConvertTitle": "¿Convertir «{name}» en sorpresa?",
+  "@wishConvertTitle": {
+    "description": "Pregunta antes de convertir un plan en sorpresa.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "wishConvertBody": "El deseo de la lista vuelve a estar disponible para otras personas.",
+  "@wishConvertBody": {
+    "description": "Consecuencia de convertir un plan en sorpresa."
+  },
+  "wishConvertConfirm": "Convertir",
+  "@wishConvertConfirm": {
+    "description": "Botón que confirma convertir un plan en sorpresa."
+  },
+  "wishClaimedNotice": "Has cogido «{name}»",
+  "@wishClaimedNotice": {
+    "description": "Aviso tras coger un deseo.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "wishReleasedNotice": "Lo has soltado",
+  "@wishReleasedNotice": {
+    "description": "Aviso tras soltar un deseo."
+  },
+  "wishConvertedNotice": "Ahora es una sorpresa",
+  "@wishConvertedNotice": {
+    "description": "Aviso tras convertir un plan en sorpresa."
+  },
+  "wishPlanDeletedNotice": "Reserva eliminada",
+  "@wishPlanDeletedNotice": {
+    "description": "Aviso tras borrar un plan."
+  },
+  "giftVisibleSwitch": "Visible para {name}",
+  "@giftVisibleSwitch": {
+    "description": "Interruptor del editor: el regalo es un deseo que la persona ve.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "giftVisibleHint": "{name} lo verá como un deseo más. Solo {name} podrá cambiarlo.",
+  "@giftVisibleHint": {
+    "description": "Pista del interruptor «Visible para».",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "giftVisibleNoSurprise": "Desde este móvil no se puede guardar una sorpresa para {name}: solo un deseo visible.",
+  "@giftVisibleNoSurprise": {
+    "description": "Motivo bajo la opción «Es una sorpresa» apagada del editor cuando el bloque de la persona está cerrado y solo cabe un deseo visible.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "wishSuggest": "Sugerir un deseo",
+  "@wishSuggest": {
+    "description": "Botón de la ficha de una persona cuyo bloque está cerrado: abre el formulario de un deseo visible para ella."
+  },
+  "wishProblemCap": "Ya hay 200 deseos en esta lista. Quita alguno para añadir otro.",
+  "@wishProblemCap": {
+    "description": "Error: tope de deseos."
+  },
+  "wishProblemTooLarge": "Es demasiado largo. Acorta el título o la descripción.",
+  "@wishProblemTooLarge": {
+    "description": "Error: deseo demasiado grande."
+  },
+  "wishProblemInvalid": "Revisa lo escrito: falta el título o algún dato no vale.",
+  "@wishProblemInvalid": {
+    "description": "Error: campo no válido."
+  },
+  "wishProblemNotOwner": "Solo la persona del deseo puede cambiarlo o quitarlo.",
+  "@wishProblemNotOwner": {
+    "description": "Error: no es el dueño del deseo."
+  },
+  "wishProblemGone": "Este deseo ya no está en la lista.",
+  "@wishProblemGone": {
+    "description": "Error: el deseo ya no existe."
+  },
+  "wishProblemClaimed": "Otra persona ya lo ha cogido.",
+  "@wishProblemClaimed": {
+    "description": "Error: deseo ya cogido."
+  },
+  "wishProblemApproval": "Este dispositivo espera la aprobación de la familia. Cuando la tenga, podrás apuntar deseos.",
+  "@wishProblemApproval": {
+    "description": "Error: dispositivo pendiente de aprobar."
+  },
+  "wishProblemNotAllowed": "Este dispositivo no puede apuntar deseos ahora.",
+  "@wishProblemNotAllowed": {
+    "description": "Error: dispositivo sin permiso."
+  },
+  "wishProblemNoDevice": "{name} no tiene móvil en la familia, así que no puede ver deseos.",
+  "@wishProblemNoDevice": {
+    "description": "Error: la persona no tiene móvil.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "wishProblemBlock": "Ahora no se puede abrir la lista de sorpresas de {name}. Sincroniza e inténtalo de nuevo.",
+  "@wishProblemBlock": {
+    "description": "Error: bloque de sorpresas no disponible.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "wishProblemBlockFull": "No cabe más en las sorpresas de {name}.",
+  "@wishProblemBlockFull": {
+    "description": "Error: bloque de sorpresas lleno.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "wishProblemFailed": "No se ha podido guardar. Inténtalo de nuevo.",
+  "@wishProblemFailed": {
+    "description": "Error genérico al guardar un deseo."
+  },
+  "wishProblemDevicesNeedUpdate": "Para coger deseos, todos los móviles de la familia necesitan la última versión.",
+  "@wishProblemDevicesNeedUpdate": {
+    "description": "Error: algún móvil de la familia aún no entiende los planes de deseos."
+  },
+  "webPlansHeld": "{count, plural, one{Un cambio en un deseo cogido espera a que se actualicen los demás móviles de la familia.} other{{count} cambios en deseos cogidos esperan a que se actualicen los demás móviles de la familia.}}",
+  "@webPlansHeld": {
+    "description": "Aviso de la web: cambios de planes de deseos retenidos hasta que los demás móviles se actualicen.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
 }

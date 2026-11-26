@@ -11,6 +11,7 @@ import '../../../core/sync/model.dart' show Collections;
 import '../../../core/sync/protected_doc.dart';
 import '../../../core/sync/recovery.dart';
 import '../../../core/sync/recovery_locator.dart';
+import '../../../core/sync/wish_boundary.dart';
 import '../../family/data/family_store.dart';
 import '../../family/data/generation_store.dart';
 import '../../family/data/recovery_store.dart';
@@ -697,13 +698,19 @@ class RecoveryController {
       }
       if (previous.hlc != null && previous.hlc! > hlc) hlc = previous.hlc!;
     }
+    // Frontera de los deseos (ADR 0010): lo recuperado entra en su única forma
+    // y sin nada privado de los planes.
+    doc = doc.wishBoundary();
+    final retired = {
+      for (final record
+          in (doc.collections[Collections.recipients] ?? {}).values)
+        if (record.isDeleted) record.id,
+    };
+    // The public clock floor comes only from public data (security review,
+    // B1): the stamps of the private scopes never raise it. The scopes keep
+    // their own stamps (the scope clock starts from the restored scope).
     final maxStamp = doc.maxStamp;
     if (maxStamp != null && maxStamp > hlc) hlc = maxStamp;
-    for (final scope in i.scopes.values) {
-      if (scope.maxStamp != null && scope.maxStamp! > hlc) {
-        hlc = scope.maxStamp!;
-      }
-    }
     for (final slot in slots.all) {
       final h = slot.header;
       final key = '${h.personId}/${h.writer}';
@@ -729,7 +736,7 @@ class RecoveryController {
     );
     await target.family.saveSyncV2(p.identity);
     await target.family.saveRegistry(registry);
-    await target.family.saveSlots(slots);
+    await target.family.saveSlots(slots.withoutPeople(retired));
     final scopes = {...i.scopes};
     if (local != null) {
       for (final e in (await local.family.readRecoveryScopes()).entries) {
@@ -739,9 +746,8 @@ class RecoveryController {
       }
     }
     for (final e in scopes.entries) {
-      await target.family.saveScope(e.key, e.value);
-      if (e.value.maxStamp != null && e.value.maxStamp! > hlc) {
-        hlc = e.value.maxStamp!;
+      if (!retired.contains(e.key)) {
+        await target.family.saveScope(e.key, e.value);
       }
     }
     await target.family.saveCommonKeys(

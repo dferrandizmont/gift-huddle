@@ -47,6 +47,7 @@ void main() {
     Phone me,
   ) async {
     final session = PairingHost.start(registry, await _view(registry, me));
+    await session.signOffer(me.keys);
     return (
       session,
       await PairingOffer.fromJson(
@@ -170,8 +171,10 @@ void main() {
         expect(session.code, isNot(guestCode));
         // Antes de la revelación el código no se puede calcular: con otro
         // nonce sale otro, así que no sirve probar fichas sin conexión.
-        final other = PairingHost.start(host, await _view(host, aritz));
-        await other.receive(evil.answer);
+        final (other, otherOffer) = await start(host, aritz);
+        await other.receive(
+          (await join(otherOffer, Phone('leo-phone', 'leo', nora.keys))).answer,
+        );
         expect(other.code, isNot(session.code));
         // Y ya revelado el nonce, el anfitrión no acepta otra respuesta.
         await expectLater(
@@ -190,9 +193,6 @@ void main() {
       final reveal = await session.receive(PairingAnswer.fromJson(json));
       expect(joined.codeFor(reveal), session.code);
       // Quien cambia el nonce del invitado (y nada más) cambia el código.
-      final other = PairingHost.start(host, await _view(host, aritz));
-      final tampered = {...json, 'gn': encodeBase64Url(List.filled(32, 7))};
-      await other.receive(PairingAnswer.fromJson(tampered));
       final sameNonce = PairingAnswer.fromJson(json);
       expect(
         pairingCode(
@@ -292,8 +292,10 @@ void main() {
         'rechaza', () async {
       final (session, offer) = await start(host, aritz);
       final joined = await join(offer, leo);
-      final otherSession = PairingHost.start(host, await _view(host, aritz));
-      final wrong = await otherSession.receive(joined.answer);
+      final (otherSession, otherOffer) = await start(host, aritz);
+      final wrong = await otherSession.receive(
+        (await join(otherOffer, leo)).answer,
+      );
       expect(() => joined.codeFor(wrong), throwsA(isA<PairingException>()));
       expect(
         () => PairingReveal.fromJson({'v': 2, 'n': 'corto'}),
@@ -313,10 +315,9 @@ void main() {
 
     test('ataque: una oferta con la ficha manipulada o sin compromiso no se '
         'acepta', () async {
-      final json = PairingHost.start(
-        host,
-        await _view(host, aritz),
-      ).offer.toJson();
+      final signing = PairingHost.start(host, await _view(host, aritz));
+      await signing.signOffer(aritz.keys);
+      final json = signing.offer.toJson();
       for (final bad in <Map<String, Object?>>[
         {
           ...json,
@@ -335,20 +336,33 @@ void main() {
 
     test('ataque: una respuesta con la ficha de otro, con un aval que no es '
         'para mí o con la persona cambiada no se acepta', () async {
-      final (_, offer) = await start(host, aritz);
-      final joined = await join(offer, leo);
-      final good = joined.answer.toJson();
-      Future<void> rejected(
-        Map<String, Object?> json, {
+      // Cada variante se lanza contra su propia sesión y la respuesta se
+      // firma para la oferta de esa sesión: lo único roto es la variante.
+      Future<(PairingHost, Map<String, Object?>, PairingOffer)> fresh({
         DeviceRegistry? registry,
       }) async {
         final on = registry ?? host;
-        final session = PairingHost.start(on, await _view(on, aritz));
+        final (session, offer) = await start(on, aritz);
+        final joined = await join(offer, leo);
+        return (
+          session,
+          jsonDecode(jsonEncode(joined.answer.toJson()))
+              as Map<String, Object?>,
+          offer,
+        );
+      }
+
+      Future<void> rejected(
+        PairingHost session,
+        Map<String, Object?> json, {
+        required DeviceRegistry on,
+      }) async {
         // N5: lo roto ya lo rechaza [PairingHost.receive], sin gastar la
         // respuesta; lo que pase de ahí lo rechaza [acceptPairing].
         try {
           await session.receive(PairingAnswer.fromJson(json));
-        } on PairingException {
+        } on PairingException catch (e) {
+          expect(e, isNot(isA<PairingGuestOutdatedException>()));
           expect(session.answer, isNull);
           return;
         }
@@ -365,26 +379,45 @@ void main() {
       }
 
       // La persona cambiada: la firma de la ficha ya no vale.
-      await rejected({
+      var (session, good, _) = await fresh();
+      await rejected(session, {
         ...good,
         'guest': {...good['guest']! as Map, 'p': 'aritz'},
-      });
+      }, on: host);
       // El aval no lo ha firmado el móvil nuevo.
-      await rejected({
+      await rejected(session, {
         ...good,
         'vouch': {...good['vouch']! as Map, 'sig': 'A' * 86},
-      });
+      }, on: host);
       // El aval es de otro móvil (Nora reenvía el de Leo con su ficha).
+      final (offerOnly, _, offer) = await fresh();
       final other = await join(offer, Phone('nora-phone', 'leo', nora.keys));
-      await rejected({...good, 'guest': other.answer.guest.toJson()});
-      // El aval es para una ficha vieja de este móvil.
+      await rejected(offerOnly, {
+        ...jsonDecode(jsonEncode(other.answer.toJson()))
+            as Map<String, Object?>,
+        'vouch': (await join(offer, leo)).answer.toJson()['vouch'],
+      }, on: host);
+      // El aval es para una ficha vieja de este móvil: la respuesta es
+      // buena para la oferta nueva, pero lleva el aval de la ficha vieja.
+      final (_, oldGood, _) = await fresh();
       final changed = await changePerson(
         registry: host,
         view: await _view(host, aritz),
         myKeys: aritz.keys,
         personId: 'leo',
       );
-      await rejected(good, registry: changed.registry);
+      final (changedSession, changedGood, _) = await fresh(
+        registry: changed.registry,
+      );
+      await rejected(changedSession, {
+        ...changedGood,
+        'vouch': oldGood['vouch'],
+      }, on: changed.registry);
+      // Control positivo: la respuesta buena, sin tocar, sí entra.
+      await session.receive(PairingAnswer.fromJson(good));
+      expect(session.answer, isNotNull);
+      await changedSession.receive(PairingAnswer.fromJson(changedGood));
+      expect(changedSession.answer, isNotNull);
     });
 
     test('ataque: un móvil nuevo con el id de uno que ya existe y otras '

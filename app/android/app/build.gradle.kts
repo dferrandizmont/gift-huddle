@@ -37,8 +37,8 @@ android {
     }
 
     defaultConfig {
-        // Identificador definitivo elegido para el producto (2026-11-14).
-        applicationId = if (legacyAppId) "app.gifthuddle" else "es.gifthuddle.app"
+        // Paquete de Play de la cuenta Mainshai (2026-11-23); iOS sigue con es.gifthuddle.app.
+        applicationId = if (legacyAppId) "app.gifthuddle" else "es.gifthuddle.android"
         minSdk = 26
         targetSdk = flutter.targetSdkVersion
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION

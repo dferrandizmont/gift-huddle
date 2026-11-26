@@ -9,8 +9,8 @@ import 'package:regalos/features/people/presentation/countdown_carousel.dart';
 import '../helpers/memory_stores.dart' show FakePhone;
 import '../helpers/screens.dart';
 
-// «La casa · X» (ficha de la persona) y el total del «Resumen»: sin previsto,
-// «Gastado X» y sin barra; nunca «X de 0 €».
+// El total del «Resumen» usa el real cuando falta el previsto. La ficha de
+// la persona cuenta lo comprado sobre el total de sus regalos.
 
 Future<void> _seedLoose(
   WidgetTester tester,
@@ -57,8 +57,8 @@ void main() {
   for (final withGift in [true, false]) {
     screenTest(
       withGift
-          ? 'con lo gastado y sin previsto, «La casa · Nora» y el total del '
-                'Resumen dicen «Gastado 45 €», sin barra ni «de 0 €»'
+          ? 'con solo precio real, el total del Resumen dice «45 € de 45 €» y la '
+                'ficha de Nora «Comprado 45 € de 45 €»'
           : 'sin importes, el total del Resumen dice «Gastado 0 €», sin '
                 'barra ni «0 € de 0 €»',
       (tester, phone) async {
@@ -71,7 +71,7 @@ void main() {
         expect(summary, findsOneWidget);
         // En escritorio, sin regalos la ficha no lleva el bloque de la casa: solo
         // queda el total del Resumen.
-        for (final scope in [if (withGift) detail, summary]) {
+        for (final scope in [summary]) {
           final meters = find.descendant(
             of: scope,
             matching: find.byType(BudgetMeter),
@@ -79,18 +79,18 @@ void main() {
           expect(meters, findsWidgets, reason: 'hay medidor en $scope');
           expect(
             find.descendant(of: scope, matching: find.byType(BudgetBar)),
-            findsNothing,
+            withGift ? findsOneWidget : findsNothing,
           );
           expect(
             find.descendant(of: scope, matching: find.text('Gastado')),
-            findsWidgets,
+            withGift ? findsNothing : findsWidgets,
           );
           expect(
             find.descendant(
               of: scope,
               matching: find.textContaining(RegExp(r'^de ')),
             ),
-            findsNothing,
+            withGift ? findsOneWidget : findsNothing,
           );
           // El importe, dentro del propio medidor (el del Resumen incluido).
           expect(
@@ -99,11 +99,25 @@ void main() {
           );
         }
         if (withGift) {
+          final personMeter = find.descendant(
+            of: detail,
+            matching: find.widgetWithText(BudgetMeter, 'Nora'),
+          );
+          expect(personMeter, findsOneWidget);
           expect(
-            find.descendant(
-              of: detail,
-              matching: find.textContaining('La casa · Nora'),
-            ),
+            find.descendant(of: personMeter, matching: find.text('Comprado')),
+            findsOneWidget,
+          );
+          expect(
+            find.descendant(of: personMeter, matching: find.text(money)),
+            findsOneWidget,
+          );
+          expect(
+            find.descendant(of: personMeter, matching: find.text('de $money')),
+            findsOneWidget,
+          );
+          expect(
+            find.descendant(of: personMeter, matching: find.byType(BudgetBar)),
             findsOneWidget,
           );
         }

@@ -315,14 +315,17 @@ void main() {
           'pregunta si sustituir la lista',
         );
         await tester.tap(find.text('Sustituir y unirme'));
+        // El primer layout inicia la animación de tamaño del paso. El botón
+        // puede estar en el árbol antes de que su centro reciba el toque.
+        final matchCode = find.text('Coinciden').hitTestable();
         await until(
           () =>
               guest() == PairingV2GuestPhase.compare &&
               host.container.read(pairingV2HostProvider).phase ==
-                  PairingV2HostPhase.compare,
-          'los dos enseñan el código',
+                  PairingV2HostPhase.compare &&
+              matchCode.evaluate().isNotEmpty,
+          'los dos enseñan el código y se puede pulsar «Coinciden»',
         );
-        await tester.pump(const Duration(milliseconds: 500));
         // La causa de M1: al borrar la lista de este móvil, el router mandaba
         // a la bienvenida y, al instalar la nueva, de vuelta a Personas; las
         // cuatro pestañas se desmontaban y se volvían a montar a medias.
@@ -368,8 +371,9 @@ void main() {
 
           hold.addListener(onHold);
         }
-        await tester.tap(find.text('Coinciden'));
+        await tester.tap(matchCode);
         await tester.pump();
+        expect(guest(), PairingV2GuestPhase.waitingApproval);
         await tester.runAsync(
           () => host.container.read(pairingV2HostProvider.notifier).confirm(),
         );

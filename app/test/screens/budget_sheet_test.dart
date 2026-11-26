@@ -49,7 +49,8 @@ Future<void> _mergeBudget(
   final remote = local.set(remoteClock, Collections.occasions, _santaId, {
     Occasion.budgetField: cents,
   });
-  await tester.runAsync(
+  await driveAsync(
+    tester,
     () => familyOf(phone).mergeRemote(remote, fromNode: remoteClock.node),
   );
   await tester.pump();

@@ -17,6 +17,10 @@ import '../../../core/sync/protected_envelope.dart';
 import '../../../core/sync/family_doc.dart';
 import '../../../core/sync/hlc.dart';
 import '../../../core/sync/model.dart';
+import '../../../core/sync/wish.dart';
+import '../../../core/sync/wish_author.dart';
+import '../../../core/sync/wish_boundary.dart';
+import '../../../core/sync/wish_plan.dart';
 import '../../../core/sync/pairing_v2.dart'
     show keepProtocolV2, kSyncProtocolV2, syncProtocolOf;
 import '../../review/application/review_providers.dart';
@@ -72,10 +76,14 @@ class FamilyState {
     this.protectionRevision = 0,
     this.otherDevicePeople = const <String>{},
     bool authorized = false,
+    this.plansByWish = const <String, List<WishPlan>>{},
+    Set<String> planGiftIds = const <String>{},
   }) : _authorized = authorized,
        view = FamilyView.fromDoc(
          authorized ? doc : _safeStateDoc(doc),
          hiddenGiftIds: hiddenGiftIds,
+         plansByWish: plansByWish,
+         planGiftIds: planGiftIds,
        );
 
   /// Primer arranque: todavía no hay familia.
@@ -85,6 +93,7 @@ class FamilyState {
       hiddenGiftIds = const <String>{},
       protectionRevision = 0,
       otherDevicePeople = const <String>{},
+      plansByWish = const <String, List<WishPlan>>{},
       _authorized = false,
       identity = null;
 
@@ -93,6 +102,10 @@ class FamilyState {
   /// El documento.
   final FamilyDoc doc;
   final bool _authorized;
+
+  /// Los planes vivos de los deseos que este móvil puede ver, por id de deseo
+  /// (ADR 0010). Vacío en los móviles de la propia persona.
+  final Map<String, List<WishPlan>> plansByWish;
 
   static FamilyDoc _safeStateDoc(FamilyDoc doc) {
     // Solo se ocultan las personas cuya política publicada dice «ocultar»
@@ -138,7 +151,7 @@ class FamilyState {
   /// eliminar (ni en la pantalla ni en el controlador).
   ///
   /// - **Este móvil:** es «Yo» (`identity.selfRecipientId`, ADR 0004).
-  /// - **Otro móvil de la familia:** [otherDevicePeople].
+  /// - **Otro dispositivo de la familia:** [otherDevicePeople].
   DevicePersonOwner? devicePersonOwner(String recipientId) {
     if (identity?.selfRecipientId == recipientId) {
       return DevicePersonOwner.thisDevice;
@@ -176,6 +189,8 @@ class FamilyState {
     _authorized ? doc : _safeStateDoc(doc),
     includeArchived: true,
     hiddenGiftIds: hiddenGiftIds,
+    plansByWish: plansByWish,
+    planGiftIds: view.planGiftIds,
   );
 
   /// Copia con otro documento, identidad o regalos a la espera de borrarse.
@@ -192,6 +207,8 @@ class FamilyState {
     protectionRevision: protectionRevision ?? this.protectionRevision,
     otherDevicePeople: otherDevicePeople ?? this.otherDevicePeople,
     authorized: _authorized,
+    plansByWish: plansByWish,
+    planGiftIds: view.planGiftIds,
   );
 }
 
@@ -215,6 +232,7 @@ class FamilyController extends AsyncNotifier<FamilyState> {
   HlcClock? _clock;
   FamilyKey? _key;
   Future<void> _tail = Future<void>.value();
+  bool _recipientPurgePending = false;
 
   FamilyStore get _store => ref.read(familyStoreProvider);
   Ref get _protectionRef => ref;
@@ -223,16 +241,11 @@ class FamilyController extends AsyncNotifier<FamilyState> {
   @override
   Future<FamilyState> build() async {
     final supportsRecovery = ref.read(recoverySupportedProvider);
-    var writable = true;
-    if (supportsRecovery) {
-      await resumeRecoveryBeforeFamily(ref);
-      final restoring = await ref.read(recoveryStoreProvider).readRestore();
-      writable =
-          !await _store.isTransferred() &&
-          (restoring == null || restoring.phase == RecoveryPhase.active);
-    }
+    if (supportsRecovery) await resumeRecoveryBeforeFamily(ref);
+    final writable = await _canMaintainStorage();
     if (writable) await _store.recoverProtectionOperation();
     final stored = await _store.load();
+    _recipientPurgePending = false;
     if (stored == null) {
       _clock = null;
       _key = null;
@@ -255,20 +268,62 @@ class FamilyController extends AsyncNotifier<FamilyState> {
     for (final (collection, id) in dirty) {
       doc = doc.delete(_clock!, collection, id);
     }
+    if (_store.supportsSecretScopes) {
+      doc = doc.tombstoneWishesForDeletedRecipients();
+    }
     if (!identical(doc, stored.doc) && writable) {
       await _store.saveDoc(doc);
       doc = _store.savedDoc(doc);
     }
+    // Recovery and pairing may need this snapshot while holding the v2 lock.
+    // The next locked write can replay cleanup from the saved tombstones.
+    _recipientPurgePending =
+        _store.supportsSecretScopes && _hasDeletedRecipients(doc);
     return FamilyState(
       doc: doc,
       identity: stored.identity,
-      otherDevicePeople: await _readOtherMobilePeople(doc),
+      otherDevicePeople: await _readOtherActiveDevicePeople(doc),
     );
   }
 
-  Future<Set<String>> _readOtherMobilePeople(FamilyDoc doc) async {
+  bool _hasDeletedRecipients(FamilyDoc doc) =>
+      doc.collections[Collections.recipients]?.values.any(
+        (record) => record.isDeleted,
+      ) ??
+      false;
+
+  Future<bool> _canMaintainStorage() async {
+    if (!ref.read(recoverySupportedProvider)) return true;
+    final restoring = await ref.read(recoveryStoreProvider).readRestore();
+    return !await _store.isTransferred() &&
+        (restoring == null || restoring.phase == RecoveryPhase.active);
+  }
+
+  // The common is already durable and visible. Retry failed cleanup under
+  // the family lock before another write. Startup can replay it from disk.
+  Future<void> _purgeRecipientScopes(FamilyDoc doc) async {
+    if (!_store.supportsSecretScopes || !_hasDeletedRecipients(doc)) {
+      _recipientPurgePending = false;
+      return;
+    }
+    _recipientPurgePending = true;
+    if (!await _canMaintainStorage()) return;
+    await _store.purgeDeletedRecipientScopes(doc);
+    _recipientPurgePending = false;
+  }
+
+  Future<void> _resumeRecipientPurge() async {
+    if (!_recipientPurgePending) return;
+    final doc = state.value?.doc;
+    if (doc != null) await _purgeRecipientScopes(doc);
+  }
+
+  Future<Set<String>> _readOtherActiveDevicePeople(FamilyDoc doc) async {
     try {
-      return otherMobilePeople((await _store.readVerifiedRegistry(doc))?.view);
+      return otherActiveDevicePeople(
+        await _store.readDevicePersonView(doc),
+        excludingDevice: (await _store.readSyncV2())?.deviceId,
+      );
     } on RegistryException {
       // Display metadata only: archiving and deleting verify it afresh
       // (_refuseDevicePerson), so a mixed identity cannot block the family.
@@ -299,6 +354,18 @@ class FamilyController extends AsyncNotifier<FamilyState> {
     return result;
   }
 
+  // Public-only edits can normally run during sync. If a previous command
+  // left cleanup pending, release the write queue before taking the v2 lock.
+  Future<T> _serialCommonWrite<T>(Future<T> Function() action) async {
+    await _current();
+    final result = await _serial<({T value})?>(() async {
+      if (_recipientPurgePending) return null;
+      return (value: await action());
+    });
+    if (result == null) return _protectionSerial(action);
+    return result.value;
+  }
+
   Future<FamilyState> _current() async => state.value ?? await future;
 
   Future<T> _changeFamily<T>(Future<T> Function() action) =>
@@ -325,8 +392,8 @@ class FamilyController extends AsyncNotifier<FamilyState> {
     if (_clock == null || current.identity?.node != stored.identity.node) {
       _clock = HlcClock(node: stored.identity.node);
     }
-    if (max != null) _clock!.receive(max);
-    final otherPeople = await _readOtherMobilePeople(stored.doc);
+    if (max != null && max > _clock!.last) _clock!.receive(max);
+    final otherPeople = await _readOtherActiveDevicePeople(stored.doc);
     if (!ref.mounted) return;
     state = AsyncData(
       current.copyWith(
@@ -561,8 +628,7 @@ class FamilyController extends AsyncNotifier<FamilyState> {
   Future<void> markUnpaired() => _serial(() async {
     final current = await _current();
     final identity = current.identity;
-    if (identity == null ||
-        (!identity.paired && identity.formerSelf.isEmpty)) {
+    if (identity == null || (!identity.paired && identity.formerSelf.isEmpty)) {
       return;
     }
     // Una generación sin nadie: ni emparejado ni personas de antes que
@@ -574,7 +640,7 @@ class FamilyController extends AsyncNotifier<FamilyState> {
 
   /// Cambia el nombre con que este móvil se presenta a los demás. Vacío no
   /// hace nada.
-  Future<void> setDeviceName(String name) => _serial(() async {
+  Future<void> setDeviceName(String name) => _serialCommonWrite(() async {
     final current = await _current();
     final identity = current.identity;
     final clean = name.trim();
@@ -819,10 +885,13 @@ class FamilyController extends AsyncNotifier<FamilyState> {
   /// [transaction] puede usar la cola de escrituras, pero no tomar el cerrojo.
   Future<T> withRecoveredSelfPersonChange<T>(
     Future<T> Function() transaction,
-  ) => ref.read(v2FamilyLockProvider).run(() async {
-    await _serial(_finishSelfPersonChange);
-    return transaction();
-  });
+  ) async {
+    await _current();
+    return ref.read(v2FamilyLockProvider).run(() async {
+      await _serial(_finishSelfPersonChange);
+      return transaction();
+    });
+  }
 
   // Solo dentro de la cola de escrituras y del cerrojo v2.
   Future<void> _finishSelfPersonChange() async {
@@ -868,6 +937,7 @@ class FamilyController extends AsyncNotifier<FamilyState> {
     await _store.clear();
     _clock = null;
     _key = null;
+    _recipientPurgePending = false;
     state = AsyncData(FamilyState.noFamily());
   });
 
@@ -878,10 +948,24 @@ class FamilyController extends AsyncNotifier<FamilyState> {
   Future<ImportSummary> mergeRemote(
     FamilyDoc remote, {
     required String fromNode,
+  }) async {
+    await _current();
+    return ref
+        .read(v2FamilyLockProvider)
+        .run(() => mergeRemoteWithinLock(remote, fromNode: fromNode));
+  }
+
+  /// The v2 engine and signed file import already hold the family lock.
+  Future<ImportSummary> mergeRemoteWithinLock(
+    FamilyDoc remote, {
+    required String fromNode,
   }) => _serial(() async {
     _store.requireMobileOperation('import');
     final current = await _requireFamily();
     final identity = current.identity!;
+    // Frontera de los deseos (ADR 0010): del común que llega no entra nada
+    // privado de los planes ni un deseo mal formado.
+    remote = remote.wishBoundary();
     final remoteMax = remote.maxStamp;
     if (remoteMax != null) {
       // Antes de tocar nada: si el otro móvil va muy adelantado se rechaza.
@@ -891,7 +975,7 @@ class FamilyController extends AsyncNotifier<FamilyState> {
         throw ImportClockDriftException(ahead: e.lead);
       }
     }
-    var merged = current.doc.merge(remote);
+    var merged = current.doc.merge(remote).normalizedWishes();
     // Una lápida que el otro móvil aún llena de contenido (un móvil antiguo,
     // o una edición suya posterior al borrado) se borra otra vez con el reloj
     // de ahora: así el vaciado gana por marca en cualquier versión y los dos
@@ -910,33 +994,33 @@ class FamilyController extends AsyncNotifier<FamilyState> {
     );
     merged = reconcileGiverCopies(merged, _clock!);
     final changed = merged.canonicalJson() != current.doc.canonicalJson();
-    final next = changed ? current.copyWith(doc: merged) : current;
     final summary = ImportSummary.between(
       await _authorizedView(current.doc, policySource: merged),
       await _authorizedView(merged),
       docChanged: changed,
     );
+    var next = current;
     if (changed) {
       await _store.saveDoc(merged);
+      next = current.copyWith(doc: _store.savedDoc(merged));
+      // Lo que llega de fuera se anima en silencio (sin celebración).
+      ref.read(remoteChangeProvider.notifier).bump();
+      state = AsyncData(next);
     }
-    var nextState = next;
+    await _purgeRecipientScopes(merged);
     final fromOther = fromNode != identity.node;
     if (fromOther && !identity.paired) {
       final paired = identity.copyWith(paired: true);
       await _store.saveIdentity(paired);
-      nextState = nextState.copyWith(identity: paired);
+      state = AsyncData(next.copyWith(identity: paired));
     }
-    if (changed) {
-      // Lo que llega de fuera se anima en silencio (sin celebración).
-      ref.read(remoteChangeProvider.notifier).bump();
-    }
-    state = AsyncData(nextState);
     return summary;
   });
 
   Future<FamilyState> _requireFamily() async {
     await _store.assertWritable();
     await _recoverProtection();
+    await _resumeRecipientPurge();
     final current = await _current();
     if (!current.hasFamily) {
       throw const NoFamilyException();
@@ -951,7 +1035,7 @@ class FamilyController extends AsyncNotifier<FamilyState> {
   Future<bool> _commit(
     FamilyDoc Function(FamilyDoc doc, HlcClock clock) change, {
     bool cascade = false,
-  }) => _serial(() => _commitNow(change, cascade: cascade));
+  }) => _serialCommonWrite(() => _commitNow(change, cascade: cascade));
 
   Future<bool> _commitNow(
     FutureOr<FamilyDoc> Function(FamilyDoc doc, HlcClock clock) change, {
@@ -1008,15 +1092,29 @@ class FamilyController extends AsyncNotifier<FamilyState> {
   }
 
   Future<void> _refuseDevicePerson(FamilyDoc doc, String id) async {
-    final registry = (await _store.readVerifiedRegistry(doc))?.view;
+    final registry = await _store.readDevicePersonView(doc);
+    final device = (await _store.readSyncV2())?.deviceId;
     final selfId = (await _current()).identity?.selfRecipientId;
-    final owner = selfId == id || registry?.myPerson == id
+    final registrySelf = device == null || device == registry?.me
+        ? registry?.myPerson
+        : registry?.member(device)?.personId;
+    final owner = selfId == id || registrySelf == id
         ? DevicePersonOwner.thisDevice
-        : otherMobilePeople(registry).contains(id)
+        : otherActiveDevicePeople(
+            registry,
+            excludingDevice: device,
+          ).contains(id)
         ? DevicePersonOwner.otherDevice
         : null;
     if (owner != null) {
       throw DevicePersonException(recipientId: id, owner: owner);
+    }
+    if (registry == null &&
+        (device != null || syncProtocolOf(doc) == kSyncProtocolV2)) {
+      throw ProtectedPersonException(
+        id,
+        reason: ProtectedPersonReason.registryUnavailable,
+      );
     }
   }
 
@@ -1809,8 +1907,8 @@ class FamilyController extends AsyncNotifier<FamilyState> {
   }
 
   /// Elimina a una persona para siempre: su registro pasa a lápida (sin
-  /// nombre, notas ni fecha), y también todos sus regalos, de todos los años,
-  /// y su ocasión de cumpleaños. Si era quien había pedido otros regalos, ese
+  /// nombre, notas ni fecha), y también todos sus regalos, sus deseos y su
+  /// ocasión de cumpleaños. Si era quien había pedido otros regalos, ese
   /// dato se borra de ellos. No hace nada si no existe o ya está eliminada.
   ///
   /// Lanza [DevicePersonException] (y no escribe nada) si es la persona de
@@ -1827,6 +1925,8 @@ class FamilyController extends AsyncNotifier<FamilyState> {
   /// This is the unit displayed by a row in Settings and Archive.
   /// Pass the impact shown in the dialog as [expectedImpact]. A changed set
   /// raises [DeleteImpactChanged] before either the common or a scope is saved.
+  /// A reader without wish-plan support can block the cascade with
+  /// [WishPlanError.devicesNeedUpdate].
   Future<void> deleteGiverAlias(String id, {DeleteImpact? expectedImpact}) =>
       _deleteWithCascade(
         id,
@@ -1849,7 +1949,7 @@ class FamilyController extends AsyncNotifier<FamilyState> {
 
   /// The gifts, requests, birthday and giver history relevant to confirmation.
   Future<DeleteImpact> recipientDeleteImpact(String id) =>
-      _deleteImpact(id, DeleteImpact.ofRecipient);
+      _deleteImpact(id, DeleteImpact.ofRecipient, person: true);
 
   /// The record and gifts that can be named in an original row's confirmation.
   Future<DeleteImpact> giverAliasDeleteImpact(String id) =>
@@ -1861,11 +1961,21 @@ class FamilyController extends AsyncNotifier<FamilyState> {
 
   Future<DeleteImpact> _deleteImpact(
     String id,
-    DeleteImpact Function(FamilyView, String) impactOf,
-  ) => _protectionSerial(() async {
+    DeleteImpact Function(FamilyView, String) impactOf, {
+    bool person = false,
+  }) => _protectionSerial(() async {
     final current = await _current();
     final doc = await _store.cascadeDoc(current.doc);
-    return impactOf(await _authorizedView(doc, includePending: true), id);
+    final impact = impactOf(
+      await _authorizedView(doc, includePending: true),
+      id,
+    );
+    return impact.withPlans(
+      await _affectedPlanIds(doc, person ? id : null, {
+        if (!person) id,
+        for (final giver in impact.affectedAliases) giver.id,
+      }),
+    );
   });
 
   // See the latest authorized impact inside the same queue as the write.
@@ -1882,20 +1992,24 @@ class FamilyController extends AsyncNotifier<FamilyState> {
       await _authorizedView(before, includePending: true),
       id,
     );
-    if (expectedImpact != null && !expectedImpact.matches(impact)) {
-      throw DeleteImpactChanged(impact);
-    }
-    if (_isGone(before, collection, id)) return;
-    if (person) await _refuseDevicePerson(before, id);
-    final clock = _clock!;
-    final latest = _store.latestStoredStamp(before);
-    if (latest != null && latest > clock.last) clock.receive(latest);
-    // A live giver can have gift references before all its required fields
-    // have arrived. Its id may be absent from the confirmation view.
     final aliases = {
       if (!person) id,
       for (final giver in impact.affectedAliases) giver.id,
     };
+    final withPlans = impact.withPlans(
+      await _affectedPlanIds(before, person ? id : null, aliases),
+    );
+    if (expectedImpact != null && !expectedImpact.matches(withPlans)) {
+      throw DeleteImpactChanged(withPlans);
+    }
+    if (_isGone(before, collection, id)) return;
+    if (person) await _refuseDevicePerson(before, id);
+    final clock = HlcClock(node: _clock!.node, last: _clock!.last);
+    final latest = _store.latestStoredStamp(before);
+    if (latest != null && latest > clock.last) clock.receive(latest);
+    // A live giver can have gift references before all its required fields
+    // have arrived. Its id may be absent from the confirmation view
+    // (see `aliases` above).
     FamilyDoc changeGifts(FamilyDoc doc, HlcClock clock) =>
         _cascadeGiftReferences(doc, clock, person ? id : null, aliases);
     var next = changeGifts(before, clock);
@@ -1908,19 +2022,23 @@ class FamilyController extends AsyncNotifier<FamilyState> {
           next = next.delete(clock, Collections.occasions, record.id);
         }
       }
-      next = next.delete(clock, collection, id);
+      next = next.deleteRecipientWithWishes(clock, id);
     }
     for (final alias in aliases) {
       next = next.delete(clock, collection, alias);
     }
+    // A protected cascade can be replayed from its journal after an error.
+    if (person && _store.supportsSecretScopes) _recipientPurgePending = true;
     final protected = await _saveProtectedCascade(before, next, changeGifts);
     if (!protected) await _store.saveCascadeDoc(before, next);
+    _clock = clock;
     state = AsyncData(
       current.copyWith(
         doc: _store.savedDoc(next),
         protectionRevision: current.protectionRevision + (protected ? 1 : 0),
       ),
     );
+    if (person) await _purgeRecipientScopes(next);
   });
 
   FamilyDoc _cascadeGiftReferences(
@@ -1945,6 +2063,19 @@ class FamilyController extends AsyncNotifier<FamilyState> {
       };
       if (fields.isNotEmpty) {
         next = next.setChanged(clock, Collections.gifts, record.id, fields);
+      }
+    }
+    // Wish plans (ADR 0010) live in the secret scopes and get the same
+    // treatment: a deleted person's plans are deleted; a deleted giver is
+    // cleared from the plans that name it.
+    if (personId != null) {
+      next = tombstoneRecipientWishPlans(next, clock, personId);
+    }
+    for (final record in _live(next, ScopeCollections.wishPlans)) {
+      if (aliases.contains(record['giverId'])) {
+        next = next.setChanged(clock, ScopeCollections.wishPlans, record.id, {
+          'giverId': null,
+        });
       }
     }
     return next;

@@ -77,6 +77,7 @@ class PickerField<T> extends StatefulWidget {
     required this.value,
     required this.onChanged,
     this.sheetTitle,
+    this.track,
   });
 
   /// Etiqueta del campo (también el título de la hoja salvo [sheetTitle]).
@@ -87,6 +88,10 @@ class PickerField<T> extends StatefulWidget {
   final T? value;
   final ValueChanged<T> onChanged;
   final String? sheetTitle;
+
+  /// Envuelve la apertura del selector: el editor que lo contiene lo apunta
+  /// para poder cerrarlo si deja de ver lo que enseña.
+  final Future<T?> Function(Future<T?> Function() open)? track;
 
   @override
   State<PickerField<T>> createState() => _PickerFieldState<T>();
@@ -118,7 +123,7 @@ class _PickerFieldState<T> extends State<PickerField<T>> {
     if (anchored) setState(() => _opened = true);
     final T? picked;
     try {
-      picked = await showPickerSheet<T>(
+      Future<T?> show() => showPickerSheet<T>(
         context,
         title: widget.sheetTitle ?? widget.label,
         options: widget.options,
@@ -126,6 +131,8 @@ class _PickerFieldState<T> extends State<PickerField<T>> {
         anchor: context,
         returnFocusTo: _focus,
       );
+      final track = widget.track;
+      picked = await (track == null ? show() : track(show));
     } finally {
       if (mounted && _opened) setState(() => _opened = false);
     }

@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/app/app.dart';
+import 'package:regalos/app/app_info.dart';
 import 'package:regalos/core/sync/protected_doc.dart'
     show ProtectedPersonReason, SecretBlock;
 import 'package:regalos/core/widgets/secret_block.dart';
@@ -97,12 +98,12 @@ void main() {
   }, overrides: _blocks);
 
   screenTest(
-    'Ajustes enseña la 1.0.6 y Acerca de, en la web, habla de este ordenador',
+    'Ajustes enseña la versión de la app y Acerca de, en la web, habla de este ordenador',
     (tester, phone) async {
       await _mountWeb(tester, phone);
       await tester.tap(find.text('Ajustes').last);
       await settle(tester);
-      expect(find.text('1.0.6'), findsOneWidget);
+      expect(find.text(kAppVersion), findsOneWidget);
       await tapText(tester, 'Acerca de Gift Huddle');
       expect(
         find.text(

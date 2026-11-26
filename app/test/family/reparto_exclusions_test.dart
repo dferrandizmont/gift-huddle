@@ -2,6 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/core/sync/family_doc.dart';
 import 'package:regalos/core/sync/hlc.dart';
 import 'package:regalos/core/sync/model.dart';
+import 'package:regalos/core/sync/wish.dart';
+import 'package:regalos/core/sync/wish_plan.dart';
 import 'package:regalos/features/family/application/family_controller.dart';
 import 'package:regalos/features/family/application/family_providers.dart';
 import 'package:regalos/features/family/presentation/family_screen.dart'
@@ -646,6 +648,68 @@ void main() {
           .cell('aritz', 'us')
           .status,
       GridStatus.excluded,
+    );
+  });
+
+  test('wishes add no packages, spend or assignment to Reparto; a plan adds '
+      'exactly one gift with the usual filters', () async {
+    const wish = Wish(
+      id: 'w1',
+      recipientId: 'nora',
+      authorPersonId: 'nora',
+      suggested: false,
+      title: 'Bicicleta',
+      year: 2026,
+      occasionId: 'seed-santa',
+    );
+    const plan = WishPlan(
+      planId: 'p1',
+      recipientId: 'nora',
+      sourceWishId: 'w1',
+      claimantPersonId: 'aritz',
+      title: 'Bicicleta',
+      status: GiftStatus.decided,
+      giverId: 'us',
+      plannedCents: 5000,
+    );
+    final base = (await state()).view;
+    FamilyView withWishes(List<Gift> extra) => FamilyView(
+      recipients: base.recipients,
+      givers: base.givers,
+      occasions: base.occasions,
+      gifts: [...base.gifts, ...extra],
+      allGifts: [...base.allGifts, ...extra],
+      allGivers: base.allGivers,
+      visibleWishes: const [wish],
+      allVisibleWishes: const [wish],
+    );
+    final free = withWishes(const []);
+    expect(free.grid().cell('nora', 'us').giftCount, 1);
+    expect(free.forReparto().gifts, hasLength(base.gifts.length));
+    final claimed = withWishes([
+      plan.toGiftForAuthorizedView(year: 2026, occasionId: 'seed-santa'),
+    ]);
+    expect(claimed.grid().cell('nora', 'us').giftCount, 2);
+    expect(
+      claimed.grid(occasionKeys: {'seed-kings'}).cell('nora', 'us').giftCount,
+      0,
+    );
+    expect(claimed.forReparto().gifts, hasLength(base.gifts.length + 1));
+    // Nora fuera de Reparto: ni sus regalos ni su plan cuentan.
+    await controller.setRecipientInReparto('nora', false);
+    final out = (await state()).view;
+    final outClaimed = FamilyView(
+      recipients: out.recipients,
+      givers: out.givers,
+      occasions: out.occasions,
+      gifts: [
+        ...out.gifts,
+        plan.toGiftForAuthorizedView(year: 2026, occasionId: 'seed-santa'),
+      ],
+    );
+    expect(
+      outClaimed.forReparto().gifts.where((g) => g.recipientId == 'nora'),
+      isEmpty,
     );
   });
 }

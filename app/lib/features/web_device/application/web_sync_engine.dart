@@ -17,6 +17,10 @@ import '../../../core/sync/model.dart';
 import '../../../core/sync/pairing_v2.dart' show syncProtocolOf;
 import '../../../core/sync/protected_doc.dart';
 import '../../../core/sync/protected_envelope.dart';
+import '../../../core/sync/wish.dart';
+import '../../../core/sync/wish_author.dart';
+import '../../../core/sync/wish_boundary.dart';
+import '../../../core/sync/wish_plan.dart';
 import '../../sync/application/common_v2.dart';
 import '../../sync/application/common_v2_cutover.dart';
 import '../../sync/application/sync_v2_engine.dart' show V2RollbackException;
@@ -148,6 +152,8 @@ bool webEntryAllowed(
   PendingEntry entry,
   Set<String> blocked,
 ) {
+  // A private scope change (wish plans, ADR 0010) is never a public write.
+  if (entry.kind == PendingKind.privateScope) return false;
   final result = before.merge(entry.delta);
   for (final r
       in entry.delta.collections[Collections.gifts]?.values ?? <SyncRecord>[]) {
@@ -157,7 +163,15 @@ bool webEntryAllowed(
       r['recipientId'],
       result.record(Collections.gifts, r.id)?['recipientId'],
     };
-    if (people.any(blocked.contains)) return false;
+    for (final person in people.whereType<String>().where(blocked.contains)) {
+      // A recipient cascade can scrub that person's public gift in place.
+      if (!r.isDeleted ||
+          r.hasTombstoneContent ||
+          entry.delta.record(Collections.recipients, person)?.isDeleted !=
+              true) {
+        return false;
+      }
+    }
   }
   return true;
 }
@@ -226,6 +240,7 @@ class WebSyncEngine {
   final void Function(Object)? onError;
   FamilyDoc? candidate;
   FamilyDoc? _publicationCandidate;
+  bool _needsWishRepair = false;
   RegistryView? view;
 
   /// The registry seen as this web (its own id and person), for the screen
@@ -265,10 +280,32 @@ class WebSyncEngine {
   /// keys, or the web's phone is not there).
   int heldSecretCount = 0;
 
-  /// Inbox changes dropped because their gift no longer exists.
+  /// Inbox changes dropped because their gift no longer exists, or because
+  /// the phone rejected the whole inbox they were in.
   int discardedSecretCount = 0;
 
+  /// Wish plans that wait in the queue because another phone of the family
+  /// does not understand them yet (ADR 0010, A1): «update the other phones».
+  int get heldPlanCount => _heldPlans.values.fold(0, (n, c) => n + c);
+
+  /// People whose wish plans wait for the other phones to update.
+  Set<String> get heldPlanPeople => {
+    for (final e in _heldPlans.entries)
+      if (e.value > 0) e.key,
+  };
+
+  final Map<String, int> _heldPlans = {};
+
   Map<String, List<PendingEntry>> _inbox = const {};
+
+  /// Wish plans with changes waiting in an inbox for the owner's phone
+  /// (ADR 0010).
+  Set<String> pendingPlanIds = const {};
+
+  /// The public common as this web sees it: the saved one with the public
+  /// actions waiting in the queue. Never holds opened secrets, wish plans or
+  /// inbox changes; its newest stamp is the public clock ([publicStamp]).
+  FamilyDoc? _commonDoc;
 
   /// Inboxes the Worker refused, until when they wait (M3). The common
   /// keeps publishing meanwhile.
@@ -281,6 +318,8 @@ class WebSyncEngine {
   };
   WebSyncStatus status = WebSyncStatus.pending;
   int setAsideCount = 0;
+  int rejectedSecretRecipientDeletes = 0;
+  List<String> rejectedDevicePersonNames = const [];
   bool get hasRoots => (vault.opened.data['roots'] as List).isNotEmpty;
   int version = 0;
   int _generation = 0;
@@ -468,12 +507,14 @@ class WebSyncEngine {
     unawaited(_socket?.cancel());
     _socket = null;
     candidate = null;
+    _commonDoc = null;
     _publicationCandidate = null;
     view = null;
     screenView = null;
     phonePeople = const {};
     secrets.clear();
     _inbox = const {};
+    _heldPlans.clear();
     pendingSecretGiftIds = const {};
   }
 
@@ -539,7 +580,30 @@ class WebSyncEngine {
     FamilyDoc after, {
     String? undoGiftId,
     DateTime? publishAfter,
-  }) => _serial((g) async {
+  }) => _serial(
+    (g) => _save(
+      g,
+      before,
+      after,
+      undoGiftId: undoGiftId,
+      publishAfter: publishAfter,
+    ),
+  );
+
+  /// Saves a controller cascade, including the wish tombstones of any
+  /// recipient removed in the same action.
+  Future<void> saveCascade(FamilyDoc before, FamilyDoc after) =>
+      _serial((g) => _save(g, before, after, cascade: true));
+
+  Future<void> _save(
+    int g,
+    FamilyDoc before,
+    FamilyDoc after, {
+    String? undoGiftId,
+    DateTime? publishAfter,
+    bool ownWishes = false,
+    bool cascade = false,
+  }) async {
     final delta = webDelta(before, after);
     const allowed = {
       Collections.recipients,
@@ -549,9 +613,28 @@ class WebSyncEngine {
       Collections.meta,
     };
     for (final c in delta.collections.entries) {
-      if (c.value.isNotEmpty &&
-          (!allowed.contains(c.key) ||
-              c.key == Collections.meta && c.value.containsKey('protocol'))) {
+      if (c.value.isEmpty) continue;
+      if (ownWishes) {
+        if (c.key != Collections.wishes) {
+          throw const WebOperationException('restrictedDocument');
+        }
+      } else if (cascade && c.key == Collections.wishes) {
+        for (final wish in c.value.values) {
+          final old = before.record(Collections.wishes, wish.id);
+          final recipient = old?['recipientId'];
+          if (old == null ||
+              old.isDeleted ||
+              recipient is! String ||
+              delta.record(Collections.recipients, recipient)?.isDeleted !=
+                  true ||
+              !wish.isDeleted ||
+              validateWishRecord(after.record(Collections.wishes, wish.id)!) !=
+                  null) {
+            throw const WebOperationException('wishInvalid');
+          }
+        }
+      } else if (!allowed.contains(c.key) ||
+          c.key == Collections.meta && c.value.containsKey('protocol')) {
         throw const WebOperationException('restrictedDocument');
       }
     }
@@ -564,12 +647,19 @@ class WebSyncEngine {
           after.record(Collections.gifts, id)?['recipientId'],
         }.whereType<String>().toList(),
     };
+    final entry = PendingEntry('', delta, giftPeople: giftPeople);
+    final deletedPeople = _deletedPeople(entry);
+    if (cascade &&
+        deletedPeople.isNotEmpty &&
+        (!_canDeletePeople(deletedPeople) ||
+            !webEntryAllowed(before, entry, await queue.blockedPeople()))) {
+      // A mixed cascade cannot go to an inbox. Reject it before recording
+      // any part of the action as saved.
+      throw const WebOperationException('deleteProtectedReferences');
+    }
     // 1.0.6 (ADR 0009): with surprises open, an action on the gifts of one
     // protected person the web can write for goes to that person's inbox.
-    final inboxPerson = _inboxPerson(
-      PendingEntry('', delta, giftPeople: giftPeople),
-      await savedCommon(),
-    );
+    final inboxPerson = _inboxPerson(entry, await savedCommon());
     _check(g);
     await queue.add(
       delta,
@@ -587,7 +677,7 @@ class WebSyncEngine {
     );
     _check(g);
     await _candidate(g);
-  });
+  }
 
   Future<bool> undoGiftDelete(String id) async {
     final g = _generation;
@@ -664,7 +754,9 @@ class WebSyncEngine {
             admitted = await _candidate(g);
           }
         }
-        if (admitted.isEmpty) return;
+        // Old phones can leave live wishes behind a recipient tombstone.
+        // Publish their repair through the same version check as queued edits.
+        if (admitted.isEmpty && !_needsWishRepair) return;
         _check(g);
         final data = vault.opened.data;
         final sealedCandidate = _publicationCandidate!.canonicalJson();
@@ -773,7 +865,14 @@ class WebSyncEngine {
 
   /// The common document of the saved snapshot (format 1 before the cut,
   /// format 2 opened by `kid` afterwards).
-  Future<FamilyDoc> savedCommon() => openSavedCommon(
+  ///
+  /// It enters through the wish boundary (ADR 0010): an old web or phone that
+  /// wrote plan fields into the common never reaches the queue, the candidate
+  /// or a publication.
+  Future<FamilyDoc> savedCommon() async =>
+      (await _openSavedCommon()).wishBoundary();
+
+  Future<FamilyDoc> _openSavedCommon() => openSavedCommon(
     vault.opened.data,
     listId: listId,
     syncId: vault.opened.header.syncId,
@@ -1266,6 +1365,302 @@ class WebSyncEngine {
     );
   }
 
+  // ----------------------------------------------------------------------
+  // ADR 0010 (1.0.7): own wishes and wish plans from the web.
+
+  /// The person of this web (its record), or null: with it the web paints the
+  /// fixed «Sorpresas» block for that person from the start, whether or not
+  /// anything is inside or the keys are open (ADR 0010, decision 5). The
+  /// block never depends on the secrets: do not derive it from them.
+  String? get ownPersonId => vault.opened.data['personId'] as String?;
+
+  /// Whether the screen must show the fixed «Sorpresas» block of this web's
+  /// own person (see [ownPersonId]).
+  bool get showsOwnSurprisesBlock => ownPersonId != null;
+
+  /// The public common (see [_commonDoc]); null before the first candidate.
+  FamilyDoc? get publicDoc => _commonDoc;
+
+  /// The newest stamp the public clock must follow: only the saved common and
+  /// the public actions in the queue. Opened secrets, inbox changes and plans
+  /// never enter it, so a private edit cannot move the next public stamp.
+  Hlc? get publicStamp => _commonDoc?.maxStamp;
+
+  /// A clock for public actions of this web (wishes, gifts...).
+  HlcClock newPublicClock() =>
+      HlcClock(node: auth.deviceId, last: publicStamp);
+
+  /// The newest stamp of the private scope of [personId]: what the phones
+  /// wrote in it plus the changes of this web waiting for its inbox. Kept
+  /// apart from [publicStamp].
+  Hlc? scopeStamp(String personId) {
+    Hlc? newest = secrets.opened[personId]?.doc.maxStamp;
+    for (final entry in _inbox[personId] ?? const <PendingEntry>[]) {
+      final stamp = entry.delta.maxStamp;
+      if (stamp != null && (newest == null || stamp > newest)) newest = stamp;
+    }
+    return newest;
+  }
+
+  /// A clock for private changes of the scope of [personId].
+  HlcClock newScopeClock(String personId) =>
+      HlcClock(node: auth.deviceId, last: scopeStamp(personId));
+
+  /// Ids of the gifts that only exist in opened scopes or the inbox: they are
+  /// never part of the public clock.
+  Set<String> get secretGiftIds => {
+    for (final scope in secrets.opened.values)
+      ...?scope.doc.collections[Collections.gifts]?.keys,
+    for (final list in _inbox.values)
+      for (final e in list)
+        ...?e.delta.collections[Collections.gifts]?.keys,
+  };
+
+  /// [doc] without the gifts that only exist in opened scopes or the inbox:
+  /// what a public clock may follow.
+  FamilyDoc withoutSecrets(FamilyDoc doc) {
+    final secret = secretGiftIds;
+    final gifts = doc.collections[Collections.gifts];
+    if (secret.isEmpty || gifts == null) return doc;
+    return FamilyDoc(
+      listId: doc.listId,
+      collections: {
+        ...doc.collections,
+        Collections.gifts: {
+          for (final e in gifts.entries)
+            if (!secret.contains(e.key)) e.key: e.value,
+        },
+      },
+    );
+  }
+
+  /// The private scope of [personId] as the web sees it: what its phones
+  /// wrote plus the web's own changes waiting for its inbox (gifts and wish
+  /// plans). Null unless that person's surprises are open. Never exists for
+  /// the web's own person.
+  FamilyDoc? scopeDocFor(String personId) {
+    if (_commonDoc?.record(Collections.recipients, personId)?.isDeleted ==
+        true) {
+      return null;
+    }
+    final opened = secrets.opened[personId];
+    if (opened == null) return null;
+    var scope = opened.doc;
+    for (final entry in _inbox[personId] ?? const <PendingEntry>[]) {
+      scope = scope.merge(_scopeBits(entry.delta, scope.listId));
+    }
+    return scope;
+  }
+
+  /// The wish rows of [personId] with their plans (claimed, in conflict,
+  /// removed from the list). Empty unless that person's surprises are open.
+  List<WishPlanRow> wishPlanRows(String personId) {
+    final scope = scopeDocFor(personId);
+    final common = _commonDoc;
+    if (scope == null || common == null) return const [];
+    return deriveWishPlanRows(
+      common: common,
+      scope: scope,
+      recipientId: personId,
+    );
+  }
+
+  /// The context that resolves the author of a wish from this web's record:
+  /// the phone view that vouches it ([WishContext.web]). Null if there is no
+  /// such view yet.
+  Future<WishContext?> wishContext() async {
+    final root = secrets.view ?? view;
+    if (root == null) return null;
+    final keys = await DeviceKeys.fromJson(
+      Map<String, Object?>.from(vault.opened.data['deviceKeys'] as Map),
+    );
+    return WishContext.web(
+      rootView: () => secrets.view ?? view ?? root,
+      webDeviceId: auth.deviceId,
+      webKeys: keys,
+    );
+  }
+
+  /// Creates an own wish of this web's person, queued as a public change.
+  /// Works without any surprise key (the web of P never opens P's).
+  Future<WishWrite> createOwnWish(VisibleWishPatch patch, {String? id}) =>
+      _ownWishAction((doc, clock, ctx) => doc.createOwnWish(clock, ctx, patch, id: id));
+
+  /// Edits an own wish, queued as a public change.
+  Future<WishWrite> editOwnWish(String wishId, VisibleWishPatch patch) =>
+      _ownWishAction((doc, clock, ctx) => doc.editVisibleWish(clock, ctx, wishId, patch));
+
+  /// Removes an own wish (a tombstone), queued as a public change.
+  Future<WishWrite> removeOwnWish(String wishId) =>
+      _ownWishAction((doc, clock, ctx) => doc.removeWish(clock, ctx, wishId));
+
+  Future<WishWrite> _ownWishAction(
+    WishWrite Function(FamilyDoc doc, HlcClock clock, WishContext ctx) act,
+  ) => _serial((g) async {
+    final ctx = await wishContext();
+    final before = _commonDoc;
+    if (ctx == null || before == null) {
+      throw const WebOperationException('wishUnavailable');
+    }
+    _check(g);
+    final write = act(before, newPublicClock(), ctx);
+    if (!write.ok) return write;
+    _validateOwnWishes(before, write.doc, ctx);
+    await _save(g, before, write.doc, ownWishes: true);
+    return write;
+  });
+
+  /// The web writes only wishes of its own person, as it resolves from its
+  /// record: new ones are not suggestions, nothing changes recipient or
+  /// author, and a dead wish stays dead.
+  void _validateOwnWishes(FamilyDoc before, FamilyDoc after, WishContext ctx) {
+    final author = ctx.resolve(listId);
+    if (!author.ok) throw const WebOperationException('wishAuthor');
+    final person = author.author!.personId;
+    final delta = webDelta(before, after);
+    for (final r in delta.collections[Collections.wishes]?.values ??
+        const <SyncRecord>[]) {
+      final result = after.record(Collections.wishes, r.id)!;
+      final old = before.record(Collections.wishes, r.id);
+      var ok = validateWishRecord(result) == null;
+      if (old == null) {
+        ok =
+            ok &&
+            !result.isDeleted &&
+            result['recipientId'] == person &&
+            result['authorPersonId'] == person &&
+            result['suggested'] == false;
+      } else {
+        ok = ok && !old.isDeleted && old['recipientId'] == person;
+        if (ok && !result.isDeleted) {
+          for (final name in const [
+            'recipientId',
+            'authorPersonId',
+            'suggested',
+          ]) {
+            ok = ok && result[name] == old[name];
+          }
+        }
+      }
+      if (!ok) throw const WebOperationException('wishInvalid');
+    }
+  }
+
+  /// Takes a wish of someone else for this web's person: a private plan for
+  /// that person's inbox (W5). Needs that person's surprises open.
+  Future<WishPlanWrite> claimWish(
+    String wishId, {
+    String? giverId,
+    String? planId,
+  }) {
+    final recipient = _commonDoc?.record(Collections.wishes, wishId)?[
+      'recipientId'
+    ];
+    return _planAction(
+      recipient is String ? recipient : null,
+      (scope, clock, view, common) => scope.claimWish(
+        clock,
+        view,
+        common,
+        wishId,
+        planId: planId,
+        giverId: giverId,
+      ),
+    );
+  }
+
+  /// Edits a plan of this web's person.
+  Future<WishPlanWrite> editPlan(
+    String personId,
+    String planId,
+    PrivatePlanPatch patch,
+  ) => _planAction(
+    personId,
+    (scope, clock, view, _) => scope.editPlan(clock, view, planId, patch),
+  );
+
+  /// Releases a plan of this web's person (the wish becomes available).
+  Future<WishPlanWrite> releasePlan(String personId, String planId) =>
+      _planAction(
+        personId,
+        (scope, clock, view, _) => scope.releasePlan(clock, view, planId),
+      );
+
+  /// Whether every phone entitled to read [personId]'s surprises announces it
+  /// understands wish plans (a 1.0.6 would reject the whole scope, gifts
+  /// included). False without the surprises open.
+  bool wishPlansAllowedFor(String personId) {
+    final v = secrets.view;
+    final opened = secrets.opened[personId];
+    if (v == null || opened == null) return false;
+    return wishPlansAllowed([
+      for (final device in v.entitledDevices(personId)) opened.parts[device],
+    ]);
+  }
+
+  Future<WishPlanWrite> _planAction(
+    String? personId,
+    WishPlanWrite Function(
+      FamilyDoc scope,
+      HlcClock clock,
+      RegistryView view,
+      FamilyDoc common,
+    )
+    act,
+  ) => _serial((g) async {
+    final view = secrets.view;
+    final common = _commonDoc;
+    final scope = personId == null ? null : scopeDocFor(personId);
+    if (personId == null ||
+        view == null ||
+        common == null ||
+        scope == null ||
+        !secrets.writablePeople.contains(personId)) {
+      return WishPlanWrite.failed(
+        scope ?? FamilyDoc.empty(listId),
+        WishPlanError.unavailable,
+      );
+    }
+    if (!wishPlansAllowedFor(personId)) {
+      return WishPlanWrite.failed(scope, WishPlanError.devicesNeedUpdate);
+    }
+    final write = act(scope, newScopeClock(personId), view, common);
+    if (!write.ok) return write;
+    final delta = webDelta(scope, write.scope);
+    for (final c in delta.collections.entries) {
+      if (c.value.isNotEmpty && c.key != ScopeCollections.wishPlans) {
+        throw const WebOperationException('restrictedDocument');
+      }
+    }
+    final plans = delta.collections[ScopeCollections.wishPlans];
+    if (plans == null || plans.isEmpty) return write;
+    _check(g);
+    await queue.add(
+      delta,
+      kind: PendingKind.privateScope,
+      inboxPerson: personId,
+      newPlans: {
+        for (final id in plans.keys)
+          if (scope.record(ScopeCollections.wishPlans, id) == null) id,
+      },
+    );
+    _check(g);
+    await _candidate(g);
+    return write;
+  });
+
+  /// The scope collections of [delta] (gifts and wish plans) as a document.
+  FamilyDoc _scopeBits(FamilyDoc delta, String listId) => FamilyDoc(
+    listId: listId,
+    collections: {
+      Collections.gifts: delta.collections[Collections.gifts] ?? const {},
+      if ((delta.collections[ScopeCollections.wishPlans] ?? const {})
+          .isNotEmpty)
+        ScopeCollections.wishPlans:
+            delta.collections[ScopeCollections.wishPlans]!,
+    },
+  );
+
   /// The only person whose protected gifts [entry] touches, if it touches
   /// nothing but gifts of exactly one person who is not this web's: then it
   /// goes to that person's inbox. Null otherwise (set aside).
@@ -1304,6 +1699,9 @@ class WebSyncEngine {
     };
     final secretIds = <String>{};
     for (final e in secrets.opened.entries) {
+      if (common.record(Collections.recipients, e.key)?.isDeleted == true) {
+        continue;
+      }
       var scope = e.value.doc;
       for (final entry in inbox[e.key] ?? const <PendingEntry>[]) {
         scope = scope.merge(
@@ -1424,7 +1822,7 @@ class WebSyncEngine {
         data: data,
       );
       _check(g);
-      _inboxHeld.remove(person);
+      if (put is V2WriteOk) _inboxHeld.remove(person);
       return put;
     } on SyncTransportException catch (e) {
       _check(g);
@@ -1446,18 +1844,49 @@ class WebSyncEngine {
   /// A.8.5). An entry is confirmed when a slot of a phone of the web's
   /// person already holds it, or declares (`s[web]`) an inbox that held it.
   /// Returns true after a write (the version moved).
+  bool _entryHasPlans(PendingEntry e) =>
+      (e.delta.collections[ScopeCollections.wishPlans] ?? const {}).isNotEmpty;
+
   Future<bool> _syncInbox(int g, V2Snapshot snap) async {
     final v = secrets.view;
-    if (v == null || secrets.person == null) return false;
     final me = auth.deviceId;
     final history = _inboxHistory();
+    final ownSlots = {
+      for (final ref in snap.slots)
+        if (ref.deviceId == me) ref.personId,
+    };
+    FamilyDoc? confirmed;
     var acked = false;
-    final people = {..._inbox.keys, ...secrets.ownInbox.keys}.toList()..sort();
+    final people = {
+      ..._inbox.keys,
+      ...history.keys,
+      ...ownSlots,
+    }.toList()..sort();
     for (final person in people) {
-      final opened = secrets.opened[person];
-      if (opened == null) continue;
       final held = _inboxHeld[person];
       final waitHeld = held != null && now().isBefore(held);
+      if (_commonDoc?.record(Collections.recipients, person)?.isDeleted ==
+          true) {
+        final common = confirmed ??= await savedCommon();
+        _check(g);
+        if (common.record(Collections.recipients, person)?.isDeleted != true) {
+          continue;
+        }
+        _heldPlans.remove(person);
+        if (history.remove(person) != null) await _saveInboxHistory(g, history);
+        if (ownSlots.contains(person) && !waitHeld) {
+          final put = await _putInbox(g, snap, person, null);
+          if (put is V2WriteNotFound) {
+            _disconnect();
+            return false;
+          }
+          if (put != null) return true;
+        }
+        continue;
+      }
+      if (v == null || secrets.person == null) continue;
+      final opened = secrets.opened[person];
+      if (opened == null) continue;
       final all = _inbox[person] ?? const <PendingEntry>[];
       final phones = [
         for (final part in opened.parts.entries)
@@ -1467,30 +1896,53 @@ class WebSyncEngine {
       final remaining = <PendingEntry>[];
       for (final entry in all) {
         if (entry.publishAfter != null) continue;
-        final gifts = FamilyDoc(
-          listId: opened.doc.listId,
-          collections: {
-            Collections.gifts:
-                entry.delta.collections[Collections.gifts] ?? const {},
-          },
-        );
+        final gifts = _scopeBits(entry.delta, opened.doc.listId);
         final inSlot = phones.any(
           (part) =>
               part.doc.merge(gifts).canonicalJson() ==
               part.doc.canonicalJson(),
         );
-        final declared = past.any(
-          (h) =>
-              h.ids.contains(entry.id) &&
-              phones.any((part) {
-                final seen = part.seen[me];
-                return seen != null &&
-                    seen.compareTo(SlotVersion(h.epoch, h.revision)) >= 0;
-              }),
-        );
-        if (inSlot || declared) {
+        // Match the exact revision declared in `s[web]`. An inbox recorded
+        // before a failed PUT may never have reached the server. Entries in
+        // a replaced inbox stay pending until a phone declares a revision
+        // that included them (A-1). A rejection (`x[web]`) drops them with a
+        // notice (B3). Plan declarations also carry proof that the reader of
+        // that revision understood plans, even after relay or upgrade (B-1).
+        final withPlans = _entryHasPlans(entry);
+        var declared = false;
+        var rejected = true;
+        for (final part in phones) {
+          final seen = part.seen[me];
+          if (seen == null) continue;
+          if (withPlans &&
+              (part.wishPlans < kWishPlanCapability ||
+                  part.planInboxSeen[me] != seen)) {
+            continue;
+          }
+          ({int epoch, int revision, Set<String> ids})? read;
+          for (final h in past) {
+            if (h.epoch == seen.epoch && h.revision == seen.revision) {
+              read = h;
+              break;
+            }
+          }
+          if (read == null || !read.ids.contains(entry.id)) continue;
+          declared = true;
+          if (part.rejectedInboxes[me] != seen) {
+            rejected = false;
+          }
+        }
+        if (inSlot || (declared && !rejected)) {
           await queue.ack(entry.id, confirmation: {'inbox': person});
           _check(g);
+          acked = true;
+        } else if (declared) {
+          await queue.ack(
+            entry.id,
+            confirmation: {'inbox': person, 'dropped': true, 'rejected': true},
+          );
+          _check(g);
+          discardedSecretCount++;
           acked = true;
         } else {
           remaining.add(entry);
@@ -1498,23 +1950,58 @@ class WebSyncEngine {
       }
       final waiting = all.any((e) => e.publishAfter != null);
       if (!secrets.writablePeople.contains(person) || waitHeld) continue;
-      final build = buildWebInbox(
+      // Gifts and wish plans never share an inbox (security review, A1/B3):
+      // a phone that cannot read plans rejects the whole inbox, so a plan
+      // can never take gift edits with it. Gift changes go first; plans
+      // follow once none is left waiting.
+      final plansAllowed = wishPlansAllowedFor(person);
+      WebInboxBuild? build;
+      var heldNow = 0;
+      var deferredAny = false;
+      for (final group in [
+        [for (final e in remaining) if (!_entryHasPlans(e)) e],
+        [for (final e in remaining) if (_entryHasPlans(e)) e],
+      ]) {
+        if (group.isEmpty) continue;
+        final next = buildWebInbox(
+          personId: person,
+          scope: opened.doc,
+          webPersonId: secrets.person,
+          plansAllowed: plansAllowed,
+          entries: [
+            for (final e in group)
+              WebInboxEntry(
+                id: e.id,
+                delta: e.delta,
+                newGifts: e.newGifts,
+                newPlans: e.newPlans,
+              ),
+          ],
+        );
+        for (final id in [...next.moot, ...next.discarded]) {
+          await queue.ack(id, confirmation: {'inbox': person, 'dropped': true});
+          _check(g);
+          acked = true;
+        }
+        discardedSecretCount += next.discarded.length;
+        heldNow += next.held.length;
+        deferredAny = deferredAny || next.deferred.isNotEmpty;
+        build = next;
+        if (!next.isEmpty) break;
+      }
+      if (heldNow > 0) {
+        _heldPlans[person] = heldNow;
+      } else {
+        _heldPlans.remove(person);
+      }
+      build ??= buildWebInbox(
         personId: person,
         scope: opened.doc,
-        entries: [
-          for (final e in remaining)
-            WebInboxEntry(id: e.id, delta: e.delta, newGifts: e.newGifts),
-        ],
+        entries: const [],
       );
-      for (final id in [...build.moot, ...build.discarded]) {
-        await queue.ack(id, confirmation: {'inbox': person, 'dropped': true});
-        _check(g);
-        acked = true;
-      }
-      discardedSecretCount += build.discarded.length;
       final onServer = secrets.ownInbox.containsKey(person);
       if (build.isEmpty) {
-        if (!waiting && build.deferred.isEmpty) {
+        if (!waiting && !deferredAny) {
           if (history.remove(person) != null) await _saveInboxHistory(g, history);
           if (onServer) {
             final put = await _putInbox(g, snap, person, null);
@@ -1528,12 +2015,40 @@ class WebSyncEngine {
         }
         continue;
       }
-      final last = past.isEmpty ? null : past.last;
-      if (onServer &&
-          last != null &&
-          last.ids.length == build.included.length &&
-          last.ids.containsAll(build.included)) {
-        continue;
+      final matching = [
+        for (final h in past)
+          if (h.ids.length == build.included.length &&
+              h.ids.containsAll(build.included))
+            SlotVersion(h.epoch, h.revision),
+      ];
+      if (onServer && matching.isNotEmpty) {
+        // A restart may remember an attempted replacement alongside the
+        // old published inbox. Only the server's actual revision can match.
+        final published = await transport.getSlot(
+          auth,
+          version: snap.version,
+          personId: person,
+          deviceId: me,
+        );
+        _check(g);
+        if (published is V2SlotStale) return true;
+        if (published is V2SlotOk) {
+          try {
+            final slot = SealedSlot.parse(published.data);
+            final writer = v.member(me);
+            if (writer != null &&
+                slot.header.listId == listId &&
+                slot.header.personId == person &&
+                slot.header.writer == me &&
+                matching.contains(slot.header.version)) {
+              final signed = await slot.verifySignature(writer.signingKey);
+              _check(g);
+              if (signed) continue;
+            }
+          } on ProtectedEnvelopeException {
+            // Replace a slot whose revision cannot be read.
+          }
+        }
       }
       if (!onServer && secrets.ownInbox.length >= kMaxWebInboxSlots) continue;
       final key = secrets.sealingKeyFor(person);
@@ -1581,6 +2096,13 @@ class WebSyncEngine {
       _flag(uploading: true);
       final put = await _putInbox(g, snap, person, slot.bytes);
       if (put == null) continue;
+      if (put is V2WriteStale) {
+        // This replacement definitely failed. Keep the earlier history,
+        // including the revision the server may still be serving.
+        history[person] = past;
+        await _saveInboxHistory(g, history);
+        return true;
+      }
       if (put is V2WriteNotFound) {
         _disconnect();
         return false;
@@ -1591,11 +2113,31 @@ class WebSyncEngine {
     return false;
   }
 
+  Iterable<String> _deletedPeople(PendingEntry entry) =>
+      (entry.delta.collections[Collections.recipients] ?? const {}).values
+          .where((record) => record.isDeleted)
+          .map((record) => record.id);
+
+  bool _canDeletePeople(Iterable<String> people) {
+    final registry = view;
+    return registry != null &&
+        !people.any((id) => _hasConnectedDevice(registry, id));
+  }
+
+  bool _hasConnectedDevice(RegistryView registry, String personId) =>
+      personId == vault.opened.data['personId'] ||
+      registry.members.any((id) => registry.member(id)!.personId == personId);
 
   Future<List<String>> _candidate(int g) async {
     final data = vault.opened.data;
     final snapshot = data['snapshot'] as Map;
-    var doc = await savedCommon();
+    final raw = await _openSavedCommon();
+    _needsWishRepair = !identical(
+      raw.tombstoneWishesForDeletedRecipients(),
+      raw,
+    );
+    final confirmed = raw.wishBoundary();
+    var doc = confirmed;
     var publication = doc;
     final blocked = await queue.blockedPeople(
       remember: {
@@ -1611,15 +2153,73 @@ class WebSyncEngine {
     DateTime? deadline;
     _undoDeadline?.cancel();
     setAsideCount = 0;
+    rejectedSecretRecipientDeletes = 0;
+    final rejectedDeviceNames = <String>[];
     for (final entry in entries) {
       _check(g);
+      final target = entry.inboxPerson;
+      if (target != null &&
+          confirmed.record(Collections.recipients, target)?.isDeleted == true) {
+        await queue.ack(
+          entry.id,
+          confirmation: {'inbox': target, 'dropped': true},
+        );
+        _check(g);
+        _heldPlans.remove(target);
+        discardedSecretCount++;
+        continue;
+      }
       final due = entry.publishAfter;
       final waiting = due != null;
       if (waiting) {
         if (deadline == null || due.isBefore(deadline)) deadline = due;
       }
+      final deletedPeople = _deletedPeople(entry);
+      if (deletedPeople.isNotEmpty) {
+        final registry = view;
+        final connectedPeople = [
+          if (registry != null)
+            for (final id in deletedPeople)
+              if (_hasConnectedDevice(registry, id)) id,
+        ];
+        if (entry.setAside ||
+            connectedPeople.isNotEmpty ||
+            !webEntryAllowed(doc, entry, blocked)) {
+          final names =
+              entry.blockingDevicePersonNames ??
+              connectedPeople
+                  .map(
+                    (id) => confirmed.record(Collections.recipients, id)?['name'],
+                  )
+                  .whereType<String>()
+                  .toList();
+          if (!entry.setAside) {
+            await queue.setAside(entry.id, blockingDevicePersonNames: names);
+          }
+          if (names.isEmpty) {
+            rejectedSecretRecipientDeletes++;
+          } else {
+            rejectedDeviceNames.addAll(names);
+          }
+          continue;
+        }
+        // Wait for verified membership before projecting or publishing a delete.
+        if (registry == null) continue;
+      }
       if (entry.setAside) {
         setAsideCount++;
+      } else if (entry.kind == PendingKind.privateScope) {
+        // ADR 0010: a private scope change (wish plans) only ever goes to
+        // the inbox of its person. Without the key it waits, encrypted in
+        // the queue; it never turns into a public write.
+        final person = entry.inboxPerson;
+        if (person == null) {
+          await queue.setAside(entry.id);
+          setAsideCount++;
+        } else {
+          (inbox[person] ??= []).add(entry);
+          if (!secrets.openedPeople.contains(person)) held++;
+        }
       } else if (!webEntryAllowed(doc, entry, blocked)) {
         // 1.0.6 (ADR 0009): an action on the gifts of one protected person
         // (not this web's) goes to that person's inbox; anything else that
@@ -1646,15 +2246,23 @@ class WebSyncEngine {
     }
     _check(g);
     _inbox = inbox;
+    rejectedDevicePersonNames = List.unmodifiable(rejectedDeviceNames);
+    doc = doc.normalizedWishes();
+    _commonDoc = doc;
     heldSecretCount = held;
     pendingSecretGiftIds = {
       for (final list in inbox.values)
         for (final e in list)
           ...?e.delta.collections[Collections.gifts]?.keys,
     };
+    pendingPlanIds = {
+      for (final list in inbox.values)
+        for (final e in list)
+          ...?e.delta.collections[ScopeCollections.wishPlans]?.keys,
+    };
     candidate = secrets.isOpen ? _secretCandidate(doc, inbox) : doc;
-    _publicationCandidate = publication;
-    _uploading = admitted.isNotEmpty && !commonHeld;
+    _publicationCandidate = publication.wishBoundary();
+    _uploading = (admitted.isNotEmpty || _needsWishRepair) && !commonHeld;
     if (deadline != null) {
       _undoDeadline = Timer(
         deadline.difference(now()),

@@ -4,6 +4,7 @@
 library;
 
 import 'dart:async';
+import 'dart:math';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
@@ -318,6 +319,10 @@ class PairingV2HostState {
 
 /// El emparejamiento v2 que ofrece este móvil.
 class PairingV2HostController extends Notifier<PairingV2HostState> {
+  PairingV2HostController({this._pollRandom, this._pollElapsed});
+
+  final Random? _pollRandom;
+  final Duration Function()? _pollElapsed;
   WebPairingQr? _webQr;
   String? _webPerson;
 
@@ -628,13 +633,13 @@ class PairingV2HostController extends Notifier<PairingV2HostState> {
         return;
       }
       _host = host;
-      // 1-2 s mientras se espera la respuesta. La ruta autenticada no cuenta
-      // en el límite por invitación, pero sí en el de la credencial y en el
-      // de la IP (que comparte con la web en casa): como mucho
-      // [kInviteHostPollBudget] por minuto (la lectura y la revelación).
+      // La ruta autenticada cuenta para la credencial y la IP, que puede
+      // compartir con la web. Se reserva margen para la revelación.
       _pacer = InvitePollPacer(
         base: ref.read(syncTimingProvider).inviteHostPoll,
         budget: kInviteHostPollBudget,
+        random: _pollRandom,
+        elapsed: _pollElapsed,
       );
       state = PairingV2HostState(
         PairingV2HostPhase.waiting,
@@ -676,11 +681,18 @@ class PairingV2HostController extends Notifier<PairingV2HostState> {
     if (run != _run || !ref.mounted) return;
     _timer?.cancel();
     final pacer = _pacer;
-    final wait = pacer == null
-        ? ref.read(syncTimingProvider).inviteHostPoll
-        : limited
-        ? pacer.limited(retryAfter)
-        : pacer.next();
+    final Duration wait;
+    if (pacer == null) {
+      wait = ref.read(syncTimingProvider).inviteHostPoll;
+    } else if (limited) {
+      wait = pacer.limited(retryAfter);
+    } else if (pacer.inWindow >= 5) {
+      // Tras cinco consultas rápidas (1-2 s), espacia a 2,5-3 s para no
+      // agotar el presupuesto de 60 s y dejar de preguntar de golpe.
+      wait = pacer.next(base: pacer.base * 2.5, spread: pacer.spread ~/ 2);
+    } else {
+      wait = pacer.next();
+    }
     _timer = Timer(wait, () {
       if (run != _run || !ref.mounted) return;
       unawaited(_check(run).catchError((Object _) {}));
@@ -1162,14 +1174,41 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
     }
     _inviteId = inviteId;
     state = const PairingV2GuestState(PairingV2GuestPhase.opening);
-    var phase = 'keys';
+    var phase = 'offer';
     try {
+      // Una restauración a medias se avisa antes de ir a la red: solo lee el
+      // diario de recuperación, no toca nada (BAJA-2).
+      await ref
+          .read(v2FamilyLockProvider)
+          .run(() => requireNoPendingRestore(ref));
+      if (run != _run || !ref.mounted) return;
+      // Después, la oferta: versión, capacidad y firma se comprueban
+      // antes de tocar nada de este móvil (instalaciones pendientes, claves o
+      // credencial de servicio).
+      // 1-2 s, con el presupuesto de la invitación: la oferta, la respuesta
+      // y cada sondeo cuentan en el límite público del Worker.
+      final pacer = InvitePollPacer(
+        base: ref.read(syncTimingProvider).invitePoll,
+      );
+      final offered = await PairingV2Guest.fetchOffer(
+        transport: transport,
+        inviteId: inviteId,
+        onRequest: pacer.sent,
+      );
+      if (run != _run || !ref.mounted) return;
+      // 1.0.6: quien invita elige la persona. Un anfitrión sin la marca es
+      // de una versión que deja entrar sin persona: no se entra («actualiza»).
+      if (!offered.offer.hostPicksPerson) {
+        throw const PairingV2VersionMismatchException();
+      }
+      phase = 'keys';
       await ref
           .read(v2FamilyLockProvider)
           .run(() => requireNoPendingRestore(ref));
       final keysStore = ref.read(deviceKeysStoreProvider);
       // Una instalación de otro emparejamiento que quedó a medias se termina
       // o se deshace antes (B7: si se deshace, la credencial se cambia).
+      await familySnapshot(ref);
       await ref.read(v2FamilyLockProvider).run(() async {
         await requireNoPendingRestore(ref);
         await finishPendingV2(ref);
@@ -1208,17 +1247,13 @@ class PairingV2GuestController extends Notifier<PairingV2GuestState> {
       phase = 'offer';
       var sameList = false;
       var deviceId = '';
-      // 1-2 s, con el presupuesto de la invitación: la oferta, la respuesta
-      // y cada sondeo cuentan en el límite público del Worker.
-      final pacer = InvitePollPacer(
-        base: ref.read(syncTimingProvider).invitePoll,
-      );
       final guest = await PairingV2Guest.open(
         transport: transport,
         inviteId: inviteId,
         keys: keys,
         v1Key: v1Key,
         onRequest: pacer.sent,
+        offered: offered,
         deviceIdFor: (listId, v1Proven) {
           // El `listId` es público: solo cuenta si el anfitrión ha probado
           // tener la clave v1 de este móvil (hallazgo 6).

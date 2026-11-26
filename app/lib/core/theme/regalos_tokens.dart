@@ -63,7 +63,11 @@ class RegalosTokens extends ThemeExtension<RegalosTokens> {
           : (dark ? occasion.cardBorderD : occasion.cardBorder),
       givers: [for (final g in giverColors) dark ? g.$2 : g.$1],
       giverOns: [for (final g in giverOnColors) dark ? g.$2 : g.$1],
-      styles: RegalosTextStyles(text: n.text, secondary: n.textSecondary),
+      styles: RegalosTextStyles(
+        text: n.text,
+        secondary: n.textSecondary,
+        warning: n.danger,
+      ),
     );
   }
 

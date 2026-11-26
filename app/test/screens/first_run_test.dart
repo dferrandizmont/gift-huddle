@@ -214,7 +214,7 @@ void main() {
     // Quién regala: «Nosotros» viene creado y paga la casa.
     expect(find.text('¿Quién regala?'), findsOneWidget);
     expect(find.text('Nosotros'), findsOneWidget);
-    expect(find.text('Paga la casa'), findsOneWidget);
+    expect(find.text('Cuenta como gasto de casa'), findsOneWidget);
     await tapLabel(tester, 'Añadir Abuelos');
     expect(find.text('Abuelos'), findsWidgets);
     await tapText(tester, 'Siguiente');

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -50,23 +51,30 @@ T complete<T>(FakeAsync time, Future<T> future) {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  for (final busyFamily in [false, true]) {
-    test('host reveals in the first poll that sees the web answer '
-        '(family lock busy: $busyFamily)', () async {
+  const earlyAnswerDelay = Duration(milliseconds: 2100);
+  for (final (busyFamily, answerDelay) in [
+    (false, earlyAnswerDelay),
+    (true, earlyAnswerDelay),
+    (false, const Duration(seconds: 49)),
+  ]) {
+    final earlyAnswer = answerDelay == earlyAnswerDelay;
+    final scenario = 'lock busy: $busyFamily, answer delay: $answerDelay';
+    test('host reveals on the first poll with an answer ($scenario)', () async {
       final prefs = await mockPrefs();
       fakeAsync((time) {
         final worker = FakeWorkerV2();
         Duration? answerAt, detectedAt, revealAt;
+        Duration? lastEmptyPollAt, answerPollWait;
         var detectingPolls = 0;
-        var emptyPolls = 0;
         var listRequestsAfterAnswer = 0;
         final transport = SyncV2Client(
           base: Uri.parse('https://sync.test'),
           sendRequest: (method, uri, {body, headers = const {}}) async {
+            final requestAt = time.elapsed;
             if (answerAt != null && !uri.path.contains('/invites/')) {
               listRequestsAfterAnswer++;
             }
-            if (uri.path.endsWith('/reveal')) revealAt = time.elapsed;
+            if (uri.path.endsWith('/reveal')) revealAt = requestAt;
             // Both clients use the real HTTP codec, with 100 ms per request.
             await Future<void>.delayed(const Duration(milliseconds: 100));
             final response = await worker.send(
@@ -82,10 +90,11 @@ void main() {
                 uri.path.contains('/lists/') &&
                 uri.path.contains('/invites/')) {
               if (response.json()['answer'] == null) {
-                emptyPolls++;
+                lastEmptyPollAt = time.elapsed;
               } else {
                 detectingPolls++;
                 detectedAt = time.elapsed;
+                answerPollWait = requestAt - lastEmptyPollAt!;
               }
             }
             return response;
@@ -99,7 +108,13 @@ void main() {
             invitationOriginProvider.overrideWithValue(''),
             syncTransportProvider.overrideWithValue(FakeSyncServer().connect()),
             syncV2TransportProvider.overrideWithValue(transport),
-            // Use the production 1-2 s cadence, not kFastTiming or pollNow().
+            pairingV2HostProvider.overrideWith(
+              () => PairingV2HostController(
+                pollRandom: Random(7),
+                pollElapsed: () => time.elapsed,
+              ),
+            ),
+            // Keep the production polling intervals.
             syncTimingProvider.overrideWithValue(
               const SyncTiming(debounce: Duration(days: 1)),
             ),
@@ -129,8 +144,8 @@ void main() {
           complete(time, hostWithPerson(phone));
           final host = phone.container.read(pairingV2HostProvider.notifier);
           complete(time, host.startWeb(web.qr.url(), guestPerson: 'nora'));
-          time.elapse(const Duration(milliseconds: 2100));
-          expect(emptyPolls, greaterThanOrEqualTo(1));
+          time.elapse(answerDelay);
+          expect(lastEmptyPollAt, isNotNull);
 
           final release = Completer<void>();
           Future<void>? held;
@@ -143,20 +158,37 @@ void main() {
           try {
             complete(time, web.poll()); // POST /answer -> 201.
             expect(answerAt, isNotNull);
-            expect(revealAt, isNull);
-            final deadline = time.elapsed + const Duration(milliseconds: 2300);
+            if (earlyAnswer) expect(revealAt, isNull);
+            // The late case allows the old budget-induced wait to finish so
+            // its failure reports the measured gap between polls.
+            final deadline =
+                time.elapsed +
+                (earlyAnswer
+                    ? const Duration(milliseconds: 2300)
+                    : const Duration(seconds: 20));
             while (phone.container.read(pairingV2HostProvider).phase !=
                     PairingV2HostPhase.compare &&
                 time.elapsed < deadline) {
               time.elapse(const Duration(milliseconds: 10));
             }
             expect(detectingPolls, 1);
+            if (!earlyAnswer) {
+              expect(
+                answerPollWait,
+                lessThanOrEqualTo(const Duration(seconds: 3)),
+                reason: 'host wait after the last empty poll',
+              );
+            }
+            expect(
+              revealAt! - answerAt!,
+              lessThan(Duration(milliseconds: earlyAnswer ? 2200 : 3200)),
+              reason: 'time from guest answer acknowledgement to reveal POST',
+            );
             expect(
               revealAt,
               detectedAt,
               reason: 'no timer, sync or storage wait before POST /reveal',
             );
-            expect(revealAt! - answerAt!, lessThan(const Duration(seconds: 3)));
             expect(listRequestsAfterAnswer, 0);
             expect(
               phone.container.read(pairingV2HostProvider).phase,

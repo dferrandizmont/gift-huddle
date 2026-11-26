@@ -76,7 +76,10 @@ class GiverChip extends StatefulWidget {
   const GiverChip({super.key, required this.giver, required this.onTap});
 
   final Giver? giver;
-  final VoidCallback onTap;
+
+  /// Al tocarlo; `null` lo deja de solo lectura: sin flecha ni toque (el plan
+  /// de un deseo que cogió otra persona).
+  final VoidCallback? onTap;
 
   @override
   State<GiverChip> createState() => _GiverChipState();
@@ -118,15 +121,19 @@ class _GiverChipState extends State<GiverChip> {
             ),
           ),
         ),
-        const SizedBox(width: 4),
-        StrokeIcon(AppIcons.chevronDown, size: 14, color: color),
+        if (widget.onTap != null) ...[
+          const SizedBox(width: 4),
+          StrokeIcon(AppIcons.chevronDown, size: 14, color: color),
+        ],
       ],
     );
     return Semantics(
-      button: true,
-      label: l10n.repartoSheetChipLabel(
-        giver == null ? l10n.repartoSheetWho : giverNameFor(l10n, giver),
-      ),
+      button: widget.onTap != null,
+      label: widget.onTap == null
+          ? name
+          : l10n.repartoSheetChipLabel(
+              giver == null ? l10n.repartoSheetWho : giverNameFor(l10n, giver),
+            ),
       excludeSemantics: true,
       onTap: widget.onTap,
       child: ConstrainedBox(
@@ -143,10 +150,12 @@ class _GiverChipState extends State<GiverChip> {
             alignment: Alignment.centerRight,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () {
-                _pulse.currentState?.play(from: 0.92);
-                widget.onTap();
-              },
+              onTap: widget.onTap == null
+                  ? null
+                  : () {
+                      _pulse.currentState?.play(from: 0.92);
+                      widget.onTap!();
+                    },
               child: ConstrainedBox(
                 constraints: const BoxConstraints(minHeight: 44),
                 child: Center(
@@ -382,7 +391,10 @@ class PickerChip extends StatelessWidget {
   /// Texto y visto sobre el chip elegido.
   final Color onColor;
   final bool selected;
-  final VoidCallback onTap;
+
+  /// Al tocarlo; `null` lo deja de solo lectura: sin flecha ni toque (el plan
+  /// de un deseo que cogió otra persona).
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

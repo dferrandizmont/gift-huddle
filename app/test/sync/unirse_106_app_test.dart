@@ -17,8 +17,15 @@ import 'package:regalos/core/sync/hlc.dart';
 import 'package:regalos/core/sync/device_keys.dart';
 import 'package:regalos/core/sync/model.dart';
 import 'package:regalos/core/sync/pairing_v2.dart'
-    show PairingOffer, joinPairing, kHostPicksPersonField;
+    show
+        PairingOffer,
+        joinPairing,
+        kHostPicksPersonField,
+        kPairingSignatureField,
+        kSyncProtocolV2,
+        kWishProtocolField;
 import 'package:regalos/core/sync/protected_doc.dart';
+import 'package:regalos/core/sync/wish.dart';
 import 'package:regalos/features/family/application/family_controller.dart';
 import 'package:regalos/features/family/application/family_providers.dart';
 import 'package:regalos/features/family/application/self_person_gate.dart';
@@ -359,8 +366,12 @@ void main() {
     worker.tamper = (method, uri, response) {
       if (!uri.path.endsWith('/offer')) return response;
       final json = response.json();
+      // Un anfitrión anterior: oferta de versión 2, sin marca ni capacidad.
       final offer = Map<String, Object?>.from(json['offer']! as Map)
-        ..remove(kHostPicksPersonField);
+        ..['v'] = kSyncProtocolV2
+        ..remove(kHostPicksPersonField)
+        ..remove(kWishProtocolField)
+        ..remove(kPairingSignatureField);
       return SyncResponse(
         response.status,
         response.headers,
@@ -386,11 +397,30 @@ void main() {
     final a = await owner();
     final b = await phone();
     await invite(a, b, 'nora');
+    final c = b.container;
+    for (final title in ['Patines', 'Bicicleta', 'Cometa']) {
+      final write = await family(b).createOwnWish(
+        VisibleWishPatch(title: title, year: 2026),
+      );
+      expect(write.ok, isTrue, reason: '${write.error}');
+    }
+    expect(c.read(wishEntriesProvider('nora')), hasLength(3));
+    expect(c.read(ownHiddenPeopleProvider), contains('nora'));
+    expect(c.read(freeWishCountsProvider).ofPerson('nora'), 0);
     await b.container.read(syncControllerProvider.notifier).stopSyncing();
     await b.container.read(familyControllerProvider.future);
     b.container.invalidate(localRegistryReadProvider);
     final view = await viewOf(b);
     expect(view.alone, isTrue);
+    expect(c.read(ownHiddenPeopleProvider), isNot(contains('nora')));
+    final wishes = c.read(wishEntriesProvider('nora'));
+    expect(wishes.map((entry) => entry.wish.title), [
+      'Bicicleta',
+      'Cometa',
+      'Patines',
+    ]);
+    expect(wishes.every((entry) => entry.actions.isOwner), isTrue);
+    expect(c.read(freeWishCountsProvider).ofPerson('nora'), wishes.length);
     expect(
       b.container.read(familyControllerProvider).value!.identity!.paired,
       isFalse,
@@ -653,24 +683,69 @@ void main() {
     final guest = b.container.read(pairingV2GuestProvider.notifier);
     await guest.begin(old.inviteId);
     worker.tamper = null;
-    await eventually(
-      () async =>
-          await old.poll() != null &&
-          b.container.read(pairingV2GuestProvider).phase ==
-              PairingV2GuestPhase.compare,
-      reason: 'los dos enseñan el código',
+    // 1.0.7: la oferta va firmada, así que la marca añadida ya no pasa ni
+    // de la oferta: el invitado no responde.
+    expect(
+      b.container.read(pairingV2GuestProvider).phase,
+      PairingV2GuestPhase.failed,
     );
-    guest.confirmCode();
-    await old.confirm(confirmedPersonId: 'nora');
-    await eventually(
-      () =>
-          b.container.read(pairingV2GuestProvider).phase ==
-          PairingV2GuestPhase.failed,
-      reason: 'el invitado no entra',
-    );
-    expect(b.container.read(pairingV2GuestProvider).versionMismatch, isTrue);
+    expect(await old.poll(), isNull);
     expect(b.container.read(familyControllerProvider).value!.identity, isNull);
   });
+
+  for (final broken in ['1.0.6 offer (v 2)', 'invalid signature']) {
+    test('an incompatible offer ($broken) is rejected by begin() before this '
+        'phone changes anything: no keys, no credential rotation', () async {
+      final a = await owner();
+      final host = a.container.read(pairingV2HostProvider.notifier);
+      await host.start(guestPerson: 'nora');
+      final link = a.container.read(pairingV2HostProvider).link!;
+      worker.tamper = (method, uri, response) {
+        if (!uri.path.endsWith('/offer') || response.status != 200) {
+          return response;
+        }
+        final json = response.json();
+        final offer = Map<String, Object?>.from(json['offer']! as Map);
+        if (broken.startsWith('1.0.6')) {
+          offer
+            ..['v'] = kSyncProtocolV2
+            ..remove(kWishProtocolField)
+            ..remove(kPairingSignatureField);
+        } else {
+          offer[kWishProtocolField] = 2;
+        }
+        return SyncResponse(
+          response.status,
+          response.headers,
+          Uint8List.fromList(
+            utf8.encode(jsonEncode({...json, 'offer': offer})),
+          ),
+        );
+      };
+      final b = await phone();
+      Map<String, Object?> snapshot() => {
+        'secrets': Map<String, String>.of(b.secrets.values),
+        'files': {
+          for (final e in b.files.files.entries) e.key: base64Encode(e.value),
+        },
+        'prefs': {for (final k in b.prefs!.getKeys()) k: b.prefs!.get(k)},
+      };
+      final before = snapshot();
+      final guest = b.container.read(pairingV2GuestProvider.notifier);
+      await guest.begin(link.substring(link.indexOf('#') + 1));
+      worker.tamper = null;
+      final state = b.container.read(pairingV2GuestProvider);
+      expect(state.phase, PairingV2GuestPhase.failed);
+      expect(state.versionMismatch, broken.startsWith('1.0.6'));
+      expect(snapshot(), before);
+      expect(await b.container.read(deviceKeysStoreProvider).read(), isNull);
+      expect(
+        await b.container.read(familyStoreProvider).readPendingV2(),
+        isNull,
+      );
+      await host.cancel();
+    });
+  }
 
   test('8: dos móviles de la misma persona no se ocultan nada y al '
       'desconectar uno no se purga', () async {

@@ -335,6 +335,14 @@ class _ChoosePerson extends ConsumerWidget {
       // La persona de este móvil lleva su nota (1.0.6, QA m6); no sale
       // elegida: quien invita decide.
       thisPhonePersonId: selfPersonId,
+      // El mismo nombre que alguien de la lista pregunta si es esa persona
+      // antes de crear otra igual (QA 1.0.7, m8).
+      sameNameAsk: SameNameAsk(
+        title: l10n.personSameNameTitle,
+        body: l10n.inviteForSameNameBody,
+        yes: l10n.inviteForSameNameYes,
+        no: l10n.personSameNameOther,
+      ),
       onPerson: onChoose,
       onNew: onNew,
     );

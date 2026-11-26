@@ -432,6 +432,14 @@ describe("web credentials and common-only writes", () => {
     expect(r.status).toBe(400); expect(await json(r)).toEqual({ error: "role_mismatch" });
   });
 
+  it("accepts 1.0.6 (v 2) and 1.0.7 (v 3) offers, with no other version", async () => {
+    const id = await setup();
+    for (const [v, status] of [[2, 201], [3, 201], [1, 400], [4, 400]] as const) {
+      const created = await call("POST", `${id.path}/invites`, { key: id.key, body: { offer: { v, host: { d: id.deviceId }, c: b64u(rand(32)) } } });
+      expect(created.status).toBe(status);
+    }
+  });
+
   it("rejects unknown kinds in answers, offers and registry records", async () => {
     const id = await setup();
     const i = await invite(id);
@@ -1559,6 +1567,24 @@ describe("v2 pairing and revoke wins", () => {
     expect(response.status).toBe(400);
     expect(await json(response)).toEqual({ error: "renewal_key_binding_required" });
     expect((await readState(id)).credentials.map((c) => c.deviceId)).toEqual(["aritz"]);
+  });
+  it("security review B2: the signed sv has to be the verifier registered with the answer", async () => {
+    const id = await setup();
+    const i = await invite(id);
+    const verifier = i.answerBody.serviceCredentialVerifier;
+    const withSv = (sv?: unknown) => ({ ...i.answerBody, answer: { ...i.answer, wp: 1, ...(sv === undefined ? {} : { sv }) } });
+    // A different verifier than the one the guest signed: refused, nothing stored.
+    const other = await digest(b64u(rand(32)));
+    const mismatch = await call("POST", `${i.publicPath}/answer`, { body: withSv(other) });
+    expect(mismatch.status).toBe(400);
+    expect((await json<{ error: string }>(mismatch)).error).toBe("verifier_mismatch");
+    // An answer of the current protocol without sv cannot drop the check.
+    expect((await call("POST", `${i.publicPath}/answer`, { body: withSv() })).status).toBe(400);
+    // The same verifier goes through, once.
+    expect((await call("POST", `${i.publicPath}/answer`, { body: withSv(verifier) })).status).toBe(201);
+    // A 1.0.6 answer carries neither sv nor wp and is accepted as before.
+    const old = await invite(id, "leo");
+    expect((await call("POST", `${old.publicPath}/answer`, { body: old.answerBody })).status).toBe(201);
   });
   it("transports an immutable offer, one answer, the reveal and the approval", async () => {
     const id = await setup();

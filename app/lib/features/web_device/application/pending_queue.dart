@@ -3,18 +3,40 @@ import '../../../core/sync/family_doc.dart';
 import '../data/vault_store.dart';
 import 'vault_service.dart';
 
+/// What an action changes (ADR 0010). The kind is typed so that a private
+/// change can never be published in the clear by mistake.
+enum PendingKind {
+  /// A change to the common document (a gift, an own wish...). Published
+  /// by the web itself.
+  publicChange,
+
+  /// A change to the private scope of one person (the surprises of someone
+  /// else: gifts and wish plans), for the inbox of the web's phone. It is
+  /// never merged into the common document, whatever happens to the key.
+  privateScope,
+}
+
 class PendingEntry {
   PendingEntry(
     this.id,
     this.delta, {
     this.setAside = false,
+    this.blockingDevicePersonNames,
     this.giftPeople = const {},
     this.undoGiftId,
     this.publishAfter,
     this.newGifts = const {},
     this.inboxPerson,
+    this.newPlans = const {},
+    this.kind = PendingKind.publicChange,
   });
   final String id;
+
+  /// Public change or private scope change (see [PendingKind]).
+  final PendingKind kind;
+
+  /// Wish plans the action created (a wish was claimed), for the inbox.
+  final Set<String> newPlans;
 
   /// The protected person whose inbox this action was written for: the web
   /// could change that person's secret gifts when it was saved (1.0.6, ADR
@@ -27,6 +49,10 @@ class PendingEntry {
   final Set<String> newGifts;
   final FamilyDoc delta;
   final bool setAside;
+
+  /// Names recorded when a connected device blocked a queued person deletion.
+  /// Null for entries written before the rejection reason was saved.
+  final List<String>? blockingDevicePersonNames;
 
   /// Original and proposed recipients, including deletions and moves. These
   /// survive remote changes which can otherwise erase the original recipient.
@@ -51,6 +77,8 @@ class PendingQueue {
     DateTime? publishAfter,
     Set<String> newGifts = const {},
     String? inboxPerson,
+    Set<String> newPlans = const {},
+    PendingKind kind = PendingKind.publicChange,
   }) => vault.serial(() async {
     final current = await _current();
     final open = vault.opened;
@@ -58,11 +86,17 @@ class PendingQueue {
     final sealed = await vault.crypto.seal(
       {
         'delta': delta.toJson(),
-        'aside': false,
+        // A private change is stored as set aside so that the 1.0.6 web code,
+        // which does not know it, parks it («hazlo desde el móvil») instead
+        // of reading its delta; this version routes by `kind` first and
+        // ignores the flag for it (security review, M1).
+        'aside': kind == PendingKind.privateScope,
         'giftPeople': giftPeople,
         'undoGiftId': ?undoGiftId,
         if (newGifts.isNotEmpty) 'newGifts': (newGifts.toList()..sort()),
         'inbox': ?inboxPerson,
+        if (newPlans.isNotEmpty) 'newPlans': (newPlans.toList()..sort()),
+        if (kind == PendingKind.privateScope) 'kind': 'private',
         if (publishAfter != null)
           'publishAfter': publishAfter.millisecondsSinceEpoch,
       },
@@ -118,7 +152,10 @@ class PendingQueue {
               FamilyDoc.fromJson(
                 Map<String, Object?>.from(value['delta'] as Map),
               ),
-              setAside: value['aside'] as bool,
+              setAside:
+                  value['kind'] != 'private' && (value['aside'] as bool),
+              blockingDevicePersonNames:
+                  (value['blockingDevicePersonNames'] as List?)?.cast<String>(),
               undoGiftId: value['undoGiftId'] as String?,
               publishAfter: value['publishAfter'] == null
                   ? null
@@ -135,6 +172,13 @@ class PendingQueue {
                   if (id is String) id,
               },
               inboxPerson: value['inbox'] as String?,
+              newPlans: {
+                for (final id in (value['newPlans'] as List?) ?? const [])
+                  if (id is String) id,
+              },
+              kind: value['kind'] == 'private'
+                  ? PendingKind.privateScope
+                  : PendingKind.publicChange,
             ),
           );
         }
@@ -197,7 +241,10 @@ class PendingQueue {
         final entries = Map.of(current.entries)..remove(id);
         await _write(current, current.copy(entries: entries, marks: sealed));
       });
-  Future<void> setAside(String id) => vault.serial(() async {
+  Future<void> setAside(
+    String id, {
+    List<String>? blockingDevicePersonNames,
+  }) => vault.serial(() async {
     final current = await _current();
     if (!current.entries.containsKey(id)) return;
     final open = vault.opened;
@@ -210,6 +257,9 @@ class PendingQueue {
         id,
       ) as Map,
     )..['aside'] = true;
+    if (blockingDevicePersonNames != null) {
+      value['blockingDevicePersonNames'] = blockingDevicePersonNames;
+    }
     final sealed = await vault.crypto.seal(
       value,
       open.key,

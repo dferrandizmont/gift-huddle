@@ -298,12 +298,15 @@ void main() {
         await tester.tap(find.text('Nadie: solo regala'));
         await _settle(tester);
         expect(find.textContaining('pasan a estar en secreto'), findsNothing);
+        expect(_continue(tester).onPressed, isNull);
+        await tester.enterText(find.byType(TextField), 'Leo');
+        await _settle(tester);
         await tester.ensureVisible(
           find.byKey(const ValueKey('personPickerContinue')),
         );
         await tester.tap(find.byKey(const ValueKey('personPickerContinue')));
         await tester.pump();
-        expect(host.calls, contains('new:Aritz:true'));
+        expect(host.calls, contains('new:Leo:true'));
         expect(host.calls.where((c) => c == 'start:null'), isEmpty);
       });
 

@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/core/sync/family_doc.dart';
 import 'package:regalos/core/sync/hlc.dart';
 import 'package:regalos/core/sync/model.dart';
+import 'package:regalos/core/sync/wish.dart';
+import 'package:regalos/core/sync/wish_plan.dart';
 
 const _christmas = Occasion(
   id: 'navidad',
@@ -86,8 +88,9 @@ Gift _gift(
   int? planned, {
   int? actual,
   String? occasion = 'navidad',
-  String giver = 'household',
+  String? giver = 'household',
   GiftStatus status = GiftStatus.idea,
+  int year = 2026,
 }) => Gift(
   id: title,
   title: title,
@@ -99,7 +102,7 @@ Gift _gift(
   plannedCents: planned,
   actualCents: actual,
   surprise: false,
-  year: 2026,
+  year: year,
 );
 
 void main() {
@@ -259,6 +262,8 @@ void main() {
           plannedCents: 6999,
           spentCents: 3999,
           pendingCents: 2000,
+          expectedCents: 5999,
+          boughtCents: 3999,
         ),
       );
       expect(christmas.leftCents, 46001);
@@ -279,6 +284,8 @@ void main() {
           budgetCents: 1000,
           plannedCents: 1500,
           spentCents: 1500,
+          expectedCents: 1500,
+          boughtCents: 1500,
         ),
       );
 
@@ -290,6 +297,8 @@ void main() {
           plannedCents: 3000,
           spentCents: 500,
           pendingCents: 2500,
+          expectedCents: 3000,
+          boughtCents: 500,
         ),
       );
       expect(loose.leftCents, isNull);
@@ -304,16 +313,45 @@ void main() {
           plannedCents: 9999,
           spentCents: 4499,
           pendingCents: 4500,
+          expectedCents: 8999,
+          boughtCents: 4499,
         ),
       );
       expect(budget.total.leftCents, 65501);
       expect(budget.total.leftIfBoughtCents, 61001);
       expect(
         budget.ofRecipient('aritz'),
-        const BudgetTotals(plannedCents: 9999, spentCents: 4499),
+        const BudgetTotals(
+          plannedCents: 9999,
+          spentCents: 4499,
+          expectedCents: 8999,
+          boughtCents: 4499,
+        ),
       );
+      expect(budget.ofRecipientAllGivers('aritz').expectedCents, 88999);
+      expect(budget.ofRecipientAllGivers('aritz').boughtCents, 4499);
     },
   );
+
+  test('el precio real completa el previsto por persona y por ocasión', () {
+    final budget = FamilyView(
+      recipients: const [],
+      givers: const [_household, _leo],
+      occasions: const [_christmas],
+      gifts: [
+        _gift('Libro', null, actual: 4000, status: GiftStatus.bought),
+        _gift('Cometa', 3000, status: GiftStatus.bought),
+        _gift('Bufanda', 6000, status: GiftStatus.decided),
+        _gift('Puzle', null, actual: 1500, giver: 'leo'),
+        _gift('Cuento', null, actual: 2000, giver: null),
+      ],
+    ).budget();
+    expect(budget.ofRecipient('aritz').plannedCents, 13000);
+    expect(budget.ofRecipient('aritz').spentCents, 7000);
+    expect(budget.ofOccasion('navidad').plannedCents, 13000);
+    expect(budget.total.plannedCents, 13000);
+    expect(budget.total.pendingCents, 6000);
+  });
 
   test(
     'un regalo creado a la vez que se borra su ocasión queda sin ocasión',
@@ -345,7 +383,12 @@ void main() {
           gift.toFields(),
         );
 
-        const totals = BudgetTotals(plannedCents: 1500, spentCents: 1200);
+        const totals = BudgetTotals(
+          plannedCents: 1500,
+          spentCents: 1200,
+          expectedCents: 1200,
+          boughtCents: 1200,
+        );
         for (final merged in [deleted.merge(added), added.merge(deleted)]) {
           final view = FamilyView.fromDoc(merged, year: 2026);
           expect(view.occasions, isEmpty);
@@ -382,6 +425,8 @@ void main() {
         plannedCents: 27000,
         spentCents: 25000,
         pendingCents: 2000,
+        expectedCents: 27000,
+        boughtCents: 25000,
       );
       expect(before.total.isOver, isFalse);
       // Reyes (200 €) está activa en los dos casos.
@@ -392,11 +437,14 @@ void main() {
           plannedCents: 27000,
           spentCents: 25000,
           pendingCents: 2000,
+          expectedCents: 27000,
+          boughtCents: 25000,
         ),
       );
       // Archivada: fuera del total y de las personas; su fila sigue entera.
       expect(after.total, const BudgetTotals(budgetCents: 20000));
       expect(after.ofRecipient('aritz'), const BudgetTotals());
+      expect(after.ofRecipientAllGivers('aritz'), const BudgetTotals());
       expect(after.budgeted, const BudgetTotals(budgetCents: 20000));
       expect(after.spentOutsideBudgetCents, 0);
       expect(after.ofOccasion(_christmas.id), full);
@@ -424,11 +472,102 @@ void main() {
           _gift('Puzle', null, actual: actual, status: GiftStatus.bought),
         ],
       ).budget();
-      final totals = BudgetTotals(spentCents: actual ?? 0);
+      final totals = BudgetTotals(
+        plannedCents: actual ?? 0,
+        spentCents: actual ?? 0,
+        expectedCents: actual ?? 0,
+        boughtCents: actual ?? 0,
+      );
       expect(budget.byOccasion[_christmas.id], totals);
       expect(budget.total, totals);
     });
   }
+
+  test('el total y lo comprado usan el precio real o el previsto', () {
+    Budget budgetFor(String giver) => FamilyView(
+      recipients: const [],
+      givers: const [_household, _leo],
+      occasions: [_christmas, _archive(_kings)],
+      gifts: [
+        _gift(
+          'Puzle',
+          null,
+          actual: 3200,
+          giver: giver,
+          status: GiftStatus.wrapped,
+        ),
+        _gift(
+          'Libro',
+          1800,
+          occasion: null,
+          giver: giver,
+          status: GiftStatus.bought,
+        ),
+        _gift(
+          'Cometa',
+          3000,
+          actual: 2500,
+          giver: giver,
+          status: GiftStatus.decided,
+        ),
+        _gift('Cromos', null, giver: giver, status: GiftStatus.bought),
+        _gift('Patines', 900, giver: giver),
+        _gift(
+          'Cuento',
+          2000,
+          actual: 0,
+          giver: giver,
+          status: GiftStatus.bought,
+        ),
+        _gift(
+          'Bicicleta',
+          8000,
+          occasion: 'reyes',
+          giver: giver,
+          status: GiftStatus.bought,
+        ),
+      ],
+    ).budget();
+
+    final outside = budgetFor('leo');
+    final household = budgetFor('household');
+    expect(outside.ofRecipient('aritz'), const BudgetTotals());
+    expect(outside.total.expectedCents, 0);
+    expect(outside.total.boughtCents, 0);
+    for (final totals in [
+      outside.ofRecipientAllGivers('aritz'),
+      household.ofRecipientAllGivers('aritz'),
+      household.total,
+    ]) {
+      expect(totals.expectedCents, 8400);
+      expect(totals.boughtCents, 5000);
+    }
+    expect(household.total.spentCents, 7500);
+    expect(household.total.plannedCents, 10900);
+    expect(household.total.pendingCents, 3900);
+    expect(household.ofRecipientAllGivers('nora'), const BudgetTotals());
+  });
+
+  test('los totales de la persona usan solo los regalos visibles del año', () {
+    final clock = HlcClock(node: 'aritz');
+    var doc = oldDoc;
+    for (final gift in [
+      _gift('Puzle', 1200, giver: null, status: GiftStatus.bought),
+      _gift('Libro', 1800, giver: null, year: 2025),
+      _gift('Cometa', 3000, giver: null, status: GiftStatus.bought),
+    ]) {
+      doc = doc.set(clock, Collections.gifts, gift.id, gift.toFields());
+    }
+    final budget = FamilyView.fromDoc(
+      doc,
+      year: 2026,
+      hiddenGiftIds: const {'Cometa'},
+    ).budget();
+    final totals = budget.ofRecipientAllGivers('aritz');
+    expect(totals.expectedCents, 1200);
+    expect(totals.boughtCents, 1200);
+    expect(budget.total, const BudgetTotals());
+  });
 
   test('distingue presupuesto ausente, cero, gasto al límite y previsión', () {
     final missing = FamilyView(
@@ -566,6 +705,8 @@ void main() {
           budgetCents: 8800,
           plannedCents: 3000,
           spentCents: 2500,
+          expectedCents: 2500,
+          boughtCents: 2500,
         ),
       );
     });
@@ -588,12 +729,13 @@ void main() {
           budgetCents: 20000,
           plannedCents: 3000,
           pendingCents: 3000,
+          expectedCents: 3000,
         ),
       );
       expect(budget.spentOutsideBudgetCents, 0);
       expect(
         budget.ofRecipient('aritz'),
-        const BudgetTotals(plannedCents: 7000),
+        const BudgetTotals(plannedCents: 7000, expectedCents: 7000),
       );
       expect(budget.total.plannedCents, 7000);
       // La fila de Navidad: presupuesto, gastado y pasado, con la marca.
@@ -737,6 +879,136 @@ void main() {
       expect(budget.budgeted.budgetCents, isNull);
       expect(budget.spentOutsideBudgetCents, 4500);
       expect(budget.total.spentCents, 4500);
+    });
+  });
+
+  group('deseos y planes (ADR 0010)', () {
+    const wish = Wish(
+      id: 'w1',
+      recipientId: 'nora',
+      authorPersonId: 'nora',
+      suggested: false,
+      title: 'Bicicleta',
+      year: 2026,
+      occasionId: 'navidad',
+    );
+    WishPlan plan({
+      String? giver = 'household',
+      GiftStatus status = GiftStatus.bought,
+      int? actualCents = 2800,
+    }) => WishPlan(
+      planId: 'p1',
+      recipientId: 'nora',
+      sourceWishId: 'w1',
+      claimantPersonId: 'aritz',
+      title: 'Bicicleta',
+      status: status,
+      giverId: giver,
+      plannedCents: 3000,
+      actualCents: actualCents,
+    );
+    FamilyView view(
+      List<Gift> gifts, {
+      List<Occasion> occasions = const [_christmas],
+      Map<String, List<WishPlan>> plans = const {},
+      Set<String> planGiftIds = const {},
+    }) => FamilyView(
+      recipients: const [],
+      givers: const [_household, _leo],
+      occasions: occasions,
+      gifts: gifts,
+      visibleWishes: const [wish],
+      allVisibleWishes: const [wish],
+      plansByWish: plans,
+      planGiftIds: planGiftIds,
+    );
+
+    test('un deseo y sus planes sin proyectar como regalos no se suman', () {
+      final budget = view(
+        const [],
+        plans: {
+          'w1': [plan()],
+        },
+      ).budget();
+      expect(budget.total, const BudgetTotals());
+      expect(budget.byOccasion['navidad']?.plannedCents ?? 0, 0);
+      expect(budget.byRecipient, isEmpty);
+      expect(budget.allGiftsByRecipient, isEmpty);
+    });
+
+    test('cada plan suma exactamente un regalo, con su ocasión', () {
+      final p = plan();
+      final gift = p.toGiftForAuthorizedView(year: 2026, occasionId: 'navidad');
+      final budget = view(
+        [gift],
+        plans: {
+          'w1': [p],
+        },
+        planGiftIds: {p.planId},
+      ).budget(wishPlanGifts: [gift]);
+      expect(budget.total.plannedCents, 3000);
+      expect(budget.total.spentCents, 2800);
+      expect(budget.total.pendingCents, 0);
+      expect(budget.total.expectedCents, 2800);
+      expect(budget.total.boughtCents, 2800);
+      expect(budget.byOccasion['navidad']!.spentCents, 2800);
+      expect(budget.byRecipient['nora']!.spentCents, 2800);
+      expect(budget.ofRecipientAllGivers('nora').expectedCents, 2800);
+      expect(budget.ofRecipientAllGivers('nora').boughtCents, 2800);
+    });
+
+    for (final giver in <String?>[null, '', 'household', 'leo']) {
+      test('cuenta de un plan con giverId ${jsonEncode(giver)}', () {
+        final p = plan(giver: giver);
+        final gift = p.toGiftForAuthorizedView(
+          year: 2026,
+          occasionId: 'navidad',
+        );
+        final mobile = view([gift], planGiftIds: {p.planId}).budget();
+        final web = view([]).budget(wishPlanGifts: [gift]);
+        final expected = giver == 'leo'
+            ? const BudgetTotals()
+            : const BudgetTotals(
+                plannedCents: 3000,
+                spentCents: 2800,
+                expectedCents: 2800,
+                boughtCents: 2800,
+              );
+        for (final budget in [mobile, web]) {
+          expect(budget.total, expected);
+          expect(budget.ofRecipient('nora'), expected);
+          expect(budget.ofOccasion('navidad'), expected);
+          expect(budget.ofRecipientAllGivers('nora').boughtCents, 2800);
+        }
+      });
+    }
+
+    test('un plan sin asignar pendiente suma lo que falta por pagar', () {
+      final p = plan(
+        giver: null,
+        status: GiftStatus.decided,
+        actualCents: null,
+      );
+      final budget = view([]).budget(
+        wishPlanGifts: [
+          p.toGiftForAuthorizedView(year: 2026, occasionId: 'navidad'),
+        ],
+      );
+      expect(budget.total.plannedCents, 3000);
+      expect(budget.total.spentCents, 0);
+      expect(budget.total.pendingCents, 3000);
+      expect(budget.ofOccasion('navidad').pendingCents, 3000);
+    });
+
+    test('en una ocasión archivada solo cuenta su fila', () {
+      final p = plan();
+      final budget = view(
+        [p.toGiftForAuthorizedView(year: 2026, occasionId: 'navidad')],
+        occasions: [_archive(_christmas)],
+      ).budget();
+      expect(budget.total.spentCents, 0);
+      expect(budget.ofRecipientAllGivers('nora'), const BudgetTotals());
+      expect(budget.byOccasion['navidad']!.spentCents, 2800);
     });
   });
 }

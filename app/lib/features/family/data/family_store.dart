@@ -646,9 +646,46 @@ class FamilyStore {
     await _files.delete(_scopeFile('overflow', personId));
   });
 
+  /// A saved recipient tombstone retires the entire scope, including records
+  /// whose recipient field is absent. Keep revision floors before removing
+  /// any sealed copies. Safe to replay after an interrupted write.
+  Future<void> purgeDeletedRecipientScopes(FamilyDoc common) async {
+    if (!supportsSecretScopes) return;
+    final deleted = {
+      for (final record
+          in common.collections[Collections.recipients]?.values ??
+              const <SyncRecord>[])
+        if (record.isDeleted && kSyncIdPattern.hasMatch(record.id)) record.id,
+    };
+    if (deleted.isEmpty) return;
+    await _inGeneration(() async {
+      if (await _storedListId() != common.listId) return;
+      final slots = await readSlots();
+      final retained = slots.withoutPeople(deleted);
+      if (!identical(retained, slots)) {
+        await raiseRecoveryRevisionFloors({
+          for (final slot in slots.all)
+            if (deleted.contains(slot.header.personId))
+              '${slot.header.personId}/${slot.header.writer}':
+                  slot.header.revision,
+        });
+        await saveSlots(retained);
+      }
+      for (final person in (await _scopePeople()).intersection(deleted)) {
+        await deleteScope(person);
+      }
+    });
+  }
+
   Future<String> _listId() async {
+    final listId = await _storedListId();
+    if (listId == null) throw const FamilyStoreException('no hay familia');
+    return listId;
+  }
+
+  Future<String?> _storedListId() async {
     final raw = await _secrets.read(_identityKey);
-    if (raw == null) throw const FamilyStoreException('no hay familia');
+    if (raw == null) return null;
     try {
       return FamilyIdentity.fromJson(
         Map<String, Object?>.from(jsonDecode(raw) as Map),
@@ -690,6 +727,10 @@ class FamilyStore {
   /// Loads the signed registry and its view anchored to this device and list.
   Future<VerifiedRegistry?> readVerifiedRegistry(FamilyDoc doc) async =>
       (await readLocalRegistry(doc)).snapshot;
+
+  /// Verified membership used to protect people from archive and deletion.
+  Future<RegistryView?> readDevicePersonView(FamilyDoc doc) async =>
+      (await readVerifiedRegistry(doc))?.view;
 
   /// Distinguishes a v1 installation from a v2 identity missing its registry.
   Future<LocalRegistryRead> readLocalRegistry(FamilyDoc doc) =>

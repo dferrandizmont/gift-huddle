@@ -164,7 +164,7 @@ void main() {
     expect(find.bySemanticsLabel('$_row. Nora'), findsOneWidget);
 
     // Aquí no se puede eliminar a «Yo»: llega de otro móvil.
-    await tester.runAsync(() => deletedElsewhere(phone, 'nora'));
+    await driveAsync(tester, () => deletedElsewhere(phone, 'nora'));
     await settle(tester);
     expect(find.bySemanticsLabel('$_row. Nadie'), findsOneWidget);
     expect(await _self(tester, phone), (null, null));
@@ -192,7 +192,7 @@ void main() {
     await settleSaved(tester);
 
     // Que otro móvil archive a la elegida no le quita este.
-    await tester.runAsync(() => archivedElsewhere(phone, 'nora'));
+    await driveAsync(tester, () => archivedElsewhere(phone, 'nora'));
     await settle(tester);
     expect(find.bySemanticsLabel('$_row. Nora'), findsOneWidget);
     await _openSheet(tester);

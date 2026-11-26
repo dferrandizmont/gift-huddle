@@ -316,7 +316,7 @@ void main() {
         expect(header.right, column.right);
 
         final budget = tester.getRect(
-          find.bySemanticsLabel(RegExp('^Gastado: ')).first,
+          find.bySemanticsLabel(RegExp('^Comprado: ')).first,
         );
         expect(budget.left, greaterThanOrEqualTo(column.left + 16));
         expect(budget.right, lessThanOrEqualTo(column.right - 16));

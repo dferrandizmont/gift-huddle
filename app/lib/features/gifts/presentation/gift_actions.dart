@@ -14,9 +14,13 @@ import '../../../core/widgets/gift_status_map.dart';
 import '../../../core/widgets/regalos_snack_bar.dart';
 import '../../../core/widgets/status_checkbox.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../core/sync/wish_plan.dart';
 import '../../family/application/family_controller.dart';
+import '../../family/application/family_providers.dart';
+import '../../family/application/wish_service.dart';
 import '../application/delivered_arm.dart';
 import '../application/person_completion.dart';
+import 'wish_editor.dart' show showWishProblem;
 
 /// Lo que pasa al tocar la casilla de un regalo: avanza al siguiente estado y
 /// avisa con un «Deshacer». Si ya está entregado, abre el selector.
@@ -25,6 +29,10 @@ Future<void> advanceGiftStatus(
   WidgetRef ref,
   Gift gift,
 ) async {
+  // Un deseo que alguien ha cogido se ve como un regalo, pero su estado vive
+  // en su plan (ADR 0010).
+  final plan = ref.read(wishPlanOfGiftProvider(gift.id));
+  if (plan != null) return advancePlanStatus(context, ref, plan);
   final next = gift.status.next;
   if (next == null) {
     await showGiftStatusPicker(context, ref, gift);
@@ -108,18 +116,30 @@ ChoiceGridItem statusChoice(
   onTap: onTap,
 );
 
-/// Abre el selector con los seis estados y aplica el que se toque.
-Future<void> showGiftStatusPicker(
+/// Abre el selector con los seis estados de [title] y devuelve el elegido.
+Future<GiftStatus?> _pickStatus(
   BuildContext context,
-  WidgetRef ref,
-  Gift gift,
-) async {
-  final controller = ref.read(familyControllerProvider.notifier);
-  final haptics = ref.read(hapticsProvider);
-  final arrival = context.hapticArrival;
-  final chosen = await showRegalosSheet<GiftStatus>(
+  String title,
+  GiftStatus current, {
+  void Function(BuildContext sheetContext)? onBuilt,
+  bool Function()? authorized,
+}) {
+  var dismissed = false;
+  return showRegalosSheet<GiftStatus>(
     context,
     builder: (sheetContext) {
+      // Si en el primer pintado ya no se puede enseñar (le quitaron el acceso
+      // entre la pulsación larga y la hoja), no se pinta nada y se cierra.
+      if (authorized != null && !authorized()) {
+        if (!dismissed) {
+          dismissed = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+          });
+        }
+        return const SizedBox.shrink();
+      }
+      onBuilt?.call(sheetContext);
       final l10n = AppLocalizations.of(sheetContext);
       final t = RegalosTokens.of(sheetContext);
       return SafeArea(
@@ -132,7 +152,7 @@ Future<void> showGiftStatusPicker(
               Semantics(
                 header: true,
                 child: Text(
-                  l10n.giftStatusPickerTitle(gift.title),
+                  l10n.giftStatusPickerTitle(title),
                   style: t.styles.screenTitleSmall,
                 ),
               ),
@@ -146,7 +166,7 @@ Future<void> showGiftStatusPicker(
                     statusChoice(
                       l10n,
                       status,
-                      selected: status == gift.status,
+                      selected: status == current,
                       onTap: () => Navigator.of(sheetContext).pop(status),
                     ),
                 ],
@@ -157,6 +177,150 @@ Future<void> showGiftStatusPicker(
       );
     },
   );
+}
+
+/// Si quien mira en este dispositivo es quien cogió el plan: solo esa persona
+/// lo cambia (ADR 0010).
+bool _isClaimant(WidgetRef ref, WishPlan plan) {
+  final reader = ref.read(wishReaderProvider);
+  return reader != null && reader == plan.claimantPersonId;
+}
+
+/// Lo que pasa al tocar la casilla de un deseo cogido: avanza el estado de su
+/// plan y avisa con «Deshacer». Si ya está entregado, abre el selector.
+Future<void> advancePlanStatus(
+  BuildContext context,
+  WidgetRef ref,
+  WishPlan plan,
+) async {
+  // Solo quien lo ha cogido cambia su plan.
+  if (!_isClaimant(ref, plan)) return;
+  final next = plan.status.next;
+  if (next == null) {
+    await showPlanStatusPicker(context, ref, plan);
+    return;
+  }
+  final l10n = AppLocalizations.of(context);
+  final haptics = ref.read(hapticsProvider);
+  final arrival = context.hapticArrival;
+  if (next == GiftStatus.delivered) {
+    haptics.medium(after: arrival);
+  } else {
+    haptics.light(after: arrival);
+  }
+  final service = ref.read(wishServiceProvider);
+  final previous = plan.status;
+  final result = await service.editPlan(
+    plan.recipientId,
+    plan.planId,
+    PrivatePlanPatch(status: next),
+  );
+  if (!context.mounted) return;
+  if (!result.ok) {
+    showWishProblem(context, ref, result);
+    return;
+  }
+  showRegalosSnackBar(
+    context,
+    SnackBar(
+      persist: false,
+      duration: const Duration(seconds: 4),
+      content: Text(
+        l10n.giftStatusChanged(plan.title, next.visualStatus.label(l10n)),
+      ),
+      action: SnackBarAction(
+        label: l10n.actionUndo,
+        onPressed: () {
+          haptics.light(after: arrival);
+          service.editPlan(
+            plan.recipientId,
+            plan.planId,
+            PrivatePlanPatch(status: previous),
+          );
+        },
+      ),
+    ),
+  );
+}
+
+/// Abre el selector de estado de un deseo cogido y aplica el que se toque.
+Future<void> showPlanStatusPicker(
+  BuildContext context,
+  WidgetRef ref,
+  WishPlan plan,
+) async {
+  if (!_isClaimant(ref, plan)) return;
+  // El selector enseña el título y el estado del plan: si este dispositivo
+  // deja de ver el plan (le quitan el acceso al bloque, o se soltó en otro
+  // móvil) o no sabe si lo ve (la proyección se recalcula o falla), con el
+  // selector abierto, se cierra sin aplicar nada. La web no depende de la
+  // proyección del móvil.
+  final container = ProviderScope.containerOf(context);
+  final web = container.read(webAppProvider);
+  bool uncertain() {
+    final projection = container.read(authorizedProjectionProvider);
+    return !web && (projection.isLoading || projection.hasError);
+  }
+
+  bool live() => container
+      .read(wishPlanStateRowsProvider(plan.recipientId))
+      .where((r) => r.sourceWishId == plan.sourceWishId)
+      .any((r) => r.plans.any((p) => p.planId == plan.planId));
+  if (uncertain()) return;
+  bool authorized() => live() && !uncertain();
+  BuildContext? sheetContext;
+  void closeIfUnseen() {
+    final sheet = sheetContext;
+    if ((!live() || uncertain()) && sheet != null && sheet.mounted) {
+      sheetContext = null;
+      Navigator.of(sheet).pop();
+    }
+  }
+
+  final rowsSubscription = container.listen<List<WishPlanRow>>(
+    wishPlanStateRowsProvider(plan.recipientId),
+    (_, _) => closeIfUnseen(),
+  );
+  final projectionSubscription = container.listen(
+    authorizedProjectionProvider,
+    (_, _) => closeIfUnseen(),
+  );
+  final GiftStatus? chosen;
+  try {
+    chosen = await _pickStatus(
+      context,
+      plan.title,
+      plan.status,
+      onBuilt: (c) => sheetContext = c,
+      authorized: authorized,
+    );
+  } finally {
+    rowsSubscription.close();
+    projectionSubscription.close();
+  }
+  if (chosen == null || chosen == plan.status || !context.mounted) return;
+  final result = await ref
+      .read(wishServiceProvider)
+      .editPlan(
+        plan.recipientId,
+        plan.planId,
+        PrivatePlanPatch(status: chosen),
+      );
+  if (!result.ok && context.mounted) showWishProblem(context, ref, result);
+}
+
+/// Abre el selector con los seis estados y aplica el que se toque.
+Future<void> showGiftStatusPicker(
+  BuildContext context,
+  WidgetRef ref,
+  Gift gift,
+) async {
+  final plan = ref.read(wishPlanOfGiftProvider(gift.id));
+  if (plan != null) return showPlanStatusPicker(context, ref, plan);
+  final controller = ref.read(familyControllerProvider.notifier);
+  final haptics = ref.read(hapticsProvider);
+  final arrival = context.hapticArrival;
+  final chosen = await _pickStatus(context, gift.title, gift.status);
   if (chosen != null && chosen != gift.status) {
     // Elegir en la rejilla ya dio su toque de selección: solo entregar,
     // que es lo importante, añade uno medio cuando la casilla termina de

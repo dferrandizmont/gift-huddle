@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:regalos/core/prefs/shared_preferences_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:regalos/features/web_device/application/web_app_provider.dart';
 import 'package:regalos/features/web_device/application/web_device_providers.dart';
 import 'package:regalos/features/web_device/application/web_sync_engine.dart'
@@ -19,8 +21,11 @@ WebDeviceState _state(int failed) => WebDeviceState(
   lastUnlockFailedAttempts: failed,
 );
 
+late SharedPreferences _prefs;
+
 Widget _page(FakeGateActions actions, int failed) => ProviderScope(
   overrides: [
+    sharedPreferencesProvider.overrideWithValue(_prefs),
     webAppProvider.overrideWithValue(true),
     webGateActionsProvider.overrideWithValue(actions),
     webDeviceStateProvider.overrideWithValue(_state(failed)),
@@ -44,6 +49,10 @@ Future<void> _route(WidgetTester tester, [int ms = 600]) async {
 
 void main() {
   setUpAll(loadInter);
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    _prefs = await SharedPreferences.getInstance();
+  });
 
   for (final size in [desktopSize, phoneSize]) {
     for (final locale in const ['es', 'ca', 'en']) {
@@ -98,6 +107,7 @@ void main() {
     final actions = FakeGateActions();
     final container = ProviderContainer(
       overrides: [
+        sharedPreferencesProvider.overrideWithValue(_prefs),
         webAppProvider.overrideWithValue(true),
         webGateActionsProvider.overrideWithValue(actions),
         webDeviceStateProvider.overrideWithValue(_state(2)),

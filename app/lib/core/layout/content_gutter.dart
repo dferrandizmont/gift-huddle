@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../theme/regalos_motion.dart';
 import 'content_width.dart';
 
 /// Da a [builder] el margen que queda a cada lado de una columna de
@@ -47,11 +48,15 @@ class ContentListView extends StatelessWidget {
     required this.maxWidth,
     this.padding = EdgeInsets.zero,
     this.storageKey,
+    this.controller,
     required this.children,
   });
 
   /// Ancho máximo de la columna. Las medidas están en `RegalosLayout`.
   final double maxWidth;
+
+  /// Quien sigue o gobierna el desplazamiento de la lista, o `null`.
+  final ScrollController? controller;
 
   /// El relleno de la lista sin contar el margen de la columna.
   final EdgeInsets padding;
@@ -68,6 +73,7 @@ class ContentListView extends StatelessWidget {
     maxWidth: maxWidth,
     builder: (context, gutter) => ListView(
       key: storageKey,
+      controller: controller,
       padding: padding + EdgeInsets.symmetric(horizontal: gutter),
       children: children,
     ),
@@ -77,11 +83,16 @@ class ContentListView extends StatelessWidget {
 /// El «+» de un `Scaffold` (u otro botón flotante), a su distancia de siempre
 /// del borde de una columna de [maxWidth] centrada, y no del borde del panel.
 /// Por debajo de [maxWidth] no hace nada.
-class ContentFloatingButton extends StatelessWidget {
+///
+/// Con el teclado abierto (o con [hidden]: la búsqueda) se esconde: el
+/// `Scaffold` lo sube encima del teclado y taparía justo lo que se está
+/// escribiendo o buscando. Vuelve al cerrarse el teclado.
+class ContentFloatingButton extends StatefulWidget {
   const ContentFloatingButton({
     super.key,
     required this.maxWidth,
     required this.child,
+    this.hidden = false,
   });
 
   /// Ancho máximo de la columna. Las medidas están en `RegalosLayout`.
@@ -89,12 +100,78 @@ class ContentFloatingButton extends StatelessWidget {
 
   final Widget child;
 
+  /// Si se esconde aunque no haya teclado.
+  final bool hidden;
+
   @override
-  Widget build(BuildContext context) => ContentGutter(
-    maxWidth: maxWidth,
-    builder: (context, gutter) => Padding(
-      padding: EdgeInsetsDirectional.only(end: gutter),
-      child: child,
-    ),
-  );
+  State<ContentFloatingButton> createState() => _ContentFloatingButtonState();
+}
+
+class _ContentFloatingButtonState extends State<ContentFloatingButton>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // El teclado se lee de la vista y no de `MediaQuery`: el `Scaffold` de
+  // abajo ya se lo ha quitado a lo que lleva dentro.
+  bool _keyboard = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _keyboard = View.of(context).viewInsets.bottom > 0;
+  }
+
+  // Solo se repinta si el teclado se abre o se cierra (no con cada cambio
+  // de métricas: giros, barras...).
+  @override
+  void didChangeMetrics() {
+    if (!mounted) {
+      return;
+    }
+    final keyboard = View.of(context).viewInsets.bottom > 0;
+    if (keyboard != _keyboard) {
+      setState(() => _keyboard = keyboard);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hide = widget.hidden || _keyboard;
+    final reduce = RegalosMotion.of(context).reduce;
+    return ContentGutter(
+      maxWidth: widget.maxWidth,
+      builder: (context, gutter) => Padding(
+        padding: EdgeInsetsDirectional.only(end: gutter),
+        child: ExcludeFocus(
+          excluding: hide,
+          child: ExcludeSemantics(
+            excluding: hide,
+            child: IgnorePointer(
+              ignoring: hide,
+              child: AnimatedOpacity(
+                opacity: hide ? 0 : 1,
+                duration: RegalosMotion.fade,
+                child: AnimatedScale(
+                  scale: hide && !reduce ? 0.85 : 1,
+                  duration: RegalosCurves.foldDuration,
+                  curve: RegalosCurves.fold,
+                  child: widget.child,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

@@ -27,6 +27,7 @@ class GiftRow extends StatelessWidget {
     this.giverColorIndex,
     this.price,
     this.note,
+    this.noteWarning = false,
     this.onTap,
     this.onStatusTap,
     this.onStatusLongPress,
@@ -49,6 +50,10 @@ class GiftRow extends StatelessWidget {
 
   /// Segunda línea opcional («Lo pidió Aritz»).
   final String? note;
+
+  /// Si la segunda línea es un aviso (dos personas cogieron el mismo deseo):
+  /// va en el color de error y en negrita.
+  final bool noteWarning;
   final VoidCallback? onTap;
   final VoidCallback? onStatusTap;
   final VoidCallback? onStatusLongPress;
@@ -147,6 +152,7 @@ class GiftRow extends StatelessWidget {
             ],
           );
 
+    final noteStyle = noteWarning ? t.styles.metaWarning : t.styles.meta;
     final link = _linkLabel(compact: true);
     final Widget body;
     if (columns) {
@@ -159,7 +165,7 @@ class GiftRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   title,
-                  if (note != null) Text(note!, style: t.styles.meta),
+                  if (note != null) Text(note!, style: noteStyle),
                   ?link,
                 ],
               ),
@@ -283,7 +289,7 @@ class GiftRow extends StatelessWidget {
                       style: t.styles.meta,
                       child: narrowMeta,
                     ),
-                    if (note != null) Text(note!, style: t.styles.meta),
+                    if (note != null) Text(note!, style: noteStyle),
                   ],
                 ),
               ),
@@ -360,9 +366,16 @@ class GiftRow extends StatelessWidget {
             child: LongPressAfter(
               duration: kStatusLongPress,
               onLongPress: onStatusLongPress,
-              child: PointerSurface(
-                radius: BorderRadius.zero,
-                child: InkWell(onTap: onTap, child: body),
+              // La ficha entera es un botón que se lee con su nombre, etiquetas,
+              // estado y quién regala (QA 1.0.7, m9); el enlace de dentro sigue
+              // siendo su propio botón.
+              child: Semantics(
+                container: true,
+                button: onTap != null,
+                child: PointerSurface(
+                  radius: BorderRadius.zero,
+                  child: InkWell(onTap: onTap, child: body),
+                ),
               ),
             ),
           ),

@@ -15,6 +15,7 @@ import 'package:regalos/core/sync/family_envelope.dart';
 import 'package:regalos/core/sync/family_key_bundle.dart';
 import 'package:regalos/core/sync/hlc.dart';
 import 'package:regalos/core/sync/model.dart';
+import 'package:regalos/core/sync/wish.dart';
 import 'package:regalos/features/sync/application/common_v2.dart';
 import 'package:regalos/features/sync/data/sync_transport.dart';
 import 'package:regalos/features/sync/data/sync_transport_common.dart';
@@ -299,6 +300,51 @@ void main() {
       final head = peekFamilyEnvelope((await snapshot()).common);
       expect(head.writer, webId);
       expect(head.kid, rotated.kid);
+    });
+
+    test('repara deseos con la cola vacía tras un 412 en el común firmado', () async {
+      await cut();
+      await h.engine.sync();
+      final keys = webCommonKeys(data());
+      final candidate = keys.keyring.entry(keys.lastKid!)!.candidate;
+      final clock = HlcClock(node: h.phone.node, last: h.phone.doc.maxStamp);
+      h.phone.doc = h.phone.doc.set(clock, Collections.wishes, 'legacy', {
+        'recipientId': 'nora',
+        'authorPersonId': 'nora',
+        'suggested': false,
+        'title': 'Patinete',
+        'description': 'Con luces',
+        'url': 'https://example.com/patinete',
+        'year': 2026,
+      }).delete(clock, Collections.recipients, 'nora');
+      await phoneSeals(candidate);
+      expect(await h.queue.entries(), isEmpty);
+      var conflicts = 0;
+      h.worker.beforePut = (_) async {
+        conflicts++;
+        h.phone.doc = edit(h.phone.doc, 'Bufanda', id: 'remote-edit');
+        await phoneSeals(candidate, revision: 101);
+      };
+
+      await h.engine.sync();
+
+      expect(conflicts, 1);
+      final bytes = (await snapshot()).common;
+      expect(peekFamilyEnvelope(bytes).writer, webId);
+      final view = await h.phone.view();
+      final opened = await openFamilyEnvelope(
+        bytes,
+        expectedListId: kV2List,
+        expectedSyncId: kV2Sync,
+        resolveWriter: (writer, _) => view.member(writer)?.signingKey,
+        keyring: webCommonKeys(data()).keyring,
+      );
+      final wish = opened.doc.record(Collections.wishes, 'legacy')!;
+      expect(wish.isDeleted, isTrue);
+      expect(wish.hasTombstoneContent, isFalse);
+      expect(validateWishRecord(wish), isNull);
+      expect(opened.doc.record(Collections.gifts, 'remote-edit')!['title'], 'Bufanda');
+      expect(await h.queue.entries(), isEmpty);
     });
 
     test('dos candidatas recibidas en distinto orden: abre cada común por su '

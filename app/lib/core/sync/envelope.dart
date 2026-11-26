@@ -31,6 +31,14 @@ const _keyLength = 32;
 const _nonceLength = 12;
 const _macLength = 16;
 const _version = 1;
+
+/// Versión exterior del sobre que escribe 1.0.7 al exportar un fichero
+/// `.gifthuddle` sin el formato 2 del común (el 2 es el sobre común firmado,
+/// `family_envelope.dart`). 1.0.6 rechaza cualquier versión que no sea la 1
+/// en [peekHeader] y en [open], antes de fusionar nada. 1.0.7 sigue leyendo
+/// la 1 (ficheros anteriores) y la 3 solo cuando quien llama lo pide con
+/// `acceptFileVersion` (los ficheros compartidos), nunca en la sincronización.
+const kFileEnvelopeVersion = 3;
 const _magic0 = 0x52; // R
 const _magic1 = 0x47; // G
 const _prefixLength = 5;
@@ -286,6 +294,7 @@ Future<Uint8List> seal({
   required String fromNode,
   required String at,
   required FamilyKey key,
+  int version = _version,
 }) => sealWithNonceForTesting(
   doc: doc,
   listId: listId,
@@ -293,6 +302,7 @@ Future<Uint8List> seal({
   at: at,
   key: key,
   nonce: _randomBytes(_nonceLength),
+  version: version,
 );
 
 /// Igual que [seal] pero con nonce dado. SOLO para pruebas y vectores fijos:
@@ -304,7 +314,11 @@ Future<Uint8List> sealWithNonceForTesting({
   required String at,
   required FamilyKey key,
   required List<int> nonce,
+  int version = _version,
 }) async {
+  if (version != _version && version != kFileEnvelopeVersion) {
+    throw ArgumentError.value(version, 'version');
+  }
   if (!_idPattern.hasMatch(listId)) {
     throw ArgumentError.value(listId, 'listId', 'identificador no válido');
   }
@@ -317,13 +331,18 @@ Future<Uint8List> sealWithNonceForTesting({
   }
   final body = Deflate(plain).getBytes();
   final header = _headerBytes(
-    EnvelopeHeader(listId: listId, fromNode: fromNode, at: at),
+    EnvelopeHeader(
+      listId: listId,
+      fromNode: fromNode,
+      at: at,
+      version: version,
+    ),
   );
   if (header.length > 0xFFFF) {
     throw const EnvelopeFormatException('cabecera demasiado larga');
   }
   final prefix = BytesBuilder(copy: false)
-    ..add(const [_magic0, _magic1, _version])
+    ..add([_magic0, _magic1, version])
     ..add([header.length >> 8, header.length & 0xFF])
     ..add(header);
   final aad = prefix.toBytes();
@@ -351,7 +370,7 @@ class _Parsed {
   final int aadEnd;
 }
 
-_Parsed _parse(Uint8List bytes) {
+_Parsed _parse(Uint8List bytes, {bool acceptFileVersion = false}) {
   if (bytes.length > kMaxEnvelopeBytes) {
     throw const EnvelopeTooLargeException('sobre demasiado grande');
   }
@@ -360,8 +379,10 @@ _Parsed _parse(Uint8List bytes) {
       bytes[1] != _magic1) {
     throw const EnvelopeFormatException('no es un sobre de Regalos');
   }
-  if (bytes[2] != _version) {
-    throw EnvelopeFormatException('versión ${bytes[2]} no soportada');
+  final version = bytes[2];
+  if (version != _version &&
+      !(acceptFileVersion && version == kFileEnvelopeVersion)) {
+    throw EnvelopeFormatException('versión $version no soportada');
   }
   final hLen = (bytes[3] << 8) | bytes[4];
   final aadEnd = _prefixLength + hLen;
@@ -378,7 +399,7 @@ _Parsed _parse(Uint8List bytes) {
   final l = raw['l'];
   final from = raw['from'];
   final at = raw['at'];
-  if (raw['v'] != _version ||
+  if (raw['v'] != version ||
       raw['kind'] != 'family' ||
       l is! String ||
       !_idPattern.hasMatch(l) ||
@@ -386,11 +407,15 @@ _Parsed _parse(Uint8List bytes) {
       at is! String) {
     throw const EnvelopeFormatException('cabecera no válida');
   }
-  return _Parsed(EnvelopeHeader(listId: l, fromNode: from, at: at), aadEnd);
+  return _Parsed(
+    EnvelopeHeader(listId: l, fromNode: from, at: at, version: version),
+    aadEnd,
+  );
 }
 
 /// Lee la cabecera sin clave (para saber de qué lista es). No autentica.
-EnvelopeHeader peekHeader(Uint8List bytes) => _parse(bytes).header;
+EnvelopeHeader peekHeader(Uint8List bytes, {bool acceptFileVersion = false}) =>
+    _parse(bytes, acceptFileVersion: acceptFileVersion).header;
 
 /// Abre un sobre. Primero autentica y descifra; después comprueba la lista,
 /// de modo que cualquier byte manipulado da error de autenticación.
@@ -398,8 +423,9 @@ Future<OpenedEnvelope> open(
   Uint8List bytes, {
   required FamilyKey key,
   required String expectedListId,
+  bool acceptFileVersion = false,
 }) async {
-  final parsed = _parse(bytes);
+  final parsed = _parse(bytes, acceptFileVersion: acceptFileVersion);
   final aad = Uint8List.sublistView(bytes, 0, parsed.aadEnd);
   final nonceEnd = parsed.aadEnd + _nonceLength;
   final macStart = bytes.length - _macLength;

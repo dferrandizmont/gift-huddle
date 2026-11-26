@@ -420,11 +420,14 @@ void main() {
       // B5 (revisión final): con un regalo vivo suyo (de un 1.0.5) se
       // protege igual; sin ninguno, no hay nada que ocultar.
       expect(nothingToProtectFor(common, 'nora'), isFalse);
-      expect(
-        peopleToAutoProtect(common, await _view(registry, aritz)),
-        {'nora'},
+      expect(peopleToAutoProtect(common, await _view(registry, aritz)), {
+        'nora',
+      });
+      common = common.delete(
+        clockOf('aritz-phone', 10),
+        Collections.gifts,
+        'g-nora',
       );
-      common = common.delete(clockOf('aritz-phone', 10), Collections.gifts, 'g-nora');
       expect(nothingToProtectFor(common, 'nora'), isTrue);
       expect(
         peopleToAutoProtect(common, await _view(registry, aritz)),
@@ -467,8 +470,12 @@ void main() {
       );
     }
 
-    Future<PairingOffer> roundTrip(PairingHost session) async =>
-        PairingOffer.fromJson(jsonDecode(jsonEncode(session.offer.toJson())));
+    Future<PairingOffer> roundTrip(PairingHost session) async {
+      await session.signOffer(aritz.keys);
+      return PairingOffer.fromJson(
+        jsonDecode(jsonEncode(session.offer.toJson())),
+      );
+    }
 
     test('la oferta lleva la marca y el invitado la lee', () async {
       final session = PairingHost.start(

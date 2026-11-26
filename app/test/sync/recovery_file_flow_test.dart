@@ -258,7 +258,7 @@ void main() {
 
     test('a newer or broken GHK is reported, not imported', () async {
       await startIncoming();
-      final newer = Uint8List.fromList(asciiFile)..[3] = 2;
+      final newer = Uint8List.fromList(asciiFile)..[3] = 3;
       await exchange.receive!(newer);
       expect(state().selection!.failure, RecoveryFileFailure.newerVersion);
       expect(state().selection!.needsPassword, isFalse);

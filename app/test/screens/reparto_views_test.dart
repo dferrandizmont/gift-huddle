@@ -461,7 +461,8 @@ void main() {
     expect(tester.takeException(), isNull);
 
     // Y si sale de nuevo, su tarjeta se pliega y pasa al bloque.
-    await tester.runAsync(
+    await driveAsync(
+      tester,
       () => familyOf(phone).setRecipientInReparto('leo', false),
     );
     await settle(tester);

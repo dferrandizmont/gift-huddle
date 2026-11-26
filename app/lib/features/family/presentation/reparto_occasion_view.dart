@@ -35,6 +35,8 @@ import '../../../l10n/app_localizations.dart';
 import '../../gifts/presentation/gift_editor_screen.dart';
 import '../application/family_controller.dart';
 import '../application/family_providers.dart';
+import '../application/wish_service.dart';
+import '../../gifts/presentation/wish_editor.dart' show wishProblemText;
 import '../application/self_recipient_provider.dart';
 import '../domain/next_occasion.dart';
 import 'family_texts.dart';
@@ -246,6 +248,7 @@ class _RepartoOccasionViewState extends ConsumerState<RepartoOccasionView>
   }
 
   void _pick(Gift gift, String? giverId) {
+    if (!ref.read(giftGiverEditableProvider(gift.id))) return;
     final view = ref.read(familyViewProvider);
     if (giverId == view.resolveGiver(gift.giverId)?.id &&
         view.giversByOriginalId[gift.giverId]?.archived != true) {
@@ -276,11 +279,15 @@ class _RepartoOccasionViewState extends ConsumerState<RepartoOccasionView>
   /// regalo secreto pasa antes por el paso explícito.
   Future<void> _pickPerson(Gift gift, GiverPersonCandidate candidate) async {
     flush();
+    WishResult? planFailure;
+    final plan = ref.read(wishPlanOfGiftProvider(gift.id));
     final result = await assignGiftToPerson(
       context,
       ref,
       gift: gift,
       candidate: candidate,
+      plan: plan,
+      onPlanFailure: (r) => planFailure = r,
     );
     if (!mounted || result == null) {
       return;
@@ -292,11 +299,23 @@ class _RepartoOccasionViewState extends ConsumerState<RepartoOccasionView>
         context,
         SnackBar(
           content: Text(
-            giftWriteResultText(
-              AppLocalizations.of(context),
-              result,
-              web: ref.read(webAppProvider),
-            ),
+            planFailure != null
+                ? wishProblemText(
+                    AppLocalizations.of(context),
+                    planFailure!,
+                    name:
+                        ref
+                            .read(familyFullViewProvider)
+                            .allRecipientsById[plan?.recipientId]
+                            ?.name ??
+                        '',
+                    web: ref.read(webAppProvider),
+                  )
+                : giftWriteResultText(
+                    AppLocalizations.of(context),
+                    result,
+                    web: ref.read(webAppProvider),
+                  ),
           ),
         ),
       );
@@ -322,10 +341,17 @@ class _RepartoOccasionViewState extends ConsumerState<RepartoOccasionView>
       return;
     }
     _pending = null;
-    final result = await ref
-        .read(familyControllerProvider.notifier)
-        .setGiftGiver(pending.giftId, pending.giverId)
-        .onError<ProtectedPersonException>(
+    WishResult? planFailure;
+    final result =
+        await assignGiftGiver(
+          controller: ref.read(familyControllerProvider.notifier),
+          service: ref.read(wishServiceProvider),
+          giftId: pending.giftId,
+          giverId: pending.giverId,
+          // Un deseo cogido cambia quién regala en su plan (ADR 0010).
+          plan: ref.read(wishPlanOfGiftProvider(pending.giftId)),
+          onPlanFailure: (r) => planFailure = r,
+        ).onError<ProtectedPersonException>(
           (error, _) => error.savedLocally
               ? GiftWriteResult.saved
               : GiftWriteResult.giftUnavailable,
@@ -337,11 +363,25 @@ class _RepartoOccasionViewState extends ConsumerState<RepartoOccasionView>
           context,
           SnackBar(
             content: Text(
-              giftWriteResultText(
-                AppLocalizations.of(context),
-                result,
-                web: ref.read(webAppProvider),
-              ),
+              planFailure != null
+                  ? wishProblemText(
+                      AppLocalizations.of(context),
+                      planFailure!,
+                      name:
+                          ref
+                              .read(familyFullViewProvider)
+                              .allRecipientsById[ref
+                                  .read(wishPlanOfGiftProvider(pending.giftId))
+                                  ?.recipientId]
+                              ?.name ??
+                          '',
+                      web: ref.read(webAppProvider),
+                    )
+                  : giftWriteResultText(
+                      AppLocalizations.of(context),
+                      result,
+                      web: ref.read(webAppProvider),
+                    ),
             ),
           ),
         );
@@ -396,10 +436,8 @@ class _RepartoOccasionViewState extends ConsumerState<RepartoOccasionView>
       for (final r in people)
         if (!locked.contains(r.id)) r,
     ];
-    final lockedPeople = [
-      for (final r in people)
-        if (locked.contains(r.id)) r,
-    ];
+    // En el cumpleaños de otra persona no hay bloque para quien no recibe.
+    final lockedPeople = lockedPeopleFor(occasion, people, locked);
     final gifts = [
       for (final g in view.gifts)
         if (g.occasionId == occasion.id) g,
@@ -1634,6 +1672,9 @@ class _GiftRow extends ConsumerWidget {
       pickedGiverId == null ? gift.giverId : pickedGiverId!.$1,
     );
     final selectedId = giver?.id;
+    // En el plan de un deseo que cogió otra persona, quién regala se ve y no
+    // se cambia.
+    final editable = ref.watch(giftGiverEditableProvider(gift.id));
     return DecoratedBox(
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: t.separator)),
@@ -1702,7 +1743,10 @@ class _GiftRow extends ConsumerWidget {
                         ),
                       ),
                     ),
-                    chip: GiverChip(giver: giver, onTap: onToggle),
+                    chip: GiverChip(
+                      giver: giver,
+                      onTap: editable ? onToggle : null,
+                    ),
                   ),
                 ),
               ),
@@ -1721,7 +1765,7 @@ class _GiftRow extends ConsumerWidget {
                       : RegalosCurves.foldDuration),
             curve: open ? RegalosCurves.snap : RegalosCurves.fold,
             alignment: Alignment.topCenter,
-            child: open
+            child: open && editable
                 ? Padding(
                     padding: const EdgeInsets.fromLTRB(44, 2, 12, 12),
                     child: GiverPicker(

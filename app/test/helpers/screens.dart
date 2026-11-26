@@ -6,6 +6,9 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/app/app.dart';
 import 'package:regalos/core/sync/model.dart';
+import 'package:regalos/core/widgets/more_details.dart';
+import 'package:regalos/features/gifts/presentation/gift_editor_screen.dart'
+    show GiftEditorScreen;
 import 'package:regalos/features/family/application/family_controller.dart';
 import 'package:regalos/features/lock/application/lock_controller.dart';
 import 'package:regalos/features/sharing/presentation/join_qr_screen.dart';
@@ -73,17 +76,94 @@ void screenTest(
       // Borrar un regalo deja un temporizador (el aviso con «Deshacer») que
       // escribe la lápida al caducar: se adelanta para no dejarlo pendiente.
       try {
-        await tester.runAsync(
-          () => phone.container
-              .read(familyControllerProvider.notifier)
-              .flushPendingDeletes(),
-        );
+        await flushDeletes(tester, phone);
       } on Object {
         // La prueba ya falló por otra cosa: no se esconde con otro error.
       }
       semantics.dispose();
     }
   });
+}
+
+/// Ejecuta [action] (una escritura del controlador, por ejemplo) desde la zona
+/// de la prueba y la espera repintando. Úsalo en vez de `runAsync` cuando la
+/// interfaz ya ha escrito antes: la cola de escrituras del controlador cuelga
+/// de futuros de la zona de la prueba, cuyos microtareas solo avanzan al
+/// repintar; desde `runAsync` la espera no acababa nunca.
+Future<T> driveAsync<T>(
+  WidgetTester tester,
+  Future<T> Function() action,
+) async {
+  var done = false;
+  Object? error;
+  StackTrace? trace;
+  T? value;
+  final run = action().then<void>(
+    (v) {
+      value = v;
+      done = true;
+    },
+    onError: (Object e, StackTrace s) {
+      error = e;
+      trace = s;
+      done = true;
+    },
+  );
+  for (var i = 0; i < 300 && !done; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
+    await tester.pump();
+  }
+  if (!done) {
+    throw StateError('driveAsync: la escritura no acabó en 3 s');
+  }
+  await run;
+  if (error != null) Error.throwWithStackTrace(error!, trace!);
+  return value as T;
+}
+
+/// Escribe ya las lápidas de los regalos que esperan el final del aviso con
+/// «Deshacer» (véase [driveAsync]).
+Future<void> flushDeletes(WidgetTester tester, FakePhone phone) => driveAsync(
+  tester,
+  () => phone.container
+      .read(familyControllerProvider.notifier)
+      .flushPendingDeletes(),
+);
+
+/// Abre «Más detalles» del editor de regalos (precio real, tienda, enlace,
+/// talla y nota) si está plegada, bajando la lista hasta ella si hace falta.
+/// No hace nada si ya está abierta, si el editor lleva todo abierto (dos
+/// columnas) o si no hay editor de regalos a la vista.
+Future<void> openMoreDetails(WidgetTester tester) async {
+  final editor = find.byType(GiftEditorScreen);
+  if (editor.evaluate().isEmpty) return;
+  final toggle = find.text('Más detalles');
+  final scrollable = find
+      .descendant(of: editor, matching: find.byType(Scrollable))
+      .first;
+  try {
+    await tester.scrollUntilVisible(
+      toggle,
+      100,
+      maxScrolls: 20,
+      scrollable: scrollable,
+    );
+  } on Object {
+    return;
+  }
+  final section = find.byType(MoreDetails);
+  if (section.evaluate().isEmpty ||
+      tester.widget<MoreDetails>(section.first).open) {
+    return;
+  }
+  // Entera y por encima del pie del panel: se baja del todo.
+  final position = tester.state<ScrollableState>(scrollable).position;
+  position.jumpTo(position.maxScrollExtent);
+  await tester.pump();
+  await tester.tap(toggle);
+  await settle(tester);
 }
 
 /// Deja acabar los futuros reales (cifrado, almacenes) y repinta.
@@ -133,7 +213,7 @@ Future<void> setBudgets(
   FakePhone phone,
   Map<String, int?> budgets,
 ) async {
-  await tester.runAsync(() async {
+  await driveAsync(tester, () async {
     for (final entry in budgets.entries) {
       await familyOf(phone).setOccasionBudget(entry.key, entry.value);
     }

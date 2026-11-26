@@ -565,6 +565,7 @@ class RepartoGrid extends StatefulWidget {
     required this.onInclude,
     this.excluded = const <String>{},
     this.secret = const <String>{},
+    this.ownHidden = const <String>{},
     this.skipLabels = const <String, String>{},
     this.excludedText = '',
     this.outside = const <Recipient>[],
@@ -580,6 +581,10 @@ class RepartoGrid extends StatefulWidget {
 
   /// Si es la web: el bloque en secreto habla de este ordenador.
   final bool web;
+
+  /// Las personas de este dispositivo: su franja fija se llama «Sorpresas»
+  /// (ADR 0010).
+  final Set<String> ownHidden;
 
   /// Las filas.
   final List<Recipient> recipients;
@@ -740,6 +745,7 @@ class _RepartoGridState extends State<RepartoGrid> {
                   stage: widget.stage,
                   excluded: widget.excluded.contains(e.item.id),
                   secret: widget.secret.contains(e.item.id),
+                  surprises: widget.ownHidden.contains(e.item.id),
                   excludedText: widget.excludedText,
                   skipLabel: widget.skipLabels[e.item.id],
                   isSelf: e.item.id == widget.selfId,
@@ -1454,6 +1460,7 @@ class _RecipientRow extends StatelessWidget {
     required this.stage,
     required this.excluded,
     required this.secret,
+    required this.surprises,
     required this.excludedText,
     required this.skipLabel,
     required this.isSelf,
@@ -1477,6 +1484,9 @@ class _RecipientRow extends StatelessWidget {
 
   /// Si la persona tiene regalos en secreto que este móvil no ve.
   final bool secret;
+
+  /// Si la franja fija es la de la propia persona: se llama «Sorpresas».
+  final bool surprises;
   final String excludedText;
   final String? skipLabel;
 
@@ -1674,6 +1684,9 @@ class _RecipientRow extends StatelessWidget {
                         shown: !excluded,
                         name: recipient.name,
                         colorIndex: recipient.colorIndex,
+                        title: surprises
+                            ? AppLocalizations.of(context).surprisesTitle
+                            : null,
                         web: web,
                       ),
                     ),

@@ -18,6 +18,7 @@ import '../../../core/motion/unfold_section.dart';
 import '../../../core/motion/value_switcher.dart';
 import '../../../core/platform/user_link.dart';
 import '../../../core/sync/model.dart';
+import '../../../core/sync/wish.dart' show VisibleWishPatch;
 import '../../../core/sync/protected_doc.dart'
     show ProtectedPersonException, ProtectedPersonReason;
 import '../../../core/theme/occasion_theme.dart';
@@ -28,7 +29,9 @@ import '../../../core/widgets/choice_grid.dart';
 import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/widgets/danger_button.dart';
 import '../../../core/widgets/giver_dot.dart';
+import '../../../core/widgets/edge_swipe_back.dart';
 import '../../../core/widgets/link_icon_button.dart';
+import '../../../core/widgets/more_details.dart';
 import '../../../core/widgets/occasion_icons.dart';
 import '../../../core/widgets/person_avatar.dart';
 import '../../../core/widgets/picker_field.dart';
@@ -43,6 +46,7 @@ import '../../family/application/family_actions.dart';
 import '../../family/application/family_controller.dart';
 import '../../family/application/family_providers.dart';
 import '../../family/application/gift_logic.dart';
+import '../../family/application/wish_service.dart';
 import '../../family/application/self_recipient_provider.dart';
 import '../../family/presentation/family_texts.dart';
 import '../../family/presentation/giver_person_flow.dart';
@@ -58,6 +62,8 @@ import '../domain/store_from_url.dart';
 import 'gift_actions.dart';
 import 'gift_link_actions.dart';
 import 'editor_footer_row.dart';
+import 'wish_editor.dart'
+    show openWishEditor, openWishPlanEditor, showWishProblem;
 
 /// Si el editor de una ventana de escritorio (desde 1280) es un diálogo: solo
 /// en la web. Las pruebas lo cambian sin montar toda la web.
@@ -74,6 +80,10 @@ final giftEditorAsDialogProvider = Provider<bool>(
 /// empieza con la elección de persona arriba, sin ninguna marcada salvo que
 /// haya una sola o venga una en [recipientId].
 ///
+/// Con [suggestVisible] (la ficha de una persona cuyo bloque está cerrado) el
+/// formulario solo guarda un deseo visible para [recipientId]: «Visible para»
+/// va encendido y fijo, y la sorpresa, apagada con su motivo.
+///
 /// Devuelve el id del regalo guardado, o `null` si no se guardó nada (se
 /// cerró o se borró).
 Future<String?> openGiftEditor(
@@ -84,7 +94,85 @@ Future<String?> openGiftEditor(
   String? giverId,
   GiftStatus? status,
   bool chooseRecipient = false,
+  bool suggestVisible = false,
 }) {
+  // En el móvil de la propia persona no se apuntan regalos para ella, solo
+  // deseos (ADR 0010): si la persona de este móvil es la única que puede
+  // recibir el regalo (o viene ya elegida), el alta pasa directa al editor de
+  // deseos, con la ocasión de origen; si se elige después, en cualquier
+  // selector, el editor se cierra llevando lo escrito y se abre el de deseos.
+  if (gift == null) {
+    final reader = ProviderScope.containerOf(context).read(wishReaderProvider);
+    if (reader != null) {
+      final people = ProviderScope.containerOf(context)
+          .read(familyFullViewProvider)
+          .recipients;
+      final active = [
+        for (final p in people)
+          if (!p.archived) p,
+      ];
+      final String? chosen =
+          recipientId ?? (active.length == 1 ? active.first.id : null);
+      if (chosen == reader) {
+        return openWishEditor(
+          context,
+          recipientId: reader,
+          draft: VisibleWishPatch(occasionId: occasionId),
+        );
+      }
+      // Sin nadie elegido, el editor propondría a la primera persona de la
+      // lista: si es la de este móvil y hay más gente, se elige a mano.
+      if (recipientId == null &&
+          !chooseRecipient &&
+          people.firstOrNull?.id == reader) {
+        chooseRecipient = true;
+      }
+    }
+  }
+  final handoff = <(String, VisibleWishPatch)>[];
+  return _openGiftEditorFrame(
+    context,
+    gift: gift,
+    recipientId: recipientId,
+    occasionId: occasionId,
+    giverId: giverId,
+    status: status,
+    chooseRecipient: chooseRecipient,
+    suggestVisible: suggestVisible,
+    onOwnPerson: (id, draft) => handoff.add((id, draft)),
+  ).then((id) async {
+    if (handoff.isNotEmpty && context.mounted) {
+      final (person, draft) = handoff.first;
+      return openWishEditor(context, recipientId: person, draft: draft);
+    }
+    return id;
+  });
+}
+
+Future<String?> _openGiftEditorFrame(
+  BuildContext context, {
+  void Function(String personId, VisibleWishPatch draft)? onOwnPerson,
+  Gift? gift,
+  String? recipientId,
+  String? occasionId,
+  String? giverId,
+  GiftStatus? status,
+  bool chooseRecipient = false,
+  bool suggestVisible = false,
+}) {
+  // Un deseo que alguien ha cogido se ve como un regalo, pero se edita con su
+  // plan (ADR 0010): lo suyo es quién regala, el estado y lo privado.
+  if (gift != null) {
+    final plan = ProviderScope.containerOf(context)
+        .read(wishPlanOfGiftProvider(gift.id));
+    if (plan != null) {
+      return openWishPlanEditor(
+        context,
+        person: plan.recipientId,
+        plan: plan,
+      ).then((_) => null);
+    }
+  }
   // En el tablero de la web de escritorio (desde 1280) el editor es el panel
   // fijo de la derecha: no tapa nada y se puede pasar de un regalo a otro.
   final container = ProviderScope.containerOf(context);
@@ -99,6 +187,7 @@ Future<String?> openGiftEditor(
       giverId: giverId,
       status: status,
       chooseRecipient: chooseRecipient,
+      onOwnPerson: onOwnPerson,
     );
   }
   // En la web, desde 1280 de ventana el editor es un diálogo de 880 con el formulario en
@@ -116,6 +205,8 @@ Future<String?> openGiftEditor(
     initialGiverId: giverId,
     initialStatus: status,
     chooseRecipient: chooseRecipient,
+    suggestVisible: suggestVisible,
+    onOwnPerson: onOwnPerson,
     asDialog: dialog,
   );
   return dialog
@@ -124,6 +215,10 @@ Future<String?> openGiftEditor(
 }
 
 const String _none = '__none__';
+
+/// El valor «ninguno» de los selectores del editor (sin ocasión, sin quien
+/// regala): lo comparte el editor de deseos.
+const String kPickerNone = _none;
 const String _other = '__other__';
 
 /// Prefijo del valor de una persona elegida como quién regala en el selector
@@ -141,6 +236,8 @@ class GiftEditorScreen extends ConsumerStatefulWidget {
     this.initialGiverId,
     this.initialStatus,
     this.chooseRecipient = false,
+    this.onOwnPerson,
+    this.suggestVisible = false,
     this.asDialog = false,
     this.asPanel = false,
     this.onClose,
@@ -165,6 +262,16 @@ class GiftEditorScreen extends ConsumerStatefulWidget {
   /// Si un regalo nuevo empieza por elegir la persona (arriba del todo y sin
   /// marcar ninguna si hay varias). Con un regalo existente no se usa.
   final bool chooseRecipient;
+
+  /// Si el regalo nuevo solo puede guardarse como un deseo visible para la
+  /// persona (su bloque de sorpresas está cerrado en este móvil): «Visible
+  /// para» queda encendido y fijo, y la sorpresa apagada con su motivo.
+  final bool suggestVisible;
+
+  /// Lo que se llama si, en un regalo nuevo, se elige a la persona de este
+  /// móvil (que no recibe regalos, solo deseos): con su id y lo escrito que
+  /// vale para un deseo. Quien abre el editor abre entonces el de deseos.
+  final void Function(String personId, VisibleWishPatch draft)? onOwnPerson;
 
   /// Si se abre como diálogo de escritorio (`showCardDialog`): sin flecha en la
   /// cabecera, con el alto de su contenido y «Cancelar» y «Guardar» abajo a la
@@ -191,6 +298,11 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
   final _store = TextEditingController();
   final _url = TextEditingController();
   final _note = TextEditingController();
+
+  /// La descripción pública de «Visible para [persona]»: su propio borrador.
+  /// Nunca comparte texto con [_note] (las notas son privadas): al encender o
+  /// apagar el interruptor no se mueve nada de un campo al otro.
+  final _description = TextEditingController();
   final _size = TextEditingController();
   final _requestNote = TextEditingController();
   final _requestName = TextEditingController();
@@ -200,6 +312,8 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
   // Para llevar la vista hasta el primer campo con error al guardar.
   final _titleKey = GlobalKey();
   final _priceKey = GlobalKey();
+  final _actualKey = GlobalKey();
+  final _moreKey = GlobalKey();
   final _requestNameKey = GlobalKey();
   final _plannedFocus = FocusNode();
   final _actualFocus = FocusNode();
@@ -214,6 +328,15 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
   String _occasionId = _none;
   GiftStatus _status = GiftStatus.idea;
   bool _surprise = false;
+
+  /// Si «Más detalles» (precio real, tienda, enlace, talla y nota) está
+  /// abierta. Se abre sola al editar un regalo que ya tiene alguno de esos
+  /// datos y cuando el precio real no vale al guardar.
+  bool _moreOpen = false;
+
+  /// «Visible para [persona]» (ADR 0010): en vez de una sorpresa, un deseo
+  /// que la persona ve. Solo en un regalo nuevo para alguien con móvil.
+  bool _visible = false;
   bool _isRequest = false;
   String _requestedBy = _other;
   bool _tried = false;
@@ -283,8 +406,10 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
     _store.text.trim(),
     _url.text.trim(),
     _note.text.trim(),
+    _description.text.trim(),
     _size.text.trim(),
     _surprise,
+    _visible,
     _isRequest,
     _requestedBy,
     _requestName.text.trim(),
@@ -443,6 +568,14 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
       _note.text = g.note ?? '';
       _size.text = g.size ?? '';
       _requestNote.text = g.requestNote ?? '';
+      _moreOpen =
+          g.actualCents != null ||
+          [
+            g.store,
+            g.url,
+            g.note,
+            g.size,
+          ].any((v) => v?.trim().isNotEmpty == true);
       final by = g.requestedBy;
       _isRequest = by != null;
       switch (by) {
@@ -461,6 +594,8 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
           : widget.initialGiverId ?? _none;
       _occasionId = widget.initialOccasionId ?? _none;
       _status = widget.initialStatus ?? GiftStatus.idea;
+      // Con el bloque de la persona cerrado solo cabe un deseo visible.
+      _visible = widget.suggestVisible;
     }
   }
 
@@ -502,6 +637,7 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
       _store,
       _url,
       _note,
+      _description,
       _size,
       _requestNote,
       _requestName,
@@ -561,7 +697,11 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
   }
 
   Gift? _build() {
-    setState(() => _tried = true);
+    setState(() {
+      _tried = true;
+      // Un precio real que no vale se corrige a la vista.
+      if (_badPrice(_actual)) _moreOpen = true;
+    });
     if (_title.text.trim().isEmpty ||
         _recipientId.isEmpty ||
         _badPrice(_planned) ||
@@ -624,9 +764,77 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
     return a.reason;
   }
 
+  /// Si se ofrece «Visible para»: un regalo nuevo para alguien que tiene
+  /// móvil en la familia, desde un móvil (la web no sugiere deseos).
+  bool _canSuggestFor(String recipientId) =>
+      _isNew && ref.read(canSuggestWishProvider(recipientId));
+
+  /// Si la persona elegida es la de este móvil: no se le apuntan regalos.
+  bool get _isOwnPerson =>
+      _isNew &&
+      _recipientId.isNotEmpty &&
+      ref.read(wishReaderProvider) == _recipientId;
+
+  /// Guarda el formulario como un deseo visible para la persona (ADR 0010):
+  /// título, ocasión, talla, enlace y descripción.
+  Future<void> _saveVisible() async {
+    setState(() => _tried = true);
+    if (_title.text.trim().isEmpty) {
+      ref.read(hapticsProvider).medium();
+      unawaited(_showFirstError());
+      return;
+    }
+    String? text(TextEditingController c) {
+      final value = c.text.trim();
+      return value.isEmpty ? null : value;
+    }
+
+    setState(() {
+      _busy = true;
+      _rejected = null;
+    });
+    final patch = VisibleWishPatch(
+      title: _title.text.trim(),
+      year: clock.now().year,
+      occasionId: _occasionId == _none ? null : _occasionId,
+      size: text(_size),
+      url: text(_url),
+      description: text(_description),
+    );
+    // La persona de este móvil no recibe regalos: lo suyo es un deseo propio.
+    final service = ref.read(wishServiceProvider);
+    final result = _isOwnPerson
+        ? await service.createOwn(patch)
+        : await service.suggest(_recipientId, patch);
+    if (!mounted) return;
+    if (!result.ok) {
+      setState(() => _busy = false);
+      showWishProblem(
+        context,
+        ref,
+        result,
+        name:
+            ref
+                .read(familyFullViewProvider)
+                .recipientsById[_recipientId]
+                ?.name ??
+            '',
+      );
+      return;
+    }
+    ref.read(hapticsProvider).light();
+    setState(() => _saved = true);
+    _close(result.wishId);
+  }
+
   Future<void> _save() async {
     if (_busy || _deleting) {
       return;
+    }
+    // Un deseo visible para la persona no se guarda en su bloque secreto: no
+    // necesita la clave privada que pide el resto de regalos.
+    if (_isOwnPerson || (_visible && _canSuggestFor(_recipientId))) {
+      return _saveVisible();
     }
     final access = {
       for (final a
@@ -843,6 +1051,46 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
       ..showSnackBar(notice, snackBarAnimationStyle: style);
   }
 
+  /// Abre o cierra «Más detalles». Al abrir, sube la vista para que los
+  /// campos nuevos queden a la vista cuando acaba de desplegarse.
+  void _toggleMore() {
+    ref.read(hapticsProvider).light();
+    final opening = !_moreOpen;
+    setState(() => _moreOpen = opening);
+    if (!opening) return;
+    final reduce = RegalosMotion.of(context).reduce;
+    Future<void>.delayed(
+      reduce ? const Duration(milliseconds: 200) : RegalosSprings.snapDuration,
+      () {
+        final target = _moreKey.currentContext;
+        if (!mounted || !_moreOpen || target == null || !target.mounted) {
+          return;
+        }
+        unawaited(
+          Scrollable.ensureVisible(
+            target,
+            alignment: 0.02,
+            duration: reduce ? Duration.zero : RegalosSprings.snapDuration,
+            curve: RegalosCurves.snap,
+          ),
+        );
+      },
+    );
+  }
+
+  /// Los campos de «Más detalles» que ya tienen datos, para la fila plegada.
+  String _moreSummary(AppLocalizations l10n, {required bool visible}) {
+    bool has(TextEditingController c) => c.text.trim().isNotEmpty;
+    return [
+      if (!visible && has(_actual)) l10n.giftFieldActualPrice,
+      if (!visible && has(_store)) l10n.giftFieldStore,
+      if (has(_url)) l10n.giftFieldUrl,
+      if (has(_size)) l10n.giftFieldSize,
+      if (visible && has(_description)) l10n.wishFieldDescription,
+      if (!visible && has(_note)) l10n.giftFieldNote,
+    ].join(' · ');
+  }
+
   Future<void> _scrollToTop() async {
     if (!_scroll.hasClients || _scroll.offset <= 0) {
       return;
@@ -858,7 +1106,9 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
   /// La clave del campo que lleva el foco [focus].
   GlobalKey? _titleKeyFor(FocusNode focus) => identical(focus, _titleFocus)
       ? _titleKey
-      : (identical(focus, _requestNameFocus) ? _requestNameKey : _priceKey);
+      : (identical(focus, _requestNameFocus)
+            ? _requestNameKey
+            : (identical(focus, _actualFocus) ? _actualKey : _priceKey));
 
   /// Lleva la vista hasta el primer campo con error, de arriba abajo.
   Future<void> _showFirstError() async {
@@ -878,9 +1128,18 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
     } else if (_title.text.trim().isEmpty) {
       target = _titleKey.currentContext;
       focus = _titleFocus;
-    } else if (_badPrice(_planned) || _badPrice(_actual)) {
+    } else if (_badPrice(_planned)) {
       target = _priceKey.currentContext;
-      focus = _badPrice(_planned) ? _plannedFocus : _actualFocus;
+      focus = _plannedFocus;
+    } else if (_badPrice(_actual)) {
+      // «Más detalles» acaba de abrirse: el campo aparece en un par de
+      // cuadros.
+      for (var i = 0; i < 3 && _actualKey.currentContext == null; i++) {
+        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted) return;
+      }
+      target = _actualKey.currentContext;
+      focus = _actualFocus;
     } else {
       target = _requestNameKey.currentContext;
       focus = _requestNameFocus;
@@ -925,8 +1184,33 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
   /// Cambia la persona: si la ocasión elegida es el cumpleaños de otra, ya no
   /// pega y se quita.
   void _pickRecipient(String id) {
+    // La persona de este móvil no recibe regalos, solo deseos (en cualquiera
+    // de los selectores): el editor se cierra llevando título, ocasión, talla,
+    // enlace y descripción (nunca la nota privada ni los precios) y se abre
+    // el de deseos. Nada se guarda hasta que se pulse «Guardar» allí.
+    final onOwn = widget.onOwnPerson;
+    if (_isNew && onOwn != null && ref.read(wishReaderProvider) == id) {
+      String? text(TextEditingController c) {
+        final value = c.text.trim();
+        return value.isEmpty ? null : value;
+      }
+
+      onOwn(
+        id,
+        VisibleWishPatch(
+          title: text(_title),
+          occasionId: _occasionId == _none ? null : _occasionId,
+          size: text(_size),
+          url: text(_url),
+          description: text(_description),
+        ),
+      );
+      _close();
+      return;
+    }
     setState(() {
       _recipientId = id;
+      _visible = widget.suggestVisible && ref.read(canSuggestWishProvider(id));
       final view = ref.read(familyFullViewProvider);
       if (_giverId != widget.gift?.giverId &&
           view.resolveGiver(_giverId)?.recipientId == id) {
@@ -1147,6 +1431,7 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
       _store,
       _url,
       _note,
+      _description,
       _size,
       _requestNote,
       _requestName,
@@ -1250,7 +1535,17 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
         a.recipient.id: a,
     };
     PickerOption<String> personOption(Recipient p, {required bool gated}) {
-      final reason = gated ? _blockedReason(access, p.id) : null;
+      // A quien se le puede sugerir un deseo visible se le puede elegir aunque
+      // este móvil no pueda guardarle una sorpresa: el deseo no la necesita.
+      // La persona de este móvil tampoco se bloquea: lo suyo son deseos, y al
+      // elegirla se abre el editor de deseos.
+      final reason =
+          gated &&
+              !(_isNew &&
+                  (ref.watch(canSuggestWishProvider(p.id)) ||
+                      ref.watch(wishReaderProvider) == p.id))
+          ? _blockedReason(access, p.id)
+          : null;
       return PickerOption(
         value: p.id,
         label: p.name,
@@ -1284,8 +1579,11 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
         .map((p) => p.name)
         .firstOrNull;
     // Aviso junto a la persona cuando no se puede guardar para ella.
+    final canSuggest =
+        !web && _isNew && ref.watch(canSuggestWishProvider(_recipientId));
+    final visible = canSuggest && _visible;
     final recipientNotice = UnfoldSection(
-      show: blockedReason != null,
+      show: blockedReason != null && !visible,
       child: Padding(
         padding: const EdgeInsets.only(top: 8),
         child: Semantics(
@@ -1380,6 +1678,30 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
             },
           ),
           gap,
+          // «Visible para [persona]» (ADR 0010): por defecto apagado, y es
+          // una sorpresa como siempre.
+          if (canSuggest) ...[
+            SwitchRow(
+              key: const ValueKey<String>('gift-visible-switch'),
+              title: l10n.giftVisibleSwitch(blockedName ?? ''),
+              hint: l10n.giftVisibleHint(blockedName ?? ''),
+              value: _visible,
+              // Con el bloque cerrado no hay otra forma de guardar: fijo.
+              onChanged: widget.suggestVisible
+                  ? null
+                  : (v) => setState(() => _visible = v),
+            ),
+            if (widget.suggestVisible) ...[
+              SwitchRow(
+                key: const ValueKey<String>('gift-surprise-disabled'),
+                title: l10n.giftSurpriseSwitch,
+                hint: l10n.giftVisibleNoSurprise(blockedName ?? ''),
+                value: false,
+                onChanged: null,
+              ),
+            ],
+            gap,
+          ],
           if (!_choosing) ...[
             PickerField<String>(
               label: l10n.fieldFor,
@@ -1390,67 +1712,79 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
             recipientNotice,
             gap,
           ],
-          PickerField<String>(
-            label: l10n.fieldGiver,
-            value: chosenPerson != null
-                ? (chosenActive ?? '$_personPrefix$chosenPerson')
-                : (selectedIsAvailable || historicalGiver != null
-                      ? selectedGiver!.id
-                      : _none),
-            options: [
-              PickerOption(
-                value: _none,
-                label: l10n.giverUnassigned,
-                leading: const GiverDot(size: 12),
-              ),
-              for (final g in givers)
-                PickerOption(
-                  value: g.id,
-                  label: giverNameFor(l10n, g),
-                  leading: GiverDot(colorIndex: g.colorIndex, size: 12),
+          UnfoldSection(
+            show: !visible,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                PickerField<String>(
+                  label: l10n.fieldGiver,
+                  value: chosenPerson != null
+                      ? (chosenActive ?? '$_personPrefix$chosenPerson')
+                      : (selectedIsAvailable || historicalGiver != null
+                            ? selectedGiver!.id
+                            : _none),
+                  options: [
+                    PickerOption(
+                      value: _none,
+                      label: l10n.giverUnassigned,
+                      leading: const GiverDot(size: 12),
+                    ),
+                    for (final g in givers)
+                      PickerOption(
+                        value: g.id,
+                        label: giverNameFor(l10n, g),
+                        leading: GiverDot(colorIndex: g.colorIndex, size: 12),
+                      ),
+                    if (historicalGiver != null)
+                      PickerOption(
+                        value: historicalGiver.id,
+                        label: giverNameFor(l10n, historicalGiver),
+                        leading: GiverDot(
+                          colorIndex: historicalGiver.colorIndex,
+                          size: 12,
+                        ),
+                        enabled: false,
+                      ),
+                    for (final c in giverPeople)
+                      PickerOption(
+                        value: '$_personPrefix${c.person.id}',
+                        label: c.person.name,
+                        group: l10n.giverPeopleSection,
+                        hint: personCandidateHint(l10n, c),
+                        leading: PersonAvatar(
+                          name: c.person.name,
+                          colorIndex: c.person.colorIndex,
+                          size: 28,
+                        ),
+                      ),
+                    // La elegida sigue ahí aunque ya no sea una candidata.
+                    if (chosenPerson != null &&
+                        chosenActive == null &&
+                        chosenLabel != null &&
+                        !giverPeople.any((c) => c.person.id == chosenPerson))
+                      PickerOption(
+                        value: '$_personPrefix$chosenPerson',
+                        label: chosenLabel,
+                        group: l10n.giverPeopleSection,
+                        leading: PersonAvatar(
+                          name: chosenLabel,
+                          colorIndex:
+                              view
+                                  .allRecipientsById[chosenPerson]
+                                  ?.colorIndex ??
+                              0,
+                          size: 28,
+                        ),
+                      ),
+                  ],
+                  onChanged: (v) =>
+                      _pickGiver(v, selectedGiver?.id, giverPeople),
                 ),
-              if (historicalGiver != null)
-                PickerOption(
-                  value: historicalGiver.id,
-                  label: giverNameFor(l10n, historicalGiver),
-                  leading: GiverDot(
-                    colorIndex: historicalGiver.colorIndex,
-                    size: 12,
-                  ),
-                  enabled: false,
-                ),
-              for (final c in giverPeople)
-                PickerOption(
-                  value: '$_personPrefix${c.person.id}',
-                  label: c.person.name,
-                  group: l10n.giverPeopleSection,
-                  hint: personCandidateHint(l10n, c),
-                  leading: PersonAvatar(
-                    name: c.person.name,
-                    colorIndex: c.person.colorIndex,
-                    size: 28,
-                  ),
-                ),
-              // La elegida sigue ahí aunque ya no sea una candidata.
-              if (chosenPerson != null &&
-                  chosenActive == null &&
-                  chosenLabel != null &&
-                  !giverPeople.any((c) => c.person.id == chosenPerson))
-                PickerOption(
-                  value: '$_personPrefix$chosenPerson',
-                  label: chosenLabel,
-                  group: l10n.giverPeopleSection,
-                  leading: PersonAvatar(
-                    name: chosenLabel,
-                    colorIndex:
-                        view.allRecipientsById[chosenPerson]?.colorIndex ?? 0,
-                    size: 28,
-                  ),
-                ),
-            ],
-            onChanged: (v) => _pickGiver(v, selectedGiver?.id, giverPeople),
+                gap,
+              ],
+            ),
           ),
-          gap,
           PickerField<String>(
             label: l10n.fieldOccasion,
             value: occasions.any((o) => o.id == _occasionId)
@@ -1460,204 +1794,260 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
             onChanged: (v) => setState(() => _occasionId = v),
           ),
           gap,
-          Semantics(
-            header: true,
-            child: Text(
-              l10n.fieldStatus,
-              style: t.styles.label.copyWith(fontWeight: FontWeight.w700),
-            ),
-          ),
-          const SizedBox(height: 8),
-          ChoiceGrid(
-            leadingSize: kStatusChoiceGlyph,
-            leadingGap: kStatusChoiceGap,
-            items: [
-              for (final status in GiftStatus.values)
-                statusChoice(
-                  l10n,
-                  status,
-                  selected: status == _status,
-                  onTap: () => setState(() => _status = status),
-                ),
-            ],
-          ),
-        ];
-        final details = <Widget>[
-          Semantics(
-            header: true,
-            child: Text(
-              l10n.giftPriceSection,
-              style: t.styles.label.copyWith(fontWeight: FontWeight.w700),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            key: _priceKey,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _planned,
-                  focusNode: _plannedFocus,
-                  keyboardType: moneyKeyboard,
-                  inputFormatters: moneyInputFormatters,
-                  decoration: InputDecoration(
-                    labelText: l10n.giftFieldPlanned,
-                    suffixText: '€',
-                    errorText: _tried && _badPrice(_planned)
-                        ? l10n.giftPriceInvalid
-                        : null,
-                    errorMaxLines: 3,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: _actual,
-                  focusNode: _actualFocus,
-                  keyboardType: moneyKeyboard,
-                  inputFormatters: moneyInputFormatters,
-                  decoration: InputDecoration(
-                    labelText: l10n.giftFieldActual,
-                    suffixText: '€',
-                    errorText: _tried && _badPrice(_actual)
-                        ? l10n.giftPriceInvalid
-                        : null,
-                    errorMaxLines: 3,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          gap,
-          TextField(
-            controller: _store,
-            textCapitalization: TextCapitalization.sentences,
-            // Solo salta con lo que escribe la persona, no con el relleno del
-            // enlace: desde ahí, la tienda ya es suya.
-            onChanged: (_) {
-              _storeTouched = true;
-              _autoStore = null;
-            },
-            decoration: InputDecoration(labelText: l10n.giftFieldStore),
-          ),
-          gap,
-          TextField(
-            controller: _url,
-            keyboardType: TextInputType.url,
-            autocorrect: false,
-            onChanged: _onUrlChanged,
-            decoration: InputDecoration(
-              labelText: l10n.giftFieldUrl,
-              suffixIcon: _openLinkButton(l10n),
-              suffixIconConstraints: const BoxConstraints(
-                minWidth: 48,
-                minHeight: 48,
-              ),
-            ),
-          ),
-          gap,
-          TextField(
-            controller: _size,
-            decoration: InputDecoration(labelText: l10n.giftFieldSize),
-          ),
-          gap,
-          TextField(
-            controller: _note,
-            minLines: 2,
-            maxLines: 4,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: InputDecoration(labelText: l10n.giftFieldNote),
-          ),
-          gap,
-          SwitchRow(
-            title: l10n.giftRequestSwitch,
-            value: _isRequest,
-            onChanged: (v) => setState(() => _isRequest = v),
-          ),
-          // Los campos del pedido se despliegan al activar el
-          // interruptor y se pliegan al apagarlo.
           UnfoldSection(
-            show: _isRequest,
+            show: !visible,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 12),
-                PickerField<String>(
-                  label: l10n.giftRequestedByField,
-                  value:
-                      _requestedBy == _other ||
-                          people.any((p) => p.id == _requestedBy)
-                      ? _requestedBy
-                      : _other,
-                  options: [
-                    ...requesterOptions,
-                    PickerOption(
-                      value: _other,
-                      label: l10n.giftRequestedByOther,
-                    ),
+                Semantics(
+                  header: true,
+                  child: Text(
+                    l10n.fieldStatus,
+                    style: t.styles.label.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ChoiceGrid(
+                  leadingSize: kStatusChoiceGlyph,
+                  leadingGap: kStatusChoiceGap,
+                  items: [
+                    for (final status in GiftStatus.values)
+                      statusChoice(
+                        l10n,
+                        status,
+                        selected: status == _status,
+                        onTap: () => setState(() => _status = status),
+                      ),
                   ],
-                  onChanged: (v) => setState(() => _requestedBy = v),
-                ),
-                // Mientras la protección de la propia persona esté activa,
-                // este móvil no puede crear ni ver sus peticiones.
-                UnfoldSection(
-                  show:
-                      ownRestricted && selfId != null && _requestedBy == selfId,
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: Semantics(
-                      liveRegion: true,
-                      child: WarningBox(
-                        web
-                            ? l10n.giftOwnRequestRestrictedWeb
-                            : l10n.giftOwnRequestRestricted,
-                      ),
-                    ),
-                  ),
-                ),
-                UnfoldSection(
-                  show: _requestedBy == _other,
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: TextField(
-                      key: _requestNameKey,
-                      controller: _requestName,
-                      focusNode: _requestNameFocus,
-                      textCapitalization: TextCapitalization.words,
-                      decoration: InputDecoration(
-                        labelText: l10n.giftRequestedByName,
-                        errorText: _tried && _requestName.text.trim().isEmpty
-                            ? l10n.fieldNameRequired
-                            : null,
-                      ),
-                      onChanged: (_) {
-                        if (_tried) {
-                          setState(() {});
-                        }
-                      },
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _requestNote,
-                  minLines: 1,
-                  maxLines: 3,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: InputDecoration(labelText: l10n.giftRequestNote),
                 ),
               ],
             ),
           ),
-          gap,
-          SwitchRow(
-            title: l10n.giftSurpriseSwitch,
-            hint: l10n.giftSurpriseHint,
-            value: _surprise,
-            onChanged: (v) => setState(() => _surprise = v),
+        ];
+        final moreFields = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            UnfoldSection(
+              show: !visible,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    key: _actualKey,
+                    controller: _actual,
+                    focusNode: _actualFocus,
+                    keyboardType: moneyKeyboard,
+                    inputFormatters: moneyInputFormatters,
+                    decoration: InputDecoration(
+                      labelText: l10n.giftFieldActualPrice,
+                      suffixText: '€',
+                      errorText: _tried && _badPrice(_actual)
+                          ? l10n.giftPriceInvalid
+                          : null,
+                      errorMaxLines: 3,
+                    ),
+                  ),
+                  gap,
+                  TextField(
+                    controller: _store,
+                    textCapitalization: TextCapitalization.sentences,
+                    // Solo salta con lo que escribe la persona, no con el
+                    // relleno del enlace: desde ahí, la tienda ya es suya.
+                    onChanged: (_) {
+                      _storeTouched = true;
+                      _autoStore = null;
+                    },
+                    decoration: InputDecoration(labelText: l10n.giftFieldStore),
+                  ),
+                  gap,
+                ],
+              ),
+            ),
+            TextField(
+              controller: _url,
+              keyboardType: TextInputType.url,
+              autocorrect: false,
+              onChanged: _onUrlChanged,
+              decoration: InputDecoration(
+                labelText: l10n.giftFieldUrl,
+                suffixIcon: _openLinkButton(l10n),
+                suffixIconConstraints: const BoxConstraints(
+                  minWidth: 48,
+                  minHeight: 48,
+                ),
+              ),
+            ),
+            gap,
+            TextField(
+              controller: _size,
+              decoration: InputDecoration(labelText: l10n.giftFieldSize),
+            ),
+            gap,
+            TextField(
+              // Un campo distinto para cada uso: la descripción pública y
+              // la nota privada tienen cada una su borrador.
+              key: ValueKey<String>(visible ? 'gift-description' : 'gift-note'),
+              controller: visible ? _description : _note,
+              minLines: 2,
+              maxLines: 4,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: InputDecoration(
+                labelText: visible
+                    ? l10n.wishFieldDescription
+                    : l10n.giftFieldNote,
+              ),
+            ),
+          ],
+        );
+        // Lo esencial a la vista: el precio previsto y los dos interruptores que
+        // cambian cómo se enseña el regalo (encargo y sorpresa). El resto de
+        // campos, opcionales, van plegados en «Más detalles».
+        final details = <Widget>[
+          UnfoldSection(
+            show: !visible,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Semantics(
+                  header: true,
+                  child: Text(
+                    l10n.giftPriceSection,
+                    style: t.styles.label.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  key: _priceKey,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _planned,
+                        focusNode: _plannedFocus,
+                        keyboardType: moneyKeyboard,
+                        inputFormatters: moneyInputFormatters,
+                        decoration: InputDecoration(
+                          labelText: l10n.giftFieldPlanned,
+                          suffixText: '€',
+                          errorText: _tried && _badPrice(_planned)
+                              ? l10n.giftPriceInvalid
+                              : null,
+                          errorMaxLines: 3,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                gap,
+                SwitchRow(
+                  title: l10n.giftRequestSwitch,
+                  value: _isRequest,
+                  onChanged: (v) => setState(() => _isRequest = v),
+                ),
+                // Los campos del pedido se despliegan al activar el
+                // interruptor y se pliegan al apagarlo.
+                UnfoldSection(
+                  show: _isRequest,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: 12),
+                      PickerField<String>(
+                        label: l10n.giftRequestedByField,
+                        value:
+                            _requestedBy == _other ||
+                                people.any((p) => p.id == _requestedBy)
+                            ? _requestedBy
+                            : _other,
+                        options: [
+                          ...requesterOptions,
+                          PickerOption(
+                            value: _other,
+                            label: l10n.giftRequestedByOther,
+                          ),
+                        ],
+                        onChanged: (v) => setState(() => _requestedBy = v),
+                      ),
+                      // Mientras la protección de la propia persona esté activa,
+                      // este móvil no puede crear ni ver sus peticiones.
+                      UnfoldSection(
+                        show:
+                            ownRestricted &&
+                            selfId != null &&
+                            _requestedBy == selfId,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: Semantics(
+                            liveRegion: true,
+                            child: WarningBox(
+                              web
+                                  ? l10n.giftOwnRequestRestrictedWeb
+                                  : l10n.giftOwnRequestRestricted,
+                            ),
+                          ),
+                        ),
+                      ),
+                      UnfoldSection(
+                        show: _requestedBy == _other,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: TextField(
+                            key: _requestNameKey,
+                            controller: _requestName,
+                            focusNode: _requestNameFocus,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: InputDecoration(
+                              labelText: l10n.giftRequestedByName,
+                              errorText:
+                                  _tried && _requestName.text.trim().isEmpty
+                                  ? l10n.fieldNameRequired
+                                  : null,
+                            ),
+                            onChanged: (_) {
+                              if (_tried) {
+                                setState(() {});
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _requestNote,
+                        minLines: 1,
+                        maxLines: 3,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: InputDecoration(
+                          labelText: l10n.giftRequestNote,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                gap,
+                SwitchRow(
+                  title: l10n.giftSurpriseSwitch,
+                  hint: l10n.giftSurpriseHint,
+                  value: _surprise,
+                  onChanged: (v) => setState(() => _surprise = v),
+                ),
+                gap,
+              ],
+            ),
           ),
+          // Con las dos columnas (diálogo y panel anchos) cabe todo: sin
+          // pliegue. En una columna, lo opcional va en «Más detalles».
+          if (two)
+            moreFields
+          else
+            MoreDetails(
+              key: _moreKey,
+              title: l10n.giftMoreDetails,
+              open: _moreOpen,
+              onToggle: _toggleMore,
+              summary: _moreSummary(l10n, visible: visible),
+              child: moreFields,
+            ),
           // En el panel del tablero y en el diálogo de escritorio, «Borrar
           // regalo» va en el pie (a la izquierda, como botón de texto): al
           // final de la lista se cortaba con el pie al desplazarse.
@@ -1842,34 +2232,38 @@ class _GiftEditorScreenState extends ConsumerState<GiftEditorScreen> {
                   ),
                 ],
               )
-            : Scaffold(
-                body: SafeArea(
-                  top: false,
-                  child: Column(
-                    children: [
-                      CardSheetHandle(
-                        child: ScreenHeader(
-                          title: title,
-                          onBack: () => unawaited(_requestClose()),
-                          backLabel: l10n.actionClose,
-                          compactTitle: true,
-                        ),
-                      ),
-                      Expanded(child: body),
-                      Container(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                        decoration: BoxDecoration(
-                          border: Border(top: BorderSide(color: t.separator)),
-                        ),
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: FilledButton(
-                            onPressed: onSave,
-                            child: saveChild,
+            : EdgeSwipeBack(
+                onBack: () => unawaited(_requestClose()),
+                enabled: !_closeBlocked,
+                child: Scaffold(
+                  body: SafeArea(
+                    top: false,
+                    child: Column(
+                      children: [
+                        CardSheetHandle(
+                          child: ScreenHeader(
+                            title: title,
+                            onBack: () => unawaited(_requestClose()),
+                            backLabel: l10n.actionClose,
+                            compactTitle: true,
                           ),
                         ),
-                      ),
-                    ],
+                        Expanded(child: body),
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                          decoration: BoxDecoration(
+                            border: Border(top: BorderSide(color: t.separator)),
+                          ),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: FilledButton(
+                              onPressed: onSave,
+                              child: saveChild,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -2013,3 +2407,11 @@ List<PickerOption<String>> _occasionOptions(
         option(o, l10n.occasionsGroupBirthdays),
   ];
 }
+
+/// Las opciones del selector de ocasión del editor, para el de deseos.
+List<PickerOption<String>> occasionPickerOptions(
+  AppLocalizations l10n,
+  OccasionLabels labels,
+  List<Occasion> occasions,
+  RegalosTokens t,
+) => _occasionOptions(l10n, labels, occasions, t);

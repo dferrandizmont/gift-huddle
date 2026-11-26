@@ -114,11 +114,17 @@ class _ConnectSheetState extends State<_ConnectSheet> {
           ],
         );
     }
-    return SafeArea(
-      top: false,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: SheetSteps(step: _step, back: _back, child: body),
+    // Con el teclado abierto («¿Quién eres?» pide un nombre) la hoja deja su
+    // sitio al teclado: lo de dentro se desplaza y el campo y «Continuar»
+    // quedan por encima (QA 1.0.7, M1).
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: SheetSteps(step: _step, back: _back, child: body),
+        ),
       ),
     );
   }

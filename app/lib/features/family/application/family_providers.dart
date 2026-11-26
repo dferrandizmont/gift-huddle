@@ -7,8 +7,10 @@ import '../../sync/application/sync_controller.dart'
 import '../domain/next_occasion.dart';
 import 'family_controller.dart';
 import 'protection_providers.dart';
+import 'wish_providers.dart' show webPlanGiftsProvider;
 
 export 'protection_providers.dart';
+export 'wish_providers.dart';
 
 /// El estado ya cargado, o `null` mientras carga o si falló.
 final familyStateProvider = Provider<FamilyState?>((ref) {
@@ -20,9 +22,14 @@ final familyStateProvider = Provider<FamilyState?>((ref) {
     identity: current.identity,
     hiddenGiftIds: current.hiddenGiftIds,
     otherDevicePeople: registry.hasValue
-        ? otherMobilePeople(registry.value)
+        ? otherActiveDevicePeople(
+            registry.value,
+            excludingDevice: current.identity?.node,
+          )
         : current.otherDevicePeople,
     authorized: true,
+    plansByWish: ref.watch(projectedPlansByWishProvider),
+    planGiftIds: ref.watch(projectedPlanGiftIdsProvider),
   );
 });
 
@@ -68,6 +75,8 @@ final familyViewProvider = Provider<FamilyView>((ref) {
           state.doc,
           year: year,
           hiddenGiftIds: state.hiddenGiftIds,
+          plansByWish: state.plansByWish,
+          planGiftIds: state.view.planGiftIds,
         );
 });
 
@@ -106,26 +115,20 @@ final occasionsProvider = Provider<List<Occasion>>(
   ],
 );
 
-/// Los regalos de una persona, por título.
-final giftsForProvider = Provider.family<List<Gift>, String>(
-  (ref, recipientId) => ref.watch(familyViewProvider).giftsFor(recipientId),
-);
-
-/// La vista con solo los regalos de las personas activas, para el presupuesto.
-FamilyView _activeGifts(FamilyView view) {
-  final active = {for (final r in view.giftRecipients) r.id};
-  return FamilyView(
-    recipients: view.recipients,
-    givers: view.givers,
-    occasions: view.occasions,
-    gifts: [
-      for (final g in view.gifts)
-        if (active.contains(g.recipientId)) g,
-    ],
-    allGifts: view.allGifts,
-    allGivers: view.allGivers,
-  );
-}
+/// Los regalos de una persona, por título, con los planes visibles en la web.
+final giftsForProvider = Provider.family<List<Gift>, String>((ref, recipientId) {
+  final gifts = ref.watch(familyViewProvider).giftsFor(recipientId);
+  final plans = ref.watch(webPlanGiftsProvider(recipientId));
+  if (plans.isEmpty) return gifts;
+  final year = ref.watch(yearFilterProvider);
+  final giftIds = {for (final gift in gifts) gift.id};
+  return [
+    ...gifts,
+    for (final plan in plans)
+      if ((year == null || plan.year == year) && !giftIds.contains(plan.id))
+        plan,
+  ]..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+});
 
 /// La rejilla de la familia (personas y quien regala activos, con la fila de
 /// «sin asignar» del modelo).
@@ -178,9 +181,31 @@ final familyGridForOccasionProvider = Provider.family<FamilyGrid, String?>((
 });
 
 /// El presupuesto de los regalos de las personas activas.
-final budgetProvider = Provider<Budget>(
-  (ref) => _activeGifts(ref.watch(familyViewProvider)).budget(),
-);
+final budgetProvider = Provider<Budget>((ref) {
+  final view = ref.watch(familyViewProvider);
+  final active = {for (final recipient in view.giftRecipients) recipient.id};
+  final year = ref.watch(yearFilterProvider);
+  final hiddenPeople = ref.watch(ownHiddenPeopleProvider);
+  return FamilyView(
+    recipients: view.recipients,
+    givers: view.givers,
+    occasions: view.occasions,
+    gifts: [
+      for (final gift in view.gifts)
+        if (active.contains(gift.recipientId)) gift,
+    ],
+    allGifts: view.allGifts,
+    allGivers: view.allGivers,
+    planGiftIds: view.planGiftIds,
+  ).budget(
+    wishPlanGifts: [
+      for (final recipientId in active)
+        if (!hiddenPeople.contains(recipientId))
+          for (final plan in ref.watch(webPlanGiftsProvider(recipientId)))
+            if (year == null || plan.year == year) plan,
+    ],
+  );
+});
 
 /// Pares de regalos casi iguales para la misma persona (personas activas).
 final duplicatesProvider = Provider<List<DuplicatePair>>(

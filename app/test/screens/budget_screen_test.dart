@@ -40,14 +40,14 @@ Finder _field(String key) => find.byKey(ValueKey<String>(key));
 /// Sin ninguna ocasión con presupuesto, las tres cifras cuentan todo.
 const _subtitle =
     'Puedes poner un presupuesto en cada ocasión. «Gastado» suma los precios '
-    'reales de los regalos que paga la casa. Si ya se ha comprado un regalo y '
+    'reales de los regalos que cuentan como gasto de casa. Si ya se ha comprado un regalo y '
     'falta el precio real, cuenta el previsto.';
 
 /// Con alguna ocasión con presupuesto, avisa de que solo cuentan esas.
 const _subtitleBudgeted =
     'Puedes poner un presupuesto en cada ocasión. Las tres cifras solo incluyen '
     'ocasiones con presupuesto. «Gastado» suma los precios reales de los regalos '
-    'que paga la casa. Si ya se ha comprado un regalo y falta el precio real, '
+    'que cuentan como gasto de casa. Si ya se ha comprado un regalo y falta el precio real, '
     'cuenta el previsto.';
 
 String _fieldText(WidgetTester tester, Finder field) =>
@@ -250,7 +250,9 @@ void main() {
       });
       await settle(tester);
       expect(
-        find.bySemanticsLabel(eur('Si compras lo que falta, te quedarás con 7 €')),
+        find.bySemanticsLabel(
+          eur('Si compras lo que falta, te quedarás con 7 €'),
+        ),
         findsOneWidget,
       );
 
@@ -721,7 +723,10 @@ void main() {
         final budget = phone.container.read(budgetProvider);
         expect(budget.total.spentCents, 0);
         expect(budget.hasBudgeted, isFalse);
-        expect(find.textContaining('Activa «Paga la casa»'), findsNothing);
+        expect(
+          find.textContaining('Activa «Cuenta como gasto de casa»'),
+          findsNothing,
+        );
         expect(find.text('Sin presupuesto'), findsWidgets);
         final vieja = _card('vieja');
         expect(vieja, findsOneWidget);
@@ -763,7 +768,10 @@ void main() {
         await pumpRegalos(tester, phone);
         await _openBudget(tester, phone);
         // El estado vacío sale, y con él el acceso.
-        expect(find.textContaining('Activa «Paga la casa»'), findsOneWidget);
+        expect(
+          find.textContaining('Activa «Cuenta como gasto de casa»'),
+          findsOneWidget,
+        );
         final access = find.byKey(const ValueKey<String>('budget-set-first'));
         expect(access, findsOneWidget);
         expect(tester.getSize(access).height, greaterThanOrEqualTo(44));
@@ -773,7 +781,10 @@ void main() {
         await tester.tap(find.text('Guardar'));
         await settle(tester);
         expect(_total(phone).budgetCents, 6000);
-        expect(find.textContaining('Activa «Paga la casa»'), findsNothing);
+        expect(
+          find.textContaining('Activa «Cuenta como gasto de casa»'),
+          findsNothing,
+        );
       },
     );
 
@@ -1046,8 +1057,7 @@ void main() {
   });
 
   screenTest(
-    'por persona: una persona con lo gastado y sin previsto dice «Gastado '
-    '45 €», sin «de 0 €» ni barra; la que sí tiene previsto no cambia',
+    'por persona: un regalo con solo precio real muestra «45 € de 45 €»',
     (tester, phone) async {
       await seedSample(tester, phone);
       await tester.runAsync(() async {
@@ -1078,28 +1088,23 @@ void main() {
       await pumpRegalos(tester, phone);
       await _openBudget(tester, phone);
       final totals = phone.container.read(budgetProvider).ofRecipient('suelta');
-      expect(totals.plannedCents, 0);
+      expect(totals.plannedCents, 4500);
       expect(totals.spentCents, 4500);
 
       final row = find.byKey(const ValueKey<String>('budget-person-suelta'));
       expect(row, findsOneWidget);
       expect(
-        find.descendant(of: row, matching: find.text('Gastado')),
-        findsOneWidget,
-      );
-      expect(
         find.descendant(of: row, matching: find.text(_money(4500))),
         findsOneWidget,
       );
       expect(
-        find.descendant(of: row, matching: find.textContaining('de ')),
-        findsNothing,
+        find.descendant(of: row, matching: find.text('de ${_money(4500)}')),
+        findsOneWidget,
       );
       expect(
         find.descendant(of: row, matching: find.byType(BudgetBar)),
-        findsNothing,
+        findsOneWidget,
       );
-      expect(find.bySemanticsLabel(RegExp('^Leo, Gastado 45')), findsOneWidget);
       // Una persona con previsto conserva «gastado de previsto» y su barra.
       final aritz = find.byKey(const ValueKey<String>('budget-person-aritz'));
       expect(

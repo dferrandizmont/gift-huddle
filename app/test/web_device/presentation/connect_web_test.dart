@@ -215,12 +215,86 @@ void main() {
       await _scanCode(tester, validWebQr);
       await tester.tap(find.text('No estoy en la lista'));
       await settleMobile(tester);
-      await tester.enterText(find.byType(TextField), 'Leo');
+      await tester.enterText(find.byType(TextField), 'Zed');
       await tester.pump();
       await tester.tap(find.byKey(const ValueKey('personPickerContinue')));
       await settleMobile(tester);
-      expect(gate.calls, ['notOnList:Leo']);
+      expect(gate.calls, ['notOnList:Zed']);
       await tester.pumpWidget(const SizedBox());
+    });
+
+    for (final (size, keyboard) in [
+      (const Size(375, 667), 260.0),
+      (const Size(390, 844), 336.0),
+    ]) {
+      testWidgets('1.0.7 (iOS M1): con el teclado abierto, «Continuar» queda '
+          'por encima de él · ${size.width.toInt()}', (tester) async {
+        await _open(tester, self: null, gate: FakeGate(), size: size);
+        await _scanCode(tester, validWebQr);
+        await tester.tap(find.text('No estoy en la lista'));
+        await settleMobile(tester);
+        tester.view.viewInsets = FakeViewPadding(bottom: keyboard);
+        addTearDown(tester.view.resetViewInsets);
+        await settleMobile(tester);
+        final next = find.byKey(const ValueKey('personPickerContinue'));
+        expect(
+          tester.getRect(next).bottom,
+          lessThanOrEqualTo(size.height - keyboard),
+        );
+        await tester.enterText(find.byType(TextField), 'Marta');
+        await settleMobile(tester);
+        expect(
+          tester.getRect(next).bottom,
+          lessThanOrEqualTo(size.height - keyboard),
+        );
+        await tester.pumpWidget(const SizedBox());
+      });
+    }
+
+    testWidgets('1.0.7 (m8): un nombre que ya está en la lista pregunta '
+        '«¿Eres tú?» y «Soy yo» elige a esa persona', (tester) async {
+      final gate = FakeGate();
+      await _open(tester, self: null, gate: gate);
+      await _scanCode(tester, validWebQr);
+      await tester.tap(find.text('No estoy en la lista'));
+      await settleMobile(tester);
+      await tester.enterText(find.byType(TextField), ' leo ');
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('personPickerContinue')));
+      await settleMobile(tester);
+      expect(
+        find.text('Ya hay alguien llamado Leo en la lista'),
+        findsOneWidget,
+      );
+      expect(gate.calls, isEmpty, reason: 'todavía no se ha creado nada');
+      await tester.tap(find.text('Soy yo'));
+      await settleMobile(tester);
+      expect(gate.calls, ['choose:leo']);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('QA 1.0.7 M1: con el teclado abierto, el nombre y «Continuar» '
+        'quedan por encima, en vertical y en horizontal', (tester) async {
+      for (final (size, keyboard) in const [
+        (phone375, 300.0),
+        (Size(812, 375), 180.0),
+      ]) {
+        await _open(tester, self: null, gate: FakeGate(), size: size);
+        await _scanCode(tester, validWebQr);
+        await tester.ensureVisible(find.byKey(const ValueKey('nobody')));
+        await tester.tap(find.byKey(const ValueKey('nobody')));
+        await settleMobile(tester);
+        tester.view.viewInsets = FakeViewPadding(bottom: keyboard);
+        await settleMobile(tester);
+        final top = size.height - keyboard;
+        expect(tester.getRect(find.byType(TextField)).bottom, lessThan(top));
+        final next = find.byKey(const ValueKey('personPickerContinue'));
+        await tester.ensureVisible(next);
+        await settleMobile(tester);
+        expect(tester.getRect(next).bottom, lessThanOrEqualTo(top));
+        tester.view.resetViewInsets();
+        await tester.pumpWidget(const SizedBox());
+      }
     });
 
     testWidgets('un QR que no es el de la web avisa y no sigue', (

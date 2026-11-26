@@ -18,11 +18,15 @@ class EmptyState extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.message,
+    this.action,
   });
 
   final StrokeIconBuilder icon;
   final String title;
   final String message;
+
+  /// La acción de debajo («Añadir deseo»), o `null` si no hay.
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -80,6 +84,10 @@ class EmptyState extends StatelessWidget {
                     style: t.styles.body.copyWith(color: t.textSecondary),
                   ),
                 ),
+                if (action != null) ...[
+                  const SizedBox(height: 20),
+                  StaggerItem(index: 3, dy: 8, child: action!),
+                ],
               ],
             ),
           ),

@@ -309,6 +309,7 @@ class RollingCount extends StatelessWidget {
     required this.style,
     this.rollFromEmpty = false,
     this.searchFrom = 0,
+    this.breakable = true,
   });
 
   /// El texto ya traducido, con [value] escrito dentro.
@@ -327,6 +328,10 @@ class RollingCount extends StatelessWidget {
   /// pudiera llevar cifras).
   final int searchFrom;
 
+  /// Si el texto puede seguir en la línea de abajo (como un texto normal) o va
+  /// siempre entero, en una línea: lo que rodea al número no se separa de él.
+  final bool breakable;
+
   @override
   Widget build(BuildContext context) {
     final digits = '$value';
@@ -334,24 +339,38 @@ class RollingCount extends StatelessWidget {
     if (at < 0) {
       return Text(text, style: style);
     }
+    final before = at > 0 ? Text(text.substring(0, at), style: style) : null;
+    final number = RollingNumber(
+      value: value,
+      style: style,
+      rollFromEmpty: rollFromEmpty,
+    );
+    final after = at + digits.length < text.length
+        ? Text(text.substring(at + digits.length), style: style)
+        : null;
+    final pieces = <Widget>[?before, number, ?after];
     return Semantics(
       label: text,
       excludeSemantics: true,
       // Un `Wrap` y no un `Row`: si el texto no cabe, sigue en la línea de
-      // abajo como lo haría un texto normal.
-      child: Wrap(
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          if (at > 0) Text(text.substring(0, at), style: style),
-          RollingNumber(
-            value: value,
-            style: style,
-            rollFromEmpty: rollFromEmpty,
-          ),
-          if (at + digits.length < text.length)
-            Text(text.substring(at + digits.length), style: style),
-        ],
-      ),
+      // abajo como lo haría un texto normal. Con [breakable] `false`, un
+      // `Row`: el número y lo que lo rodea no se separan.
+      child: breakable
+          ? Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: pieces,
+            )
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              // El final cede si ni así cabe (letra enorme), pero el número
+              // no se queda solo en una línea.
+              children: [
+                ?before,
+                number,
+                if (after != null) Flexible(child: after),
+              ],
+            ),
     );
   }
 }

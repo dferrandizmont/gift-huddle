@@ -14,10 +14,15 @@ import '../../../l10n/app_localizations.dart';
 /// hueco con `fold`.
 class SetAsideNotice extends StatelessWidget {
   /// Crea el aviso para [count] cambios apartados.
-  const SetAsideNotice({super.key, required this.count});
+  const SetAsideNotice({
+    super.key,
+    required this.count,
+    this.message,
+  });
 
   /// Cambios apartados.
   final int count;
+  final String? message;
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +64,7 @@ class SetAsideNotice extends StatelessWidget {
                           child: Semantics(
                             container: true,
                             child: Text(
-                              l10n.webSetAsideNotice(count),
+                              message ?? l10n.webSetAsideNotice(count),
                               style: t.styles.meta.copyWith(
                                 color: t.textOnSoft,
                               ),

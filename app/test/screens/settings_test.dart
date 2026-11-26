@@ -6,7 +6,10 @@ import 'package:regalos/app/app_info.dart';
 import 'package:regalos/core/motion/haptics.dart';
 import 'package:regalos/core/motion/shake.dart';
 import 'package:regalos/core/motion/success_mark.dart';
+import 'package:regalos/core/sync/hlc.dart';
+import 'package:regalos/core/sync/model.dart';
 import 'package:regalos/core/widgets/sheet_parts.dart';
+import 'package:regalos/features/family/application/family_controller.dart';
 import 'package:regalos/features/lock/application/lock_controller.dart';
 
 import '../helpers/fake_haptics.dart';
@@ -395,7 +398,9 @@ void main() {
 
     await tapText(tester, 'Archivo');
     expect(
-      find.text('Lo que archivas deja de aparecer en las listas, pero conserva sus regalos.'),
+      find.text(
+        'Lo que archivas deja de aparecer en las listas, pero conserva sus regalos.',
+      ),
       findsOneWidget,
     );
     // Un grupo por lista, con lo suyo.
@@ -469,6 +474,28 @@ void main() {
     phone,
   ) async {
     await seedSample(tester, phone);
+    await tester.runAsync(() async {
+      final controller = phone.container.read(
+        familyControllerProvider.notifier,
+      );
+      final doc = (await phone.container.read(familyControllerProvider.future))
+          .doc;
+      await controller.mergeRemote(
+        doc.set(
+          HlcClock(node: 'remoto', last: doc.maxStamp),
+          Collections.wishes,
+          'wish',
+          {
+            'recipientId': 'nora',
+            'authorPersonId': 'nora',
+            'suggested': false,
+            'title': 'Patinete',
+            'year': 2026,
+          },
+        ),
+        fromNode: 'remoto',
+      );
+    });
     await pumpRegalos(tester, phone);
     await openSettings(tester);
     await tapText(tester, 'Personas');
@@ -479,10 +506,16 @@ void main() {
     await settle(tester);
     expect(find.text('¿Eliminar a Nora?'), findsOneWidget);
     expect(
-      find.textContaining('También se eliminarán los 4 regalos que hay para esta persona.'),
+      find.textContaining(
+        'También se eliminarán los 4 regalos que hay para esta persona.',
+      ),
       findsOneWidget,
     );
     expect(find.textContaining('No se puede deshacer.'), findsOneWidget);
+    expect(
+      find.textContaining('También se eliminará 1 deseo de esta persona.'),
+      findsOneWidget,
+    );
     await tapText(tester, 'Cancelar');
     expect(find.text('¿Eliminar a Nora?'), findsNothing);
     var state = await familyState(tester, phone);
@@ -515,7 +548,9 @@ void main() {
     await settle(tester);
     expect(find.text('¿Eliminar a Tío Pere?'), findsOneWidget);
     expect(
-      find.textContaining('Su regalo seguirá en la lista sin nadie asignado en «Quién regala».'),
+      find.textContaining(
+        'Su regalo seguirá en la lista sin nadie asignado en «Quién regala».',
+      ),
       findsOneWidget,
     );
     await tester.tap(find.widgetWithText(FilledButton, 'Eliminar'));
@@ -552,11 +587,11 @@ void main() {
     await pumpRegalos(tester, phone);
     await openSettings(tester);
     await tapText(tester, 'Quién regala');
-    expect(find.text('Paga la casa'), findsOneWidget);
+    expect(find.text('Cuenta como gasto de casa'), findsOneWidget);
     await tapText(tester, 'Tío Pere');
     expect(find.text('Editar quién regala'), findsOneWidget);
-    // «Paga la casa» se enciende desde la hoja.
-    await tester.tap(find.bySemanticsLabel('Paga la casa').last);
+    // «Cuenta como gasto de casa» se enciende desde la hoja.
+    await tester.tap(find.bySemanticsLabel('Cuenta como gasto de casa').last);
     await tester.pump();
     await tapText(tester, 'Guardar');
     var state = await familyState(tester, phone);

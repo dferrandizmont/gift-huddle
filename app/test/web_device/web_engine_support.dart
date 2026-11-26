@@ -16,7 +16,17 @@ import '../sync/v2_harness.dart';
 import 'test_support.dart';
 
 class WebHarness {
-  WebHarness({this.commonV2Ready = false, this.webPerson = 'leo'});
+  WebHarness({
+    this.commonV2Ready = false,
+    this.webPerson = 'leo',
+    this.onChanged,
+    this.now,
+  });
+
+  /// What the real session does when the engine's candidate changes (the
+  /// screen tests reload the family controller from it).
+  final void Function()? onChanged;
+  final DateTime Function()? now;
 
   /// The person the phone pairs the web for (1.0.6: its own, by default in
   /// the app; the older tests use Leo).
@@ -42,6 +52,8 @@ class WebHarness {
     vault: vault,
     queue: queue,
     commonV2Ready: commonV2Ready,
+    onChanged: onChanged,
+    now: now,
   );
   Future<void> setup({
     bool enroll = true,

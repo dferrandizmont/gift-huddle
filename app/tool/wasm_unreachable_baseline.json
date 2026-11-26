@@ -359,6 +359,10 @@
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
+  "FamilyController._canMaintainStorage inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
   "FamilyController._changeFamily closure at package:regalos/features/family/application/family_controller.dart inner": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
@@ -399,9 +403,13 @@
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
-  "FamilyController._readOtherMobilePeople inner": {
-    "count": 3,
-    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  "FamilyController._purgeRecipientScopes inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController._readOtherActiveDevicePeople inner": {
+    "count": 4,
+    "why": "WAT reviewed, web 1.0.7: Four async try regions exit by branch, return or throw. The two awaited store reads and the typed exception handlers are present."
   },
   "FamilyController._refuseArchivingDevicePerson inner": {
     "count": 1,
@@ -412,6 +420,18 @@
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
   "FamilyController._requireFamily inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController._resumeRecipientPurge inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController._serialCommonWrite closure at package:regalos/features/family/application/family_controller.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController._serialCommonWrite inner": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
@@ -475,7 +495,11 @@
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
-  "FamilyController.mergeRemote closure at package:regalos/features/family/application/family_controller.dart inner": {
+  "FamilyController.mergeRemote inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyController.mergeRemoteWithinLock closure at package:regalos/features/family/application/family_controller.dart inner": {
     "count": 2,
     "why": "kind-reviewed: try whose paths all return/throw ×2"
   },
@@ -531,6 +555,10 @@
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
+  "FamilyController.withRecoveredSelfPersonChange inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
   "FamilyIdentity.toJson \\28MethodCallShape\\28toJson\\29\\29": {
     "count": 1,
     "why": "reviewed: dynamic-call stub; every caller calls FamilyIdentity.toJson statically (family_store.dart), none through dynamic"
@@ -572,8 +600,8 @@
     "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
   },
   "FamilyStore._listId inner": {
-    "count": 2,
-    "why": "kind-reviewed: try whose paths all return/throw ×2"
+    "count": 1,
+    "why": "WAT reviewed, web 1.0.7: The identity read and parse moved into _storedListId. The remaining async try exits by return or throw."
   },
   "FamilyStore._localKey closure at package:regalos/features/family/data/family_store.dart inner": {
     "count": 2,
@@ -614,6 +642,10 @@
   "FamilyStore._scopePeople inner": {
     "count": 2,
     "why": "kind-reviewed: try whose paths all return/throw ×2"
+  },
+  "FamilyStore._storedListId inner": {
+    "count": 2,
+    "why": "WAT reviewed, web 1.0.7: The identity read and JSON parse remain. The parse handler throws FamilyStoreException and both try regions exit without fallthrough."
   },
   "FamilyStore._writeEncrypted inner": {
     "count": 1,
@@ -707,6 +739,14 @@
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
+  "FamilyStore.purgeDeletedRecipientScopes closure at package:regalos/features/family/data/family_store.dart inner": {
+    "count": 2,
+    "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
+  },
+  "FamilyStore.purgeDeletedRecipientScopes inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
   "FamilyStore.raiseCommonFormatFloor closure at package:regalos/features/family/data/family_store.dart inner": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
@@ -722,6 +762,10 @@
   "FamilyStore.readCommonKeys closure at package:regalos/features/family/data/family_store.dart inner": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "FamilyStore.readDevicePersonView inner": {
+    "count": 1,
+    "why": "WAT reviewed, web 1.0.7: The await of readVerifiedRegistry and the nullable view access remain. The async try and both catches return."
   },
   "FamilyStore.readFormerSelf closure at package:regalos/features/family/data/family_store.dart inner": {
     "count": 2,
@@ -1263,6 +1307,42 @@
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
+  "MobileWishService.claim inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "MobileWishService.convertPlan inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "MobileWishService.createOwn inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "MobileWishService.deletePlan inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "MobileWishService.edit inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "MobileWishService.editPlan inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "MobileWishService.releasePlan inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "MobileWishService.remove inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "MobileWishService.suggest inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
   "PairingHost._check inner": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
@@ -1270,6 +1350,10 @@
   "PairingHost.receive inner": {
     "count": 4,
     "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "PairingHost.signOffer inner": {
+    "count": 1,
+    "why": "WAT reviewed, web 1.0.7: The offer bytes are passed to DeviceKeys.sign. The async try returns on success and both catches exit after completing the error."
   },
   "PairingOffer.fromJson inner": {
     "count": 2,
@@ -1319,6 +1403,10 @@
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
+  "PairingV2Guest.fetchOffer inner": {
+    "count": 1,
+    "why": "WAT reviewed, web 1.0.7: The offer fetch, parse and wish-protocol check remain. The async try and both catches exit before its trailing trap."
+  },
   "PairingV2Guest.finish inner": {
     "count": 5,
     "why": "kind-reviewed: try whose paths all return/throw ×5"
@@ -1340,8 +1428,12 @@
     "why": "kind-reviewed: try whose paths all return/throw ×3"
   },
   "PairingV2GuestController._install inner": {
+    "count": 4,
+    "why": "WAT reviewed, web 1.0.7: Three async try regions and the state loop exit by branch, return or throw. Both paths still invoke _installInto, including the path guarded by the replacement hold."
+  },
+  "PairingV2GuestController._installInto inner": {
     "count": 1,
-    "why": "kind-reviewed: try whose paths all return/throw ×1"
+    "why": "WAT reviewed, web 1.0.7: The pending install, registry and common-key writes and FamilyController.installV2 remain. Normal completion and both exception handlers exit the outer async try."
   },
   "PairingV2GuestController._leaveOldFamily closure leave at package:regalos/features/sync/application/pairing_v2_controller.dart inner": {
     "count": 1,
@@ -1356,12 +1448,16 @@
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
   "PairingV2GuestController._open inner": {
-    "count": 13,
-    "why": "kind-reviewed: try whose paths all return/throw ×13 (recounted, web 1.0.6 (2026-11-22))"
+    "count": 16,
+    "why": "WAT reviewed, web 1.0.7: All sixteen async try regions exit by branch, return or throw. The offer fetch, key generation, PairingV2Guest.open and assigned-person answer remain."
   },
   "PairingV2GuestController._tick inner": {
-    "count": 8,
-    "why": "kind-reviewed: try whose paths all return/throw ×8"
+    "count": 12,
+    "why": "WAT reviewed, web 1.0.7: Eleven async try regions and the state loop exit by branch, return or throw. Polling calls PairingV2Guest.finish and takes the family lock for installation."
+  },
+  "PairingV2GuestController.begin inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
   "PairingV2GuestController.confirmReplace inner": {
     "count": 1,
@@ -1484,6 +1580,14 @@
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
   "PersonProtectionActions|_protectionSerial closure at package:regalos/features/family/application/person_protection.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PersonProtectionActions|_wishWrite closure at package:regalos/features/family/application/person_protection.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "PersonProtectionActions|claimWish closure at package:regalos/features/family/application/person_protection.dart inner": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
@@ -2155,6 +2259,10 @@
     "count": 2,
     "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
   },
+  "SyncController._withLoadedFamilyLock inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
   "SyncController._writeEnabled inner": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
@@ -2368,8 +2476,8 @@
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
   "SyncV2Engine._once inner": {
-    "count": 19,
-    "why": "kind-reviewed: try whose paths all return/throw ×17; if whose branches all return/throw ×1; loop that only exits by branching ×1 (recounted, web 1.0.6 (2026-11-22))"
+    "count": 20,
+    "why": "WAT reviewed, web 1.0.7: Eighteen async try regions and the state loop exit by branch, return or throw. The recovery-history containsAll guard branches back to its loop or throws V2RecoveryIncompleteException."
   },
   "SyncV2Engine._openPackages inner": {
     "count": 5,
@@ -2534,6 +2642,10 @@
   "WebFamilyStore.load inner": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebFamilyStore.readDevicePersonView inner": {
+    "count": 1,
+    "why": "WAT reviewed, web 1.0.7: The async body reads WebSyncEngine.view through WebFamilyStore.engine and completes with that value. The body and both catches return before the trailing trap."
   },
   "WebFamilyStore.readOrphans inner": {
     "count": 1,
@@ -2727,6 +2839,14 @@
     "count": 2,
     "why": "kind-reviewed: loop that only exits by branching ×1; try whose paths all return/throw ×1"
   },
+  "WebSyncEngine._ownWishAction closure at package:regalos/features/web_device/application/web_sync_engine.dart inner": {
+    "count": 1,
+    "why": "WAT reviewed, web 1.0.7: The awaited wish context, wish validation and _save call remain. The async try and both catches exit before its trailing trap."
+  },
+  "WebSyncEngine._planAction closure at package:regalos/features/web_device/application/web_sync_engine.dart inner": {
+    "count": 1,
+    "why": "WAT reviewed, web 1.0.7: The plan callback, PendingQueue.add and _candidate remain. The async try and both catches exit before its trailing trap."
+  },
   "WebSyncEngine._putInbox inner": {
     "count": 3,
     "why": "WAT reviewed, web 1.0.6 (2026-11-22): web mailbox PUT; 3 async try regions, all branch away or return. No real call replaced"
@@ -2743,6 +2863,10 @@
     "count": 3,
     "why": "WAT reviewed, web 1.0.6 (2026-11-22): 3 async try regions exit by br/return; the other traps follow _throwErrorWithoutDetails/_throwNullCheckErrorWithCurrentStack/Error._throwWithCurrentStackTrace. No real call replaced"
   },
+  "WebSyncEngine._save inner": {
+    "count": 1,
+    "why": "WAT reviewed, web 1.0.7: Wish and cascade validation, PendingQueue.add and _candidate remain. Normal completion and both exception handlers branch away from the trailing trap."
+  },
   "WebSyncEngine._saveInboxHistory inner": {
     "count": 1,
     "why": "WAT reviewed, web 1.0.6 (2026-11-22): only trap ends the async try whose paths all return. No real call replaced"
@@ -2756,8 +2880,8 @@
     "why": "WAT reviewed: serial queue callback and retry catch; all 3 try regions return, branch to an async state, or throw, never falling through"
   },
   "WebSyncEngine._syncInbox inner": {
-    "count": 5,
-    "why": "WAT reviewed, web 1.0.6 (2026-11-22): web mailbox upload; 4 async try regions and the state loop exit by br/return; the other traps follow Error._throwWithCurrentStackTrace/_throwErrorWithoutDetails/_throwNullCheckErrorWithCurrentStack. No real call replaced"
+    "count": 6,
+    "why": "WAT reviewed, web 1.0.7: Five async try regions and the state loop exit by branch, return or throw. Slot signature verification, sealing, inbox publication and queue acknowledgement remain."
   },
   "WebSyncEngine._syncOnce inner": {
     "count": 23,
@@ -2771,7 +2895,7 @@
     "count": 1,
     "why": "WAT reviewed: socket cancellation and requestSync awaits; try body and catches branch to the completion block or throw, never falling through"
   },
-  "WebSyncEngine.save closure at package:regalos/features/web_device/application/web_sync_engine.dart inner": {
+  "WebSyncEngine.savedCommon inner": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
@@ -2791,6 +2915,10 @@
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
+  "WebSyncEngine.wishContext inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
   "WebSyncTransport._send inner": {
     "count": 14,
     "why": "kind-reviewed: try whose paths all return/throw ×13; loop that only exits by branching ×1"
@@ -2798,6 +2926,34 @@
   "WebSyncTransport.send inner": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×9; loop that only exits by branching ×1"
+  },
+  "WebWishService._guard inner": {
+    "count": 3,
+    "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "WebWishService.claim closure at package:regalos/features/family/application/wish_service.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebWishService.createOwn closure at package:regalos/features/family/application/wish_service.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebWishService.edit closure at package:regalos/features/family/application/wish_service.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebWishService.editPlan closure at package:regalos/features/family/application/wish_service.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebWishService.releasePlan closure at package:regalos/features/family/application/wish_service.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WebWishService.remove closure at package:regalos/features/family/application/wish_service.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
   "WelcomeAlternatives._joinSheet inner": {
     "count": 1,
@@ -2808,6 +2964,10 @@
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
   "WhoAreYouStep.build closure answer at package:regalos/features/sync/presentation/who_are_you_step.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "WishDetail.build closure at package:regalos/features/gifts/presentation/wish_editor.dart inner": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
@@ -2931,13 +3091,17 @@
     "count": 10,
     "why": "WAT reviewed (2026-11-20, feat/quien-regala-persona): giver/person picker awaits: 9 async try regions and 1 loop, all exit by br; no real call replaced"
   },
+  "_GiftEditorScreenState._saveVisible inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
   "_GiftEditorScreenState._scrollToTop inner": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
   "_GiftEditorScreenState._showFirstError inner": {
-    "count": 1,
-    "why": "kind-reviewed: try whose paths all return/throw ×1"
+    "count": 2,
+    "why": "WAT reviewed, web 1.0.7: The async try and its state loop exit by branch, return or throw."
   },
   "_GiftEditorScreenState._trackedDialog inner": {
     "count": 4,
@@ -2988,10 +3152,6 @@
     "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
   },
   "_JoinInviteScreenState._askReplace inner": {
-    "count": 1,
-    "why": "kind-reviewed: try whose paths all return/throw ×1"
-  },
-  "_JoinInviteScreenState._finish inner": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
@@ -3107,9 +3267,17 @@
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
+  "_PersonListScreenState._addWish inner": {
+    "count": 1,
+    "why": "WAT reviewed, web 1.0.7: The await of openWishEditor and the guarded highlight remain. The async try returns on success and both catches exit."
+  },
   "_PersonListScreenState._editPerson inner": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_PersonListScreenState._editWish inner": {
+    "count": 1,
+    "why": "WAT reviewed, web 1.0.7: The await of openWishEditor with the existing wish and the guarded highlight remain. The async try returns on success and both catches exit."
   },
   "_PersonListScreenState._openEditor inner": {
     "count": 1,
@@ -3119,9 +3287,13 @@
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
+  "_PersonListScreenState._suggestWish inner": {
+    "count": 1,
+    "why": "WAT reviewed, web 1.0.7: The await of openGiftEditor with suggestVisible and the guarded highlight remain. The async try returns on success and both catches exit."
+  },
   "_PersonPickerState._continue inner": {
-    "count": 10,
-    "why": "kind-reviewed: last case of an exhaustive switch ×1; try whose paths all return/throw ×8; loop that only exits by branching ×1"
+    "count": 13,
+    "why": "WAT reviewed, web 1.0.7: Eleven async try regions and the state loop exit by branch, return or throw. Four identity tests cover all values of _Pick, including none."
   },
   "_PersonSheetState._pickDate inner": {
     "count": 1,
@@ -3471,6 +3643,38 @@
     "count": 3,
     "why": "kind-reviewed: try whose paths all return/throw ×3"
   },
+  "_WishEditorState._delete inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_WishEditorState._requestClose inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_WishEditorState._save inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_WishPlanEditorState._act inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_WishPlanEditorState._requestClose inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_WishPlanEditorState._save inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "_WishPlanEditorState._trackedDialog inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
+  },
+  "_WishRowState._act inner": {
+    "count": 3,
+    "why": "WAT reviewed, web 1.0.7: All three async try regions branch out, return or throw. The action closure from _wishRow is called and awaited, with the mounted check, timer and setState intact."
+  },
   "_accessFor inner": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
@@ -3487,9 +3691,13 @@
     "count": 1,
     "why": "WAT reviewed (2026-11-17): recovery.dart:334 (recovery/capsule KDF), real DartArgon2id.deriveKey call; both await suspensions, success/default completion and Dart/JS error catches branch to outer $block4. The unreachable immediately after the async try has no fallthrough path."
   },
-  "_argon2id inner_27955": {
+  "_argon2id inner_28105": {
     "count": 1,
-    "why": "WAT reviewed, web 1.0.6 (2026-11-22): same Argon2id closure as before (suffix renumbered from _27652); its only trap ends the async try whose paths all return"
+    "why": "WAT reviewed, web 1.0.7: Renumbered from _27955. DartArgon2id.deriveKey and SecretKey.extractBytes are called. Success and both catches exit the async try via the completion block."
+  },
+  "_assignPlanToPerson inner": {
+    "count": 5,
+    "why": "kind-reviewed: try whose paths all return/throw ×5"
   },
   "_baseAccessFor inner": {
     "count": 1,
@@ -3579,6 +3787,10 @@
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
+  "_verifySig inner": {
+    "count": 3,
+    "why": "WAT reviewed, web 1.0.7: Three async try regions exit by branch, return or throw. The decoded signature is passed to verifyDeviceSignature."
+  },
   "_viewOf inner": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
@@ -3595,6 +3807,10 @@
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
+  "advancePlanStatus inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
   "approveDevice inner": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
@@ -3602,6 +3818,10 @@
   "approveFamilyDevice inner": {
     "count": 3,
     "why": "kind-reviewed: try whose paths all return/throw ×3"
+  },
+  "assignGiftGiver inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
   "assignGiftToPerson inner": {
     "count": 5,
@@ -3623,11 +3843,19 @@
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
+  "claimWishFlow inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
   "closure wrapper at package:regalos/core/motion/haptics.dart trampoline": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
   "closure wrapper at package:regalos/core/widgets/choice_grid.dart trampoline": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "closure wrapper at package:regalos/features/family/application/person_protection.dart trampoline": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
@@ -3652,8 +3880,8 @@
     "why": "WAT reviewed: 2 JS event callback trampolines; each try body branches out on success and Dart/JS catches branch to an error tuple or throw; no fallthrough"
   },
   "closure wrapper at package:regalos/features/sync/presentation/invite_link_listener.dart trampoline": {
-    "count": 1,
-    "why": "WAT reviewed (2026-11-17): addPostFrameCallback closure at invite_link_listener.dart:56, scheduled by _retryWhenReady (:53-60) from initState, navigator/recovery observers and provider listeners; _open (:63-95) is inlined into it. After mounted/non-null invite/no active join/unlocked checks, it traps after drop(State.widget) at :81; this is not an exhaustive switch or a trap in route.completed. It is dead because production web uses WebBootstrap -> RegalosApp(webSession: true) (web_bootstrap.dart:205), whose app.dart:71 branch omits IncomingShareListener and thus InviteLinkListener (share_dialogs.dart:136). The compiled app builder omits native listeners, and web_bootstrap_test.dart checks their absence."
+    "count": 2,
+    "why": "WAT reviewed, web 1.0.7: Both post-frame callbacks (_retryWhenReady with inlined _open and _joinedWithoutScreen) trap after drop(State.widget). Production WebBootstrap mounts RegalosApp(webSession: true), whose compiled builder omits IncomingShareListener, the sole creator of InviteLinkListener."
   },
   "closure wrapper at package:regalos/features/sync/presentation/pairing_v2_guest_view.dart trampoline": {
     "count": 1,
@@ -3712,6 +3940,10 @@
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
   "familySnapshot inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "finishJoin inner": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
@@ -3811,6 +4043,10 @@
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
+  "moveGiftToLane closure setStatus at package:regalos/features/web_board/presentation/board_lane_move.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
   "moveGiftToLane inner": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
@@ -3870,6 +4106,10 @@
   "openFamilyEnvelope inner": {
     "count": 5,
     "why": "kind-reviewed: try whose paths all return/throw ×5"
+  },
+  "openGiftEditor closure at package:regalos/features/gifts/presentation/gift_editor_screen.dart inner": {
+    "count": 1,
+    "why": "kind-reviewed: try whose paths all return/throw ×1"
   },
   "openGiftLink inner": {
     "count": 1,
@@ -3975,6 +4215,10 @@
     "count": 21,
     "why": "kind-reviewed: try whose paths all return/throw ×6; loop that only exits by branching ×1"
   },
+  "registerWebFallbackFontLicenses closure at package:regalos/app/licenses.dart inner": {
+    "count": 6,
+    "why": "WAT reviewed, web 1.0.7: Five try regions and the async generator state loop exit by branch, return or throw. CachingAssetBundle.loadString, LicenseEntryWithLineBreaks and StreamController.add remain in the license loop."
+  },
   "removeDevice inner": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
@@ -4058,6 +4302,10 @@
   "showGiftStatusPicker inner": {
     "count": 1,
     "why": "kind-reviewed: try whose paths all return/throw ×1"
+  },
+  "showPlanStatusPicker inner": {
+    "count": 4,
+    "why": "kind-reviewed: try whose paths all return/throw ×3; loop that only exits by branching ×1"
   },
   "showRegalosAsk inner": {
     "count": 1,

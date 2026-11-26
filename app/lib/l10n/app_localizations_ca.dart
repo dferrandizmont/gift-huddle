@@ -325,6 +325,16 @@ class AppLocalizationsCa extends AppLocalizations {
       'Els canvis d\'aquest regal encara no s\'han desat.';
 
   @override
+  String get wishDiscardBody =>
+      'Els canvis d\'aquest desig encara no s\'han desat.';
+
+  @override
+  String get giftMoreDetails => 'Més detalls';
+
+  @override
+  String get giftFieldActualPrice => 'Preu real';
+
+  @override
   String get actionDiscard => 'Descartar';
 
   @override
@@ -464,11 +474,11 @@ class AppLocalizationsCa extends AppLocalizations {
   String get giverUs => 'Nosaltres';
 
   @override
-  String get giverHouseholdPays => 'Ho paga la casa';
+  String get giverHouseholdPays => 'Compta com a despesa de casa';
 
   @override
   String get giverHouseholdPaysHint =>
-      'Si ho actives, els seus regals compten al pressupost de la casa.';
+      'Els seus regals sumen a la despesa de la casa.';
 
   @override
   String countdownDaysForBirthday(int count, String name) {
@@ -533,7 +543,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get obGiversBody =>
-      '«Nosaltres» ja és a la llista per als regals que pagueu a casa. També hi pots afegir els avis, els oncles…';
+      '«Nosaltres» ja és a la llista per als regals que compten com a despesa de casa. També hi pots afegir els avis, els oncles…';
 
   @override
   String get obGiversSuggestions => 'Suggeriments';
@@ -691,12 +701,15 @@ class AppLocalizationsCa extends AppLocalizations {
   String get budgetOf => 'de';
 
   @override
-  String budgetHouseFor(String name) {
-    return 'La casa · $name';
-  }
+  String get budgetHouseTotal => 'Despesa de casa · total';
 
   @override
-  String get budgetHouseTotal => 'La casa · total';
+  String get budgetBought => 'Comprat';
+
+  @override
+  String budgetBoughtBarLabel(String bought, String total) {
+    return 'Comprat: $bought de $total';
+  }
 
   @override
   String budgetBarLabel(String spent, String planned) {
@@ -994,11 +1007,11 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get budgetSubtitle =>
-      'Pots posar un pressupost a cada ocasió. «Gastat» suma els preus reals dels regals que paga la casa. Si ja s\'ha comprat un regal i hi falta el preu real, compta el previst.';
+      'Pots posar un pressupost a cada ocasió. «Gastat» suma els preus reals dels regals que compten com a despesa de casa. Si ja s\'ha comprat un regal i hi falta el preu real, compta el previst.';
 
   @override
   String get budgetSubtitleBudgeted =>
-      'Pots posar un pressupost a cada ocasió. Les tres xifres només inclouen ocasions amb pressupost. «Gastat» suma els preus reals dels regals que paga la casa. Si ja s\'ha comprat un regal i hi falta el preu real, compta el previst.';
+      'Pots posar un pressupost a cada ocasió. Les tres xifres només inclouen ocasions amb pressupost. «Gastat» suma els preus reals dels regals que compten com a despesa de casa. Si ja s\'ha comprat un regal i hi falta el preu real, compta el previst.';
 
   @override
   String get budgetPlanned => 'Previst';
@@ -1020,11 +1033,11 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get budgetNote =>
-      'Només suma el que paga la casa. Els regals que paguen altres persones, com ara els avis, queden fora de la despesa de la casa.';
+      'Només suma els regals que compten com a despesa de casa. Els que paguen altres persones, com ara els avis, queden fora.';
 
   @override
   String get budgetEmpty =>
-      'Encara no hi ha regals que pagui la casa. Activa «Ho paga la casa» a la fitxa de qui regala i posa el preu previst al regal.';
+      'Encara no hi ha regals que comptin com a despesa de casa. Activa «Compta com a despesa de casa» a la fitxa de qui regala i posa el preu previst al regal.';
 
   @override
   String get occasionBudgetField => 'Pressupost (opcional)';
@@ -1925,7 +1938,7 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get manageLockedOtherDevice =>
-      'És la persona d\'un altre mòbil de la família.';
+      'Aquesta persona té un altre dispositiu connectat a la família.';
 
   @override
   String deletePersonTitle(String name) {
@@ -1946,6 +1959,17 @@ class AppLocalizationsCa extends AppLocalizations {
           'També s\'eliminaran els $count regals que hi ha per a aquesta persona.',
       one: 'També s\'eliminarà el regal que hi ha per a aquesta persona.',
       zero: '',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String deletePersonWishes(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'També s\'eliminaran $count desigs d\'aquesta persona.',
+      one: 'També s\'eliminarà 1 desig d\'aquesta persona.',
     );
     return '$_temp0';
   }
@@ -1993,6 +2017,10 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get deleteError => 'No s\'ha pogut eliminar. Torna-ho a provar.';
+
+  @override
+  String get deleteDevicesNeedUpdate =>
+      'Per eliminar-ho, tots els mòbils de la família necessiten l\'última versió.';
 
   @override
   String get giftNotSaved =>
@@ -2894,6 +2922,10 @@ class AppLocalizationsCa extends AppLocalizations {
   @override
   String get webSettingsPersistenceDenied =>
       'Si queda poc espai, el navegador podria esborrar les dades que Gift Huddle desa aquí.';
+
+  @override
+  String get webRecipientDeleteRejected =>
+      'No s’ha pogut eliminar aquesta persona des del web perquè afecta els regals en secret d’una altra persona. Fes-ho des d’un mòbil.';
 
   @override
   String webSetAsideNotice(int count) {
@@ -4567,12 +4599,12 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String devicePersonBlockedOtherTitle(String name) {
-    return '$name té el seu propi mòbil';
+    return '$name té un dispositiu connectat';
   }
 
   @override
   String devicePersonBlockedOtherBody(String name) {
-    return '$name té el seu propi mòbil a la família, així que no es pot eliminar ni arxivar des d\'aquí.';
+    return '$name té un dispositiu connectat a la família, així que no es pot eliminar ni arxivar des d\'aquí.';
   }
 
   @override
@@ -4744,6 +4776,28 @@ class AppLocalizationsCa extends AppLocalizations {
   String get whoAreYouNobody => 'Ningú';
 
   @override
+  String personSameNameTitle(String name) {
+    return 'Ja hi ha algú anomenat $name a la llista';
+  }
+
+  @override
+  String get personSameNameOther => 'És una altra persona';
+
+  @override
+  String get whoAreYouSameNameBody =>
+      'Ets tu? Si tries «És una altra persona», s\'afegeix una altra amb el mateix nom.';
+
+  @override
+  String get whoAreYouSameNameYes => 'Sóc jo';
+
+  @override
+  String get inviteForSameNameBody =>
+      'És aquesta persona? Si tries «És una altra persona», s\'afegeix una altra amb el mateix nom.';
+
+  @override
+  String get inviteForSameNameYes => 'És aquesta persona';
+
+  @override
   String get whoAreYouNobodyHint => 'Per a qui regala i no rep regals.';
 
   @override
@@ -4871,4 +4925,253 @@ class AppLocalizationsCa extends AppLocalizations {
   @override
   String get aboutPrivacyWeb =>
       'Sense comptes ni publicitat. La llista només surt d\'aquest ordinador per sincronitzar-se amb els mòbils de la teva família, i sempre va xifrada.';
+
+  @override
+  String get wishTag => 'Desig';
+
+  @override
+  String get surprisesTitle => 'Sorpreses';
+
+  @override
+  String wishCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count desigs',
+      one: '$count desig',
+      zero: 'Cap desig',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get wishAdd => 'Afegir un desig';
+
+  @override
+  String get wishEditorNewTitle => 'Nou desig';
+
+  @override
+  String get wishEditorEditTitle => 'Editar el desig';
+
+  @override
+  String get wishFieldDescription => 'Descripció';
+
+  @override
+  String get wishEmptyTitle => 'Encara no has apuntat cap desig';
+
+  @override
+  String get wishEmptyMessage =>
+      'Apunta el que t\'agradaria rebre. La teva família ho veurà, però tu no sabràs qui ho regala.';
+
+  @override
+  String get wishDelete => 'Treure de la meva llista';
+
+  @override
+  String wishDeleteTitle(String name) {
+    return 'Vols treure «$name» de la teva llista?';
+  }
+
+  @override
+  String get wishDeleteBody =>
+      'Se\'n va de la teva llista i de la que veu la teva família. No es pot desfer.';
+
+  @override
+  String get wishDeleteConfirm => 'Treure';
+
+  @override
+  String get wishSavedPending =>
+      'Desat només en aquest mòbil. Es compartirà quan hi hagi lloc.';
+
+  @override
+  String get wishClaim => 'Ho regalo jo';
+
+  @override
+  String wishClaimFor(String title) {
+    return 'Ho regalo jo: $title';
+  }
+
+  @override
+  String get wishClaimNeedsFamily =>
+      'Per agafar desigs, aquest mòbil ha d\'estar connectat a la família amb la versió nova.';
+
+  @override
+  String get wishClaimHowToConnect => 'Com connectar-lo';
+
+  @override
+  String get wishAvailableNote => 'Ningú ho ha agafat';
+
+  @override
+  String wishClaimedBy(String name) {
+    return 'L\'ha agafat $name';
+  }
+
+  @override
+  String get wishClaimedByYou => 'L\'has agafat tu';
+
+  @override
+  String get wishConflict =>
+      'Dues persones l\'han agafat. Que una el deixi anar.';
+
+  @override
+  String wishRemovedFromList(String name) {
+    return '$name ho va treure de la seva llista';
+  }
+
+  @override
+  String get wishPlanTitle => 'Desig agafat';
+
+  @override
+  String wishPlanNote(String name) {
+    return 'El desig és de $name. Aquí només apuntes el teu.';
+  }
+
+  @override
+  String wishPlanReadOnly(String name) {
+    return 'Només $name pot canviar-lo o deixar-lo anar.';
+  }
+
+  @override
+  String get wishFieldPurchaseUrl => 'Enllaç de compra';
+
+  @override
+  String get wishPurchaseUrlInvalid => 'L\'enllaç de compra no és vàlid.';
+
+  @override
+  String get wishPlanRelease => 'Deixar anar';
+
+  @override
+  String wishReleaseTitle(String name) {
+    return 'Vols deixar anar «$name»?';
+  }
+
+  @override
+  String get wishReleaseBody =>
+      'Tornarà a estar disponible per a una altra persona. El que vas apuntar (qui regala, preus, botiga i notes) es perd.';
+
+  @override
+  String get wishPlanDelete => 'Eliminar la meva reserva';
+
+  @override
+  String wishPlanDeleteTitle(String name) {
+    return 'Vols eliminar la teva reserva de «$name»?';
+  }
+
+  @override
+  String get wishPlanDeleteBody =>
+      'S\'elimina el que vas apuntar. No es pot desfer.';
+
+  @override
+  String get wishPlanConvert => 'Convertir en sorpresa';
+
+  @override
+  String get wishPlanConvertHint =>
+      'Passa a ser un regal sorpresa, separat del desig.';
+
+  @override
+  String wishConvertTitle(String name) {
+    return 'Vols convertir «$name» en sorpresa?';
+  }
+
+  @override
+  String get wishConvertBody =>
+      'El desig de la llista torna a estar disponible per a altres persones.';
+
+  @override
+  String get wishConvertConfirm => 'Convertir';
+
+  @override
+  String wishClaimedNotice(String name) {
+    return 'Has agafat «$name»';
+  }
+
+  @override
+  String get wishReleasedNotice => 'L\'has deixat anar';
+
+  @override
+  String get wishConvertedNotice => 'Ara és una sorpresa';
+
+  @override
+  String get wishPlanDeletedNotice => 'Reserva eliminada';
+
+  @override
+  String giftVisibleSwitch(String name) {
+    return 'Visible per a $name';
+  }
+
+  @override
+  String giftVisibleHint(String name) {
+    return '$name ho veurà com un desig més. Només $name ho podrà canviar.';
+  }
+
+  @override
+  String giftVisibleNoSurprise(String name) {
+    return 'Des d\'aquest mòbil no es pot desar una sorpresa per a $name: només un desig visible.';
+  }
+
+  @override
+  String get wishSuggest => 'Suggerir un desig';
+
+  @override
+  String get wishProblemCap =>
+      'Ja hi ha 200 desigs en aquesta llista. Treu-ne algun per afegir-ne un altre.';
+
+  @override
+  String get wishProblemTooLarge =>
+      'És massa llarg. Escurça el títol o la descripció.';
+
+  @override
+  String get wishProblemInvalid =>
+      'Revisa el que has escrit: falta el títol o alguna dada no val.';
+
+  @override
+  String get wishProblemNotOwner =>
+      'Només la persona del desig el pot canviar o treure.';
+
+  @override
+  String get wishProblemGone => 'Aquest desig ja no és a la llista.';
+
+  @override
+  String get wishProblemClaimed => 'Una altra persona ja l\'ha agafat.';
+
+  @override
+  String get wishProblemApproval =>
+      'Aquest dispositiu espera l\'aprovació de la família. Quan la tingui, podràs apuntar desigs.';
+
+  @override
+  String get wishProblemNotAllowed =>
+      'Aquest dispositiu no pot apuntar desigs ara.';
+
+  @override
+  String wishProblemNoDevice(String name) {
+    return '$name no té mòbil a la família, així que no pot veure desigs.';
+  }
+
+  @override
+  String wishProblemBlock(String name) {
+    return 'Ara no es pot obrir la llista de sorpreses de $name. Sincronitza i torna-ho a provar.';
+  }
+
+  @override
+  String wishProblemBlockFull(String name) {
+    return 'No hi cap res més a les sorpreses de $name.';
+  }
+
+  @override
+  String get wishProblemFailed => 'No s\'ha pogut desar. Torna-ho a provar.';
+
+  @override
+  String get wishProblemDevicesNeedUpdate =>
+      'Per agafar desigs, tots els mòbils de la família necessiten l\'última versió.';
+
+  @override
+  String webPlansHeld(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          '$count canvis en desigs agafats esperen que s\'actualitzin els altres mòbils de la família.',
+      one: 'Un canvi en un desig agafat espera que s\'actualitzin els altres mòbils de la família.',
+    );
+    return '$_temp0';
+  }
 }

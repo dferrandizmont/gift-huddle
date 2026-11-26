@@ -75,10 +75,9 @@ class RecoveryExporter {
     }
 
     observe(family.doc);
+    // The capsule's public clock floor never follows the private scopes
+    // (security review, B1): they travel with their own stamps.
     final scopes = await store.readRecoveryScopes();
-    for (final scope in scopes.values) {
-      observe(scope);
-    }
     if (hlc.node != identity.deviceId) {
       final counter = hlc.counter + 1;
       hlc = Hlc(

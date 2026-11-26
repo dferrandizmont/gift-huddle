@@ -1292,7 +1292,7 @@ class _List {
     const expires = 4102444800000; // 2100
     if (resource == 'invites') {
       final offer = b['offer'];
-      if (offer is! Map || offer['v'] != 2 || offer['host'] is! Map) {
+      if (offer is! Map || (offer['v'] != 2 && offer['v'] != 3) || offer['host'] is! Map) {
         return FakeWorkerV2._err(400, 'bad_offer');
       }
       if ((offer['host'] as Map)['d'] != auth.deviceId) {

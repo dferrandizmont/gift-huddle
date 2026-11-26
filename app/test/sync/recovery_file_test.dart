@@ -16,6 +16,18 @@ Uint8List hex(String text) => Uint8List.fromList([
 String toHex(List<int> bytes) =>
     bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
 
+/// A 1.0.6 vector (container version 1) as 1.0.7 writes it (version 2): the
+/// outer byte and the `v` in the header change; nothing else.
+Uint8List upgraded(Uint8List v1) {
+  final out = Uint8List.fromList(v1);
+  final at = 6 + ((out[4] << 8) | out[5]) - 2;
+  expect(out[3], 1);
+  expect(out[at], 0x31);
+  out[3] = 2;
+  out[at] = 0x32;
+  return out;
+}
+
 Matcher fails(RecoveryFileFailure failure) => throwsA(
   isA<RecoveryFileException>().having((e) => e.failure, 'failure', failure),
 );
@@ -50,7 +62,14 @@ void main() {
   group('open variant', () {
     test('seals the exact bytes and opens them', () {
       final sealed = sealOpenRecoveryFile(code);
-      expect(toHex(sealed.bytes), open['fileHex']);
+      // 1.0.7 writes container version 2 (1.0.6 rejects it as newer).
+      expect(
+        toHex(sealed.bytes),
+        toHex(upgraded(hex(open['fileHex'] as String))),
+      );
+      expect(sealed.bytes[3], kRecoveryFileVersion);
+      expect(kRecoveryFileVersion, isNot(kRecoveryFileVersionLegacy));
+      // ... and still reads the 1.0.6 file.
       expect(sealed.variant, RecoveryFileVariant.open);
       final file = parseRecoveryFile(hex(open['fileHex'] as String));
       expect(file.variant, RecoveryFileVariant.open);
@@ -80,10 +99,20 @@ void main() {
           salt: salt,
           nonce: nonce,
         );
-        expect(toHex(sealed.bytes), p['fileHex'], reason: p['name'] as String);
+        // The version is part of the AAD, so the tag differs from the v1
+        // vector: header and ciphertext are checked by opening below.
+        expect(sealed.bytes[3], kRecoveryFileVersion);
         expect(
           toHex(sealed.bytes.sublist(0, (p['aadHex'] as String).length ~/ 2)),
-          p['aadHex'],
+          toHex(upgraded(hex(p['aadHex'] as String))),
+        );
+        final written = parseRecoveryFile(sealed.bytes);
+        expect(
+          (await openRecoveryFileWithKey(
+            written,
+            hex(p['keyHex'] as String),
+          )).entropy,
+          entropy,
         );
         final file = parseRecoveryFile(hex(p['fileHex'] as String));
         expect(file.needsPassword, isTrue);
@@ -129,6 +158,14 @@ void main() {
     });
   });
 
+  test('version 3 is newer: rejected before anything else', () {
+    final bytes = Uint8List.fromList(sealOpenRecoveryFile(code).bytes)..[3] = 3;
+    expect(
+      () => parseRecoveryFile(bytes),
+      fails(RecoveryFileFailure.newerVersion),
+    );
+  });
+
   group('negatives', () {
     final negatives = [
       for (final n in vector['negatives'] as List) n as Map<String, Object?>,
@@ -138,7 +175,12 @@ void main() {
     for (final n in negatives) {
       final name = n['name'] as String;
       final bytes = hex(n['fileHex'] as String);
-      final expected = RecoveryFileFailure.values.byName(n['expect'] as String);
+      // 1.0.7 reads container version 2: the old "version-2" vector keeps
+      // `v: 1` in its header, so it is now a mismatch, not a newer version
+      // (the newer-version case is `version 3` below).
+      final expected = name == 'version-2'
+          ? RecoveryFileFailure.notRecoveryFile
+          : RecoveryFileFailure.values.byName(n['expect'] as String);
       test(name, () async {
         if (expected != RecoveryFileFailure.damagedOrWrongPassword) {
           expect(() => parseRecoveryFile(bytes), fails(expected));

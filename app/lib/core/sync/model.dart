@@ -12,6 +12,8 @@ import 'package:cryptography/dart.dart';
 
 import 'family_doc.dart';
 import 'hlc.dart';
+import 'wish.dart' show Wish;
+import 'wish_plan.dart' show WishPlan;
 
 /// The collections of the family document.
 abstract final class Collections {
@@ -34,6 +36,24 @@ abstract final class Collections {
   /// revisión), con el id de la persona como id del registro. ADR 0004.
   /// Los móviles anteriores la conservan sin entenderla.
   static const String policies = 'policies';
+
+  /// Los deseos visibles de cada persona (ADR 0010, 1.0.7): lo que la propia
+  /// persona apunta (o le sugieren con «Visible para ...»). Solo contenido
+  /// visible para ella; lo que hacen los demás con él va en otro sitio. Los
+  /// móviles anteriores la conservan sin entenderla. Sus lápidas no se
+  /// compactan nunca.
+  static const String wishes = 'wishes';
+}
+
+/// Colecciones que solo existen dentro del bloque secreto de una persona
+/// (`surprise:P`, ADR 0010, 1.0.7). Nunca están en el documento común, ni en
+/// una exportación legible, ni en la vista de la persona protegida.
+abstract final class ScopeCollections {
+  /// Lo que hacen los demás con un deseo visible de la persona protegida
+  /// (cogerlo, comprarlo...). Cada registro es un plan; su enlace con el
+  /// deseo (`sourceWishId`) solo existe aquí dentro. Sus lápidas se compactan
+  /// con la misma regla que las de los regalos, pero por colección.
+  static const String wishPlans = 'wishPlans';
 }
 
 /// Where a gift is in its way to the recipient.
@@ -931,7 +951,7 @@ class BudgetTotals {
   /// The amount set by the household, or null when no budget has been set.
   final int? budgetCents;
 
-  /// What is expected to be spent.
+  /// The sum of planned prices, falling back to actual prices.
   final int plannedCents;
 
   /// What has been spent.
@@ -941,12 +961,21 @@ class BudgetTotals {
   /// the household total.
   final int pendingCents;
 
+  /// The sum of each gift's actual price, falling back to its planned price
+  /// or zero when neither is set.
+  final int expectedCents;
+
+  /// The portion of [expectedCents] for gifts that are bought or further along.
+  final int boughtCents;
+
   /// Creates the totals.
   const BudgetTotals({
     this.budgetCents,
     this.plannedCents = 0,
     this.spentCents = 0,
     this.pendingCents = 0,
+    this.expectedCents = 0,
+    this.boughtCents = 0,
   });
 
   /// The budget left after spending, or null when there is no budget.
@@ -972,6 +1001,8 @@ class BudgetTotals {
     plannedCents: plannedCents + other.plannedCents,
     spentCents: spentCents + other.spentCents,
     pendingCents: pendingCents + other.pendingCents,
+    expectedCents: expectedCents + other.expectedCents,
+    boughtCents: boughtCents + other.boughtCents,
   );
 
   @override
@@ -981,30 +1012,43 @@ class BudgetTotals {
           other.budgetCents == budgetCents &&
           other.plannedCents == plannedCents &&
           other.spentCents == spentCents &&
-          other.pendingCents == pendingCents;
+          other.pendingCents == pendingCents &&
+          other.expectedCents == expectedCents &&
+          other.boughtCents == boughtCents;
 
   @override
-  int get hashCode =>
-      Object.hash(budgetCents, plannedCents, spentCents, pendingCents);
+  int get hashCode => Object.hash(
+    budgetCents,
+    plannedCents,
+    spentCents,
+    pendingCents,
+    expectedCents,
+    boughtCents,
+  );
 
   @override
   String toString() =>
       'BudgetTotals(budget: $budgetCents, planned: $plannedCents, '
-      'spent: $spentCents, pending: $pendingCents)';
+      'spent: $spentCents, pending: $pendingCents, '
+      'expected: $expectedCents, bought: $boughtCents)';
 }
 
-/// The budget of the list: by recipient, by occasion and the total.
+/// Household budget figures and gift totals for each recipient.
 ///
-/// Only the gifts paid by the house count. What the uncles and the
-/// grandparents give is a gift, not an expense.
+/// The household figures count gifts paid by the household. For a person's
+/// gift totals regardless of who pays, use [ofRecipientAllGivers].
 ///
 /// Archived occasions do not count in [total], [budgeted],
-/// [spentOutsideBudgetCents] or [byRecipient]; [byOccasion] keeps their
-/// figures so their own row can still show them.
+/// [spentOutsideBudgetCents], [byRecipient] or [allGiftsByRecipient].
+/// [byOccasion] keeps their figures for their own rows.
 class Budget {
-  /// Planned and spent totals by recipient id, of the gifts of occasions that
-  /// are not archived and of the gifts without an occasion.
+  /// Household gift totals by recipient id, including gifts of active
+  /// occasions and gifts without an existing occasion.
   final Map<String, BudgetTotals> byRecipient;
+
+  /// Visible gift totals by recipient id in the same year and occasion scope
+  /// as [byRecipient], regardless of who gives or pays.
+  final Map<String, BudgetTotals> allGiftsByRecipient;
 
   /// Totals by occasion id, including budgets for occasions without gifts and
   /// the archived occasions, which keep their full figures here.
@@ -1015,8 +1059,7 @@ class Budget {
   /// not archived, plus the gifts without an occasion.
   final BudgetTotals total;
 
-  /// Ids of the archived occasions: they are in [byOccasion] but not in
-  /// [total], [budgeted] or [byRecipient].
+  /// Ids of archived occasions, whose figures are kept in [byOccasion].
   final Set<String> archivedOccasionIds;
 
   /// Key used for the gifts that do not belong to any occasion.
@@ -1027,12 +1070,19 @@ class Budget {
     required this.byRecipient,
     required this.byOccasion,
     required this.total,
+    this.allGiftsByRecipient = const <String, BudgetTotals>{},
     this.archivedOccasionIds = const <String>{},
   });
 
-  /// The totals of one recipient, or empty totals when there is none.
+  /// The household gift totals of one recipient, or empty totals.
   BudgetTotals ofRecipient(String recipientId) =>
       byRecipient[recipientId] ?? const BudgetTotals();
+
+  /// The totals of one recipient's visible gifts across all givers, or empty
+  /// totals. Use [BudgetTotals.boughtCents] out of [BudgetTotals.expectedCents]
+  /// for the person's buying progress.
+  BudgetTotals ofRecipientAllGivers(String recipientId) =>
+      allGiftsByRecipient[recipientId] ?? const BudgetTotals();
 
   /// The totals of one occasion, or empty totals when there is none.
   BudgetTotals ofOccasion(String occasionId) =>
@@ -1259,6 +1309,22 @@ class FamilyView {
   /// Whether the grid includes archived giver assignments.
   final bool includeArchived;
 
+  /// The visible wishes (ADR 0010) of the year in view, for every reader,
+  /// the person they are for included. They are not gifts: they never count
+  /// in the budget, in Reparto or in any total. Sorted by title, then id.
+  final List<Wish> visibleWishes;
+
+  /// Every visible wish of every year.
+  final List<Wish> allVisibleWishes;
+
+  /// What the people who can open the secret block of a recipient have done
+  /// with a wish, by wish id (live plans only). Empty on the phones that
+  /// cannot open any block, always on the recipient's own.
+  final Map<String, List<WishPlan>> plansByWish;
+
+  /// Ids of the wish plans already projected as gifts in this view.
+  final Set<String> planGiftIds;
+
   /// Creates the view.
   FamilyView({
     required this.recipients,
@@ -1269,6 +1335,10 @@ class FamilyView {
     List<Giver> allGivers = const <Giver>[],
     this.includeArchived = false,
     Map<String, Recipient>? allRecipientsById,
+    this.visibleWishes = const <Wish>[],
+    this.allVisibleWishes = const <Wish>[],
+    this.plansByWish = const <String, List<WishPlan>>{},
+    this.planGiftIds = const <String>{},
   }) : allGivers = allGivers.isEmpty ? givers : allGivers,
        allRecipientsById =
            allRecipientsById ??
@@ -1402,6 +1472,8 @@ class FamilyView {
     int? year,
     bool includeArchived = false,
     Set<String> hiddenGiftIds = const <String>{},
+    Map<String, List<WishPlan>> plansByWish = const <String, List<WishPlan>>{},
+    Set<String> planGiftIds = const <String>{},
   }) {
     final deletedPeople = <String>{
       for (final record
@@ -1456,6 +1528,16 @@ class FamilyView {
     final gifts = everyGift
         .where((gift) => year == null || gift.year == year)
         .toList();
+    // Visible wishes: every reader sees them, whoever the wish is for. A wish
+    // of a deleted person is left out like their gifts.
+    final everyWish = <Wish>[
+      for (final record
+          in doc.collections[Collections.wishes]?.values ??
+              const <SyncRecord>[])
+        if (Wish.fromRecord(record) case final Wish wish
+            when !deletedPeople.contains(wish.recipientId))
+          wish,
+    ]..sort(_compareWishes);
     return FamilyView(
       recipients: _sortedByName(recipients),
       givers: const [],
@@ -1465,6 +1547,16 @@ class FamilyView {
       allGivers: _sortedByName(everyGiver),
       includeArchived: includeArchived,
       allRecipientsById: Map.unmodifiable(allRecipientsById),
+      visibleWishes: List.unmodifiable([
+        for (final wish in everyWish)
+          if (year == null || wish.year == year) wish,
+      ]),
+      allVisibleWishes: List.unmodifiable(everyWish),
+      plansByWish: Map.unmodifiable({
+        for (final e in plansByWish.entries)
+          e.key: List<WishPlan>.unmodifiable(e.value),
+      }),
+      planGiftIds: Set.unmodifiable(planGiftIds),
     );
   }
 
@@ -1556,24 +1648,28 @@ class FamilyView {
       allGivers: allGivers,
       includeArchived: includeArchived,
       allRecipientsById: allRecipientsById,
+      planGiftIds: planGiftIds,
     );
   }
 
-  /// The budget of the list: by recipient, by occasion and the total.
+  /// Builds the household budget and recipient totals from [gifts], which
+  /// already reflects the view's visibility and year filters.
   ///
-  /// Only the gifts of the givers that pay from the house are counted,
-  /// whatever the recipient is: a gift of the house to a nephew is an
-  /// expense too, and a gift asked for by somebody does not make the gift
-  /// of somebody else an expense of the house.
-  /// Archived occasions keep their own figures in [Budget.byOccasion] but do
-  /// not count in the total, the budgeted sum or the recipients.
-  Budget budget() {
+  /// [Budget.allGiftsByRecipient] includes gifts regardless of assignment.
+  /// Household figures count gifts assigned to active household payers and
+  /// priced wish plans without a giver.
+  /// Archived occasions keep their household figures in [Budget.byOccasion].
+  ///
+  /// [wishPlanGifts] adds authorized plans in the same recipient and year
+  /// scope. A visible gift takes precedence even when it is from another year.
+  Budget budget({Iterable<Gift> wishPlanGifts = const []}) {
     final occasionIds = {for (final occasion in occasions) occasion.id};
     final archivedIds = {
       for (final occasion in occasions)
         if (occasion.archived) occasion.id,
     };
     final byRecipient = <String, BudgetTotals>{};
+    final allGiftsByRecipient = <String, BudgetTotals>{};
     final byOccasion = <String, BudgetTotals>{};
     var total = const BudgetTotals();
     for (final occasion in occasions) {
@@ -1587,36 +1683,70 @@ class FamilyView {
         total += totals;
       }
     }
-    for (final gift in gifts) {
-      final giver = giversByOriginalId[gift.giverId];
-      if (giver == null || giver.archived || !giver.householdPays) {
-        continue;
-      }
-      final planned = gift.plannedCents ?? 0;
-      final spent = gift.spentCents;
-      final totals = BudgetTotals(
-        plannedCents: planned,
-        spentCents: spent,
-        pendingCents: gift.status.isBoughtOrLater ? 0 : planned,
-      );
+
+    void addGift(Gift gift, {required bool isWishPlan}) {
       final requested = gift.occasionId ?? Budget.noOccasion;
       final occasionId = occasionIds.contains(requested)
           ? requested
           : Budget.noOccasion;
-      _addTotals(byOccasion, occasionId, totals);
-      if (archivedIds.contains(occasionId)) {
-        // Archived: the row of the occasion keeps it, the household does not.
-        continue;
+      final isArchived = archivedIds.contains(occasionId);
+      final giver = giversByOriginalId[gift.giverId];
+      final isUnassigned = gift.giverId?.isEmpty ?? true;
+      final householdPays =
+          (giver != null && !giver.archived && giver.householdPays) ||
+          (isWishPlan && isUnassigned);
+      final plannedPrice = gift.plannedCents ?? gift.actualCents;
+      final planned = plannedPrice ?? 0;
+      final spent = gift.spentCents;
+      final isBought = gift.status.isBoughtOrLater;
+      final expected = gift.actualCents ?? planned;
+      final bought = isBought ? expected : 0;
+      final countsInBudget =
+          householdPays && (!isWishPlan || plannedPrice != null);
+      if (!isArchived) {
+        final recipientTotals = BudgetTotals(
+          plannedCents: planned,
+          spentCents: spent,
+          expectedCents: expected,
+          boughtCents: bought,
+        );
+        _addTotals(allGiftsByRecipient, gift.recipientId, recipientTotals);
+        if (countsInBudget) {
+          _addTotals(byRecipient, gift.recipientId, recipientTotals);
+        }
       }
-      _addTotals(
-        byRecipient,
-        gift.recipientId,
-        BudgetTotals(plannedCents: planned, spentCents: spent),
+      if (!countsInBudget) {
+        return;
+      }
+      final totals = BudgetTotals(
+        plannedCents: planned,
+        spentCents: spent,
+        pendingCents: isBought ? 0 : (gift.plannedCents ?? 0),
+        expectedCents: expected,
+        boughtCents: bought,
       );
-      total += totals;
+      _addTotals(byOccasion, occasionId, totals);
+      if (!isArchived) {
+        total += totals;
+      }
+    }
+
+    final extraById = {for (final gift in wishPlanGifts) gift.id: gift};
+    if (extraById.isNotEmpty) {
+      for (final gift in allGifts) {
+        extraById.remove(gift.id);
+      }
+    }
+    for (final gift in gifts) {
+      extraById.remove(gift.id);
+      addGift(gift, isWishPlan: planGiftIds.contains(gift.id));
+    }
+    for (final gift in extraById.values) {
+      addGift(gift, isWishPlan: true);
     }
     return Budget(
       byRecipient: byRecipient,
+      allGiftsByRecipient: allGiftsByRecipient,
       byOccasion: byOccasion,
       total: total,
       archivedOccasionIds: archivedIds,
@@ -1736,6 +1866,11 @@ void _addTotals(
 }
 
 /// Sorts a list of named things by name, ignoring the case.
+int _compareWishes(Wish a, Wish b) {
+  final byTitle = a.title.toLowerCase().compareTo(b.title.toLowerCase());
+  return byTitle != 0 ? byTitle : a.id.compareTo(b.id);
+}
+
 List<T> _sortedByName<T extends Object>(List<T> items) {
   final sorted = List<T>.of(items);
   sorted.sort((a, b) => _sortKey(a).compareTo(_sortKey(b)));

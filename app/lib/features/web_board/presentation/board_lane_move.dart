@@ -9,7 +9,12 @@ import '../../../core/motion/rect_flight.dart';
 import '../../../core/sync/model.dart';
 import '../../../core/widgets/regalos_snack_bar.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../core/sync/wish_plan.dart' show PrivatePlanPatch;
 import '../../family/application/family_controller.dart';
+import '../../family/application/family_providers.dart'
+    show wishPlanOfGiftProvider;
+import '../../family/application/wish_service.dart';
+import '../../gifts/presentation/wish_editor.dart' show showWishProblem;
 import '../../gifts/application/person_completion.dart';
 import '../application/board_lanes.dart';
 
@@ -159,9 +164,29 @@ Future<bool> moveGiftToLane(
   // Una acción de la persona puede completar a quien recibe: se arma la
   // celebración antes de guardar, como con la casilla.
   ref.read(celebrationArmedProvider.notifier).arm(gift.recipientId);
-  final saved = await controller.setGiftStatus(gift.id, target.status);
+  // Un deseo cogido (W5) se ve como una tarjeta, pero su estado vive en su
+  // plan (ADR 0010): solo lo cambia quien lo cogió.
+  final plan = ref.read(wishPlanOfGiftProvider(gift.id));
+  final service = ref.read(wishServiceProvider);
+  WishResult? planFailure;
+  Future<bool> setStatus(GiftStatus status) async {
+    if (plan == null) return controller.setGiftStatus(gift.id, status);
+    final result = await service.editPlan(
+      plan.recipientId,
+      plan.planId,
+      PrivatePlanPatch(status: status),
+    );
+    if (!result.ok) planFailure = result;
+    return result.ok;
+  }
+
+  final saved = await setStatus(target.status);
   if (!context.mounted) {
     return saved;
+  }
+  if (!saved && planFailure != null) {
+    showWishProblem(context, ref, planFailure!);
+    return false;
   }
   if (!saved) {
     // Otro móvil lo borró: se avisa en vez de contar un cambio que no existe.
@@ -186,7 +211,7 @@ Future<bool> moveGiftToLane(
         label: l10n.actionUndo,
         onPressed: () {
           haptics.light();
-          controller.setGiftStatus(gift.id, previous);
+          setStatus(previous);
         },
       ),
     ),

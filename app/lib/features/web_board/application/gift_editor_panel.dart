@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/sync/model.dart';
+import '../../../core/sync/wish.dart' show VisibleWishPatch;
 
 /// Lo que se pide al panel del editor: qué regalo abrir o con qué empezar uno
 /// nuevo. Es lo mismo que recibe `openGiftEditor`.
@@ -16,6 +17,7 @@ class GiftEditorRequest {
     required this.giverId,
     required this.status,
     required this.chooseRecipient,
+    required this.onOwnPerson,
   });
 
   /// Número de orden: pedir otro regalo con el panel abierto cambia el editor.
@@ -30,6 +32,10 @@ class GiftEditorRequest {
   /// El estado con el que empieza un regalo nuevo, o `null` («Idea»).
   final GiftStatus? status;
   final bool chooseRecipient;
+
+  /// Lo que se llama si, en un regalo nuevo, se elige a la persona de este
+  /// móvil (solo deseos): ver `GiftEditorScreen.onOwnPerson`.
+  final void Function(String personId, VisibleWishPatch draft)? onOwnPerson;
 
   final Completer<String?> _done = Completer<String?>();
 }
@@ -101,6 +107,7 @@ class GiftEditorPanelController extends ChangeNotifier {
     String? giverId,
     GiftStatus? status,
     bool chooseRecipient = false,
+    void Function(String personId, VisibleWishPatch draft)? onOwnPerson,
   }) {
     final previous = _request;
     if (previous != null && !previous._done.isCompleted) {
@@ -114,6 +121,7 @@ class GiftEditorPanelController extends ChangeNotifier {
       giverId: giverId,
       status: status,
       chooseRecipient: chooseRecipient,
+      onOwnPerson: onOwnPerson,
     );
     _request = next;
     notifyListeners();

@@ -187,6 +187,12 @@ class SyncController extends Notifier<SyncStatus> {
 
   FamilyController get _family => ref.read(familyControllerProvider.notifier);
 
+  Future<T> _withLoadedFamilyLock<T>(Future<T> Function() action) async {
+    // Loading the controller can take the lock to retire deleted scopes.
+    await familySnapshot(ref);
+    return ref.read(v2FamilyLockProvider).run(action);
+  }
+
   SyncTiming get _timing => ref.read(syncTimingProvider);
 
   @override
@@ -914,7 +920,7 @@ class SyncController extends Notifier<SyncStatus> {
     final prefs = ref.read(sharedPreferencesProvider);
     var generationChanged = false;
     try {
-      await ref.read(v2FamilyLockProvider).run(() async {
+      await _withLoadedFamilyLock(() async {
         // Otro emparejamiento ya ha empezado: la lista le hace falta.
         if (_v2Pairing || !ref.mounted) return;
         final local = await AppSyncV2Local.load(ref);
@@ -1667,7 +1673,7 @@ class SyncController extends Notifier<SyncStatus> {
     bool selfWaitAccepted = true,
   }) async {
     await _running;
-    return ref.read(v2FamilyLockProvider).run(() async {
+    return _withLoadedFamilyLock(() async {
       final v2 = await AppSyncV2Local.load(ref);
       final transport = ref.read(syncV2TransportProvider);
       if (v2 == null || transport == null) {
@@ -1705,7 +1711,7 @@ class SyncController extends Notifier<SyncStatus> {
     String deviceId,
   ) async {
     await _running;
-    return ref.read(v2FamilyLockProvider).run(() async {
+    return _withLoadedFamilyLock(() async {
       final v2 = await AppSyncV2Local.load(ref);
       if (v2 == null) throw SyncNotReadyException(state);
       return device_actions.previewRemoval(local: v2, deviceId: deviceId);
@@ -1726,7 +1732,7 @@ class SyncController extends Notifier<SyncStatus> {
     final transport = ref.read(syncV2TransportProvider);
     await _running;
     try {
-      return await ref.read(v2FamilyLockProvider).run(() async {
+      return await _withLoadedFamilyLock(() async {
         final v2 = await AppSyncV2Local.load(ref);
         if (v2 == null || transport == null) {
           throw SyncNotReadyException(state);
@@ -2023,7 +2029,7 @@ class SyncController extends Notifier<SyncStatus> {
         } else if (event is SyncRevokedEvent) {
           // v2: han revocado este móvil. Deja de escuchar y de subir.
           _closeWatch();
-          await ref.read(v2FamilyLockProvider).run(() async {
+          await _withLoadedFamilyLock(() async {
             final local = await AppSyncV2Local.load(ref);
             if (local != null && local.identity.syncId == v2Auth?.syncId) {
               await _markRemoved(local);

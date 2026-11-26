@@ -25,6 +25,7 @@ import '../../../core/sync/model.dart';
 import '../../../core/theme/occasion_theme.dart';
 import '../../../core/theme/regalos_shape.dart';
 import '../../../core/theme/regalos_tokens.dart';
+import '../../../core/widgets/count_text.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/header_button.dart';
 import '../../../core/widgets/pane_list_row.dart';
@@ -226,6 +227,7 @@ class _OccasionsScreenState extends ConsumerState<OccasionsScreen> {
     );
     final now = clock.now();
     final ordered = occasionsByDaysLeft(occasions, now, includePassed: true);
+    final wishCounts = ref.watch(freeWishCountsProvider);
 
     final addButton = HeaderIconButton(
       icon: AppIcons.plus,
@@ -263,6 +265,7 @@ class _OccasionsScreenState extends ConsumerState<OccasionsScreen> {
                     giftCountValue: view.gifts
                         .where((g) => g.occasionId == o.id)
                         .length,
+                    wishCountValue: wishCounts.ofOccasion(o.id),
                     now: now,
                     panes: panes,
                     selected: panes && o.id == selectedId,
@@ -457,6 +460,7 @@ class _OccasionRow extends ConsumerWidget {
     required this.occasion,
     required this.title,
     required this.giftCountValue,
+    required this.wishCountValue,
     required this.now,
     this.panes = false,
     this.selected = false,
@@ -465,6 +469,9 @@ class _OccasionRow extends ConsumerWidget {
   final Occasion occasion;
   final String title;
   final int giftCountValue;
+
+  /// Los deseos sin coger de la ocasión, aparte de los regalos.
+  final int wishCountValue;
   final DateTime now;
 
   /// Si es una fila del panel de lista de dos paneles: tocarla cambia la
@@ -494,7 +501,8 @@ class _OccasionRow extends ConsumerWidget {
         : (days == 0
               ? l10n.occasionDaysLeft(0)
               : '$days ${l10n.daysUnit(days)}');
-    final giftsText = l10n.giftCount(giftCountValue);
+    // Una ocasión que solo tiene deseos dice cuántos, no «Sin regalos».
+    final giftsText = giftsAndWishesText(l10n, giftCountValue, wishCountValue);
     final spoken = [
       date,
       days == null ? l10n.occasionPassed : l10n.occasionDaysLeft(days),
@@ -549,7 +557,9 @@ class _OccasionRow extends ConsumerWidget {
           Text(' · ', style: t.styles.meta),
           _Rolling(
             text: giftsText,
-            value: giftCountValue > 0 ? giftCountValue : null,
+            value: wishCountValue == 0 && giftCountValue > 0
+                ? giftCountValue
+                : null,
             style: t.styles.meta,
             alignment: Alignment.centerLeft,
           ),

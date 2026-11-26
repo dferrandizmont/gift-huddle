@@ -8,6 +8,7 @@ import '../../../core/sync/pairing_v2.dart'
     show syncProtocolOf, kSyncProtocolV2;
 import '../../../core/sync/protected_doc.dart';
 import '../../../core/sync/protected_envelope.dart';
+import '../../../core/sync/wish_plan.dart';
 import '../../sync/application/sync_controller.dart'
     show localRegistryReadProvider, localRegistryViewProvider;
 import '../../sync/data/sync_transport_v2.dart' show kV2MaxSlotsPerWriter;
@@ -248,6 +249,31 @@ final projectedFamilyDocProvider = Provider<FamilyDoc>((ref) {
   );
 });
 
+/// Los planes vivos de los deseos de las personas cuyo bloque abre este móvil
+/// (ADR 0010), por id de deseo. Vacío en los móviles de la propia persona y
+/// mientras no hay proyección: nunca hay un «cogido» que enseñar a quien no
+/// puede abrir el bloque.
+final projectedPlansByWishProvider = Provider<Map<String, List<WishPlan>>>(
+  (ref) =>
+      ref.watch(_paintedProjectionProvider)?.plansByWish ??
+      const <String, List<WishPlan>>{},
+);
+
+/// Los regalos que la proyección autorizada ha creado a partir de planes.
+final projectedPlanGiftIdsProvider = Provider<Set<String>>(
+  (ref) => ref.watch(_paintedProjectionProvider)?.planGiftIds ?? const {},
+);
+
+/// Los deseos de [person] con el estado que les dan los planes
+/// (`available`, `claimed`, `conflictingClaims`, `removedFromList`), solo si
+/// este móvil puede abrir su bloque. En los móviles de la propia persona
+/// siempre está vacío: sus proveedores nunca llevan esos estados.
+final wishPlanRowsProvider = Provider.family<List<WishPlanRow>, String>(
+  (ref, person) =>
+      ref.watch(_paintedProjectionProvider)?.wishPlanRowsFor(person) ??
+      const <WishPlanRow>[],
+);
+
 /// Solo la web (1.0.6, ADR 0009): los regalos con cambios que esperan a que
 /// los recoja el móvil de su persona («Pendiente de tu móvil»).
 final webPendingSecretGiftIdsProvider = Provider<Set<String>>((ref) {
@@ -274,8 +300,11 @@ final secretBlocksProvider = Provider<List<SecretBlock>>((ref) {
   // La web (1.0.6): lo que abre no es un bloque.
   final opened =
       ref.read(familyStoreProvider).openedSecretPeople ?? const <String>{};
+  // El bloque fijo de la propia persona (ADR 0010, decisión 5) no depende de
+  // lo que haya dentro ni de si la persona está archivada: sale de la capa de
+  // pantalla.
   final people = [
-    for (final person in family.view.recipients)
+    for (final person in family.view.allRecipientsById.values)
       if ((published[person.id]?.hideOwnGifts == true &&
               !opened.contains(person.id)) ||
           own.contains(person.id))

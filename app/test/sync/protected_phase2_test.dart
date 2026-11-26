@@ -1475,6 +1475,7 @@ void main() {
       );
       expect(rotation.purgedPeople, isEmpty);
       expect(rotation.frozenPeople, ['nora']);
+      expect(rotation.keyring.people, {'nora'});
     });
 
     test('pasar a ser de Nora sí purga', () async {

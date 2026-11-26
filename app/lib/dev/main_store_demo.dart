@@ -5,14 +5,22 @@
 //
 // `--dart-define=DEMO_LOCALE=es|ca|en` fija el idioma (y el de los datos); el
 // tema sigue al del sistema (`adb shell cmd uimode night yes|no`).
+import 'dart:io' show File;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:regalos/app/app.dart';
 import 'package:regalos/app/licenses.dart';
 import 'package:regalos/core/prefs/shared_preferences_provider.dart';
 import 'package:regalos/core/sync/model.dart';
+import 'package:regalos/core/sync/wish.dart';
+import 'package:regalos/core/sync/wish_plan.dart';
 import 'package:regalos/features/family/application/family_controller.dart';
+import 'package:regalos/features/family/application/protection_providers.dart';
+import 'package:regalos/features/family/application/wish_providers.dart';
 import 'package:regalos/features/family/data/device_keys_store.dart';
 import 'package:regalos/features/family/data/storage_memory.dart';
 import 'package:regalos/features/family/data/storage_providers.dart';
@@ -21,12 +29,38 @@ import 'package:regalos/features/settings/application/appearance_provider.dart';
 import 'package:regalos/features/sync/data/sync_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-const String _lang = String.fromEnvironment('DEMO_LOCALE', defaultValue: 'es');
+const String _defineLang = String.fromEnvironment(
+  'DEMO_LOCALE',
+  defaultValue: 'es',
+);
 
-/// `--dart-define=DEMO_LOCK=true`: la app arranca bloqueada con un PIN de
-/// muestra (para la captura de privacidad: la pantalla de bloqueo no enseña
-/// ningún dato de la familia).
-const bool _lock = bool.fromEnvironment('DEMO_LOCK');
+/// Con un solo binario para todos los idiomas (capturas de iOS): el simulador
+/// lee dos ficheros sueltos de la carpeta Documents de la app (`demo_locale`,
+/// con `es`, `ca` o `en`, y `demo_lock`, con `true`), que el script de capturas
+/// escribe antes de lanzarla (`Platform.environment` llega vacío en iOS). El
+/// `--dart-define` manda si se da.
+final Map<String, String> _flags = {};
+
+Future<void> _loadFlags() async {
+  if (kIsWeb) return;
+  final dir = await getApplicationDocumentsDirectory();
+  for (final name in const ['demo_locale', 'demo_lock']) {
+    final file = File('${dir.path}/$name');
+    if (file.existsSync()) _flags[name] = file.readAsStringSync().trim();
+  }
+}
+
+String get _lang {
+  if (_defineLang != 'es') return _defineLang;
+  final value = _flags['demo_locale'];
+  return value == 'ca' || value == 'en' ? value! : _defineLang;
+}
+
+/// `--dart-define=DEMO_LOCK=true` (o el fichero `demo_lock`): la app arranca
+/// bloqueada con un PIN de muestra (para la captura de privacidad: la pantalla
+/// de bloqueo no enseña ningún dato de la familia).
+const bool _defineLock = bool.fromEnvironment('DEMO_LOCK');
+bool get _lock => _defineLock || _flags['demo_lock'] == 'true';
 
 int get _i => _lang == 'ca' ? 1 : (_lang == 'en' ? 2 : 0);
 
@@ -40,6 +74,7 @@ const Map<String, List<String>> _giverNames = {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await _loadFlags();
   registerAppLicenses();
   // ignore: invalid_use_of_visible_for_testing_member
   SharedPreferences.setMockInitialValues({
@@ -58,6 +93,10 @@ Future<void> main() async {
         DeviceKeysStore(MemorySecretStore(), enabled: true),
       ),
       fileStoreProvider.overrideWithValue(MemoryFileStore()),
+      // Un móvil sin protección no tiene planes de deseos: se enseña la lista
+      // de Nora como la ve el móvil de otra persona (un deseo ya cogido por
+      // Aritz y el resto libres, con «Lo regalo yo»).
+      wishPlanRowsProvider.overrideWith(_wishRows),
     ],
   );
   await _seed(container);
@@ -351,6 +390,7 @@ Future<void> _seed(ProviderContainer container) async {
       occasion: 'birthday-nora',
       status: GiftStatus.decided,
       planned: 3600,
+      surprise: true,
     ),
     gift(
       'g19',
@@ -443,6 +483,7 @@ Future<void> _seed(ProviderContainer container) async {
   for (final g in gifts) {
     await c.upsertGift(g);
   }
+  await _seedWishes(c);
   final lock = container.read(lockControllerProvider.notifier);
   if (_lock) {
     await lock.setPin('2468');
@@ -450,4 +491,124 @@ Future<void> _seed(ProviderContainer container) async {
   } else {
     await lock.skipSetup();
   }
+}
+
+/// Deseos de Nora (ADR 0010, 1.0.7), en [es, ca, en].
+const _kiteTitle = ['Cometa de colores', 'Estel de colors', 'Colourful kite'];
+
+const _planGiftId = 'gwish-kite';
+
+/// Los apunta Nora desde su móvil (un móvil sin emparejar, por el atajo de un
+/// solo teléfono) y se quita su «Yo» al acabar: el móvil de muestra no es de
+/// nadie. El deseo [_kiteTitle] lo ha cogido Aritz: su plan es un regalo más
+/// de la lista (como lo trae la proyección en un móvil real).
+Future<void> _seedWishes(FamilyController c) async {
+  Future<void> wish(
+    List<String> title, {
+    String? occasion,
+    List<String>? size,
+    List<String>? description,
+  }) async {
+    final write = await c.createOwnWish(
+      VisibleWishPatch(
+        title: title[_i],
+        year: 2026,
+        occasionId: occasion,
+        size: size?[_i],
+        description: description?[_i],
+      ),
+    );
+    if (!write.ok) throw StateError('wish not saved: ${write.error}');
+  }
+
+  await c.setSelfRecipient('nora');
+  await wish(
+    [
+      'Bicicleta con ruedines',
+      'Bicicleta amb rodetes',
+      'Bike with training wheels',
+    ],
+    occasion: 'birthday-nora',
+    description: [
+      'Rueda de 14 pulgadas',
+      'Roda de 14 polzades',
+      '14-inch wheels',
+    ],
+  );
+  await wish(
+    ['Botas de agua amarillas', 'Botes d\'aigua grogues', 'Yellow rain boots'],
+    occasion: 'seed-santa',
+    size: const ['28', '28', '28'],
+  );
+  await wish([
+    'Set de instrumentos musicales',
+    'Joc d\'instruments musicals',
+    'Musical instrument set',
+  ], occasion: 'birthday-nora');
+  await wish([
+    'Prismáticos de explorador',
+    'Prismàtics d\'explorador',
+    'Explorer binoculars',
+  ], occasion: 'birthday-nora');
+  await wish(_kiteTitle, occasion: 'birthday-nora');
+  await wish([
+    'Libro «El monstruo de colores»',
+    'Llibre «El monstre de colors»',
+    'Book «The Colour Monster»',
+  ]);
+  await c.setSelfRecipient(null);
+
+  await c.upsertGift(
+    Gift(
+      id: _planGiftId,
+      recipientId: 'nora',
+      title: _kiteTitle[_i],
+      giverId: 'us',
+      occasionId: 'birthday-nora',
+      status: GiftStatus.bought,
+      rawStatus: GiftStatus.bought.name,
+      plannedCents: 1400,
+      actualCents: 1290,
+      store: const [
+        'Juguetería del barrio',
+        'Joguina del barri',
+        'Local toy shop',
+      ][_i],
+      surprise: false,
+      year: 2026,
+    ),
+  );
+}
+
+/// La fila de cada deseo de [person]: el de la cometa, cogido por Aritz; los
+/// demás, libres.
+List<WishPlanRow> _wishRows(Ref ref, String person) {
+  final rows = <WishPlanRow>[];
+  for (final wish in ref.watch(visibleWishesForProvider(person))) {
+    final taken = wish.title == _kiteTitle[_i];
+    rows.add(
+      WishPlanRow(
+        recipientId: person,
+        sourceWishId: wish.id,
+        state: taken ? WishPlanState.claimed : WishPlanState.available,
+        wish: wish,
+        plans: taken
+            ? [
+                WishPlan(
+                  planId: _planGiftId,
+                  recipientId: person,
+                  sourceWishId: wish.id,
+                  claimantPersonId: 'aritz',
+                  title: wish.title,
+                  giverId: 'us',
+                  status: GiftStatus.bought,
+                  plannedCents: 1400,
+                  actualCents: 1290,
+                ),
+              ]
+            : const <WishPlan>[],
+      ),
+    );
+  }
+  return rows;
 }

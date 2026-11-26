@@ -66,7 +66,9 @@ void main() {
       expect(find.text('0 · 2 · 2'), findsOneWidget); // Nora
       expect(find.text('2 · 0 · 3'), findsOneWidget); // Aritz
       expect(
-        find.bySemanticsLabel('Regalos para Nora por ocasión: Tió 0, Navidad 2, Reyes 2'),
+        find.bySemanticsLabel(
+          'Regalos para Nora por ocasión: Tió 0, Navidad 2, Reyes 2',
+        ),
         findsOneWidget,
       );
 
@@ -159,7 +161,10 @@ void main() {
     await pumpRegalos(tester, phone);
     await openOccasions(tester);
     await tapText(tester, 'Presupuesto de la casa');
-    expect(find.textContaining('Puedes poner un presupuesto en cada ocasión'), findsOneWidget);
+    expect(
+      find.textContaining('Puedes poner un presupuesto en cada ocasión'),
+      findsOneWidget,
+    );
     expect(find.text(eur('450 €')), findsWidgets); // presupuesto
     // Solo las ocasiones con presupuesto; los 24 € de Tió van aparte.
     expect(find.text(eur('145,49 €')), findsWidgets); // gastado
@@ -197,7 +202,10 @@ void main() {
     await pumpRegalos(tester, phone);
     phone.container.read(routerProvider).go('/occasions/budget');
     await settle(tester);
-    expect(find.textContaining('Activa «Paga la casa»'), findsOneWidget);
+    expect(
+      find.textContaining('Activa «Cuenta como gasto de casa»'),
+      findsOneWidget,
+    );
   });
 
   screenTest(

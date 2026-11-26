@@ -77,6 +77,17 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('Guardado'), findsOneWidget);
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(Scaffold).first),
+        );
+        expect(
+          find.text(l10n.webRecipientDeleteRejected),
+          findsOneWidget,
+        );
+        expect(
+          find.text(l10n.devicePersonBlockedOtherBody('Nora')),
+          findsOneWidget,
+        );
         expect(
           find.text('Pendiente de confirmación desde un móvil'),
           findsNothing,
@@ -89,6 +100,8 @@ void main() {
           status: WebSyncStatus.confirmed,
           hasRoots: true,
           setAsideChanges: 2,
+          rejectedSecretRecipientDeletes: 1,
+          rejectedDevicePersonNames: ['Nora'],
           persistenceDenied: false,
         ),
       ),

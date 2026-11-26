@@ -14,7 +14,35 @@ class DeleteImpact {
     this.hasLinkedGiver = false,
     this.linkedPersonExists = false,
     this.paysFromHousehold = false,
+    this.affectedPlanIds = const [],
+    this.affectedWishIds = const [],
   });
+
+  /// Planes de deseos (ADR 0010) de los bloques secretos que este móvil
+  /// puede abrir y que la eliminación borra (los de la persona) o deja sin
+  /// quién regala (los del regalador). Se cuentan como los regalos.
+  final List<String> affectedPlanIds;
+
+  /// Cuántos planes de deseos afecta.
+  int get plans => affectedPlanIds.length;
+
+  /// Deseos visibles de la persona, de todos los años.
+  final List<String> affectedWishIds;
+
+  int get wishes => affectedWishIds.length;
+
+  /// Este impacto con los planes [ids] (de los ámbitos que este móvil abre).
+  DeleteImpact withPlans(List<String> ids) => DeleteImpact._(
+    affectedGifts: affectedGifts,
+    affectedAliases: affectedAliases,
+    requestedGifts: requestedGifts,
+    hasBirthday: hasBirthday,
+    hasLinkedGiver: hasLinkedGiver,
+    linkedPersonExists: linkedPersonExists,
+    paysFromHousehold: paysFromHousehold,
+    affectedPlanIds: List.unmodifiable(ids),
+    affectedWishIds: affectedWishIds,
+  );
 
   /// Si hay regalos de otras personas que había pedido esta persona: al
   /// eliminarla se borra quién los pidió.
@@ -39,12 +67,14 @@ class DeleteImpact {
   final List<Gift> affectedGifts;
   final List<Giver> affectedAliases;
 
-  /// Confirm against the same aliases and gifts regardless of their ordering.
+  /// Confirm against the same records regardless of their ordering.
   bool matches(DeleteImpact other) =>
       hasBirthday == other.hasBirthday &&
       hasLinkedGiver == other.hasLinkedGiver &&
       linkedPersonExists == other.linkedPersonExists &&
       paysFromHousehold == other.paysFromHousehold &&
+      _sameIds(affectedPlanIds, other.affectedPlanIds) &&
+      _sameIds(affectedWishIds, other.affectedWishIds) &&
       _sameIds(
         affectedAliases.map((g) => g.id),
         other.affectedAliases.map((g) => g.id),
@@ -67,6 +97,10 @@ class DeleteImpact {
         affectedGifts: List.unmodifiable(
           full.allGifts.where((gift) => gift.recipientId == id),
         ),
+        affectedWishIds: List.unmodifiable([
+          for (final wish in full.allVisibleWishes)
+            if (wish.recipientId == id) wish.id,
+        ]),
         hasLinkedGiver: full.giverForPerson(id) != null,
         hasBirthday: full.occasions.any(
           (o) => o.kind == OccasionKind.birthday && o.recipientId == id,

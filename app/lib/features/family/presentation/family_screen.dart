@@ -690,6 +690,7 @@ class _FamilyScreenState extends ConsumerState<FamilyScreen> {
                         web: ref.watch(webAppProvider),
                         excluded: excluded,
                         secret: ref.watch(lockedPeopleProvider),
+                        ownHidden: ref.watch(ownHiddenPeopleProvider),
                         skipLabels: skipLabels,
                         excludedText: excludedText,
                         outside: grid.outsideReparto,

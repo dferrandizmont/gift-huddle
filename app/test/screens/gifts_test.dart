@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/core/sync/model.dart';
-import 'package:regalos/features/family/application/family_controller.dart';
 
 import '../helpers/screens.dart';
 
@@ -213,7 +212,10 @@ void main() {
     );
     await tapText(tester, 'Guardar');
     expect(find.text('Posible duplicado'), findsOneWidget);
-    expect(find.textContaining('Puede que este regalo ya esté en la lista'), findsOneWidget);
+    expect(
+      find.textContaining('Puede que este regalo ya esté en la lista'),
+      findsOneWidget,
+    );
 
     // Revisar vuelve al editor sin guardar.
     await tapText(tester, 'Revisar');
@@ -290,11 +292,7 @@ void main() {
     await scrollTo(tester, find.text('Eliminar regalo'));
     await tapText(tester, 'Eliminar regalo');
     await tapText(tester, 'Eliminar');
-    await tester.runAsync(
-      () => phone.container
-          .read(familyControllerProvider.notifier)
-          .flushPendingDeletes(),
-    );
+    await flushDeletes(tester, phone);
     state = await familyState(tester, phone);
     expect(state.hiddenGiftIds, isEmpty);
     expect(state.doc.record('gifts', 'g5')!.isDeleted, isTrue);

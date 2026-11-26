@@ -7,6 +7,7 @@ import 'package:regalos/core/sync/access_policy.dart';
 import 'package:regalos/core/sync/family_doc.dart';
 import 'package:regalos/core/sync/model.dart';
 import 'package:regalos/core/sync/protected_doc.dart';
+import 'package:regalos/core/sync/wish_plan.dart' show WishPlanError;
 import 'package:regalos/core/widgets/section_header.dart';
 import 'package:regalos/features/family/application/family_controller.dart';
 import 'package:regalos/features/family/application/family_providers.dart';
@@ -120,6 +121,14 @@ class _OtherOwnerFamily extends FamilyController {
         recipientId: id,
         owner: DevicePersonOwner.otherDevice,
       );
+}
+
+/// Eliminar a quien regala lo rechaza la cascada: algún móvil de la familia
+/// con derecho a un bloque aún no entiende los planes de deseos.
+class _OldDevicesFamily extends FamilyController {
+  @override
+  Future<void> deleteGiverAlias(String id, {DeleteImpact? expectedImpact}) =>
+      throw WishPlanError.devicesNeedUpdate;
 }
 
 /// Una proyección autorizada a medida: Aritz protegido (con `hideOwnGifts`),
@@ -247,7 +256,10 @@ void main() {
       await pumpRegalos(tester, phone);
       await _openEditor(tester);
       await _openGiverPicker(tester);
-      expect(find.text('Volverá a la lista de quienes regalan'), findsOneWidget);
+      expect(
+        find.text('Volverá a la lista de quienes regalan'),
+        findsOneWidget,
+      );
       await _tapLast(tester, 'Nora');
       await tapText(tester, 'Guardar');
 
@@ -270,11 +282,11 @@ void main() {
 
         // Elegirla no la asigna: explica por qué y deja cancelar sin crear nada.
         await _tapLast(tester, 'Nora');
-        expect(find.text('¿Añadir a Nora a la lista de quienes regalan?'), findsOneWidget);
         expect(
-          find.textContaining('Primero, añade a '),
+          find.text('¿Añadir a Nora a la lista de quienes regalan?'),
           findsOneWidget,
         );
+        expect(find.textContaining('Primero, añade a '), findsOneWidget);
         await _cancelDialog(tester);
         var state = await familyState(tester, phone);
         expect(state.view.giverForPerson('nora'), isNull);
@@ -412,7 +424,10 @@ void main() {
           find.bySemanticsLabel('Nora. Primero se añade a quienes regalan'),
         );
         await settle(tester);
-        expect(find.text('¿Añadir a Nora a la lista de quienes regalan?'), findsOneWidget);
+        expect(
+          find.text('¿Añadir a Nora a la lista de quienes regalan?'),
+          findsOneWidget,
+        );
         await _cancelDialog(tester);
         var state = await familyState(tester, phone);
         expect(state.view.giverForPerson('nora'), isNull);
@@ -504,7 +519,9 @@ void main() {
 
         expect(find.text('¿Eliminar a Nosotros?'), findsOneWidget);
         expect(
-          find.textContaining('Sus 4 regalos seguirán en la lista sin nadie asignado en «Quién regala».'),
+          find.textContaining(
+            'Sus 4 regalos seguirán en la lista sin nadie asignado en «Quién regala».',
+          ),
           findsOneWidget,
         );
         expect(
@@ -531,7 +548,9 @@ void main() {
           findsOneWidget,
         );
         expect(
-          find.textContaining('Sus 5 regalos seguirán en la lista sin nadie asignado en «Quién regala».'),
+          find.textContaining(
+            'Sus 5 regalos seguirán en la lista sin nadie asignado en «Quién regala».',
+          ),
           findsOneWidget,
         );
         expect(find.textContaining('«Patinete»'), findsOneWidget);
@@ -561,9 +580,7 @@ void main() {
         await settle(tester);
         expect(find.text('¿Eliminar a Leo?'), findsOneWidget);
         expect(
-          find.textContaining(
-            'Su nombre seguirá en «Quién regala»',
-          ),
+          find.textContaining('Su nombre seguirá en «Quién regala»'),
           findsOneWidget,
         );
         // Quien no regala no lo dice.
@@ -967,7 +984,7 @@ void main() {
     );
 
     screenTest(
-      'eliminar a la persona de otro móvil explica que tiene su propio móvil',
+      'eliminar a la persona de otro móvil explica que tiene un dispositivo conectado',
       (tester, phone) async {
         await seedSample(tester, phone);
         await pumpRegalos(tester, phone);
@@ -987,20 +1004,65 @@ void main() {
         await tester.tap(find.widgetWithText(FilledButton, 'Eliminar'));
         await settle(tester);
 
-        expect(find.text('Nora tiene su propio móvil'), findsOneWidget);
+        expect(
+          find.text('Nora tiene un dispositivo conectado'),
+          findsOneWidget,
+        );
         expect(
           find.text(
-            'Nora tiene su propio móvil en la familia, así que no se puede '
+            'Nora tiene un dispositivo conectado a la familia, así que no se puede '
             'eliminar ni archivar desde aquí.',
           ),
           findsOneWidget,
         );
         await tapText(tester, 'Entendido');
-        expect(find.text('Nora tiene su propio móvil'), findsNothing);
+        expect(find.text('Nora tiene un dispositivo conectado'), findsNothing);
         expect(tester.takeException(), isNull);
       },
       size: _tall,
       overrides: [familyControllerProvider.overrideWith(_OtherOwnerFamily.new)],
+    );
+
+    screenTest(
+      '9: eliminar a quien regala, rechazado porque algún móvil necesita la '
+      'última versión, lo dice con su motivo y no pide reintentar',
+      (tester, phone) async {
+        await seedSample(tester, phone);
+        await pumpRegalos(tester, phone);
+        await tester.tap(find.text('Ajustes').last);
+        await settle(tester);
+        await tapText(tester, 'Quién regala');
+        await tester.tap(
+          find.descendant(
+            of: find.ancestor(
+              of: find.text('Nosotros'),
+              matching: find.byType(ManageRow),
+            ),
+            matching: find.widgetWithText(TextButton, 'Eliminar'),
+          ),
+        );
+        await settle(tester);
+        await tester.tap(find.widgetWithText(FilledButton, 'Eliminar'));
+        await settle(tester);
+
+        expect(
+          find.text(
+            'Para eliminar esto, todos los móviles de la familia necesitan la '
+            'última versión.',
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.text('No se ha podido eliminar. Inténtalo de nuevo.'),
+          findsNothing,
+        );
+        // No se ha borrado nada.
+        final state = await familyState(tester, phone);
+        expect(state.view.givers.map((g) => g.id), contains('us'));
+        expect(tester.takeException(), isNull);
+      },
+      size: _tall,
+      overrides: [familyControllerProvider.overrideWith(_OldDevicesFamily.new)],
     );
   });
 

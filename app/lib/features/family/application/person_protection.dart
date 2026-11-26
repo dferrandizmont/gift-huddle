@@ -1,10 +1,14 @@
 part of 'family_controller.dart';
 
-/// People represented by another active mobile in the verified registry.
-Set<String> otherMobilePeople(RegistryView? view) => Set.unmodifiable({
+/// An approved web can keep its person after the phone that vouched for it
+/// changes person. Keep these recipients out of archive and delete actions.
+Set<String> otherActiveDevicePeople(
+  RegistryView? view, {
+  String? excludingDevice,
+}) => Set.unmodifiable({
   if (view != null)
     for (final id in view.members)
-      if (id != view.me && view.member(id)!.kind == DeviceKind.mobile)
+      if (id != (excludingDevice ?? view.me))
         if (view.member(id)!.personId case final String person) person,
 });
 
@@ -142,14 +146,18 @@ class _ProtectionContext {
 /// Application actions use the v2 lock before the controller queue, in the
 /// same order as sync. The UI imports family_controller.dart for this API.
 extension PersonProtectionActions on FamilyController {
-  Future<T> _protectionSerial<T>(Future<T> Function() action) => _protectionRef
-      .read(v2FamilyLockProvider)
-      .run(
-        () => _serial(() async {
-          await _recoverProtection();
-          return action();
-        }),
-      );
+  Future<T> _protectionSerial<T>(Future<T> Function() action) async {
+    await _current();
+    return _protectionRef
+        .read(v2FamilyLockProvider)
+        .run(
+          () => _serial(() async {
+            await _recoverProtection();
+            await _resumeRecipientPurge();
+            return action();
+          }),
+        );
+  }
 
   Future<void> _recoverProtection() async {
     if (!await _store.recoverProtectionOperation()) return;
@@ -160,7 +168,7 @@ extension PersonProtectionActions on FamilyController {
       FamilyState(
         doc: saved.doc,
         identity: saved.identity,
-        otherDevicePeople: await _readOtherMobilePeople(saved.doc),
+        otherDevicePeople: await _readOtherActiveDevicePeople(saved.doc),
       ),
     );
   }
@@ -224,8 +232,7 @@ extension PersonProtectionActions on FamilyController {
         view: null,
         selfRecipientId: identity?.selfRecipientId,
         paired:
-            (identity?.paired ?? false) ||
-            current.otherDevicePeople.isNotEmpty,
+            (identity?.paired ?? false) || current.otherDevicePeople.isNotEmpty,
         formerSelf: identity?.formerSelf ?? const <String>{},
       );
       return FamilyView.fromDoc(
@@ -299,6 +306,9 @@ extension PersonProtectionActions on FamilyController {
     var slots = ctx.slots;
     final scopes = <String, Map<String, Object?>>{};
     for (final person in ctx.keyring.people) {
+      if (after.record(Collections.recipients, person)?.isDeleted == true) {
+        continue; // The entire local scope is retired once the common is saved.
+      }
       final opened = await openScope(
         personId: person,
         slots: ctx.slots,
@@ -319,6 +329,20 @@ extension PersonProtectionActions on FamilyController {
       final changedPending = changeGifts(withPending, clock);
       if (identical(changed, scope) && identical(changedPending, withPending)) {
         continue;
+      }
+      // The cascade commits all scopes and the common together, so a plan
+      // blocked by an older reader rejects the entire operation.
+      if (_live(scope, ScopeCollections.wishPlans).any(
+            (plan) => !identical(
+              changed.record(ScopeCollections.wishPlans, plan.id),
+              plan,
+            ),
+          ) &&
+          !wishPlansAllowed([
+            for (final device in ctx.view.entitledDevices(person))
+              if (device != ctx.view.me) opened.parts[device],
+          ])) {
+        throw WishPlanError.devicesNeedUpdate;
       }
       final remaining = [
         for (final record in pending)
@@ -672,11 +696,22 @@ extension PersonProtectionActions on FamilyController {
       final records = result.scope.collections[Collections.gifts] ?? const {};
       final live = records.values.where((r) => !r.isDeleted).toList()
         ..sort((a, b) => a.id.compareTo(b.id));
-      final excess = live.skip(kMaxSurpriseGifts).map((r) => r.id).toSet();
+      // Gifts and wish plans share the pool: plans are never dropped, so
+      // the gifts get what the plans leave (overflow stays local).
+      final room = kMaxSurpriseGifts - liveWishPlans(result.scope);
+      final excess = live.skip(room < 0 ? 0 : room).map((r) => r.id).toSet();
       capacityOverflow.addAll(live.where((r) => excess.contains(r.id)));
-      nextScope = _recordsDoc(
-        current.doc.listId,
-        records.values.where((r) => !excess.contains(r.id)),
+      // Keep every other scope collection (wish plans) as the transition
+      // returned it: only the gifts over the interface cap move out.
+      nextScope = FamilyDoc(
+        listId: current.doc.listId,
+        collections: {
+          ...result.scope.collections,
+          Collections.gifts: {
+            for (final r in records.values)
+              if (!excess.contains(r.id)) r.id: r,
+          },
+        },
       );
     }
     await _saveProtected(ctx, person, result.common, nextScope, result.policy, [
@@ -1320,7 +1355,7 @@ extension PersonProtectionActions on FamilyController {
       ctx = await _protectionContext(current.doc);
       if (ctx == null) return false;
     }
-    final otherPeople = otherMobilePeople(ctx.view);
+    final otherPeople = otherActiveDevicePeople(ctx.view);
     if (otherPeople.length != current.otherDevicePeople.length ||
         !otherPeople.containsAll(current.otherDevicePeople)) {
       _protectionState = AsyncData(
@@ -1451,6 +1486,353 @@ extension PersonProtectionActions on FamilyController {
     return changed;
   });
 
+  // ----------------------------------------------- deseos visibles (ADR 0010)
+
+  /// Apunta un deseo para la persona de este móvil. Solo escribe en
+  /// `wishes`; el autor sale del registro de móviles en este momento.
+  Future<WishWrite> createOwnWish(VisibleWishPatch patch, {String? id}) =>
+      _wishWrite(
+        (doc, clock, ctx) => doc.createOwnWish(clock, ctx, patch, id: id),
+      );
+
+  /// Sugiere un deseo visible para [recipientId] («Visible para ...»): lo
+  /// crea quien lo apunta y desde entonces solo [recipientId] lo edita.
+  Future<WishWrite> suggestVisibleWish(
+    String recipientId,
+    VisibleWishPatch patch, {
+    String? id,
+  }) => _wishWrite(
+    (doc, clock, ctx) =>
+        doc.suggestVisibleWish(clock, ctx, recipientId, patch, id: id),
+  );
+
+  /// Cambia el contenido visible de un deseo. Solo su persona; otra recibe
+  /// `notWishOwner` sin escribir nada.
+  Future<WishWrite> editVisibleWish(String wishId, VisibleWishPatch patch) =>
+      _wishWrite(
+        (doc, clock, ctx) => doc.editVisibleWish(clock, ctx, wishId, patch),
+      );
+
+  /// Quita un deseo de la lista de su persona. Los planes de otros siguen
+  /// con la copia que cogieron.
+  Future<WishWrite> removeWish(String wishId) =>
+      _wishWrite((doc, clock, ctx) => doc.removeWish(clock, ctx, wishId));
+
+  Future<WishWrite> _wishWrite(
+    WishWrite Function(FamilyDoc doc, HlcClock clock, WishContext ctx) op,
+  ) => _protectionSerial(() async {
+    final current = await _requireFamily();
+    final doc = current.doc;
+    final ctx = await _wishContext(current);
+    final write = op(doc, _clock!, ctx);
+    if (!write.ok || identical(write.doc, doc)) return write;
+    await _store.saveDoc(write.doc);
+    _protectionState = AsyncData(
+      current.copyWith(doc: _store.savedDoc(write.doc)),
+    );
+    return write;
+  });
+
+  /// El contexto de autor de este móvil, construido en el momento de escribir
+  /// con el registro actual y la identidad de la familia (nada guardado de
+  /// antes). Un móvil v2 sin registro legible no escribe deseos.
+  Future<WishContext> _wishContext(FamilyState current) async {
+    final doc = current.doc;
+    final read = await _store.readLocalRegistry(doc);
+    if (read.snapshot case final snapshot?) {
+      return WishContext.device(
+        view: () => snapshot.view,
+        localKeys: snapshot.keys,
+      );
+    }
+    final identity = current.identity;
+    if (read.hasV2Identity || identity == null) {
+      return WishContext.singlePhone(
+        identity: () => null,
+        registry: () => null,
+        livePeople: () => const <String>{},
+      );
+    }
+    final people = livePeopleOf(doc);
+    return WishContext.singlePhone(
+      identity: () => LocalWishIdentity(
+        listId: identity.listId,
+        selfRecipientId: identity.selfRecipientId,
+        paired: identity.paired,
+      ),
+      registry: () => null,
+      livePeople: () => people,
+    );
+  }
+
+  // ------------------------------------------------ planes de deseos (ADR 0010)
+
+  /// Coge el deseo [wishId] (ADR 0010): crea un plan en el bloque secreto de
+  /// su persona, con la copia de lo visible ahora. Un reintento (con el mismo
+  /// [planId], o sin él si ya hay un plan vivo de esta persona para ese
+  /// deseo) no escribe otro. Una sola operación durable: el diario guarda el
+  /// ámbito entero antes de exponerlo, así que un cierre a medias se
+  /// reanuda sin duplicar.
+  Future<WishPlanOutcome> claimWish(
+    String wishId, {
+    String? planId,
+    String? giverId,
+  }) => _protectionSerial(() async {
+    final current = await _requireFamily();
+    final wish = current.doc.record(Collections.wishes, wishId);
+    // A tombstone has no recipient: tell removed from missing before needing it.
+    final recipient = wish?['recipientId'];
+    if (wish == null || (!wish.isDeleted && recipient is! String)) {
+      return _planFailure(current.doc, WishPlanError.wishNotFound);
+    }
+    if (wish.isDeleted) {
+      return _planFailure(current.doc, WishPlanError.wishRemoved);
+    }
+    final id = planId ?? newWishPlanId();
+    return _wishPlanWrite(
+      recipient as String,
+      (scope, clock, ctx, limits, common) => scope.claimWish(
+        clock,
+        ctx.view,
+        common,
+        wishId,
+        planId: id,
+        giverId: giverId,
+        limits: limits,
+      ),
+    );
+  });
+
+  /// Ids of the live plans, in the scopes this device can open, that deleting
+  /// [personId] (their recipient) or the givers [aliases] changes: the same
+  /// rule `_cascadeGiftReferences` applies to them.
+  Future<List<String>> _affectedPlanIds(
+    FamilyDoc doc,
+    String? personId,
+    Set<String> aliases,
+  ) async {
+    final ctx = await _protectionContext(doc);
+    if (ctx == null) return const <String>[];
+    final ids = <String>{};
+    for (final person in ctx.keyring.people) {
+      final opened = await openScope(
+        personId: person,
+        slots: ctx.slots,
+        keyring: ctx.keyring,
+        view: ctx.view,
+      );
+      if (opened == null) continue;
+      final scope = (await _store.readScope(person) ?? opened.doc).merge(
+        opened.doc,
+      );
+      for (final plan in scope.livePlans) {
+        if ((personId != null && plan.recipientId == personId) ||
+            (plan.giverId != null && aliases.contains(plan.giverId))) {
+          ids.add(plan.planId);
+        }
+      }
+    }
+    return ids.toList()..sort();
+  }
+
+  WishPlanOutcome _planFailure(
+    FamilyDoc doc,
+    WishPlanError error, {
+    ProtectedPersonReason? failure,
+  }) => WishPlanOutcome(
+    WishPlanWrite.failed(FamilyDoc.empty(doc.listId), error),
+    failure: failure,
+  );
+
+  /// Cambia campos privados del plan [planId] de [person].
+  Future<WishPlanOutcome> editWishPlan(
+    String person,
+    String planId,
+    PrivatePlanPatch patch,
+  ) => _protectionSerial(
+    () => _wishPlanWrite(
+      person,
+      (scope, clock, ctx, limits, _) =>
+          scope.editPlan(clock, ctx.view, planId, patch, limits: limits),
+      existingPlanId: planId,
+    ),
+  );
+
+  /// Suelta el plan [planId] de [person]: lápida en el bloque.
+  Future<WishPlanOutcome> releaseWishPlan(String person, String planId) =>
+      _protectionSerial(
+        () => _wishPlanWrite(
+          person,
+          (scope, clock, ctx, _, _) =>
+              scope.releasePlan(clock, ctx.view, planId),
+          existingPlanId: planId,
+        ),
+      );
+
+  /// Borra el plan [planId] de [person]: lápida en el bloque.
+  Future<WishPlanOutcome> deleteWishPlan(String person, String planId) =>
+      _protectionSerial(
+        () => _wishPlanWrite(
+          person,
+          (scope, clock, ctx, _, _) => scope.deletePlan(clock, ctx.view, planId),
+          existingPlanId: planId,
+        ),
+      );
+
+  /// El plan [planId] de [person] pasa a ser un regalo sorpresa
+  /// independiente; el deseo de [person] no se toca.
+  Future<WishPlanOutcome> convertWishPlanToSurprise(
+    String person,
+    String planId, {
+    required int year,
+    String? occasionId,
+    String? giftId,
+  }) {
+    final id = giftId ?? newPlanGiftId();
+    return _protectionSerial(
+      () => _wishPlanWrite(
+        person,
+        (scope, clock, ctx, limits, common) => scope.convertPlanToSurprise(
+          clock,
+          ctx.view,
+          planId,
+          common: common,
+          year: year,
+          occasionId: occasionId,
+          giftId: id,
+          limits: limits,
+        ),
+        existingPlanId: planId,
+      ),
+    );
+  }
+
+  /// Los deseos de [person] con el estado que les dan los planes, solo si
+  /// este móvil puede abrir su bloque; si no, nada (la propia persona no ve
+  /// ni cuenta ningún plan).
+  Future<List<WishPlanRow>> wishPlanRows(String person) async {
+    final current = await _requireFamily();
+    final ctx = await _protectionContext(current.doc);
+    if (ctx == null || !ctx.view.selfEntitled(person)) {
+      return const <WishPlanRow>[];
+    }
+    final opened = await openScope(
+      personId: person,
+      slots: ctx.slots,
+      keyring: ctx.keyring,
+      view: ctx.view,
+    );
+    if (opened == null) return const <WishPlanRow>[];
+    var scope = opened.doc;
+    final local = await _store.readScope(person);
+    if (local != null && opened.unreadableWriters.isEmpty) {
+      scope = scope.merge(local);
+    }
+    return deriveWishPlanRows(
+      common: current.doc,
+      scope: scope,
+      recipientId: person,
+    );
+  }
+
+  Future<WishPlanOutcome> _wishPlanWrite(
+    String person,
+    WishPlanWrite Function(
+      FamilyDoc scope,
+      HlcClock scopeClock,
+      _ProtectionContext ctx,
+      SlotLimits limits,
+      FamilyDoc common,
+    )
+    op, {
+    String? existingPlanId,
+  }) async {
+    _store.requireMobileOperation('wishPlans');
+    final current = await _requireFamily();
+    final ctx = await _protectionContext(current.doc);
+    if (ctx == null) {
+      return _planFailure(
+        current.doc,
+        WishPlanError.unavailable,
+        failure: ProtectedPersonReason.requiresV2,
+      );
+    }
+    final OpenedScope opened;
+    try {
+      opened = await ctx.open(person);
+    } on ProtectedPersonException catch (error) {
+      if (error.reason == ProtectedPersonReason.noEntitlement ||
+          error.reason == ProtectedPersonReason.ownRequestsRestricted) {
+        return _planFailure(current.doc, WishPlanError.notEntitled);
+      }
+      // Missing epoch key, unreadable slot...: a typed failure, not a throw.
+      return _planFailure(
+        current.doc,
+        WishPlanError.unavailable,
+        failure: error.reason,
+      );
+    }
+    final scope =
+        (await _store.readScope(person) ?? FamilyDoc.empty(current.doc.listId))
+            .merge(opened.doc);
+    final plan = existingPlanId == null
+        ? null
+        : scope.record(ScopeCollections.wishPlans, existingPlanId);
+    if (plan != null &&
+        !plan.isDeleted &&
+        plan['claimantPersonId'] != ctx.view.myPerson) {
+      return _planFailure(current.doc, WishPlanError.notClaimant);
+    }
+    // The scope clock only ever receives the public stamps; the public clock
+    // never sees a scope stamp.
+    final clock = HlcClock(
+      node: ctx.view.me,
+      last: _store.latestStoredStamp(scope),
+    );
+    final publicMax = current.doc.maxStamp;
+    if (publicMax != null) {
+      try {
+        clock.receive(publicMax);
+      } on HlcDriftException {
+        // An unreasonable public stamp does not move the scope clock.
+      }
+    }
+    // A plan only goes into a block that every other phone entitled to it
+    // announces it understands (a 1.0.6 would reject the whole block, gifts
+    // included): ADR 0010, security review A1.
+    if (!wishPlansAllowed([
+      for (final device in ctx.view.entitledDevices(person))
+        if (device != ctx.view.me) opened.parts[device],
+    ])) {
+      return _planFailure(current.doc, WishPlanError.devicesNeedUpdate);
+    }
+    // The same limits publishScope will seal with: a plan that would not be
+    // sealed is refused instead of staying out of the slot.
+    final limits = SlotLimits(
+      maxLive: slotGiftLimitFor([
+        for (final device in ctx.view.entitledDevices(person))
+          if (device != ctx.view.me) opened.parts[device],
+      ]),
+      seen: {
+        for (final e in opened.parts.entries)
+          if (e.key != ctx.view.me) e.key: e.value.header.version,
+      },
+    );
+    final write = op(scope, clock, ctx, limits, current.doc);
+    if (!write.ok || identical(write.scope, scope)) {
+      return WishPlanOutcome(write);
+    }
+    final reason = await _saveProtected(
+      ctx,
+      person,
+      current.doc,
+      write.scope,
+      opened.effective(publishedPolicy(current.doc, person)),
+      await _store.readOverflow(person),
+    );
+    return WishPlanOutcome(write, pendingReason: reason);
+  }
+
   Future<bool> _requestOwnProtection(_ProtectionContext ctx) async {
     final view = ctx.view;
     final mine = view.myPerson;
@@ -1499,4 +1881,24 @@ class PairingProtectionException implements Exception {
 
   @override
   String toString() => 'PairingProtectionException';
+}
+
+/// El resultado de una operación sobre un plan de deseo: lo que dijo el
+/// modelo y, si el cambio quedó guardado solo en este móvil (el bloque no
+/// cabe o faltan plazas), por qué.
+class WishPlanOutcome {
+  /// Crea el resultado.
+  const WishPlanOutcome(this.write, {this.pendingReason, this.failure});
+
+  /// Con [WishPlanError.unavailable], por qué no se pudo abrir el bloque.
+  final ProtectedPersonReason? failure;
+
+  /// Lo que dijo el modelo.
+  final WishPlanWrite write;
+
+  /// Con cambio hecho, por qué solo quedó en local (null si ya está sellado).
+  final ProtectedPersonReason? pendingReason;
+
+  /// Si se hizo.
+  bool get ok => write.ok;
 }

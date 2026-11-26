@@ -16,29 +16,33 @@ const List<FontFeature> _tabular = [FontFeature.tabularFigures()];
 /// los títulos grandes se aprietan un 2 %.
 @immutable
 class RegalosTextStyles {
-  RegalosTextStyles({required Color text, required Color secondary})
-    : boardTitle = _s(32, 38, FontWeight.w700, text, tight: 0.02),
-      screenTitle = _s(28, 34, FontWeight.w700, text, tight: 0.02),
-      screenTitleSmall = _s(20, 26, FontWeight.w600, text, tight: 0.01),
-      sectionTitle = _s(15, 20, FontWeight.w600, text),
-      rowTitle = _s(16, 22, FontWeight.w500, text),
-      rowTitleCompact = _s(15, 20, FontWeight.w500, text),
-      body = _s(15, 20, FontWeight.w400, text),
-      label = _s(14, 20, FontWeight.w600, text),
-      meta = _s(13, 18, FontWeight.w400, secondary),
-      metaStrong = _s(13, 18, FontWeight.w500, text),
-      caption = _s(12, 16, FontWeight.w500, secondary),
-      navLabel = _s(13, 16, FontWeight.w500, secondary),
-      stat = _s(20, 22, FontWeight.w700, text),
-      statLarge = _s(24, 28, FontWeight.w700, text),
-      amount = _s(15, 20, FontWeight.w700, text),
-      status = _s(13, 18, FontWeight.w600, text),
-      countdownTitle = _s(15, 20, FontWeight.w600, text),
-      price = _s(14, 20, FontWeight.w500, text),
-      tableTitle = _s(14, 20, FontWeight.w500, text),
-      boardSubtitle = _s(14, 20, FontWeight.w400, secondary),
-      cardTitle = _s(13, 18, FontWeight.w500, text),
-      fieldText = _s(16, 22, FontWeight.w400, text);
+  RegalosTextStyles({
+    required Color text,
+    required Color secondary,
+    Color? warning,
+  }) : boardTitle = _s(32, 38, FontWeight.w700, text, tight: 0.02),
+       screenTitle = _s(28, 34, FontWeight.w700, text, tight: 0.02),
+       screenTitleSmall = _s(20, 26, FontWeight.w600, text, tight: 0.01),
+       sectionTitle = _s(15, 20, FontWeight.w600, text),
+       rowTitle = _s(16, 22, FontWeight.w500, text),
+       rowTitleCompact = _s(15, 20, FontWeight.w500, text),
+       body = _s(15, 20, FontWeight.w400, text),
+       label = _s(14, 20, FontWeight.w600, text),
+       meta = _s(13, 18, FontWeight.w400, secondary),
+       metaStrong = _s(13, 18, FontWeight.w500, text),
+       metaWarning = _s(13, 18, FontWeight.w600, warning ?? text),
+       caption = _s(12, 16, FontWeight.w500, secondary),
+       navLabel = _s(13, 16, FontWeight.w500, secondary),
+       stat = _s(20, 22, FontWeight.w700, text),
+       statLarge = _s(24, 28, FontWeight.w700, text),
+       amount = _s(15, 20, FontWeight.w700, text),
+       status = _s(13, 18, FontWeight.w600, text),
+       countdownTitle = _s(15, 20, FontWeight.w600, text),
+       price = _s(14, 20, FontWeight.w500, text),
+       tableTitle = _s(14, 20, FontWeight.w500, text),
+       boardSubtitle = _s(14, 20, FontWeight.w400, secondary),
+       cardTitle = _s(13, 18, FontWeight.w500, text),
+       fieldText = _s(16, 22, FontWeight.w400, text);
 
   /// El título de una pantalla del tablero de la web («Hoy»): 32/38.
   final TextStyle boardTitle;
@@ -55,6 +59,11 @@ class RegalosTextStyles {
   final TextStyle label;
   final TextStyle meta;
   final TextStyle metaStrong;
+
+  /// La línea de aviso de una fila o un campo («Dos personas lo han cogido»):
+  /// 13/18 en negrita media y en el color de texto de error (`danger`, que
+  /// pasa 4,5:1 sobre el fondo y la tarjeta en claro y en oscuro).
+  final TextStyle metaWarning;
   final TextStyle caption;
   final TextStyle navLabel;
   final TextStyle stat;

@@ -1095,6 +1095,7 @@ void main() {
           deviceId: 'new-web',
           personId: 'nora',
           kind: DeviceKind.web,
+          inviteId: invite,
         );
         expect(join.registry.vouches, isEmpty);
         final answer = PairingAnswer.fromJson(join.answer.toJson());
@@ -1141,6 +1142,7 @@ void main() {
           deviceId: 'new-web',
           personId: person,
           kind: kind,
+          inviteId: invite,
         );
         expect(await bad.answer.guest.verify(), isTrue);
         await expectLater(
@@ -1155,6 +1157,7 @@ void main() {
           deviceId: 'new-web',
           personId: 'nora',
           kind: DeviceKind.web,
+          inviteId: invite,
         );
         expect(good.codeFor(await session.receive(good.answer)), session.code);
       }

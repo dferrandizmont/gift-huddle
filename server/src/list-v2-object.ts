@@ -2063,7 +2063,7 @@ export class ListV2Object extends DurableObject<Env> {
       const offer = b.offer;
       if (bytes(offer) > V2_MAX_DECLARATION_BYTES) return err(413, "too_large");
       // `PairingOffer`: the host record must be this credential's device.
-      if (!object(offer) || offer.v !== 2 || !object(offer.host) || offer.host.d !== auth.deviceId || (offer.host.k !== undefined && offer.host.k !== "web") || !key32(offer.c)) {
+      if (!object(offer) || (offer.v !== 2 && offer.v !== 3) || !object(offer.host) || offer.host.d !== auth.deviceId || (offer.host.k !== undefined && offer.host.k !== "web") || !key32(offer.c)) {
         return err(400, "bad_offer");
       }
       if (b.inviteId !== undefined && (typeof b.inviteId !== "string" || decodeB64Url(b.inviteId, 16) === null)) return err(400, "bad_request");
@@ -2238,6 +2238,14 @@ export class ListV2Object extends DurableObject<Env> {
       if (bytes(answer) > V2_MAX_DECLARATION_BYTES) return err(413, "too_large");
       if (!object(answer) || answer.v !== 2 || !object(answer.guest) || !identifier(answer.guest.d) || (answer.guest.k !== undefined && answer.guest.k !== "web") || !object(answer.vouch) || !key32(verifier)) {
         return err(400, "bad_answer");
+      }
+      // The guest signs `sv`, the verifier of the service credential it will use, inside the
+      // answer; the credential registered at approval is the one that came with the POST. They
+      // must be the same, or the signed `sv` protects nothing. Answers of 1.0.6 (offer v2 without
+      // the wish protocol `wp`) carry no `sv` and are accepted as before; an answer that declares
+      // `wp` must carry it.
+      if (answer.sv !== undefined ? answer.sv !== verifier : answer.wp !== undefined) {
+        return err(400, "verifier_mismatch");
       }
       // QA 1.0.6, m1: an answer without a person (a 1.0.5 guest, which sends "p": null) reaches the
       // host, which refuses it and tells its user to update; another person is still rejected here.

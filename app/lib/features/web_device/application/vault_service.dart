@@ -28,6 +28,7 @@ class VaultService {
     VaultCrypto? crypto,
     this.persist = requestVaultPersistence,
     this.revokeSelf,
+    this.onForgotten,
   }) : crypto = crypto ?? VaultCrypto();
   final VaultStore store;
   final GuardClient guard;
@@ -36,6 +37,10 @@ class VaultService {
 
   /// Lot 3: revoke own credential (also removes guard), before local erasure.
   final Future<void> Function(OpenVault vault)? revokeSelf;
+
+  /// Called after the local erasure of [forget] succeeds: the browser's own
+  /// non-secret preferences about this computer (a dismissed notice) go too.
+  final void Function()? onForgotten;
   OpenVault? _opened;
   OpenVault get opened => _opened ?? (throw StateError('Vault locked'));
   VaultStatus status = VaultStatus.locked;
@@ -418,5 +423,6 @@ class VaultService {
     _check(generation);
     lock();
     status = VaultStatus.locked;
+    onForgotten?.call();
   });
 }

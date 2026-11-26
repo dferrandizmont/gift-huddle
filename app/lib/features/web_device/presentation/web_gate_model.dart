@@ -17,6 +17,9 @@ enum WebConnectFailure {
   /// La invitación desapareció antes de caducar: el móvil canceló o la
   /// borró, o ya no está en el servidor.
   cancelled,
+
+  /// El móvil (o esta web) necesita actualizarse: no hay código que comparar.
+  outdated,
 }
 
 /// Lo que la puerta web enseña en cada momento.

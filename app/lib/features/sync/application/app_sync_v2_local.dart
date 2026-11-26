@@ -143,7 +143,7 @@ class AppSyncV2Local
   @override
   Future<void> mergeCommon(FamilyDoc remote, {required String fromNode}) => _ref
       .read(familyControllerProvider.notifier)
-      .mergeRemote(remote, fromNode: fromNode);
+      .mergeRemoteWithinLock(remote, fromNode: fromNode);
 
   @override
   Future<DeviceRegistry> registry() async =>

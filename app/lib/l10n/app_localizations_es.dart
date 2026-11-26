@@ -326,6 +326,16 @@ class AppLocalizationsEs extends AppLocalizations {
       'Los cambios de este regalo todavía no se han guardado.';
 
   @override
+  String get wishDiscardBody =>
+      'Los cambios de este deseo todavía no se han guardado.';
+
+  @override
+  String get giftMoreDetails => 'Más detalles';
+
+  @override
+  String get giftFieldActualPrice => 'Precio real';
+
+  @override
   String get actionDiscard => 'Descartar';
 
   @override
@@ -465,11 +475,11 @@ class AppLocalizationsEs extends AppLocalizations {
   String get giverUs => 'Nosotros';
 
   @override
-  String get giverHouseholdPays => 'Paga la casa';
+  String get giverHouseholdPays => 'Cuenta como gasto de casa';
 
   @override
   String get giverHouseholdPaysHint =>
-      'Si lo activas, sus regalos cuentan en el presupuesto de la casa.';
+      'Sus regalos suman en el gasto de la casa.';
 
   @override
   String countdownDaysForBirthday(int count, String name) {
@@ -534,7 +544,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get obGiversBody =>
-      '«Nosotros» ya está en la lista para los regalos que pagáis en casa. También puedes añadir a los abuelos, los tíos…';
+      '«Nosotros» ya está en la lista para los regalos que cuentan como gasto de casa. También puedes añadir a los abuelos, los tíos…';
 
   @override
   String get obGiversSuggestions => 'Sugerencias';
@@ -692,12 +702,15 @@ class AppLocalizationsEs extends AppLocalizations {
   String get budgetOf => 'de';
 
   @override
-  String budgetHouseFor(String name) {
-    return 'La casa · $name';
-  }
+  String get budgetHouseTotal => 'Gasto de casa · total';
 
   @override
-  String get budgetHouseTotal => 'La casa · total';
+  String get budgetBought => 'Comprado';
+
+  @override
+  String budgetBoughtBarLabel(String bought, String total) {
+    return 'Comprado: $bought de $total';
+  }
 
   @override
   String budgetBarLabel(String spent, String planned) {
@@ -995,11 +1008,11 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get budgetSubtitle =>
-      'Puedes poner un presupuesto en cada ocasión. «Gastado» suma los precios reales de los regalos que paga la casa. Si ya se ha comprado un regalo y falta el precio real, cuenta el previsto.';
+      'Puedes poner un presupuesto en cada ocasión. «Gastado» suma los precios reales de los regalos que cuentan como gasto de casa. Si ya se ha comprado un regalo y falta el precio real, cuenta el previsto.';
 
   @override
   String get budgetSubtitleBudgeted =>
-      'Puedes poner un presupuesto en cada ocasión. Las tres cifras solo incluyen ocasiones con presupuesto. «Gastado» suma los precios reales de los regalos que paga la casa. Si ya se ha comprado un regalo y falta el precio real, cuenta el previsto.';
+      'Puedes poner un presupuesto en cada ocasión. Las tres cifras solo incluyen ocasiones con presupuesto. «Gastado» suma los precios reales de los regalos que cuentan como gasto de casa. Si ya se ha comprado un regalo y falta el precio real, cuenta el previsto.';
 
   @override
   String get budgetPlanned => 'Previsto';
@@ -1021,11 +1034,11 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get budgetNote =>
-      'Solo suma lo que paga la casa. Los regalos que pagan otras personas, como los abuelos, quedan fuera del gasto de la casa.';
+      'Solo suma los regalos que cuentan como gasto de casa. Los que pagan otras personas, como los abuelos, quedan fuera.';
 
   @override
   String get budgetEmpty =>
-      'Todavía no hay regalos que pague la casa. Activa «Paga la casa» en la ficha de quien regala y añade el precio previsto al regalo.';
+      'Todavía no hay regalos que cuenten como gasto de casa. Activa «Cuenta como gasto de casa» en la ficha de quien regala y añade el precio previsto al regalo.';
 
   @override
   String get occasionBudgetField => 'Presupuesto (opcional)';
@@ -1924,7 +1937,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get manageLockedOtherDevice =>
-      'Es la persona de otro móvil de la familia.';
+      'Esta persona tiene otro dispositivo conectado a la familia.';
 
   @override
   String deletePersonTitle(String name) {
@@ -1945,6 +1958,17 @@ class AppLocalizationsEs extends AppLocalizations {
           'También se eliminarán los $count regalos que hay para esta persona.',
       one: 'También se eliminará el regalo que hay para esta persona.',
       zero: '',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String deletePersonWishes(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'También se eliminarán $count deseos de esta persona.',
+      one: 'También se eliminará 1 deseo de esta persona.',
     );
     return '$_temp0';
   }
@@ -1993,6 +2017,10 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get deleteError => 'No se ha podido eliminar. Inténtalo de nuevo.';
+
+  @override
+  String get deleteDevicesNeedUpdate =>
+      'Para eliminar esto, todos los móviles de la familia necesitan la última versión.';
 
   @override
   String get giftNotSaved =>
@@ -2890,6 +2918,10 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get webSettingsPersistenceDenied =>
       'Si queda poco espacio, el navegador podría borrar los datos que Gift Huddle guarda aquí.';
+
+  @override
+  String get webRecipientDeleteRejected =>
+      'No se ha podido eliminar a esta persona desde la web porque afecta a los regalos en secreto de otra persona. Hazlo desde un móvil.';
 
   @override
   String webSetAsideNotice(int count) {
@@ -4566,12 +4598,12 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String devicePersonBlockedOtherTitle(String name) {
-    return '$name tiene su propio móvil';
+    return '$name tiene un dispositivo conectado';
   }
 
   @override
   String devicePersonBlockedOtherBody(String name) {
-    return '$name tiene su propio móvil en la familia, así que no se puede eliminar ni archivar desde aquí.';
+    return '$name tiene un dispositivo conectado a la familia, así que no se puede eliminar ni archivar desde aquí.';
   }
 
   @override
@@ -4743,6 +4775,28 @@ class AppLocalizationsEs extends AppLocalizations {
   String get whoAreYouNobody => 'Nadie';
 
   @override
+  String personSameNameTitle(String name) {
+    return 'Ya hay alguien llamado $name en la lista';
+  }
+
+  @override
+  String get personSameNameOther => 'Es otra persona';
+
+  @override
+  String get whoAreYouSameNameBody =>
+      '¿Eres tú? Si eliges «Es otra persona», se añade otra con el mismo nombre.';
+
+  @override
+  String get whoAreYouSameNameYes => 'Soy yo';
+
+  @override
+  String get inviteForSameNameBody =>
+      '¿Es esa persona? Si eliges «Es otra persona», se añade otra con el mismo nombre.';
+
+  @override
+  String get inviteForSameNameYes => 'Es esa persona';
+
+  @override
   String get whoAreYouNobodyHint => 'Para quien regala y no recibe regalos.';
 
   @override
@@ -4870,4 +4924,253 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get aboutPrivacyWeb =>
       'Sin cuentas ni publicidad. La lista solo sale de este ordenador para sincronizarse con los móviles de tu familia, y siempre va cifrada.';
+
+  @override
+  String get wishTag => 'Deseo';
+
+  @override
+  String get surprisesTitle => 'Sorpresas';
+
+  @override
+  String wishCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count deseos',
+      one: '$count deseo',
+      zero: 'Sin deseos',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get wishAdd => 'Añadir deseo';
+
+  @override
+  String get wishEditorNewTitle => 'Nuevo deseo';
+
+  @override
+  String get wishEditorEditTitle => 'Editar deseo';
+
+  @override
+  String get wishFieldDescription => 'Descripción';
+
+  @override
+  String get wishEmptyTitle => 'Aún no has apuntado ningún deseo';
+
+  @override
+  String get wishEmptyMessage =>
+      'Apunta lo que te gustaría recibir. Tu familia lo verá, pero tú no sabrás quién lo regala.';
+
+  @override
+  String get wishDelete => 'Quitar de mi lista';
+
+  @override
+  String wishDeleteTitle(String name) {
+    return '¿Quitar «$name» de tu lista?';
+  }
+
+  @override
+  String get wishDeleteBody =>
+      'Se quita de tu lista y de la que ve tu familia. No se puede deshacer.';
+
+  @override
+  String get wishDeleteConfirm => 'Quitar';
+
+  @override
+  String get wishSavedPending =>
+      'Guardado solo en este móvil. Se compartirá cuando haya sitio.';
+
+  @override
+  String get wishClaim => 'Lo regalo yo';
+
+  @override
+  String wishClaimFor(String title) {
+    return 'Lo regalo yo: $title';
+  }
+
+  @override
+  String get wishClaimNeedsFamily =>
+      'Para coger deseos, este móvil tiene que estar conectado a la familia con la versión nueva.';
+
+  @override
+  String get wishClaimHowToConnect => 'Cómo conectarlo';
+
+  @override
+  String get wishAvailableNote => 'Nadie lo ha cogido';
+
+  @override
+  String wishClaimedBy(String name) {
+    return 'Lo ha cogido $name';
+  }
+
+  @override
+  String get wishClaimedByYou => 'Lo has cogido tú';
+
+  @override
+  String get wishConflict => 'Dos personas lo han cogido. Que una lo suelte.';
+
+  @override
+  String wishRemovedFromList(String name) {
+    return '$name lo quitó de su lista';
+  }
+
+  @override
+  String get wishPlanTitle => 'Deseo cogido';
+
+  @override
+  String wishPlanNote(String name) {
+    return 'El deseo es de $name. Aquí solo apuntas lo tuyo.';
+  }
+
+  @override
+  String wishPlanReadOnly(String name) {
+    return 'Solo $name puede cambiarlo o soltarlo.';
+  }
+
+  @override
+  String get wishFieldPurchaseUrl => 'Enlace de compra';
+
+  @override
+  String get wishPurchaseUrlInvalid => 'El enlace de compra no es válido.';
+
+  @override
+  String get wishPlanRelease => 'Soltar';
+
+  @override
+  String wishReleaseTitle(String name) {
+    return '¿Soltar «$name»?';
+  }
+
+  @override
+  String get wishReleaseBody =>
+      'Volverá a estar disponible para otra persona. Lo que apuntaste (quién regala, precios, tienda y notas) se pierde.';
+
+  @override
+  String get wishPlanDelete => 'Eliminar mi reserva';
+
+  @override
+  String wishPlanDeleteTitle(String name) {
+    return '¿Eliminar tu reserva de «$name»?';
+  }
+
+  @override
+  String get wishPlanDeleteBody =>
+      'Se elimina lo que apuntaste. No se puede deshacer.';
+
+  @override
+  String get wishPlanConvert => 'Convertir en sorpresa';
+
+  @override
+  String get wishPlanConvertHint =>
+      'Pasa a ser un regalo sorpresa, separado del deseo.';
+
+  @override
+  String wishConvertTitle(String name) {
+    return '¿Convertir «$name» en sorpresa?';
+  }
+
+  @override
+  String get wishConvertBody =>
+      'El deseo de la lista vuelve a estar disponible para otras personas.';
+
+  @override
+  String get wishConvertConfirm => 'Convertir';
+
+  @override
+  String wishClaimedNotice(String name) {
+    return 'Has cogido «$name»';
+  }
+
+  @override
+  String get wishReleasedNotice => 'Lo has soltado';
+
+  @override
+  String get wishConvertedNotice => 'Ahora es una sorpresa';
+
+  @override
+  String get wishPlanDeletedNotice => 'Reserva eliminada';
+
+  @override
+  String giftVisibleSwitch(String name) {
+    return 'Visible para $name';
+  }
+
+  @override
+  String giftVisibleHint(String name) {
+    return '$name lo verá como un deseo más. Solo $name podrá cambiarlo.';
+  }
+
+  @override
+  String giftVisibleNoSurprise(String name) {
+    return 'Desde este móvil no se puede guardar una sorpresa para $name: solo un deseo visible.';
+  }
+
+  @override
+  String get wishSuggest => 'Sugerir un deseo';
+
+  @override
+  String get wishProblemCap =>
+      'Ya hay 200 deseos en esta lista. Quita alguno para añadir otro.';
+
+  @override
+  String get wishProblemTooLarge =>
+      'Es demasiado largo. Acorta el título o la descripción.';
+
+  @override
+  String get wishProblemInvalid =>
+      'Revisa lo escrito: falta el título o algún dato no vale.';
+
+  @override
+  String get wishProblemNotOwner =>
+      'Solo la persona del deseo puede cambiarlo o quitarlo.';
+
+  @override
+  String get wishProblemGone => 'Este deseo ya no está en la lista.';
+
+  @override
+  String get wishProblemClaimed => 'Otra persona ya lo ha cogido.';
+
+  @override
+  String get wishProblemApproval =>
+      'Este dispositivo espera la aprobación de la familia. Cuando la tenga, podrás apuntar deseos.';
+
+  @override
+  String get wishProblemNotAllowed =>
+      'Este dispositivo no puede apuntar deseos ahora.';
+
+  @override
+  String wishProblemNoDevice(String name) {
+    return '$name no tiene móvil en la familia, así que no puede ver deseos.';
+  }
+
+  @override
+  String wishProblemBlock(String name) {
+    return 'Ahora no se puede abrir la lista de sorpresas de $name. Sincroniza e inténtalo de nuevo.';
+  }
+
+  @override
+  String wishProblemBlockFull(String name) {
+    return 'No cabe más en las sorpresas de $name.';
+  }
+
+  @override
+  String get wishProblemFailed =>
+      'No se ha podido guardar. Inténtalo de nuevo.';
+
+  @override
+  String get wishProblemDevicesNeedUpdate =>
+      'Para coger deseos, todos los móviles de la familia necesitan la última versión.';
+
+  @override
+  String webPlansHeld(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          '$count cambios en deseos cogidos esperan a que se actualicen los demás móviles de la familia.',
+      one: 'Un cambio en un deseo cogido espera a que se actualicen los demás móviles de la familia.',
+    );
+    return '$_temp0';
+  }
 }

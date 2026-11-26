@@ -23,6 +23,7 @@ import '../../../core/sync/family_envelope.dart';
 import '../../../core/sync/family_key_bundle.dart';
 import '../../../core/sync/key_bundle.dart';
 import '../../../core/sync/pairing_v2.dart';
+import '../../../core/sync/wish_boundary.dart';
 import '../data/sync_transport.dart';
 import '../data/sync_transport_v2.dart';
 import 'common_v2.dart' show CommonKeyState, commonWriterResolver, kCommonRef;
@@ -32,8 +33,9 @@ import 'v2_family_lock.dart';
 
 /// Versión del paquete que entrega el anfitrión al aprobar: la aprobación
 /// con checkpoint (ADR 0005, B7). La 3 (solo la clave y las revisiones, sin
-/// compromiso del común) ya no se acepta.
-const int kPairingPackageVersion = 4;
+/// compromiso del común) ya no se acepta. La 5 (1.0.7) firma además el
+/// protocolo de deseos ([kWishProtocolField]); la 4 (1.0.6) ya no se acepta.
+const int kPairingPackageVersion = 5;
 
 /// Si la web puede emparejarse con una familia que ya cortó al formato 2 del
 /// común. Encendido con B5: `WebPairingGuest.enroll` guarda en la caja
@@ -45,7 +47,7 @@ const bool kWebPairingCommonV2 = true;
 /// Como mucho, cuántos paquetes v4 de la clave común lleva la aprobación.
 const int kPairingMaxFamilyPackages = 4;
 
-/// Las claves exactas de la aprobación v4.
+/// Las claves exactas de la aprobación v5.
 const Set<String> _approvalKeys = {
   'v',
   'listId',
@@ -60,6 +62,7 @@ const Set<String> _approvalKeys = {
   'minCommonFormat',
   'familyKeyPackages',
   'slotFloors',
+  kWishProtocolField,
   'sig',
 };
 
@@ -115,6 +118,17 @@ class WebPairingQr {
       '${Uri.parse(origin).origin}/w#$inviteId.$fingerprint';
 }
 
+/// La oferta ya leída y comprobada de una invitación ([PairingV2Guest.fetchOffer]).
+class PairingV2Offered {
+  PairingV2Offered._(this.got, this.offer);
+
+  /// Lo que contestó el Worker.
+  final V2InviteOffer got;
+
+  /// La oferta, con la firma comprobada.
+  final PairingOffer offer;
+}
+
 /// Los móviles no entienden la misma versión de aprobación: hay que
 /// actualizarlos antes de volver a empezar con otra invitación.
 class PairingV2VersionMismatchException extends PairingException {
@@ -123,10 +137,10 @@ class PairingV2VersionMismatchException extends PairingException {
     : super('versión de aprobación incompatible');
 }
 
-/// Lo que firma el anfitrión: "gift-huddle-pairing-approval-v4" ‖ 0 ‖ el
+/// Lo que firma el anfitrión: "gift-huddle-pairing-approval-v5" ‖ 0 ‖ el
 /// JSON canónico de toda la aprobación salvo la firma.
 List<int> _approvalBytes(Map<String, Object?> package) => [
-  ...utf8.encode('gift-huddle-pairing-approval-v4'),
+  ...utf8.encode('gift-huddle-pairing-approval-v5'),
   0,
   ...utf8.encode(
     canonicalJsonText({
@@ -257,6 +271,7 @@ class PairingV2Host {
       hostPicksPerson: hostPicksPerson && web == null,
     );
     onPhase?.call('invite');
+    await session.signOffer(local.keys);
     final offer = session.offer.toJson();
     if (v1Key != null && web == null) {
       offer[kV1ProofField] = encodeBase64Url(v1ListProof(v1Key, session.offer));
@@ -267,6 +282,7 @@ class PairingV2Host {
       inviteId: web?.inviteId,
       guestPerson: guestPerson,
     );
+    session.bindInvite(ticket.inviteId);
     return PairingV2Host._(transport, local, lock, session, ticket.inviteId);
   });
 
@@ -396,11 +412,7 @@ class PairingV2Host {
         if (published == null) {
           throw const PairingException('no se sabe qué hay en el servidor');
         }
-        final (package, claim, common) = await _package(
-          out,
-          guest,
-          published,
-        );
+        final (package, claim, common) = await _package(out, guest, published);
         if (verifyCheckpoint != null && !await verifyCheckpoint(common)) {
           throw const PairingCheckpointUnprotectedException();
         }
@@ -579,6 +591,7 @@ class PairingV2Host {
         for (final s in slots.all)
           '${s.header.personId}/${s.header.writer}': s.header.revision,
       },
+      kWishProtocolField: kWishProtocol,
       // 1.0.6: la persona que eligió este móvil, firmada (el invitado la
       // exige: la marca de la oferta no va firmada).
       if (_session.hostPicksPerson && _session.guestPerson != null)
@@ -683,10 +696,17 @@ class PairingV2Guest {
     required String Function(String listId, bool v1Proven) deviceIdFor,
     FamilyKey? v1Key,
     void Function()? onRequest,
+    PairingV2Offered? offered,
   }) async {
-    onRequest?.call();
-    final got = await transport.getOffer(inviteId);
-    final offer = await PairingOffer.fromJson(got.offer);
+    final read =
+        offered ??
+        await fetchOffer(
+          transport: transport,
+          inviteId: inviteId,
+          onRequest: onRequest,
+        );
+    final got = read.got;
+    final offer = read.offer;
     final proven =
         v1Key != null &&
         verifyV1ListProof(v1Key, offer, (got.offer! as Map)[kV1ProofField]);
@@ -700,6 +720,24 @@ class PairingV2Guest {
       onRequest: onRequest,
       assignedPerson: offer.hostPicksPerson ? got.guestPerson : null,
     );
+  }
+
+  /// Pide, lee y comprueba la oferta (versión, capacidad y firma) sin tocar
+  /// nada de este móvil: claves, credencial ni instalaciones pendientes. Lo
+  /// primero que hay que hacer al abrir una invitación; [open] la acepta
+  /// después en [offered].
+  static Future<PairingV2Offered> fetchOffer({
+    required SyncV2Transport transport,
+    required String inviteId,
+    void Function()? onRequest,
+  }) async {
+    onRequest?.call();
+    final got = await transport.getOffer(inviteId);
+    final offer = await PairingOffer.fromJson(got.offer);
+    // 1.0.7: una oferta sin el protocolo de deseos es de un anfitrión
+    // anterior: no se responde, no se crea ninguna credencial.
+    _requireWishProtocol(offer);
+    return PairingV2Offered._(got, offer);
   }
 
   /// Si el anfitrión ha elegido de quién es este móvil (marca
@@ -735,15 +773,25 @@ class PairingV2Guest {
     required DeviceKeys keys,
     required String deviceId,
     void Function()? onRequest,
-  }) => PairingV2Guest._(
-    transport,
-    inviteId,
-    offer,
-    keys,
-    deviceId,
-    DeviceKind.web,
-    onRequest: onRequest,
-  );
+  }) {
+    _requireWishProtocol(offer);
+    return PairingV2Guest._(
+      transport,
+      inviteId,
+      offer,
+      keys,
+      deviceId,
+      DeviceKind.web,
+      onRequest: onRequest,
+    );
+  }
+
+  static void _requireWishProtocol(PairingOffer offer) {
+    if (offer.wishProtocol != kWishProtocol) {
+      throw const PairingV2VersionMismatchException();
+    }
+  }
+
   PairingJoin? _join;
 
   /// La respuesta preparada y todavía sin aceptar por el Worker.
@@ -876,6 +924,7 @@ class PairingV2Guest {
             _preparedWithoutPerson != withoutPerson)) {
       throw const PairingException('la respuesta ya es de otra persona');
     }
+    final verifier = await _keys.serviceCredentialVerifier();
     final join =
         prepared ??
         await joinPairing(
@@ -885,11 +934,12 @@ class PairingV2Guest {
           personId: personId,
           withoutPerson: withoutPerson,
           kind: kind,
+          inviteId: inviteId,
+          verifier: verifier,
         );
     _prepared = join;
     _preparedPerson = personId;
     _preparedWithoutPerson = withoutPerson;
-    final verifier = await _keys.serviceCredentialVerifier();
     if (_withdrawRequested) {
       throw const PairingException('emparejamiento cancelado');
     }
@@ -1055,7 +1105,7 @@ class PairingV2Guest {
       throw const PairingException('documento común no válido');
     }
     final FamilyKey familyKey;
-    final FamilyDoc common;
+    final FamilyDoc openedCommon;
     CommonKeyState? commonKeys;
     if (approval.commonFormat >= 2) {
       if (kind == DeviceKind.web && !kWebPairingCommonV2) {
@@ -1063,7 +1113,7 @@ class PairingV2Guest {
           'la web todavía no sigue el formato 2 del común',
         );
       }
-      (common, commonKeys) = await _openFormat2(
+      (openedCommon, commonKeys) = await _openFormat2(
         bytes,
         approval.packages,
         view: view,
@@ -1074,12 +1124,16 @@ class PairingV2Guest {
       // nada (nunca se abre un formato 1 con la marca).
       familyKey = await FamilyKey.generate();
     } else {
-      (common, familyKey) = await _openFormat1(
+      (openedCommon, familyKey) = await _openFormat1(
         bytes,
         approval.packages,
         view: view,
       );
     }
+    // The guest installs the host's checkpoint through the wish boundary
+    // (ADR 0010): a host that is not on this version cannot hand over private
+    // plan fields or a malformed wish as the family's common.
+    final common = openedCommon.wishBoundary();
     if (syncProtocolOf(common) != kSyncProtocolV2) {
       throw const PairingException('el documento común no es de v2');
     }
@@ -1168,6 +1222,7 @@ class PairingV2Guest {
         floors.entries.any(
           (e) => e.key is! String || e.value is! int || (e.value as int) < 0,
         ) ||
+        package[kWishProtocolField] != kWishProtocol ||
         cc is! String ||
         !_hash43.hasMatch(cc) ||
         rc is! String ||

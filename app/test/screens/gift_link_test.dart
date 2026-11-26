@@ -89,6 +89,7 @@ Future<void> _openEditorOf(WidgetTester tester, String title) async {
   await tester.tap(find.text(title).first);
   await settle(tester);
   expect(_editor, findsOneWidget);
+  await openMoreDetails(tester);
 }
 
 String _text(WidgetTester tester, String label) =>

@@ -7,6 +7,8 @@ import 'package:regalos/core/sync/family_doc.dart';
 import 'package:regalos/core/sync/hlc.dart';
 import 'package:regalos/core/sync/model.dart';
 import 'package:regalos/core/sync/pairing_v2.dart';
+import 'package:regalos/core/sync/wish.dart';
+import 'package:regalos/core/sync/wish_boundary.dart';
 import 'package:regalos/features/sync/application/migration_v2.dart';
 import 'package:regalos/features/sync/data/sync_transport.dart';
 import 'package:regalos/features/sync/domain/sync_keys.dart';
@@ -331,5 +333,53 @@ void main() {
         expect(old.expiredAt(DateTime.utc(2026)), isTrue);
       },
     );
+  });
+
+  test('1.0.6 -> 1.0.7: ningún deseo se infiere de regalos, lápidas ni datos '
+      'pendientes de la versión anterior', () async {
+    // Una familia 1.0.6: regalos de Nora (también «pedidos» por ella y
+    // públicos), uno borrado, una petición de protección pendiente.
+    var v1 = _gift(FamilyDoc.empty(_list), aritz, 'g1', 'Bufanda');
+    v1 = v1.set(nora, Collections.gifts, 'g2', {
+      'recipientId': 'nora',
+      'title': 'Lo pidió ella',
+      'status': 'idea',
+      'year': 2026,
+      'surprise': false,
+      'requestedBy': {'kind': 'recipient', 'recipientId': 'nora'},
+      'giverId': 'nora',
+    });
+    v1 = _gift(v1, leo, 'g3', 'Borrado').delete(leo, Collections.gifts, 'g3');
+    v1 = v1.set(nora, Collections.policies, 'nora', {
+      'hideOwnGifts': true,
+      'rev': 1,
+    });
+    final migrated = await migrateToV2(
+      v1Doc: v1,
+      clock: aritz,
+      keys: await _keys(1),
+      deviceId: aritz.node,
+      personId: 'aritz',
+    );
+    final merged = mergeLocalV1IntoV2(
+      v2Doc: migrated.common,
+      localV1: v1.set(leo, Collections.gifts, 'g4', {
+        'recipientId': 'nora',
+        'title': 'Pendiente',
+        'status': 'idea',
+        'year': 2026,
+      }),
+    );
+    for (final doc in [migrated.common, merged]) {
+      expect(doc.collections[Collections.wishes] ?? const {}, isEmpty);
+      expect(doc.wishesFor('nora'), isEmpty);
+      expect(doc.liveWishCount('nora'), 0);
+      expect(doc.collections.containsKey(ScopeCollections.wishPlans), isFalse);
+      // Los regalos siguen donde estaban.
+      expect(_titles(doc), containsAll({'Bufanda', 'Lo pidió ella'}));
+    }
+    expect(_titles(merged), contains('Pendiente'));
+    // La frontera no inventa nada sobre un documento sin deseos.
+    expect(identical(merged.wishBoundary(), merged), isTrue);
   });
 }

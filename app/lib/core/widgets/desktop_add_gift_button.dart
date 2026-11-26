@@ -13,10 +13,13 @@ import 'stroke_icon.dart';
 /// tema de quien lo pinta: en Ocasiones, el de la ocasión.
 class DesktopAddGiftButton extends StatelessWidget {
   /// Crea el botón.
-  const DesktopAddGiftButton({super.key, required this.onPressed});
+  const DesktopAddGiftButton({super.key, required this.onPressed, this.label});
 
   /// Lo que hace al pulsarlo (abre el editor).
   final VoidCallback onPressed;
+
+  /// Otro texto en lugar de «Añadir regalo» («Añadir deseo»).
+  final String? label;
 
   /// El alto de los botones de la cabecera de los paneles de escritorio: el de
   /// los botones rellenos del tema («Guardar», «Añadir persona»), el de
@@ -48,7 +51,7 @@ class DesktopAddGiftButton extends StatelessWidget {
         color: foreground,
         strokeWidth: 1.9,
       ),
-      label: Text(l10n.giftAdd),
+      label: Text(label ?? l10n.giftAdd),
     );
   }
 }

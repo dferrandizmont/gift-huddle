@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../layout/pane_scope.dart';
 import '../theme/regalos_tokens.dart';
 import 'fit_text.dart';
+import 'fold_box.dart';
 import 'stroke_icon.dart';
 
 /// Cabecera de pantalla de las maquetas.
@@ -32,6 +33,7 @@ class ScreenHeader extends StatelessWidget {
     this.actions = const <Widget>[],
     this.compactTitle = false,
     this.keepBackInPane = false,
+    this.folded,
   });
 
   final String title;
@@ -62,8 +64,16 @@ class ScreenHeader extends StatelessWidget {
   /// detalle (vino de otra pestaña y el atrás tiene a dónde volver).
   final bool keepBackInPane;
 
+  /// Si la cabecera se pliega (0 entera, 1 plegada): al plegarse quedan el
+  /// avatar, el nombre y los botones; la línea de encima y las de debajo
+  /// ([eyebrow], [subtitle], [subtitleWidget] y [footer]) se pliegan.
+  final Animation<double>? folded;
+
   /// La altura mínima de la cabecera de un panel de detalle.
   static const double kDetailHeaderHeight = 88;
+
+  Widget _foldable(Widget child) =>
+      folded == null ? child : FoldBox(folded: folded!, child: child);
 
   @override
   Widget build(BuildContext context) {
@@ -135,7 +145,8 @@ class ScreenHeader extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (eyebrow != null) Text(eyebrow, style: t.styles.caption),
+                    if (eyebrow != null)
+                      _foldable(Text(eyebrow, style: t.styles.caption)),
                     Semantics(
                       header: true,
                       child: FitText(
@@ -145,11 +156,21 @@ class ScreenHeader extends StatelessWidget {
                             : t.styles.screenTitle,
                       ),
                     ),
-                    if (subtitleWidget != null)
-                      subtitleWidget!
-                    else if (subtitle != null)
-                      Text(subtitle!, style: t.styles.meta),
-                    ?footer,
+                    if (subtitleWidget != null ||
+                        subtitle != null ||
+                        footer != null)
+                      _foldable(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (subtitleWidget != null)
+                              subtitleWidget!
+                            else if (subtitle != null)
+                              Text(subtitle!, style: t.styles.meta),
+                            ?footer,
+                          ],
+                        ),
+                      ),
                   ],
                 ),
               ),

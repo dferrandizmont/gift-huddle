@@ -325,6 +325,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get giftDiscardBody => 'You have unsaved changes to this gift.';
 
   @override
+  String get wishDiscardBody => 'You have unsaved changes to this wish.';
+
+  @override
+  String get giftMoreDetails => 'More details';
+
+  @override
+  String get giftFieldActualPrice => 'Actual price';
+
+  @override
   String get actionDiscard => 'Discard';
 
   @override
@@ -464,11 +473,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get giverUs => 'Us';
 
   @override
-  String get giverHouseholdPays => 'Household pays';
+  String get giverHouseholdPays => 'Counts as household spending';
 
   @override
-  String get giverHouseholdPaysHint =>
-      'Turn this on to count this giver\'s gifts towards the household budget.';
+  String get giverHouseholdPaysHint => 'Their gifts add to household spending.';
 
   @override
   String countdownDaysForBirthday(int count, String name) {
@@ -533,7 +541,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get obGiversBody =>
-      '\"Us\" is already on the list for gifts your household pays for. You can also add grandparents, aunts and uncles.';
+      '\"Us\" is already on the list for gifts that count as household spending. You can also add grandparents, aunts and uncles.';
 
   @override
   String get obGiversSuggestions => 'Suggestions';
@@ -691,12 +699,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get budgetOf => 'of';
 
   @override
-  String budgetHouseFor(String name) {
-    return 'Household · $name';
-  }
+  String get budgetHouseTotal => 'Household spending · total';
 
   @override
-  String get budgetHouseTotal => 'Household · total';
+  String get budgetBought => 'Bought';
+
+  @override
+  String budgetBoughtBarLabel(String bought, String total) {
+    return 'Bought: $bought of $total';
+  }
 
   @override
   String budgetBarLabel(String spent, String planned) {
@@ -992,11 +1003,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get budgetSubtitle =>
-      'You can set a budget for each occasion. \"Spent\" adds up the actual prices of gifts the household pays for. If a gift has been bought and its actual price is missing, its planned price counts.';
+      'You can set a budget for each occasion. \"Spent\" adds up the actual prices of gifts that count as household spending. If a gift has been bought and its actual price is missing, its planned price counts.';
 
   @override
   String get budgetSubtitleBudgeted =>
-      'You set the budget for each occasion. The three figures only include occasions with a budget. \"Spent\" adds up actual prices for gifts the household pays for. If a purchased gift has no actual price recorded, its planned price counts.';
+      'You set the budget for each occasion. The three figures only include occasions with a budget. \"Spent\" adds up actual prices for gifts that count as household spending. If a purchased gift has no actual price recorded, its planned price counts.';
 
   @override
   String get budgetPlanned => 'Planned';
@@ -1018,11 +1029,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get budgetNote =>
-      'The budget only includes what the household pays. Gifts paid for by someone else, such as a grandparent, do not count towards household spending.';
+      'The budget only includes gifts that count as household spending. Gifts paid for by someone else, such as a grandparent, are left out.';
 
   @override
   String get budgetEmpty =>
-      'No gifts count towards the household budget yet. Turn on \"Household pays\" for a giver and add a planned price to the gift.';
+      'No gifts count towards the household budget yet. Turn on \"Counts as household spending\" for a giver and add a planned price to the gift.';
 
   @override
   String get occasionBudgetField => 'Budget (optional)';
@@ -1919,7 +1930,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get manageLockedOtherDevice =>
-      'Another phone in your family belongs to this person.';
+      'This person has another device connected to the family.';
 
   @override
   String deletePersonTitle(String name) {
@@ -1939,6 +1950,17 @@ class AppLocalizationsEn extends AppLocalizations {
       other: 'The $count gifts for this person will also be deleted.',
       one: 'The gift for this person will also be deleted.',
       zero: '',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String deletePersonWishes(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count wishes for this person will also be deleted.',
+      one: '1 wish for this person will also be deleted.',
     );
     return '$_temp0';
   }
@@ -1986,6 +2008,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get deleteError => 'Could not delete. Try again.';
+
+  @override
+  String get deleteDevicesNeedUpdate =>
+      'To delete this, every phone in the family needs the latest version.';
 
   @override
   String get giftNotSaved =>
@@ -2877,6 +2903,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get webSettingsPersistenceDenied =>
       'If space runs low, your browser may delete the data Gift Huddle stores here.';
+
+  @override
+  String get webRecipientDeleteRejected =>
+      'This person could not be deleted from the web because it affects another person\'s secret gifts. Do it from a phone.';
 
   @override
   String webSetAsideNotice(int count) {
@@ -4537,12 +4567,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String devicePersonBlockedOtherTitle(String name) {
-    return '$name has their own phone';
+    return '$name has a connected device';
   }
 
   @override
   String devicePersonBlockedOtherBody(String name) {
-    return '$name has their own phone in the family, so they can\'t be deleted or archived from here.';
+    return '$name has a device connected to the family, so they can\'t be deleted or archived from here.';
   }
 
   @override
@@ -4710,6 +4740,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get whoAreYouNobody => 'Nobody';
 
   @override
+  String personSameNameTitle(String name) {
+    return 'Someone called $name is already on the list';
+  }
+
+  @override
+  String get personSameNameOther => 'Someone else';
+
+  @override
+  String get whoAreYouSameNameBody =>
+      'Is that you? If you choose “Someone else”, another person is added with the same name.';
+
+  @override
+  String get whoAreYouSameNameYes => 'That\'s me';
+
+  @override
+  String get inviteForSameNameBody =>
+      'Is that the same person? If you choose “Someone else”, another person is added with the same name.';
+
+  @override
+  String get inviteForSameNameYes => 'Same person';
+
+  @override
   String get whoAreYouNobodyHint =>
       'For someone who gives gifts and does not receive any.';
 
@@ -4839,4 +4891,253 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get aboutPrivacyWeb =>
       'No accounts or ads. Your list only leaves this computer to sync with your family\'s phones, and it is always encrypted.';
+
+  @override
+  String get wishTag => 'Wish';
+
+  @override
+  String get surprisesTitle => 'Surprises';
+
+  @override
+  String wishCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count wishes',
+      one: '$count wish',
+      zero: 'No wishes',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get wishAdd => 'Add wish';
+
+  @override
+  String get wishEditorNewTitle => 'New wish';
+
+  @override
+  String get wishEditorEditTitle => 'Edit wish';
+
+  @override
+  String get wishFieldDescription => 'Description';
+
+  @override
+  String get wishEmptyTitle => 'No wishes yet';
+
+  @override
+  String get wishEmptyMessage =>
+      'Note down what you\'d like to get. Your family will see it, but you won\'t know who gives it.';
+
+  @override
+  String get wishDelete => 'Remove from my list';
+
+  @override
+  String wishDeleteTitle(String name) {
+    return 'Remove \"$name\" from your list?';
+  }
+
+  @override
+  String get wishDeleteBody =>
+      'It disappears from your list and from what your family sees. This cannot be undone.';
+
+  @override
+  String get wishDeleteConfirm => 'Remove';
+
+  @override
+  String get wishSavedPending =>
+      'Saved on this phone only. It will be shared when there is room.';
+
+  @override
+  String get wishClaim => 'I\'ll give this';
+
+  @override
+  String wishClaimFor(String title) {
+    return 'I\'ll give this: $title';
+  }
+
+  @override
+  String get wishClaimNeedsFamily =>
+      'To take wishes, this phone has to be connected to the family with the new version.';
+
+  @override
+  String get wishClaimHowToConnect => 'How to connect it';
+
+  @override
+  String get wishAvailableNote => 'Nobody has taken it';
+
+  @override
+  String wishClaimedBy(String name) {
+    return 'Taken by $name';
+  }
+
+  @override
+  String get wishClaimedByYou => 'You took it';
+
+  @override
+  String get wishConflict =>
+      'Two people took it. One of you should release it.';
+
+  @override
+  String wishRemovedFromList(String name) {
+    return '$name removed it from their list';
+  }
+
+  @override
+  String get wishPlanTitle => 'Taken wish';
+
+  @override
+  String wishPlanNote(String name) {
+    return 'The wish is $name\'s. Here you only note your own part.';
+  }
+
+  @override
+  String wishPlanReadOnly(String name) {
+    return 'Only $name can change or release it.';
+  }
+
+  @override
+  String get wishFieldPurchaseUrl => 'Purchase link';
+
+  @override
+  String get wishPurchaseUrlInvalid => 'The purchase link is not valid.';
+
+  @override
+  String get wishPlanRelease => 'Release';
+
+  @override
+  String wishReleaseTitle(String name) {
+    return 'Release \"$name\"?';
+  }
+
+  @override
+  String get wishReleaseBody =>
+      'It becomes available to someone else again. What you noted (giver, prices, store and notes) is lost.';
+
+  @override
+  String get wishPlanDelete => 'Delete my claim';
+
+  @override
+  String wishPlanDeleteTitle(String name) {
+    return 'Delete your claim on \"$name\"?';
+  }
+
+  @override
+  String get wishPlanDeleteBody =>
+      'What you noted is deleted. This cannot be undone.';
+
+  @override
+  String get wishPlanConvert => 'Turn into a surprise';
+
+  @override
+  String get wishPlanConvertHint =>
+      'It becomes a surprise gift, separate from the wish.';
+
+  @override
+  String wishConvertTitle(String name) {
+    return 'Turn \"$name\" into a surprise?';
+  }
+
+  @override
+  String get wishConvertBody =>
+      'The wish on the list becomes available to other people again.';
+
+  @override
+  String get wishConvertConfirm => 'Turn into';
+
+  @override
+  String wishClaimedNotice(String name) {
+    return 'You took \"$name\"';
+  }
+
+  @override
+  String get wishReleasedNotice => 'Released';
+
+  @override
+  String get wishConvertedNotice => 'Now it\'s a surprise';
+
+  @override
+  String get wishPlanDeletedNotice => 'Claim deleted';
+
+  @override
+  String giftVisibleSwitch(String name) {
+    return 'Visible to $name';
+  }
+
+  @override
+  String giftVisibleHint(String name) {
+    return '$name will see it as one more wish. Only $name can change it.';
+  }
+
+  @override
+  String giftVisibleNoSurprise(String name) {
+    return 'A surprise for $name can\'t be saved from this phone: only a visible wish.';
+  }
+
+  @override
+  String get wishSuggest => 'Suggest a wish';
+
+  @override
+  String get wishProblemCap =>
+      'This list already has 200 wishes. Remove one to add another.';
+
+  @override
+  String get wishProblemTooLarge =>
+      'It is too long. Shorten the title or the description.';
+
+  @override
+  String get wishProblemInvalid =>
+      'Check what you wrote: the title is missing or a value is not valid.';
+
+  @override
+  String get wishProblemNotOwner =>
+      'Only the person the wish belongs to can change or remove it.';
+
+  @override
+  String get wishProblemGone => 'This wish is no longer on the list.';
+
+  @override
+  String get wishProblemClaimed => 'Someone else already took it.';
+
+  @override
+  String get wishProblemApproval =>
+      'This device is waiting for your family\'s approval. Once it has it, you can add wishes.';
+
+  @override
+  String get wishProblemNotAllowed =>
+      'This device can\'t add wishes right now.';
+
+  @override
+  String wishProblemNoDevice(String name) {
+    return '$name has no phone in the family, so they can\'t see wishes.';
+  }
+
+  @override
+  String wishProblemBlock(String name) {
+    return 'The surprises of $name can\'t be opened right now. Sync and try again.';
+  }
+
+  @override
+  String wishProblemBlockFull(String name) {
+    return 'There\'s no more room in $name\'s surprises.';
+  }
+
+  @override
+  String get wishProblemFailed => 'Could not save. Try again.';
+
+  @override
+  String get wishProblemDevicesNeedUpdate =>
+      'To take wishes, every phone in the family needs the latest version.';
+
+  @override
+  String webPlansHeld(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          '$count changes to taken wishes are waiting until the other phones in the family are updated.',
+      one: 'One change to a taken wish is waiting until the other phones in the family are updated.',
+    );
+    return '$_temp0';
+  }
 }

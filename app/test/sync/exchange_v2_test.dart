@@ -170,6 +170,56 @@ void main() {
     expect(leo.giftTitles, contains('Tardío'));
   });
 
+  test('deseos: el fichero lleva los deseos y las lápidas, nunca los planes '
+      'ni sus campos, haya o no regalos', () async {
+    await cut();
+    leo.doc = leo.doc
+        .set(leo.clock, Collections.wishes, 'w1', {
+          'recipientId': 'nora',
+          'authorPersonId': 'nora',
+          'suggested': false,
+          'title': 'Bicicleta',
+          'year': 2026,
+        })
+        .set(leo.clock, ScopeCollections.wishPlans, 'p1', {
+          'recipientId': 'nora',
+          'sourceWishId': 'w1',
+          'claimantPersonId': 'leo',
+          'title': 'Bicicleta',
+          'status': 'decided',
+          'giverNote': 'Nota privada del plan',
+          'store': 'Tienda privada',
+        })
+        .set(leo.clock, Collections.meta, 'm1', {'sourceWishId': 'w1'});
+    final bytes = await ExchangeV2(leo).export();
+    final opened = await ExchangeV2(aritz).receive(bytes, nowMillis: 1000);
+    final raw = jsonEncode(opened.doc.toJson());
+    expect(opened.doc.record(Collections.wishes, 'w1'), isNotNull);
+    expect(
+      opened.doc.collections.containsKey(ScopeCollections.wishPlans),
+      isFalse,
+    );
+    expect(opened.doc.record(Collections.meta, 'm1'), isNull);
+    for (final secret in [
+      'Nota privada',
+      'Tienda privada',
+      'sourceWishId',
+      'claimantPersonId',
+      'giverNote',
+    ]) {
+      expect(raw, isNot(contains(secret)));
+    }
+    // El común local de quien exporta conserva lo suyo.
+    expect(leo.doc.record(ScopeCollections.wishPlans, 'p1'), isNotNull);
+    // Al importarlo, el deseo llega y ningún plan.
+    await import(aritz, bytes);
+    expect(aritz.doc.record(Collections.wishes, 'w1'), isNotNull);
+    expect(
+      aritz.doc.collections.containsKey(ScopeCollections.wishPlans),
+      isFalse,
+    );
+  });
+
   test(
     'exchange and sync keep the linked giver and unknown field stamps',
     () async {
@@ -476,7 +526,7 @@ void main() {
         Uint8List(0),
         Uint8List.fromList([0x52, 0x58]),
         Uint8List.sublistView(bytes, 0, 10),
-        Uint8List.fromList([...bytes.sublist(0, 2), 2, ...bytes.sublist(3)]),
+        Uint8List.fromList([...bytes.sublist(0, 2), 3, ...bytes.sublist(3)]),
       ]) {
         expect(
           () => ExchangeFile.parse(bad),

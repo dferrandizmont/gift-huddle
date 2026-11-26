@@ -651,6 +651,17 @@ void main() {
       '$person/${auth.deviceId}': 999999,
     }, hlc: clock.last);
     await family.saveScope(person, doc);
+    // Security review, B1: a private scope with a stamp far ahead of the
+    // public data must not become the floor of the public clock.
+    final person2 = encodeBase64Url(List.filled(16, 4));
+    final ahead = Hlc(millis: 9000000000000, counter: 0, node: auth.deviceId);
+    final privateScope = FamilyDoc.empty(payload.identity.listId).set(
+      HlcClock(node: auth.deviceId, last: ahead),
+      'gifts',
+      'g1',
+      {'recipientId': person2, 'title': 'Secreto'},
+    );
+    await family.saveScope(person2, privateScope);
     final reader = Reader();
     final wire = Wire(await server(), reader);
     final c = controller(s, f, wire, reader);
@@ -679,6 +690,12 @@ void main() {
     final floors = await active.family.readRecoveryRevisionFloors();
     expect(floors.slots['$person/${auth.deviceId}'], 999999);
     expect(floors.hlc! >= clock.last, isTrue);
+    expect(floors.hlc! < ahead, isTrue, reason: 'the public floor ignores scopes');
+    expect(
+      (await active.family.readScope(person2))!.maxStamp,
+      privateScope.maxStamp,
+      reason: 'the scope keeps its own stamps',
+    );
     expect((await active.family.readScope(person))!.toJson(), doc.toJson());
     final archiveId = (await c.generations.generationIds()).firstWhere(
       (id) => id != auth.syncId,

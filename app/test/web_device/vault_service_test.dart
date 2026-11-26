@@ -627,6 +627,30 @@ void main() {
     },
   );
 
+  test('forget calls onForgotten only after the erasure succeeds', () async {
+    final h = VaultHarness();
+    await h.enroll();
+    h.service.lock();
+    var forgotten = 0;
+    var fail = true;
+    final service = VaultService(
+      store: h.store,
+      guard: h.client,
+      crypto: FastTestCrypto(),
+      revokeSelf: (_) async {
+        if (fail) throw StateError('Offline');
+      },
+      onForgotten: () => forgotten++,
+    );
+    await service.unlock('123456');
+    await expectLater(service.forget(), throwsStateError);
+    expect(forgotten, 0);
+    fail = false;
+    await service.forget();
+    expect(forgotten, 1);
+    expect((await h.store.read()).current, isNull);
+  });
+
   test('forget checks generation inside the deleting transaction', () async {
     final h = VaultHarness();
     await h.enroll();

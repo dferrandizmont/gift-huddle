@@ -17,23 +17,12 @@ Gift Huddle es la libreta de regalos de la familia. Apunta qué quiere cada pers
 ## Descargas
 
 <p>
-  <a href="https://play.google.com/apps/testing/es.gifthuddle.app"><img src="https://img.shields.io/badge/Google_Play-Prueba_cerrada-414141?logo=googleplay&amp;style=for-the-badge" alt="Prueba cerrada en Google Play"></a>
+  <a href="https://play.google.com/store/apps/details?id=es.gifthuddle.android"><img src="https://img.shields.io/badge/Google_Play-Descargar-01875F?logo=googleplay&amp;style=for-the-badge" alt="Disponible en Google Play"></a>
   <a href="https://web.gifthuddle.app"><img src="https://img.shields.io/badge/Web-web.gifthuddle.app-C9245F?style=for-the-badge" alt="Versión web"></a>
-  <!--
   <a href="https://apps.apple.com/app/id6835840931"><img src="https://img.shields.io/badge/App_Store-Descargar-0D96F6?logo=appstore&amp;style=for-the-badge" alt="Disponible en la App Store"></a>
-  -->
 </p>
 
-Android 8 o posterior está en prueba cerrada en Google Play. La versión para iPhone (iOS 16 o posterior) ya está en la App Store. Más información en [gifthuddle.app](https://gifthuddle.app).
-
-<details>
-<summary>Únete a la beta de Google Play</summary>
-
-1. Únete al [grupo de testers de Gift Huddle](https://groups.google.com/g/gifthuddle-tester) con la cuenta de Google que usas en el móvil.
-2. Abre la [página de la prueba](https://play.google.com/apps/testing/es.gifthuddle.app) con esa misma cuenta y pulsa el botón para hacerte tester (en inglés, **Become a tester**).
-3. Instala Gift Huddle desde Google Play y no salgas de la prueba durante al menos 14 días seguidos: Google lo exige antes de que la app pueda publicarse para todo el mundo.
-
-</details>
+Android 8 o posterior está disponible en [Google Play](https://play.google.com/store/apps/details?id=es.gifthuddle.android). La versión para iPhone (iOS 16 o posterior) ya está en la App Store. Más información en [gifthuddle.app](https://gifthuddle.app).
 
 ## Capturas
 
@@ -83,11 +72,11 @@ No hay cuentas ni publicidad, y el desarrollador no usa analítica ni informes d
 
 ## Novedades
 
-La versión 1.0.6 (22 de noviembre de 2026) hace que quien invita elija de quién es el móvil nuevo, oculta desde el primer momento los regalos de cada persona en su propio móvil, deja que la versión web vea y edite los regalos en secreto de los demás, admite hasta 200 regalos en secreto por persona y prueba otra ruta si el operador bloquea la conexión. La versión 1.0.5 (21 de noviembre de 2026) revisa todos los textos en castellano, catalán e inglés, pregunta antes de descartar los cambios de un regalo, pide el nombre del móvil al unirse con un enlace y arregla «Borrar todo» y los regalos en secreto. La versión 1.0.4 (20 de noviembre de 2026) trae un diseño más claro con nuevos tonos pastel en el modo oscuro, presupuesto por ocasión, las ocasiones más próximas primero, enlaces de regalo que se abren con un toque y cualquier persona de la familia como quien regala. La versión 1.0.3 (17 de noviembre de 2026) abre un fichero de recuperación directamente desde Archivos, también con la app ya abierta, y muestra «Guardar en un fichero» en la pantalla de las 24 palabras sin tener que bajar. La versión 1.0.2 (16 de noviembre de 2026) permite guardar el código de recuperación en un fichero, con contraseña si quieres, hace que conectar la versión web vuelva a funcionar y vaya más rápido, y evita que el escáner QR se quede en negro. La versión 1.0.0 (16 de noviembre de 2026) es la primera en las tiendas. Trae la lista de regalos de cada persona, el reparto en rejilla, las ocasiones con cuenta atrás, los regalos secretos, compartir entre móviles y con la versión web, el código de recuperación y los temas claro y oscuro. Los detalles, en [CHANGELOG.md](CHANGELOG.md).
+La versión 1.0.7 (26 de noviembre de 2026) trae la lista de deseos: cada persona apunta lo que le gustaría recibir y la familia lo coge con «Lo regalo yo» sin que ella sepa quién; los deseos cogidos cuentan en el presupuesto, la fila del deseo es más compacta, la página de cada persona pliega la cabecera al bajar y el editor guarda lo opcional en «Más detalles». En Android pasa a una app nueva de Google Play. La versión 1.0.6 (22 de noviembre de 2026) hace que quien invita elija de quién es el móvil nuevo, oculta desde el primer momento los regalos de cada persona en su propio móvil, deja que la versión web vea y edite los regalos en secreto de los demás, admite hasta 200 regalos en secreto por persona y prueba otra ruta si el operador bloquea la conexión. La versión 1.0.5 (21 de noviembre de 2026) revisa todos los textos en castellano, catalán e inglés, pregunta antes de descartar los cambios de un regalo, pide el nombre del móvil al unirse con un enlace y arregla «Borrar todo» y los regalos en secreto. La versión 1.0.4 (20 de noviembre de 2026) trae un diseño más claro con nuevos tonos pastel en el modo oscuro, presupuesto por ocasión, las ocasiones más próximas primero, enlaces de regalo que se abren con un toque y cualquier persona de la familia como quien regala. La versión 1.0.3 (17 de noviembre de 2026) abre un fichero de recuperación directamente desde Archivos, también con la app ya abierta, y muestra «Guardar en un fichero» en la pantalla de las 24 palabras sin tener que bajar. La versión 1.0.2 (16 de noviembre de 2026) permite guardar el código de recuperación en un fichero, con contraseña si quieres, hace que conectar la versión web vuelva a funcionar y vaya más rápido, y evita que el escáner QR se quede en negro. La versión 1.0.0 (16 de noviembre de 2026) es la primera en las tiendas. Trae la lista de regalos de cada persona, el reparto en rejilla, las ocasiones con cuenta atrás, los regalos secretos, compartir entre móviles y con la versión web, el código de recuperación y los temas claro y oscuro. Los detalles, en [CHANGELOG.md](CHANGELOG.md).
 
 ## Contribuir
 
-Se agradecen los avisos de fallos, las ideas y las traducciones. Cómo compilar, probar y contribuir: [CONTRIBUTING.es.md](CONTRIBUTING.es.md). También puedes escribir a **gifthuddle@gifthuddle.app**, y quien participe en la prueba cerrada puede usar las opiniones de la ficha de Google Play.
+Se agradecen los avisos de fallos, las ideas y las traducciones. Cómo compilar, probar y contribuir: [CONTRIBUTING.es.md](CONTRIBUTING.es.md). También puedes escribir a **gifthuddle@gifthuddle.app**, y puedes dejar tu opinión en la ficha de Google Play.
 
 ## Licencia
 

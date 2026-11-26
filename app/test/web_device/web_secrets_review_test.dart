@@ -5,8 +5,11 @@ import 'package:regalos/core/sync/access_policy.dart';
 import 'package:regalos/core/sync/device_registry.dart';
 import 'package:regalos/core/sync/hlc.dart';
 import 'package:regalos/core/sync/model.dart';
+import 'package:regalos/core/sync/wish.dart';
+import 'package:regalos/core/sync/wish_plan.dart';
 import 'package:regalos/core/sync/protected_doc.dart' show openScope;
 import 'package:regalos/features/sync/data/sync_transport_v2.dart';
+import 'package:regalos/features/web_device/application/pending_queue.dart';
 
 import '../sync/v2_harness.dart';
 import 'web_engine_support.dart';
@@ -121,6 +124,39 @@ void main() {
     expect(b.fields, a.fields);
     await h.engine.sync();
     expect(await h.queue.entries(), isEmpty);
+  });
+
+  test('B-2: la recogida transitiva copia también el rechazo: la tableta '
+      'que lee el slot del móvil declara el mismo «x»', () async {
+    final h = await ready();
+    final tablet = await aritzTablet(h);
+    final web = h.engine.auth.deviceId;
+    await h.engine.sync();
+    // An edit with a stamp a month ahead: the phone rejects the inbox whole.
+    final before = h.engine.candidate!;
+    final far = DateTime.now().millisecondsSinceEpoch + 40 * 86400000;
+    await h.engine.save(
+      before,
+      before.set(
+        HlcClock(node: web, last: Hlc(millis: far, counter: 0, node: web)),
+        Collections.gifts,
+        's1',
+        {'status': 'bought'},
+      ),
+    );
+    await h.engine.sync();
+    await h.phone.engine(h.client).sync();
+    expect(h.phone.state.webInboxRejected.keys, ['nora/$web']);
+    expect(tablet.state.webInboxRejected, isEmpty);
+    // The tablet reads the phone's slot (`s[web]` and `x[web]`): it does not
+    // collect the inbox itself, and still carries the rejection.
+    await tablet.engine(h.client).sync();
+    expect(tablet.state.webInboxFloors['nora/$web'], isNotNull);
+    expect(tablet.state.webInboxRejected, h.phone.state.webInboxRejected);
+    expect(
+      tablet.scopes['nora']!.record(Collections.gifts, 's1')?['status'],
+      isNot('bought'),
+    );
   });
 
   test('B1: sin estado, el móvil no vuelve a recoger un buzón que ya declaró',
@@ -239,5 +275,77 @@ void main() {
     expect(h.engine.screenHiddenPeople, containsAll(['aritz', 'leo']));
     // Sin su móvil de la persona aprobado, la web suelta las claves.
     expect(h.engine.secretsOpen, isFalse);
+  });
+
+  test('ADR 0010: dos móviles de Aritz recogen a la vez el plan de la web y '
+      'acaban igual, sin duplicarlo', () async {
+    final h = await ready();
+    final tablet = await aritzTablet(h);
+    h.phone.doc = h.phone.doc.set(h.phone.clock, Collections.wishes, 'w1', {
+      'recipientId': 'nora',
+      'authorPersonId': 'nora',
+      'suggested': false,
+      'title': 'Patinete',
+      'year': 2026,
+    });
+    await h.phone.engine(h.client).sync();
+    await h.engine.sync();
+    final claim = await h.engine.claimWish('w1');
+    expect(claim.ok, isTrue);
+    await h.engine.sync();
+    await Future.wait([
+      h.phone.engine(h.client).sync(),
+      tablet.engine(h.client).sync(),
+    ]);
+    await h.phone.engine(h.client).sync();
+    await tablet.engine(h.client).sync();
+    final a = h.phone.scopes['nora']!;
+    // La tableta ve el plan por el slot del móvil (no republica si no hay nada que decir).
+    final b = (await openScope(
+      personId: 'nora',
+      slots: tablet.slotSet,
+      keyring: tablet.keyring,
+      view: await tablet.view(),
+    ))!
+        .doc;
+    expect(a.livePlans.map((p) => p.planId), [claim.planId]);
+    expect(b.livePlans.map((p) => p.planId), [claim.planId]);
+    expect(
+      b.record(ScopeCollections.wishPlans, claim.planId!)!.fields,
+      a.record(ScopeCollections.wishPlans, claim.planId!)!.fields,
+    );
+    await h.engine.sync();
+    expect(await h.queue.entries(), isEmpty);
+  });
+
+  test('ADR 0010, M3: si el Worker rechaza el buzón, el deseo propio se '
+      'publica igual y el plan espera', () async {
+    final h = await ready();
+    h.phone.doc = h.phone.doc.set(h.phone.clock, Collections.wishes, 'w1', {
+      'recipientId': 'nora',
+      'authorPersonId': 'nora',
+      'suggested': false,
+      'title': 'Patinete',
+      'year': 2026,
+    });
+    await h.phone.engine(h.client).sync();
+    await h.engine.sync();
+    final mine = await h.engine.createOwnWish(
+      const VisibleWishPatch(title: 'Libro', year: 2026),
+    );
+    expect(mine.ok, isTrue);
+    final claim = await h.engine.claimWish('w1');
+    expect(claim.ok, isTrue);
+    h.worker.refuseWebSlot = 413;
+    await h.engine.sync();
+    final wish = (await h.remote()).record(Collections.wishes, mine.wishId!)!;
+    expect(wish['authorPersonId'], 'aritz');
+    expect((await h.remote()).canonicalJson(), isNot(contains(claim.planId!)));
+    expect(h.engine.heldInboxPeople, {'nora'});
+    expect(h.engine.pendingPlanIds, {claim.planId});
+    expect(
+      (await h.queue.entries()).where((e) => e.kind == PendingKind.privateScope),
+      hasLength(1),
+    );
   });
 }

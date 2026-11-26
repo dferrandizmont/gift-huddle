@@ -10,7 +10,6 @@ import 'package:regalos/app/router.dart';
 import 'package:regalos/core/format/money.dart';
 import 'package:regalos/core/sync/hlc.dart';
 import 'package:regalos/core/sync/model.dart';
-import 'package:regalos/core/widgets/budget_meter.dart';
 import 'package:regalos/features/family/application/family_providers.dart';
 import 'package:regalos/features/occasions/presentation/occasion_detail_screen.dart';
 import 'package:regalos/features/settings/application/locale_provider.dart';
@@ -385,7 +384,7 @@ void main() {
           tester.platformDispatcher.textScaleFactorTestValue = scale;
           addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
           await _mount(tester, phone);
-          await tester.runAsync(() async {
+          await driveAsync(tester, () async {
             final c = familyOf(phone);
             await c.upsertOccasion(
               const Occasion(
@@ -454,12 +453,12 @@ void main() {
       '«Sin presupuesto» a cero, no el estado vacío',
       (tester, phone) async {
         await _mount(tester, phone, noGifts: true);
-        await tester.runAsync(() async {
+        await driveAsync(tester, () async {
           for (final o in phone.container.read(occasionsProvider)) {
             await familyOf(phone).deleteOccasion(o.id);
           }
         });
-        await tester.runAsync(() async {
+        await driveAsync(tester, () async {
           final c = familyOf(phone);
           await c.upsertGiver(
             const Giver(
@@ -512,7 +511,10 @@ void main() {
         final budget = phone.container.read(budgetProvider);
         expect(budget.total.spentCents, 0);
         expect(budget.hasBudgeted, isFalse);
-        expect(find.textContaining('Activa «Paga la casa»'), findsNothing);
+        expect(
+          find.textContaining('Activa «Cuenta como gasto de casa»'),
+          findsNothing,
+        );
         expect(find.text('Sin presupuesto'), findsWidgets);
         final vieja = _occasion('vieja');
         expect(vieja, findsOneWidget);
@@ -555,7 +557,7 @@ void main() {
         'presupuesto, y una ocasión vacía se lista con «Poner presupuesto»',
         (tester, phone) async {
           await _mount(tester, phone, budgets: {'seed-kings': 30000});
-          await tester.runAsync(() => familyOf(phone).upsertOccasion(boda));
+          await driveAsync(tester, () => familyOf(phone).upsertOccasion(boda));
           await tester.pump();
           await _openBudget(tester, phone);
           expect(
@@ -649,7 +651,7 @@ void main() {
       'cada botón dice de quién es',
       (tester, phone) async {
         await _mount(tester, phone);
-        await tester.runAsync(() async {
+        await driveAsync(tester, () async {
           await familyOf(phone).archiveRecipient('nora');
           await familyOf(phone).archiveRecipient('leo');
         });
@@ -803,7 +805,7 @@ void main() {
     'al final y marcadas',
     (tester, phone) async {
       await _mount(tester, phone);
-      await tester.runAsync(() async {
+      await driveAsync(tester, () async {
         final c = familyOf(phone);
         await c.upsertOccasion(
           const Occasion(
@@ -875,7 +877,8 @@ void main() {
       'más de lo previsto',
       (tester, phone) async {
         await _mount(tester, phone);
-        await tester.runAsync(
+        await driveAsync(
+          tester,
           () => familyOf(phone).upsertGift(
             const Gift(
               id: 'caro',
@@ -908,7 +911,10 @@ void main() {
       (tester, phone) async {
         await _mount(tester, phone, noGifts: true);
         await _openBudget(tester, phone);
-        expect(find.textContaining('Activa «Paga la casa»'), findsOneWidget);
+        expect(
+          find.textContaining('Activa «Cuenta como gasto de casa»'),
+          findsOneWidget,
+        );
         final access = find.byKey(const ValueKey<String>('budget-set-first'));
         expect(access, findsOneWidget);
         expect(tester.getSize(access).height, greaterThanOrEqualTo(44));
@@ -918,7 +924,10 @@ void main() {
         await tester.tap(find.text('Guardar'));
         await settle(tester);
         expect(phone.container.read(budgetProvider).total.budgetCents, 6000);
-        expect(find.textContaining('Activa «Paga la casa»'), findsNothing);
+        expect(
+          find.textContaining('Activa «Cuenta como gasto de casa»'),
+          findsNothing,
+        );
         expect(tester.takeException(), isNull);
       },
       size: const Size(1440, 1000),
@@ -949,7 +958,7 @@ void main() {
       'una archivada de 2024 abre su calendario y no selecciona otra ocasión',
       (tester, phone) async {
         await _mount(tester, phone);
-        await tester.runAsync(() => familyOf(phone).upsertOccasion(vieja));
+        await driveAsync(tester, () => familyOf(phone).upsertOccasion(vieja));
         await settle(tester);
         await _openBudget(tester, phone);
         await tester.tap(
@@ -996,7 +1005,8 @@ void main() {
           'archived': true,
           Occasion.budgetField: 17500,
         });
-        await tester.runAsync(
+        await driveAsync(
+          tester,
           () => familyOf(phone).mergeRemote(remote, fromNode: remoteClock.node),
         );
         await settle(tester);
@@ -1048,36 +1058,28 @@ void main() {
 
   for (final size in const [Size(1440, 1000), Size(800, 1100)]) {
     screenTest(
-      'a ${size.width.toInt()}, por persona: sin previsto dice «Gastado '
-      '45 €», sin «de 0 €» ni barra; con previsto no cambia',
+      'a ${size.width.toInt()}, por persona: un regalo con solo precio real '
+      'muestra «45 € de 45 €»',
       (tester, phone) async {
         await _mount(tester, phone, looseSpent: true);
         await _openBudget(tester, phone);
         final totals = phone.container
             .read(budgetProvider)
             .ofRecipient('suelta');
-        expect(totals.plannedCents, 0);
+        expect(totals.plannedCents, 4500);
         expect(totals.spentCents, 4500);
         final card = find.byKey(const ValueKey<String>('budget-person-suelta'));
         expect(card, findsOneWidget);
-        expect(
-          find.descendant(of: card, matching: find.text('Gastado')),
-          findsOneWidget,
-        );
         expect(
           find.descendant(of: card, matching: find.text(_money(4500))),
           findsOneWidget,
         );
         expect(
-          find.descendant(of: card, matching: find.textContaining('de ')),
-          findsNothing,
+          find.descendant(of: card, matching: find.text('de ${_money(4500)}')),
+          findsOneWidget,
         );
         expect(
-          find.descendant(of: card, matching: find.byType(BudgetBar)),
-          findsNothing,
-        );
-        expect(
-          find.bySemanticsLabel(RegExp('^Leo, Gastado 45')),
+          find.bySemanticsLabel('Leo, ${_money(4500)} de ${_money(4500)}'),
           findsOneWidget,
         );
         final aritz = find.byKey(const ValueKey<String>('budget-person-aritz'));

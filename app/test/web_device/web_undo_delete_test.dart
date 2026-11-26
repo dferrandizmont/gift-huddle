@@ -199,10 +199,21 @@ void main() {
                 .set(h.phone.clock, Collections.occasions, 'winter', {
                   'name': 'Invierno',
                 })
+                .set(
+                  h.phone.clock,
+                  Collections.recipients,
+                  'requester',
+                  const Recipient(
+                    id: 'requester',
+                    name: 'Leo',
+                    colorIndex: 0,
+                    archived: false,
+                  ).toFields(),
+                )
                 .set(h.phone.clock, Collections.gifts, 'gift', {
                   'giverId': 'giver',
                   'occasionId': 'winter',
-                  'requestedBy': const RequestedByRecipient('aritz').toFields(),
+                  'requestedBy': const RequestedByRecipient('requester').toFields(),
                 }),
           );
           var controller = await open();
@@ -231,7 +242,7 @@ void main() {
             case 'recipient':
               await controller.deleteRecipient('nora');
             case 'requester':
-              await controller.deleteRecipient('aritz');
+              await controller.deleteRecipient('requester');
             case 'giver':
               await controller.deleteGiver('giver');
             case 'occasion':

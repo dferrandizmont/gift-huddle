@@ -16,12 +16,14 @@ import '../../../core/layout/pane_scope.dart';
 import '../../../core/layout/two_pane.dart';
 import '../../../core/motion/stagger.dart';
 import '../../../core/sync/model.dart';
+import '../../../core/sync/wish_plan.dart' show WishPlanState;
 import '../../../core/theme/app_typography.dart';
 import '../../../core/theme/gift_status.dart' as visual;
 import '../../../core/theme/occasion_theme.dart';
 import '../../../core/theme/regalos_shape.dart';
 import '../../../core/theme/regalos_tokens.dart';
 import '../../../core/widgets/budget_meter.dart';
+import '../../../core/widgets/count_text.dart';
 import '../../../core/widgets/countdown_card.dart';
 import '../../../core/widgets/desktop_add_gift_button.dart';
 import '../../../core/widgets/gift_status_l10n.dart';
@@ -30,6 +32,10 @@ import '../../../core/widgets/person_avatar.dart';
 import '../../../core/widgets/screen_header.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/status_checkbox.dart';
+import '../../../core/widgets/tag_label.dart';
+import '../../../core/widgets/wish_row.dart'
+    show kWishStarSize, kWishStarStroke;
+import '../../../core/widgets/tabler_icons.dart';
 import 'occasion_expand_route.dart';
 import 'occasion_garland.dart';
 import '../../../core/widgets/stroke_icon.dart';
@@ -45,6 +51,8 @@ import '../../family/presentation/secret_blocks.dart';
 import '../../gifts/application/delivered_arm.dart';
 import '../../gifts/presentation/gift_actions.dart';
 import '../../gifts/presentation/gift_editor_screen.dart';
+import '../../gifts/presentation/wish_editor.dart';
+import '../../gifts/presentation/wish_plan_note.dart';
 import '../../settings/presentation/occasion_scope.dart';
 
 /// El tema de una ocasión: el de su tipo (Papá Noel, Tió, Reyes, cumpleaños,
@@ -180,12 +188,38 @@ class _BodyState extends ConsumerState<_Body> {
     final people = view.recipients;
     final peopleById = view.recipientsById;
     final givers = view.giversById;
+    // Quien lo ha cogido de un deseo, por regalo (la lista de la persona dice
+    // lo mismo): en la web los planes no están entre los regalos de la vista y
+    // se añaden desde su motor.
+    final reader = ref.watch(wishReaderProvider);
+    final fullPeople = full.allRecipientsById;
+    final lockedNow = ref.watch(lockedPeopleProvider);
     final mine = [
-      for (final g in view.gifts)
+      for (final g in [
+        ...view.gifts,
+        for (final p in people)
+          if (!lockedNow.contains(p.id))
+            ...ref.watch(webPlanGiftsProvider(p.id)),
+      ])
         if (g.occasionId == occasion.id &&
             peopleById.containsKey(g.recipientId))
           g,
     ];
+    final planNotes = <String, _PlanNote>{};
+    for (final p in people) {
+      final rows = ref.watch(wishPlanRowByPlanProvider(p.id));
+      for (final g in mine) {
+        final row = rows[g.id];
+        if (g.recipientId != p.id || row == null) continue;
+        final note = wishPlanNoteText(l10n, row, g.id, fullPeople, reader);
+        if (note != null) {
+          planNotes[g.id] = _PlanNote(
+            note,
+            row.state == WishPlanState.conflictingClaims,
+          );
+        }
+      }
+    }
     final birthdayPerson = occasion.kind == OccasionKind.birthday
         ? peopleById[occasion.recipientId]
         : null;
@@ -209,15 +243,24 @@ class _BodyState extends ConsumerState<_Body> {
     // Quien tiene regalos en secreto que este móvil no ve no sale con cifras:
     // lleva el bloque fijo, en esta y en cualquier ocasión.
     final locked = ref.watch(lockedPeopleProvider);
-    final lockedPeople = [
+    final lockedPeople = lockedPeopleFor(occasion, people, locked);
+    // Los deseos de la ocasión (ADR 0010): los ve cualquiera, también la
+    // persona; el que alguien ha cogido sale como su plan (un regalo).
+    final wishesOf = <String, List<WishEntry>>{
       for (final p in people)
-        if (locked.contains(p.id)) p,
-    ];
+        p.id: [
+          for (final e in ref.watch(wishEntriesProvider(p.id)))
+            if (e.wish.occasionId == occasion.id &&
+                (e.actions.isOwner || e.actions.plans.isEmpty))
+              e,
+        ],
+    };
+    final hasWishes = wishesOf.values.any((l) => l.isNotEmpty);
     // Con dos paneles, una ocasión sin regalos no enseña ceros ni secciones
     // vacías: un bloque arriba, a la izquierda, con lo que hacer. Si hay
     // personas en secreto, la ocasión no está vacía a la vista: lleva sus
     // bloques.
-    final bare = mine.isEmpty && lockedPeople.isEmpty;
+    final bare = mine.isEmpty && lockedPeople.isEmpty && !hasWishes;
 
     // Pendiente de comprar, agrupado por tienda (sin tienda, al final).
     final byStore = <String, List<Gift>>{};
@@ -267,9 +310,10 @@ class _BodyState extends ConsumerState<_Body> {
     // Personas con regalos en la ocasión (y, en un cumpleaños, la propia).
     final shownPeople = [
       for (final p in people)
-        if (!locked.contains(p.id) &&
-            (mine.any((g) => g.recipientId == p.id) ||
-                birthdayPerson?.id == p.id))
+        if ((!locked.contains(p.id) &&
+                (mine.any((g) => g.recipientId == p.id) ||
+                    birthdayPerson?.id == p.id)) ||
+            wishesOf[p.id]!.isNotEmpty)
           p,
     ];
 
@@ -499,6 +543,9 @@ class _BodyState extends ConsumerState<_Body> {
                                 for (final g in mine)
                                   if (g.recipientId == p.id) g,
                               ],
+                              wishes: wishesOf[p.id]!,
+                              notes: planNotes,
+                              locked: locked.contains(p.id),
                               group: group,
                               allGifts: view.gifts,
                               givers: givers,
@@ -895,10 +942,23 @@ class _StatCard extends StatelessWidget {
   }
 }
 
+/// Lo que dice de un deseo cogido su fila en la ocasión.
+class _PlanNote {
+  const _PlanNote(this.text, this.warning);
+
+  final String text;
+
+  /// Si es el aviso de dos reservas.
+  final bool warning;
+}
+
 class _PersonBlock extends ConsumerWidget {
   const _PersonBlock({
     required this.person,
     required this.gifts,
+    required this.wishes,
+    required this.notes,
+    required this.locked,
     required this.group,
     required this.allGifts,
     required this.givers,
@@ -909,6 +969,17 @@ class _PersonBlock extends ConsumerWidget {
 
   final Recipient person;
   final List<Gift> gifts;
+
+  /// Los deseos de la persona en esta ocasión.
+  final List<WishEntry> wishes;
+
+  /// Lo que dice de un deseo cogido (quién lo ha cogido o el aviso de dos
+  /// reservas), por id de regalo.
+  final Map<String, _PlanNote> notes;
+
+  /// Si este móvil no enseña los regalos de la persona (solo su bloque):
+  /// entonces no se cuentan, solo los deseos.
+  final bool locked;
   final List<Occasion> group;
   final List<Gift> allGifts;
   final Map<String, Giver> givers;
@@ -933,6 +1004,11 @@ class _PersonBlock extends ConsumerWidget {
             .length,
     ];
     final total = counts.fold<int>(0, (a, b) => a + b);
+    // Los deseos sin coger, aparte de los regalos (QA 1.0.7, m1): los cogidos
+    // ya salen como regalos.
+    final freeWishes = wishes
+        .where((e) => !e.actions.isOwner && e.actions.plans.isEmpty)
+        .length;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
       decoration: BoxDecoration(
@@ -957,11 +1033,16 @@ class _PersonBlock extends ConsumerWidget {
                   ),
                 ),
               ),
-              Text(l10n.giftCount(gifts.length), style: t.styles.meta),
+              Text(
+                locked
+                    ? l10n.wishCount(wishes.length)
+                    : giftsAndWishesText(l10n, gifts.length, freeWishes),
+                style: t.styles.meta,
+              ),
             ],
           ),
           const SizedBox(height: 4),
-          if (gifts.isEmpty)
+          if (gifts.isEmpty && wishes.isEmpty)
             Padding(
               padding: const EdgeInsets.only(left: 44, top: 2, bottom: 6),
               child: Text(l10n.occasionNoGiftsYet, style: t.styles.meta),
@@ -972,6 +1053,11 @@ class _PersonBlock extends ConsumerWidget {
             key: const ValueKey('gift-rows'),
             quiet: fromRemote,
             rows: [
+              for (final e in wishes)
+                AnimatedRowItem(
+                  id: e.wish.id,
+                  child: _WishLine(entry: e),
+                ),
               for (final g in gifts)
                 AnimatedRowItem(
                   id: g.id,
@@ -984,7 +1070,8 @@ class _PersonBlock extends ConsumerWidget {
                       button: true,
                       label:
                           '${g.title}. ${giverNameFor(l10n, givers[g.giverId])}. '
-                          '${g.status.visualStatus.label(l10n)}',
+                          '${g.status.visualStatus.label(l10n)}'
+                          '${notes[g.id] == null ? '' : '. ${notes[g.id]!.text}'}',
                       excludeSemantics: true,
                       onTap: () => onOpen(g),
                       child: InkWell(
@@ -1003,7 +1090,22 @@ class _PersonBlock extends ConsumerWidget {
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: Text(g.title, style: t.styles.body),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(g.title, style: t.styles.body),
+                                    if (notes[g.id] case final _PlanNote note)
+                                      Text(
+                                        note.text,
+                                        key: ValueKey<String>(
+                                          'occasion-plan-note-${g.id}',
+                                        ),
+                                        style: note.warning
+                                            ? t.styles.metaWarning
+                                            : t.styles.meta,
+                                      ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
@@ -1073,6 +1175,66 @@ class _PersonBlock extends ConsumerWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// Un deseo en la ficha de la persona de la ocasión: su título y la etiqueta
+/// «Deseo». La persona lo edita; los demás lo abren para cogerlo.
+class _WishLine extends ConsumerWidget {
+  const _WishLine({required this.entry});
+
+  final WishEntry entry;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final t = RegalosTokens.of(context);
+    final wish = entry.wish;
+    void open() => entry.actions.canEdit
+        ? openWishEditor(context, wish: wish, recipientId: wish.recipientId)
+        : openWishDetail(context, person: wish.recipientId, wishId: wish.id);
+    return Semantics(
+      container: true,
+      button: true,
+      label: '${wish.title}. ${l10n.wishTag}',
+      excludeSemantics: true,
+      onTap: open,
+      child: InkWell(
+        onTap: open,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
+          child: Row(
+            children: [
+              const SizedBox(width: 44),
+              ExcludeSemantics(
+                child: SizedBox.square(
+                  dimension: 22,
+                  child: Center(
+                    child: StrokeIcon(
+                      tablerStar,
+                      size: kWishStarSize,
+                      color: t.textSecondary,
+                      strokeWidth: kWishStarStroke,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  children: [
+                    Text(wish.title, style: t.styles.body),
+                    TagLabel(l10n.wishTag),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

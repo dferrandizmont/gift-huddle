@@ -9,6 +9,8 @@ import '../../../core/sync/hlc.dart';
 import '../../../core/sync/model.dart';
 import '../../../core/sync/pairing_v2.dart';
 import '../../../core/sync/protected_doc.dart';
+import '../../../core/sync/wish.dart';
+import '../../../core/sync/wish_boundary.dart';
 import '../../family/data/device_keys_store.dart';
 import '../../family/data/family_store.dart';
 import 'common_v2.dart';
@@ -45,7 +47,9 @@ class StoredSyncV2Local
   Future<FamilyDoc> common() async => (await store.load())!.doc;
   @override
   Future<void> mergeCommon(FamilyDoc remote, {required String fromNode}) async {
-    final merged = (await common()).merge(remote);
+    final merged = (await common())
+        .merge(remote.wishBoundary())
+        .normalizedWishes();
     await store.saveDoc(
       reconcileGiverCopies(
         merged,

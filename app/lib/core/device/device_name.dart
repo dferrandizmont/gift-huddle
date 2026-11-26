@@ -108,7 +108,9 @@ class _DeviceNameFieldState extends ConsumerState<DeviceNameField> {
       decoration: InputDecoration(
         labelText: l10n.obDeviceNameLabel,
         helperText: l10n.obDeviceNameHint,
-        helperMaxLines: 2,
+        // Con letra grande el texto baja de línea entero, no se corta con «…»
+        // (QA 1.0.7, c3).
+        helperMaxLines: 6,
       ),
     );
   }

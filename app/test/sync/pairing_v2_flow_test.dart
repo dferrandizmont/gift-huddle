@@ -159,6 +159,30 @@ void main() {
     expect((await aritz.view()).paired, isTrue);
   });
 
+  test('M1 de la revisión de seguridad: el invitado instala el común del '
+      'checkpoint por la frontera de los deseos', () async {
+    // Un anfitrión de esta versión ya saca esto de lo que aprueba; el
+    // invitado lo vuelve a pasar por la frontera por si el anfitrión no lo es
+    // (defensa en profundidad: aquí no se puede fabricar un anfitrión que no
+    // la aplique, porque el checkpoint va firmado).
+    aritz.doc = aritz.doc.set(aritz.clock, 'gifts', 'gx', {
+      'recipientId': 'leo',
+      'title': 'Libro',
+      'status': 'idea',
+      'year': 2026,
+      'purchaseUrl': 'https://tienda.example/secreto',
+      'claimantPersonId': 'aritz',
+    });
+    aritz.addGift('g2', 'leo', 'Otro');
+    final (host, guest, _, _) = await toCodes();
+    guest.confirmCode();
+    await host.confirm(confirmedPersonId: 'leo');
+    final joined = (await guest.finish())!;
+    expect(joined.common.record('gifts', 'g2'), isNotNull);
+    expect(joined.common.record('gifts', 'gx'), isNull);
+    expect(joined.common.canonicalJson(), isNot(contains('secreto')));
+  });
+
   for (final attack in [
     'quitar',
     'bajar',
@@ -312,6 +336,7 @@ void main() {
       keys: await _keys(9),
       deviceId: 'leo-phone',
       personId: 'leo',
+      inviteId: host.inviteId,
     );
     worker.tamper = (method, uri, r) {
       if (method == 'GET' &&

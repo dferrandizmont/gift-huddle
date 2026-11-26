@@ -7,9 +7,13 @@ import '../../../core/theme/regalos_shape.dart';
 import '../../../core/theme/regalos_tokens.dart';
 import '../../../core/widgets/pointer_surface.dart';
 import '../../../core/widgets/stroke_icon.dart';
+import '../../../core/widgets/tag_label.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../family/application/family_providers.dart';
 import '../../family/application/gift_search.dart';
+import '../../../core/sync/wish_plan.dart';
+import 'wish_plan_note.dart';
+import 'wish_editor.dart';
 
 /// El campo del buscador de regalos del móvil, la tableta y la web estrecha:
 /// una lupa delante y, con algo escrito, una cruz que lo borra. Busca por el
@@ -135,8 +139,10 @@ class GiftSearchField extends StatelessWidget {
   }
 }
 
-/// Los regalos que casan con [query], como filas (el regalo y su persona), o
-/// «Ningún regalo coincide» si no hay ninguno. Con [limit], solo los primeros.
+/// Los regalos y los deseos que casan con [query], como filas (el regalo o el
+/// deseo y su persona), o «Ningún regalo coincide» si no hay ninguno. Con
+/// [limit], solo los primeros. Un deseo sale una vez: como su plan si alguien
+/// lo ha cogido y este dispositivo puede verlo (ADR 0010).
 class GiftSearchResults extends ConsumerWidget {
   /// Crea la lista.
   const GiftSearchResults({
@@ -166,10 +172,56 @@ class GiftSearchResults extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
     final t = RegalosTokens.of(context);
     final people = ref.watch(familyFullViewProvider).recipientsById;
-    final all = ref.watch(giftSearchProvider(query));
+    final results = ref.watch(searchResultsProvider(query));
+    final reader = ref.watch(wishReaderProvider);
+    final planIds = {
+      for (final plans in ref.watch(projectedPlansByWishProvider).values)
+        for (final plan in plans) plan.planId,
+      for (final plans in ref.watch(webWishPlansProvider).values)
+        for (final plan in plans) plan.planId,
+    };
+    final fullPeople = ref.watch(familyFullViewProvider).allRecipientsById;
+    final l10n = AppLocalizations.of(context);
+    // Un deseo cogido dice quién lo ha cogido, o el aviso de dos reservas,
+    // igual que en la lista de la persona.
+    String? noteOf(Gift g) => planIds.contains(g.id)
+        ? wishPlanNoteText(
+            l10n,
+            ref.watch(wishPlanRowByPlanProvider(g.recipientId))[g.id],
+            g.id,
+            fullPeople,
+            reader,
+          )
+        : null;
+    final all = <_Hit>[
+      for (final g in results.gifts)
+        _Hit(
+          id: g.id,
+          title: g.title,
+          personId: g.recipientId,
+          isWish: planIds.contains(g.id),
+          note: noteOf(g),
+          warning:
+              planIds.contains(g.id) &&
+              ref
+                      .watch(wishPlanRowByPlanProvider(g.recipientId))[g.id]
+                      ?.state ==
+                  WishPlanState.conflictingClaims,
+          onOpen: () => onOpen(g),
+        ),
+      for (final w in results.wishes)
+        _Hit(
+          id: w.id,
+          title: w.title,
+          personId: w.recipientId,
+          isWish: true,
+          onOpen: () => w.recipientId == reader
+              ? openWishEditor(context, wish: w, recipientId: w.recipientId)
+              : openWishDetail(context, person: w.recipientId, wishId: w.id),
+        ),
+    ];
     final found = limit == null ? all : all.take(limit!).toList();
     // Los resultados enseñan regalos: sin capturas en la versión de tienda.
     return GiftsSecureScope(child: _results(context, t, l10n, people, found));
@@ -180,7 +232,7 @@ class GiftSearchResults extends ConsumerWidget {
     RegalosTokens t,
     AppLocalizations l10n,
     Map<String, Recipient> people,
-    List<Gift> found,
+    List<_Hit> found,
   ) {
     if (found.isEmpty) {
       return Padding(
@@ -202,9 +254,12 @@ class GiftSearchResults extends ConsumerWidget {
       for (final g in found)
         Semantics(
           button: true,
-          label: '${g.title}, ${people[g.recipientId]?.name ?? ''}',
+          label:
+              '${g.title}, ${people[g.personId]?.name ?? ''}'
+              '${g.isWish ? ', ${l10n.wishTag}' : ''}'
+              '${g.note == null ? '' : ', ${g.note}'}',
           excludeSemantics: true,
-          onTap: () => onOpen(g),
+          onTap: g.onOpen,
           child: PointerSurface(
             child: Material(
               color: Colors.transparent,
@@ -213,7 +268,7 @@ class GiftSearchResults extends ConsumerWidget {
               ),
               clipBehavior: Clip.antiAlias,
               child: InkWell(
-                onTap: () => onOpen(g),
+                onTap: g.onOpen,
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(minHeight: 48),
                   child: Padding(
@@ -225,18 +280,36 @@ class GiftSearchResults extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          g.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: t.styles.label,
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                g.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: t.styles.label,
+                              ),
+                            ),
+                            if (g.isWish) ...[
+                              const SizedBox(width: 8),
+                              TagLabel(l10n.wishTag),
+                            ],
+                          ],
                         ),
                         Text(
-                          people[g.recipientId]?.name ?? '',
+                          people[g.personId]?.name ?? '',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: t.styles.caption,
                         ),
+                        if (g.note != null)
+                          Text(
+                            g.note!,
+                            key: ValueKey<String>('gift-search-note-${g.id}'),
+                            style: g.warning
+                                ? t.styles.metaWarning
+                                : t.styles.meta,
+                          ),
                       ],
                     ),
                   ),
@@ -256,4 +329,29 @@ class GiftSearchResults extends ConsumerWidget {
             ),
           );
   }
+}
+
+/// Una fila del buscador: un regalo o un deseo.
+class _Hit {
+  const _Hit({
+    required this.id,
+    required this.title,
+    required this.personId,
+    required this.isWish,
+    required this.onOpen,
+    this.note,
+    this.warning = false,
+  });
+
+  final String id;
+  final String title;
+  final String personId;
+  final bool isWish;
+
+  /// Quién lo ha cogido o el aviso de dos reservas (un deseo cogido).
+  final String? note;
+
+  /// Si [note] es el aviso de dos reservas.
+  final bool warning;
+  final VoidCallback onOpen;
 }

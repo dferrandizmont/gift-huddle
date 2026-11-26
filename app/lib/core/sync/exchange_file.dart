@@ -35,8 +35,12 @@ import 'family_candidate.dart' show kV2SyncIdPattern;
 import 'family_envelope.dart' show isFamilyEnvelope;
 import 'family_key_bundle.dart' show FamilyKeyBundle;
 
-/// Versión del contenedor de intercambio.
-const int kExchangeFileVersion = 1;
+/// Versión del contenedor de intercambio que escribe 1.0.7. 1.0.6 solo lee
+/// la 1 y rechaza esta en [ExchangeFile.parse] antes de abrir nada.
+const int kExchangeFileVersion = 2;
+
+/// Versión del contenedor que escribía 1.0.6. 1.0.7 todavía la lee.
+const int kExchangeFileVersionLegacy = 1;
 
 /// Tamaño máximo de la cabecera (registro y paquetes).
 const int kMaxExchangeHeaderBytes = 512 * 1024;
@@ -111,7 +115,10 @@ bool isExchangeFile(Uint8List bytes) =>
 
 /// Si [bytes] empiezan como el sobre de siempre (`RG 0x01`). No valida.
 bool isLegacyEnvelope(Uint8List bytes) =>
-    bytes.length >= 3 && bytes[0] == 0x52 && bytes[1] == 0x47 && bytes[2] == 1;
+    bytes.length >= 3 &&
+    bytes[0] == 0x52 &&
+    bytes[1] == 0x47 &&
+    (bytes[2] == 1 || bytes[2] == kFileEnvelopeVersion);
 
 /// El contenido de un fichero de intercambio, sin autenticar: quien lo
 /// recibe verifica el registro, abre los paquetes y comprueba el común.
@@ -190,7 +197,9 @@ class ExchangeFile {
     if (!isExchangeFile(bytes)) {
       throw const EnvelopeFormatException('no es un fichero de intercambio');
     }
-    if (bytes[2] != kExchangeFileVersion) {
+    final version = bytes[2];
+    if (version != kExchangeFileVersion &&
+        version != kExchangeFileVersionLegacy) {
       throw EnvelopeFormatException(
         'versión ${bytes[2]} del fichero no soportada: hay que actualizar',
       );
@@ -217,7 +226,7 @@ class ExchangeFile {
     if (raw is! Map ||
         raw.length != _headerKeys.length ||
         !raw.keys.every(_headerKeys.contains) ||
-        raw['v'] != kExchangeFileVersion ||
+        raw['v'] != version ||
         raw['l'] is! String ||
         raw['sid'] is! String ||
         raw['rec'] is! List ||

@@ -1,6 +1,7 @@
 // Lote B6 del ADR 0005 en la app: con la marca del formato 2, `ShareService`
 // (la pantalla de copia y los ficheros que llegan de fuera) guarda y abre el
 // fichero de intercambio nuevo, y cierra el de siempre con errores claros.
+import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' show Locale;
 
@@ -129,6 +130,78 @@ void main() {
     expect(b.formatFloor, 2);
     expect(c.formatFloor, 2);
   }
+
+  test('1.0.7: a file rejected by its outer version loads nothing and '
+      'changes nothing, even with a pending guest to revoke', () async {
+    await cut();
+    final good = await share().buildEnvelope();
+    await store().savePairingPendingGuest('ghost-phone');
+    final parsed = ExchangeFile.parse(good);
+    Uint8List withVersion(int byte, {int header = 2}) {
+      final header_ = utf8.encode(
+        jsonEncode({
+          'kp': parsed.packages,
+          'l': parsed.listId,
+          'rec': parsed.records,
+          'sid': parsed.syncId,
+          'v': header,
+        }),
+      );
+      return Uint8List.fromList([
+        0x52,
+        0x58,
+        byte,
+        ...(ByteData(4)..setUint32(0, header_.length)).buffer.asUint8List(),
+        ...header_,
+        ...parsed.common,
+      ]);
+    }
+
+    Future<Map<String, Object?>> snapshot() async => {
+      'doc': jsonEncode((await doc()).toJson()),
+      'pending': await store().readPairingPendingGuest(),
+      'floor': await store().readCommonFormatFloor(),
+      'secrets': Map<String, String>.of(phone.secrets.values),
+      'files': {
+        for (final e in phone.files.files.entries) e.key: base64Encode(e.value),
+      },
+      'prefs': {for (final k in phone.prefs!.getKeys()) k: phone.prefs!.get(k)},
+    };
+
+    final before = await snapshot();
+    expect(before['pending'], 'ghost-phone');
+    final rejected = <Uint8List>[
+      withVersion(3, header: 3),
+      withVersion(2, header: 1),
+      withVersion(1, header: 2),
+      withVersion(0, header: 0),
+      // 1.0.7 classic envelope with an unknown outer version.
+      Uint8List.fromList([0x52, 0x47, 4, 0, 1, 0x7b]),
+    ];
+    for (final bad in rejected) {
+      await expectLater(
+        share().importEnvelopeBytes(bad),
+        throwsA(isA<EnvelopeFormatException>()),
+      );
+      expect(await snapshot(), before, reason: 'byte ${bad[2]}');
+    }
+    // A rejected file did not even finish the pending revocation.
+    expect(await store().readPairingPendingGuest(), 'ghost-phone');
+  });
+
+  test('1.0.7: the classic envelope with outer version 3 is read, and the '
+      'network reader (1.0.6 rule) rejects it', () async {
+    final file = await share().buildEnvelope();
+    expect(file[0], 0x52);
+    expect(file[1], 0x47);
+    expect(file[2], kFileEnvelopeVersion);
+    await expectLater(
+      open(file, key: key, expectedListId: kV2List),
+      throwsA(isA<EnvelopeFormatException>()),
+    );
+    final summary = await share().importEnvelopeBytes(file);
+    expect(summary, isNotNull);
+  });
 
   test('B6: sin la marca la copia es el sobre de siempre y un fichero nuevo '
       'pide sincronizar', () async {

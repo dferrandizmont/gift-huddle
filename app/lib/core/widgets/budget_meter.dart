@@ -140,6 +140,7 @@ class BudgetMeter extends StatelessWidget {
     required this.fraction,
     required this.semanticLabel,
     this.spentOnlyLabel,
+    this.leadLabel,
     this.barHeight = 4,
     this.barRadius,
     this.entrance = false,
@@ -160,6 +161,10 @@ class BudgetMeter extends StatelessWidget {
   /// barra. `valueText.planned` y [fraction] no se usan.
   final String? spentOnlyLabel;
 
+  /// Palabra delante de la cifra de la barra («Comprado 809 € de 879 €»).
+  /// Sin ella, solo «809 € de 879 €».
+  final String? leadLabel;
+
   /// Ya escrito para el idioma, con el «de» dentro.
   final ({String spent, String planned, String ofWord}) valueText;
   final double fraction;
@@ -171,6 +176,7 @@ class BudgetMeter extends StatelessWidget {
     final spentStyle = t.styles.amount;
     final plannedStyle = t.styles.meta;
     final spentOnly = spentOnlyLabel;
+    final lead = leadLabel;
     // Con «Reducir movimiento» la cifra aparece ya puesta.
     final roll = entrance && !RegalosMotion.of(context).reduce;
     if (spentOnly != null) {
@@ -206,7 +212,9 @@ class BudgetMeter extends StatelessWidget {
         if (label.isNotEmpty) Text(label, style: t.styles.meta),
         Semantics(
           container: true,
-          label: '${valueText.spent} ${valueText.ofWord} ${valueText.planned}',
+          label:
+              '${lead != null ? '$lead ' : ''}${valueText.spent} '
+              '${valueText.ofWord} ${valueText.planned}',
           excludeSemantics: true,
           // Un `Wrap` y no un `Row`: si no cabe, «de 145 €» baja de línea como
           // lo haría un texto normal.
@@ -214,6 +222,7 @@ class BudgetMeter extends StatelessWidget {
             spacing: 4,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
+              if (lead != null) Text(lead, style: plannedStyle),
               RollingNumber.text(
                 text: valueText.spent,
                 style: spentStyle,

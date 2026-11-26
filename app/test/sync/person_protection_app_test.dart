@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:regalos/core/sync/access_policy.dart';
@@ -11,6 +12,9 @@ import 'package:regalos/core/sync/model.dart';
 import 'package:regalos/core/sync/pairing_v2.dart';
 import 'package:regalos/core/sync/protected_doc.dart';
 import 'package:regalos/core/sync/protected_envelope.dart';
+import 'package:regalos/core/sync/wish.dart';
+import 'package:regalos/core/sync/wish_author.dart';
+import 'package:regalos/core/sync/wish_plan.dart';
 import 'package:regalos/features/family/application/family_controller.dart';
 import 'package:regalos/features/family/application/family_providers.dart';
 import 'package:regalos/features/family/data/device_keys_store.dart';
@@ -18,8 +22,11 @@ import 'package:regalos/features/family/data/family_store.dart';
 import 'package:regalos/features/family/domain/family_errors.dart';
 import 'package:regalos/features/sharing/application/share_service.dart';
 import 'package:regalos/features/sync/application/app_sync_v2_local.dart';
+import 'package:regalos/features/sync/application/generation_v2.dart';
+import 'package:regalos/features/sync/application/migration_v2.dart';
 import 'package:regalos/features/sync/application/sync_controller.dart';
 import 'package:regalos/features/sync/application/sync_v2_engine.dart';
+import 'package:regalos/features/sync/application/v2_health_provider.dart';
 import 'package:regalos/features/sync/data/sync_config.dart';
 import 'package:regalos/features/sync/data/sync_transport_v2.dart';
 import 'package:regalos/features/sync/domain/sync_status.dart';
@@ -27,7 +34,7 @@ import 'package:regalos/features/sync/domain/sync_status.dart';
 import '../helpers/memory_stores.dart';
 import '../helpers/fake_worker_v2.dart';
 import '../helpers/fake_sync_server.dart';
-import '../helpers/pump_app.dart';
+import '../helpers/pump_app.dart' hide scopeWith;
 import 'protected_harness.dart';
 import 'sync_harness.dart' show eventually, kFastTiming, kTestHost;
 
@@ -568,6 +575,304 @@ void main() {
             .requestedBy,
         isNull,
       );
+    },
+  );
+
+  test(
+    'an approved web still protects its person after its phone changes person',
+    () async {
+      final aritz = family.aritz;
+      final leo = family.leo;
+      final web = await Phone.create('aritz-web', 'aritz', 4);
+      final webRecord = await DeviceRecord.create(
+        keys: web.keys,
+        listId: kListId,
+        deviceId: web.id,
+        personId: web.self,
+        kind: DeviceKind.web,
+      );
+      var registry = await registryOf([aritz, leo]);
+      registry = await registry.withRecord(webRecord);
+      registry = await registry.withVouch(
+        await Vouch.create(
+          keys: aritz.keys,
+          voucher: await aritz.record(),
+          record: webRecord,
+        ),
+      );
+      registry = (await changePerson(
+        registry: registry,
+        view: await aritz.viewOf(registry),
+        myKeys: aritz.keys,
+        personId: 'nora',
+      )).registry;
+      registry = await registry.withVouch(
+        await Vouch.create(
+          keys: leo.keys,
+          voucher: await leo.record(),
+          record: registry.records.singleWhere(
+            (record) => record.deviceId == aritz.id && record.seq == 2,
+          ),
+        ),
+      );
+      final view = await leo.viewOf(registry);
+      expect(webStatusIn(view, web.id), WebDeviceStatus.confirmed);
+      expect(view.members.where((id) => view.member(id)?.personId == 'aritz'), [
+        web.id,
+      ]);
+
+      final p = await install(leo, registry: registry);
+      expect(
+        p.phone.container.read(familyStateProvider)?.isDevicePerson('aritz'),
+        isTrue,
+      );
+      final before = p.common.canonicalJson();
+      final refused = throwsA(
+        isA<DevicePersonException>().having(
+          (error) => error.owner,
+          'owner',
+          DevicePersonOwner.otherDevice,
+        ),
+      );
+      await expectLater(p.controller.archiveRecipient('aritz'), refused);
+      await expectLater(p.controller.deleteRecipient('aritz'), refused);
+      expect((await p.store.load())!.doc.canonicalJson(), before);
+    },
+  );
+
+  test(
+    'offline file import retires secret gifts, overflow, plans and slots',
+    () async {
+      final p = await install(family.aritz, withKey: true);
+      final clock = HlcClock(node: family.aritz.id, last: p.common.maxStamp);
+      final sealedScope = FamilyDoc.empty(kListId)
+          .set(clock, Collections.gifts, 'secret', gift('secret').toFields())
+          .set(clock, ScopeCollections.wishPlans, 'plan', {
+            'recipientId': 'nora',
+            'sourceWishId': 'wish',
+            'claimantPersonId': 'aritz',
+            'title': 'Patinete',
+            'status': 'idea',
+          });
+      final scope = sealedScope.set(clock, ScopeCollections.wishPlans, 'partial', {
+        'title': 'Patinete',
+      });
+      await p.store.saveScope('nora', scope);
+      await p.store.saveOverflow('nora', [
+        scope.record(Collections.gifts, 'secret')!,
+      ]);
+      final slot = await SealedSlot.seal(
+        writerKeys: family.aritz.keys,
+        writer: family.aritz.id,
+        revision: 42,
+        key: family.key,
+        policy: const PolicyState(hideOwnGifts: true, rev: 1),
+        doc: sealedScope,
+      );
+      await p.store.saveSlots(await family.setOf([slot]));
+      expect((await p.store.readSlots()).people, {'nora'});
+      expect(await p.store.readOverflow('nora'), isNotEmpty);
+      expect(
+        (await p.store.readRecoveryScopes())['nora']!.record(
+          ScopeCollections.wishPlans,
+          'partial',
+        )!['recipientId'],
+        isNull,
+      );
+
+      final remote = p.common.delete(clock, Collections.recipients, 'nora');
+      final bytes = await seal(
+        doc: remote.toJson(),
+        listId: kListId,
+        fromNode: family.leo.id,
+        at: remote.maxStamp!.pack(),
+        key: p.controller.familyKey!,
+        version: kFileEnvelopeVersion,
+      );
+      await p.phone.container
+          .read(shareServiceProvider)
+          .importEnvelopeBytes(bytes);
+      expect(
+        (await p.store.load())!.doc
+            .record(Collections.recipients, 'nora')!
+            .isDeleted,
+        isTrue,
+      );
+      expect(await p.store.readScope('nora'), isNull);
+      expect(await p.store.readOverflow('nora'), isEmpty);
+      expect(await p.store.readRecoveryScopes(), isEmpty);
+      expect((await p.store.readSlots()).people, isEmpty);
+      expect(
+        (await p.store.readRecoveryRevisionFloors())
+            .slots['nora/${family.aritz.id}'],
+        42,
+      );
+    },
+  );
+
+  for (final local in [true, false]) {
+    test(
+      'a failed recipient purge is retried before the next edit (local: $local)',
+      () async {
+        final disk = ClosingDisk();
+        final p = await install(
+          family.aritz,
+          disk: disk,
+          withKey: true,
+          registry: await registryOf([family.aritz, family.leo]),
+        );
+        final clock = HlcClock(node: family.aritz.id, last: p.common.maxStamp);
+        final before = p.common.set(clock, Collections.wishes, 'wish', {
+          'recipientId': 'nora',
+          'authorPersonId': 'nora',
+          'suggested': false,
+          'title': 'Patinete',
+          'year': 2026,
+        });
+        await p.controller.mergeRemote(before, fromNode: family.aritz.id);
+        final scope = FamilyDoc.empty(kListId)
+            .set(clock, Collections.gifts, 'secret', gift('secret').toFields());
+        final slot = await SealedSlot.seal(
+          writerKeys: family.aritz.keys,
+          writer: family.aritz.id,
+          revision: 42,
+          key: family.key,
+          policy: const PolicyState(hideOwnGifts: true, rev: 1),
+          doc: scope,
+        );
+        await p.store.saveScope('nora', scope);
+        await p.store.saveSlots(await family.setOf([slot]));
+        disk.failAt = 'family.recoveryFloors';
+        await expectLater(
+          local
+              ? p.controller.deleteRecipient('nora')
+              : p.controller.mergeRemote(
+                  before.delete(clock, Collections.recipients, 'nora'),
+                  fromNode: family.leo.id,
+                ),
+          throwsStateError,
+        );
+        expect(
+          (await p.store.load())!.doc
+              .record(Collections.recipients, 'nora')!
+              .isDeleted,
+          isTrue,
+        );
+        expect(
+          p.common.record(Collections.recipients, 'nora')!.isDeleted,
+          isTrue,
+        );
+        expect(await p.store.readScope('nora'), isNotNull);
+        final health = await p.phone.container.read(v2HealthProvider.future);
+        expect(health.frozenPeople, isNot(contains('nora')));
+        await p.controller.setRecipientInReparto('leo', false);
+        final saved = (await p.store.load())!.doc;
+        expect(saved.record(Collections.recipients, 'nora')!.isDeleted, isTrue);
+        expect(saved.record(Collections.wishes, 'wish')!.isDeleted, isTrue);
+        expect(
+          saved.record(Collections.recipients, 'leo')!['inReparto'],
+          isFalse,
+        );
+        expect(await p.store.readScope('nora'), isNull);
+        expect((await p.store.readSlots()).people, isEmpty);
+        expect(
+          (await p.store.readRecoveryRevisionFloors())
+              .slots['nora/${family.aritz.id}'],
+          42,
+        );
+      },
+    );
+  }
+
+  test(
+    'a saved v2 common without its v2 identity cannot delete a person',
+    () async {
+      final clock = HlcClock(node: family.aritz.id, last: common.maxStamp);
+      final doc = common.set(clock, Collections.wishes, 'wish', {
+        'recipientId': 'nora',
+        'authorPersonId': 'nora',
+        'suggested': false,
+        'title': 'Patinete',
+        'year': 2026,
+      });
+      final p = await install(family.aritz, doc: doc, v2: false);
+      final before = (await p.store.load())!.doc.canonicalJson();
+      final beforeBytes = p.phone.files.files['family.doc']!;
+      expect(await p.store.readSyncV2(), isNull);
+      await expectLater(
+        p.controller.deleteRecipient('nora'),
+        throwsA(
+          isA<ProtectedPersonException>().having(
+            (error) => error.reason,
+            'reason',
+            ProtectedPersonReason.registryUnavailable,
+          ),
+        ),
+      );
+      final saved = (await p.store.load())!.doc;
+      expect(saved.canonicalJson(), before);
+      expect(p.phone.files.files['family.doc'], beforeBytes);
+      expect(saved.wishesFor('nora').single.id, 'wish');
+    },
+  );
+
+  test('a pending v2 installation finishes on cold start with a tombstone', () async {
+    final p = await install(family.aritz, v2: false);
+    final clock = HlcClock(node: family.aritz.id, last: p.common.maxStamp);
+    await p.store.saveDoc(
+      p.common.delete(clock, Collections.recipients, 'nora'),
+    );
+    await p.store.saveScope('nora', scopeWith(clock, ['Bloques']));
+    final pending = await PendingV2.fresh();
+    await p.store.savePendingV2(pending.toJson());
+    p.phone.restart();
+    final finish = Provider((ref) {
+      return ref.read(v2FamilyLockProvider).run(() => finishPendingV2(ref));
+    });
+    expect(
+      await p.phone.container.read(finish).timeout(const Duration(seconds: 5)),
+      isTrue,
+    );
+    expect(await p.store.readPendingV2(), isNull);
+    expect((await p.store.readSyncV2())?.syncId, pending.syncId);
+    expect(await p.store.readScope('nora'), isNotNull);
+    await p.controller.setRecipientInReparto('leo', false);
+    expect(await p.store.readScope('nora'), isNull);
+  });
+
+  test('purging deleted recipient scopes without a stored identity is a no-op', () async {
+    final p = await install(family.aritz, v2: false);
+    final clock = HlcClock(node: family.aritz.id, last: p.common.maxStamp);
+    await p.store.saveScope('nora', scopeWith(clock, ['Bloques']));
+    final deleted = p.common.delete(clock, Collections.recipients, 'nora');
+    await p.phone.secrets.delete('family.identity');
+    final files = Map.of(p.phone.files.files);
+    final secrets = Map.of(p.phone.secrets.values);
+
+    await p.store.purgeDeletedRecipientScopes(deleted);
+
+    expect(p.phone.files.files, files);
+    expect(p.phone.secrets.values, secrets);
+  });
+
+  test(
+    'a v2 identity without a verified registry cannot delete a person',
+    () async {
+      final disk = ClosingDisk();
+      final p = await install(family.aritz, disk: disk);
+      await disk.delete('family.registry');
+      final before = p.common.canonicalJson();
+      await expectLater(
+        p.controller.deleteRecipient('nora'),
+        throwsA(
+          isA<ProtectedPersonException>().having(
+            (error) => error.reason,
+            'reason',
+            ProtectedPersonReason.registryUnavailable,
+          ),
+        ),
+      );
+      expect((await p.store.load())!.doc.canonicalJson(), before);
     },
   );
 
@@ -1178,6 +1483,7 @@ void main() {
       await noKey.phone.container.read(shareServiceProvider).buildEnvelope(),
       key: noKey.controller.familyKey!,
       expectedListId: kListId,
+      acceptFileVersion: true,
     );
     final exportedDoc = FamilyDoc.fromJson(exported.doc);
     expect(
@@ -1875,5 +2181,486 @@ void main() {
         await lock.run(() => p.controller.protectForPairingWithinLock('aritz'));
       },
     );
+  });
+
+  group('planes de deseos (ADR 0010, fase 3)', () {
+    FamilyDoc withWishes() {
+      final ctx = WishContext.device(
+        view: () => family.viewOf(family.nora),
+        localKeys: family.nora.keys,
+      );
+      var doc = common;
+      for (final (id, title) in [('wbike', 'Bicicleta'), ('wbook', 'Libro')]) {
+        doc = doc
+            .createOwnWish(
+              HlcClock(node: family.nora.id),
+              ctx,
+              VisibleWishPatch(title: title, year: 2026),
+              id: id,
+            )
+            .doc;
+      }
+      return doc;
+    }
+
+    /// Leo's phone, up to date, has published its slot of Nora's block: a
+    /// plan is only written when every other phone that reads the block
+    /// announces wish plans (security review, A1).
+    Future<void> peerPublishes(
+      ProtectionPhone p,
+      Phone writer,
+      String person,
+    ) async {
+      final keyring = await p.phone.container
+          .read(deviceKeysStoreProvider)
+          .readKeyring(kListId);
+      final slot = await SealedSlot.seal(
+        writerKeys: writer.keys,
+        writer: writer.id,
+        revision: 1,
+        key: keyring.latestFor(person)!,
+        policy: const PolicyState(hideOwnGifts: true, rev: 1),
+        doc: FamilyDoc.empty(kListId),
+      );
+      final (merged, _) = await (await p.store.readSlots()).merge([
+        slot,
+      ], view: family.view);
+      await p.store.saveSlots(merged);
+    }
+
+    Future<void> leoPublishes(ProtectionPhone p) =>
+        peerPublishes(p, family.leo, 'nora');
+
+    Future<ProtectionPhone> aritzWithWishes({
+      MemoryFileStore? disk,
+      bool leoPublished = true,
+    }) async {
+      final p = await install(
+        family.aritz,
+        withKey: true,
+        disk: disk,
+        doc: withWishes(),
+      );
+      await p.controller.activateProtection('nora');
+      if (leoPublished) await leoPublishes(p);
+      return p;
+    }
+
+    Future<List<WishPlanRow>> rows(ProtectionPhone p) =>
+        p.controller.wishPlanRows('nora');
+
+    test('claim writes only the private scope: the common and the wish stay '
+        'byte for byte', () async {
+      final p = await aritzWithWishes();
+      final commonBefore = p.common.canonicalJson();
+      final out = await p.controller.claimWish('wbike', planId: 'plan1');
+      expect(out.ok, isTrue, reason: '${out.write.error}');
+      expect(out.pendingReason, isNull);
+      expect(p.common.canonicalJson(), commonBefore);
+      expect(p.common.collections.containsKey('wishPlans'), isFalse);
+      final r = await rows(p);
+      final bike = r.singleWhere((x) => x.sourceWishId == 'wbike');
+      expect(bike.state, WishPlanState.claimed);
+      expect(bike.plans.single.planId, 'plan1');
+      expect(bike.plans.single.claimantPersonId, 'aritz');
+      expect(
+        r.singleWhere((x) => x.sourceWishId == 'wbook').state,
+        WishPlanState.available,
+      );
+      // It is sealed in this phone's slot and reloaded from disk.
+      final slots = await p.store.readSlots();
+      expect(slots.slotOf('nora', family.aritz.id), isNotNull);
+      p.phone.restart();
+      await p.phone.container.read(familyControllerProvider.future);
+      expect(
+        (await rows(p)).singleWhere((x) => x.sourceWishId == 'wbike').plans,
+        isNotEmpty,
+      );
+      // The authorized projection keeps it out of the readable document.
+      final projection = await p.projection();
+      expect(projection.doc.collections.containsKey('wishPlans'), isFalse);
+    });
+
+    test('a retry reuses the stored plan id and never writes a second '
+        'plan', () async {
+      final p = await aritzWithWishes();
+      await p.controller.claimWish('wbike', planId: 'plan1');
+      final again = await p.controller.claimWish('wbike', planId: 'plan1');
+      expect(again.ok, isTrue);
+      expect(again.write.planId, 'plan1');
+      final noId = await p.controller.claimWish('wbike');
+      expect(noId.write.planId, 'plan1');
+      final bike = (await rows(p))
+          .singleWhere((x) => x.sourceWishId == 'wbike');
+      expect(bike.plans, hasLength(1));
+    });
+
+    test("the protected person's phone gets nothing", () async {
+      final p = await aritzWithWishes();
+      await p.controller.claimWish('wbike', planId: 'plan1');
+      final n = await install(family.nora, doc: p.common);
+      await n.store.saveSlots(await p.store.readSlots());
+      final out = await n.controller.claimWish('wbook');
+      expect(out.write.error, WishPlanError.notEntitled);
+      expect(await n.controller.wishPlanRows('nora'), isEmpty);
+      expect(await n.store.readScope('nora'), isNull);
+      final projection = await n.projection();
+      expect(projection.openedScopes, isEmpty);
+      expect(projection.doc.collections.containsKey('wishPlans'), isFalse);
+    });
+
+    test('release, then claim again with a new id', () async {
+      final p = await aritzWithWishes();
+      await p.controller.claimWish('wbike', planId: 'plan1');
+      expect((await p.controller.releaseWishPlan('nora', 'plan1')).ok, isTrue);
+      expect(
+        (await rows(p)).singleWhere((x) => x.sourceWishId == 'wbike').state,
+        WishPlanState.available,
+      );
+      final again = await p.controller.claimWish('wbike');
+      expect(again.ok, isTrue);
+      expect(again.write.planId, isNot('plan1'));
+      final plans = (await rows(p))
+          .singleWhere((x) => x.sourceWishId == 'wbike')
+          .plans;
+      expect(plans.single.planId, again.write.planId);
+      // The old id is never reused.
+      final reuse = await p.controller.claimWish('wbook', planId: 'plan1');
+      expect(reuse.write.error, WishPlanError.planIdInUse);
+    });
+
+    test('edit and convert to an independent surprise gift', () async {
+      final p = await aritzWithWishes();
+      await p.controller.claimWish('wbike', planId: 'plan1');
+      final edited = await p.controller.editWishPlan(
+        'nora',
+        'plan1',
+        const PrivatePlanPatch(plannedCents: 4500, store: 'Decathlon'),
+      );
+      expect(edited.ok, isTrue);
+      final commonBefore = p.common.canonicalJson();
+      final converted = await p.controller.convertWishPlanToSurprise(
+        'nora',
+        'plan1',
+        year: 2026,
+        giftId: 'gift-from-plan',
+      );
+      expect(converted.ok, isTrue, reason: '${converted.write.error}');
+      expect(p.common.canonicalJson(), commonBefore);
+      final projection = await p.projection();
+      final gift = projection.view.gifts.singleWhere(
+        (g) => g.id == 'gift-from-plan',
+      );
+      expect(gift.title, 'Bicicleta');
+      expect(gift.plannedCents, 4500);
+      expect(gift.store, 'Decathlon');
+      expect(projection.secretGiftIds, contains('gift-from-plan'));
+      final bike = (await rows(p))
+          .singleWhere((x) => x.sourceWishId == 'wbike');
+      expect(bike.state, WishPlanState.available);
+    });
+
+    test('a crash before the journal exists changes nothing and the retry '
+        'writes one plan', () async {
+      final disk = ClosingDisk();
+      final p = await aritzWithWishes(disk: disk);
+      disk.failAt = 'family.protection';
+      await expectLater(
+        p.controller.claimWish('wbike', planId: 'plan1'),
+        throwsStateError,
+      );
+      expect(
+        (await rows(p)).singleWhere((x) => x.sourceWishId == 'wbike').state,
+        WishPlanState.available,
+      );
+      final ok = await p.controller.claimWish('wbike', planId: 'plan1');
+      expect(ok.ok, isTrue);
+      expect(
+        (await rows(p)).singleWhere((x) => x.sourceWishId == 'wbike').plans,
+        hasLength(1),
+      );
+    });
+
+    test('a crash after the journal was written replays it on restart: one '
+        'plan, no duplicates', () async {
+      final disk = ClosingDisk();
+      final p = await aritzWithWishes(disk: disk);
+      disk.failDeleteAt = 'family.protection';
+      await expectLater(
+        p.controller.claimWish('wbike', planId: 'plan1'),
+        throwsStateError,
+      );
+      expect(disk.files, contains('family.protection'));
+      p.phone.restart();
+      await p.phone.container.read(familyControllerProvider.future);
+      // The retry first recovers the operation, then finds the live plan.
+      final retry = await p.controller.claimWish('wbike');
+      expect(retry.ok, isTrue);
+      expect(retry.write.planId, 'plan1');
+      expect(disk.files.containsKey('family.protection'), isFalse);
+      final bike = (await rows(p))
+          .singleWhere((x) => x.sourceWishId == 'wbike');
+      expect(bike.plans, hasLength(1));
+    });
+
+    test(
+      'unprotect never publishes a plan and a later activation keeps it',
+      () async {
+        final p = await aritzWithWishes();
+        await p.controller.claimWish('wbike', planId: 'plan1');
+        await p.controller.upsertGift(gift('secret', title: 'Libro oculto'));
+        await p.controller.deactivateProtection('nora');
+        expect(publishedPolicy(p.common, 'nora')?.hideOwnGifts, isFalse);
+        expect(p.common.collections.containsKey('wishPlans'), isFalse);
+        expect(p.common.canonicalJson(), isNot(contains('sourceWishId')));
+        expect(p.common.canonicalJson(), isNot(contains('plan1')));
+        // The gift went public; the plan did not.
+        expect(
+          p.common.collections[Collections.gifts]!.values.any(
+            (r) => r['title'] == 'Libro oculto',
+          ),
+          isTrue,
+        );
+        expect(
+          (await rows(p)).singleWhere((x) => x.sourceWishId == 'wbike').state,
+          WishPlanState.claimed,
+        );
+        // Protecting again does not lose or publish it either.
+        await p.controller.activateProtection('nora');
+        expect(p.common.collections.containsKey('wishPlans'), isFalse);
+        expect(
+          (await rows(p))
+              .singleWhere((x) => x.sourceWishId == 'wbike')
+              .plans
+              .single
+              .planId,
+          'plan1',
+        );
+      },
+    );
+
+    test('one cap everywhere: a claim that would leave the gift side over '
+        '200 live records is refused', () async {
+      final p = await aritzWithWishes();
+      // 190 interface gifts + 10 moved in by the reconciliation = 200 live.
+      var scope = FamilyDoc.empty(kListId);
+      final c = HlcClock(node: family.aritz.id);
+      for (var i = 0; i < 200; i++) {
+        scope = scope.set(c, Collections.gifts, 's$i', {
+          ...giftFields('nora', 'Regalo $i'),
+          if (i >= 190) kMovedInField: true,
+        });
+      }
+      await p.store.saveScope('nora', scope);
+      final out = await p.controller.claimWish('wbike', planId: 'plan1');
+      expect(out.write.error, WishPlanError.capacityReached);
+      expect(
+        (await rows(p)).singleWhere((x) => x.sourceWishId == 'wbike').plans,
+        isEmpty,
+      );
+    });
+
+    test('a claim while another phone has not published (or is on 1.0.6) is '
+        'refused with devicesNeedUpdate and writes nothing', () async {
+      final p = await aritzWithWishes(leoPublished: false);
+      var scope = FamilyDoc.empty(kListId);
+      final c = HlcClock(node: family.aritz.id);
+      for (var i = 0; i < kLegacySlotGifts; i++) {
+        scope = scope.set(
+          c,
+          Collections.gifts,
+          's$i',
+          giftFields('nora', 'Regalo $i'),
+        );
+      }
+      await p.store.saveScope('nora', scope);
+      final out = await p.controller.claimWish('wbike', planId: 'plan1');
+      expect(out.write.error, WishPlanError.devicesNeedUpdate);
+      expect(out.pendingReason, isNull);
+      expect(
+        (await rows(p)).singleWhere((x) => x.sourceWishId == 'wbike').state,
+        WishPlanState.available,
+      );
+      // A second claim by someone else is not blocked by a ghost.
+      expect((await p.store.readScope('nora'))!.livePlans, isEmpty);
+    });
+
+    test('errors come back typed: removed wish, missing key', () async {
+      final ctx = WishContext.device(
+        view: () => family.viewOf(family.nora),
+        localKeys: family.nora.keys,
+      );
+      final removed = withWishes()
+          .removeWish(HlcClock(node: family.nora.id), ctx, 'wbike')
+          .doc;
+      final p = await install(family.aritz, withKey: true, doc: removed);
+      await p.controller.activateProtection('nora');
+      final gone = await p.controller.claimWish('wbike');
+      expect(gone.write.error, WishPlanError.wishRemoved);
+      expect(
+        (await p.controller.claimWish('nope')).write.error,
+        WishPlanError.wishNotFound,
+      );
+      // No key for the epoch: typed failure, no exception.
+      final keyless = await install(family.aritz, doc: withWishes());
+      final out = await keyless.controller.claimWish('wbook');
+      expect(out.write.error, WishPlanError.unavailable);
+      expect(out.failure, isNotNull);
+    });
+
+    test('a far-future public stamp does not break the scope clock', () async {
+      final ctx = WishContext.device(
+        view: () => family.viewOf(family.nora),
+        localKeys: family.nora.keys,
+      );
+      final future = common
+          .createOwnWish(
+            clockOf('nora-phone', 10),
+            ctx,
+            const VisibleWishPatch(title: 'Futuro', year: 2026),
+            id: 'wfuture',
+          )
+          .doc;
+      final p = await install(family.aritz, withKey: true, doc: future);
+      await p.controller.activateProtection('nora');
+      await leoPublishes(p);
+      final out = await p.controller.claimWish('wfuture');
+      expect(out.ok, isTrue, reason: '${out.write.error}');
+    });
+
+    test('the public clock does not see a claim: the next public write '
+        'carries the same stamp', () async {
+      final fixed = DateTime.now();
+      Future<String> stampAfter({required bool claim}) async {
+        return withClock(Clock.fixed(fixed), () async {
+          final p = await aritzWithWishes();
+          await p.controller.upsertGiver(
+            const Giver(
+              id: 'g-a',
+              name: 'Abuelos',
+              colorIndex: 1,
+              householdPays: false,
+              archived: false,
+            ),
+          );
+          if (claim) await p.controller.claimWish('wbike', planId: 'plan1');
+          await p.controller.upsertGiver(
+            const Giver(
+              id: 'g-b',
+              name: 'Tíos',
+              colorIndex: 2,
+              householdPays: false,
+              archived: false,
+            ),
+          );
+          return p.common
+              .record(Collections.givers, 'g-b')!
+              .field('name')!
+              .stamp
+              .pack();
+        });
+      }
+
+      expect(await stampAfter(claim: true), await stampAfter(claim: false));
+    });
+
+    test('deleting a giver clears it from the plans and counts them in the '
+        'impact; deleting a person deletes theirs', () async {
+      // Leo has no device here, so his person can be deleted.
+      final registry = await registryOf([family.aritz, family.nora]);
+      var doc = common.set(
+        HlcClock(node: family.aritz.id),
+        Collections.wishes,
+        'wleo',
+        {
+          'recipientId': 'leo',
+          'authorPersonId': 'leo',
+          'suggested': false,
+          'title': 'Peonza',
+          'year': 2026,
+        },
+      );
+      doc = withWishes().merge(doc);
+      final p = await install(
+        family.aritz,
+        withKey: true,
+        doc: doc,
+        registry: registry,
+      );
+      await p.controller.activateProtection('nora');
+      await p.controller.activateProtection('leo');
+      // Nora's phone reads Leo's block: it has published its slot.
+      await peerPublishes(p, family.nora, 'leo');
+      await p.controller.claimWish(
+        'wbike',
+        planId: 'plan-nora',
+        giverId: 'nosotros',
+      );
+      await p.controller.claimWish(
+        'wleo',
+        planId: 'plan-leo',
+        giverId: 'nosotros',
+      );
+      final giverImpact = await p.controller.giverAliasDeleteImpact('nosotros');
+      expect(giverImpact.plans, 2);
+      await p.controller.deleteGiverAlias(
+        'nosotros',
+        expectedImpact: giverImpact,
+      );
+      Future<WishPlan> planOf(String person) async =>
+          (await p.store.readScope(person))!.livePlans.single;
+      expect((await planOf('nora')).giverId, isNull);
+      expect((await planOf('leo')).giverId, isNull);
+      // The plans are still there, now without a giver.
+      final personImpact = await p.controller.recipientDeleteImpact('leo');
+      expect(personImpact.plans, 1);
+      expect(personImpact.affectedPlanIds, ['plan-leo']);
+      // A stale confirmation is refused.
+      await expectLater(
+        p.controller.deleteRecipient(
+          'leo',
+          expectedImpact: personImpact.withPlans(const []),
+        ),
+        throwsA(isA<DeleteImpactChanged>()),
+      );
+      await p.controller.deleteRecipient('leo', expectedImpact: personImpact);
+      final removed = p.common.record(Collections.wishes, 'wleo')!;
+      expect(removed.isDeleted, isTrue);
+      expect(removed.hasTombstoneContent, isFalse);
+      expect(await p.store.readScope('leo'), isNull);
+      expect((await p.store.readSlots()).people, isNot(contains('leo')));
+      expect((await p.projection()).plansByWish, isNot(contains('wleo')));
+      expect((await planOf('nora')).planId, 'plan-nora');
+    });
+
+    test('restore when alone keeps the plans closed', () async {
+      final p = await aritzWithWishes();
+      await p.controller.claimWish('wbike', planId: 'plan1');
+      final plan = await p.controller.planAloneRestoreWithinLock();
+      expect(plan.people, contains('nora'));
+      // A new generation without anybody: registry, keys and slots are new.
+      await p.store.saveRegistry(await registryOf([family.aritz]));
+      await p.phone.container
+          .read(deviceKeysStoreProvider)
+          .saveKeyring(kListId, SurpriseKeyring.empty);
+      await p.store.saveSlots(SlotSet.empty);
+      final identity = (await p.store.load())!.identity;
+      await p.store.saveIdentity(
+        FamilyIdentity(
+          listId: identity.listId,
+          node: identity.node,
+          deviceName: identity.deviceName,
+          paired: false,
+          selfRecipientId: identity.selfRecipientId,
+        ),
+      );
+      p.phone.restart();
+      await p.phone.container.read(familyControllerProvider.future);
+      await p.controller.restoreOthersSecretsWhenAloneWithinLock(plan);
+      expect(p.common.collections.containsKey('wishPlans'), isFalse);
+      expect(p.common.canonicalJson(), isNot(contains('sourceWishId')));
+      final scope = (await p.store.readScope('nora'))!;
+      expect(scope.livePlans.map((x) => x.planId), ['plan1']);
+    });
   });
 }

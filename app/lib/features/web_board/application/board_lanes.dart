@@ -86,6 +86,10 @@ final boardGiftsProvider = Provider<List<Gift>>((ref) {
   return [
     for (final gift in view.gifts)
       if (active.contains(gift.recipientId)) gift,
+    // La web no proyecta los deseos cogidos como regalos: sus planes (W5) se
+    // pintan desde las filas de su motor, como en la lista estrecha. En el
+    // móvil la proyección ya los trae y esto está vacío.
+    for (final id in active) ...ref.watch(webPlanGiftsProvider(id)),
   ];
 });
 

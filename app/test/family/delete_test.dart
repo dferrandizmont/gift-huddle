@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/core/sync/family_doc.dart';
 import 'package:regalos/core/sync/hlc.dart';
 import 'package:regalos/core/sync/model.dart';
+import 'package:regalos/core/sync/wish.dart';
 import 'package:regalos/features/family/application/family_controller.dart';
 import 'package:regalos/features/family/data/family_store.dart';
 import 'package:regalos/features/family/domain/delete_impact.dart';
@@ -100,6 +101,64 @@ void main() {
   });
   tearDown(() => phone.dispose());
 
+  test(
+    'borrar a una persona vacía sus deseos y conserva los que sugirió',
+    () async {
+      final initial = (await state()).doc;
+      final remoteClock = HlcClock(node: 'remoto', last: initial.maxStamp);
+      FamilyDoc withWish(
+        FamilyDoc doc,
+        String id,
+        String recipient,
+        String author,
+      ) => doc.set(remoteClock, Collections.wishes, id, {
+        'recipientId': recipient,
+        'authorPersonId': author,
+        'suggested': recipient != author,
+        'title': id,
+        'url': 'https://example.com/$id',
+        'description': 'Descripción de $id',
+        'year': 2026,
+      });
+      final before = withWish(
+        withWish(
+          withWish(initial, 'propio', 'aritz', 'aritz'),
+          'sugerido',
+          'aritz',
+          'nora',
+        ),
+        'conservado',
+        'nora',
+        'aritz',
+      );
+      await controller.mergeRemote(before, fromNode: 'remoto');
+      await controller.deleteRecipient('aritz');
+
+      void expectDeletedWishes(FamilyDoc doc) {
+        for (final id in ['propio', 'sugerido']) {
+          final wish = doc.record(Collections.wishes, id)!;
+          expect(wish.isDeleted, isTrue);
+          expect(wish.hasTombstoneContent, isFalse);
+          expect(validateWishRecord(wish), isNull);
+        }
+        expect(doc.wishesFor('nora').single.authorPersonId, 'aritz');
+      }
+
+      final deleted = (await state()).doc;
+      expectDeletedWishes(deleted);
+      final late = before.set(
+        HlcClock(node: 'remoto', last: deleted.maxStamp),
+        Collections.wishes,
+        'propio',
+        {'title': 'Bici roja', 'description': 'Con luces'},
+      );
+      await controller.mergeRemote(late, fromNode: 'remoto');
+      expectDeletedWishes((await state()).doc);
+      phone.restart();
+      expectDeletedWishes((await state()).doc);
+    },
+  );
+
   test('el impacto cuenta regalos de todos los años y el cumpleaños', () async {
     final full = (await state()).fullView;
     final aritz = DeleteImpact.ofRecipient(full, 'aritz');
@@ -108,6 +167,47 @@ void main() {
     expect(DeleteImpact.ofRecipient(full, 'nora').hasBirthday, isFalse);
     expect(DeleteImpact.ofGiverAlias(full, 'us').gifts, 4);
     expect(DeleteImpact.ofOccasion(full, 'seed-tio').gifts, 2);
+  });
+
+  test('un deseo visible nuevo exige volver a confirmar el borrado', () async {
+    final before = (await state()).doc;
+    final clock = HlcClock(node: 'remoto', last: before.maxStamp);
+    FamilyDoc addWish(FamilyDoc doc, String id, int year) =>
+        doc.set(clock, Collections.wishes, id, {
+          'recipientId': 'nora',
+          'authorPersonId': 'nora',
+          'suggested': false,
+          'title': 'Patinete',
+          'year': year,
+        });
+    final first = addWish(before, 'primero', 2025);
+    await controller.mergeRemote(first, fromNode: 'remoto');
+    final impact = await controller.recipientDeleteImpact('nora');
+    expect(impact.wishes, 1);
+    expect(impact.affectedWishIds, ['primero']);
+
+    await controller.mergeRemote(
+      addWish(first, 'segundo', 2026),
+      fromNode: 'remoto',
+    );
+    await expectLater(
+      controller.deleteRecipient('nora', expectedImpact: impact),
+      throwsA(
+        isA<DeleteImpactChanged>().having(
+          (error) => error.current.affectedWishIds,
+          'affectedWishIds',
+          unorderedEquals(['primero', 'segundo']),
+        ),
+      ),
+    );
+    final doc = (await state()).doc;
+    expect(doc.record(Collections.recipients, 'nora')!.isDeleted, isFalse);
+    expect(doc.wishesFor('nora'), hasLength(2));
+    await controller.deleteRecipient(
+      'nora',
+      expectedImpact: await controller.recipientDeleteImpact('nora'),
+    );
+    expect((await state()).doc.wishesFor('nora'), isEmpty);
   });
 
   test(

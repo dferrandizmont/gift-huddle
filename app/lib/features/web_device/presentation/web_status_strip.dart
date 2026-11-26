@@ -87,6 +87,7 @@ class WebStatusStrip extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     if (!ref.watch(webAppProvider)) return const SizedBox.shrink();
     final state = ref.watch(webDeviceStateProvider);
+    final l10n = AppLocalizations.of(context);
     final indicator = webSyncIndicatorOf(state, saving: saving);
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -95,6 +96,15 @@ class WebStatusStrip extends ConsumerWidget {
         const FailedAttemptsNotice(),
         const WebSecretsNotice(),
         SetAsideNotice(count: state.setAsideChanges),
+        SetAsideNotice(
+          count: state.rejectedSecretRecipientDeletes,
+          message: l10n.webRecipientDeleteRejected,
+        ),
+        for (final name in state.rejectedDevicePersonNames)
+          SetAsideNotice(
+            count: 1,
+            message: l10n.devicePersonBlockedOtherBody(name),
+          ),
         if (!syncInRail || !webSyncInRail(indicator))
           WebSyncLine(indicator: indicator),
       ],

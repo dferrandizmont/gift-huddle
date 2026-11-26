@@ -4,11 +4,14 @@
 // oferta no se vuelve a pedir, los sondeos van a 1-2 s dentro del
 // presupuesto de la invitación y todos los temporizadores se paran.
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/features/sync/application/invite_poll_pacer.dart';
 import 'package:regalos/features/sync/application/pairing_v2_flow.dart';
 import 'package:regalos/features/sync/application/v2_family_lock.dart';
+import 'package:regalos/features/sync/data/sync_transport_common.dart';
 import 'package:regalos/features/sync/data/sync_transport_v2.dart';
 import 'package:regalos/features/web_device/application/vault_service.dart';
 import 'package:regalos/features/web_device/application/web_gate_controller.dart';
@@ -157,6 +160,43 @@ void main() {
     );
     expect(gate.guest, isNull);
     expect(gate.nextPairingPoll, isNull);
+  });
+
+  test('a phone on the previous version (offer without the wish protocol) '
+      'shows the update message, not «codes did not match»', () async {
+    gate = await start();
+    await PairingV2Host.start(
+      transport: h.client,
+      local: h.phone,
+      lock: V2FamilyLock(),
+      web: gate.guest!.qr,
+      guestPerson: 'nora',
+    );
+    h.worker.tamper = (method, uri, response) {
+      if (!uri.path.endsWith('/offer') || response.status != 200) {
+        return response;
+      }
+      final json = response.json();
+      final offer = Map<String, Object?>.from(json['offer']! as Map)
+        ..['v'] = 2
+        ..remove('wp')
+        ..remove('ws');
+      return SyncResponse(
+        response.status,
+        response.headers,
+        Uint8List.fromList(utf8.encode(jsonEncode({...json, 'offer': offer}))),
+      );
+    };
+    await gate.checkPairing();
+    h.worker.tamper = null;
+    expect(
+      gate.view,
+      isA<WebGateConnectFailed>().having(
+        (v) => v.reason,
+        'reason',
+        WebConnectFailure.outdated,
+      ),
+    );
   });
 
   test('the phone cancels before the QR expires: «cancelled»', () async {

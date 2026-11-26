@@ -7,6 +7,7 @@ import '../../../core/motion/unfold_section.dart';
 import '../../../core/theme/regalos_motion.dart';
 import '../../../core/theme/regalos_shape.dart';
 import '../../../core/theme/regalos_tokens.dart';
+import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/widgets/person_avatar.dart';
 import '../../../core/widgets/settings_icons.dart';
 import '../../../core/widgets/soft_note.dart';
@@ -16,6 +17,44 @@ import '../application/pairing_v2_controller.dart' show PairingV2Person;
 
 /// Qué ha tocado quien elige en un [PersonPicker].
 enum _Pick { none, person, notOnList, nobody }
+
+/// El nombre sin mayúsculas, sin acentos y sin espacios de más, para saber si
+/// dos nombres son el mismo («  LEÓN » y «leon»).
+String personNameKey(String name) {
+  const from = 'áàäâãåéèëêíìïîóòöôõúùüûñç';
+  const to = 'aaaaaaeeeeiiiiooooouuuunc';
+  final buffer = StringBuffer();
+  for (final unit in name.trim().toLowerCase().runes) {
+    final ch = String.fromCharCode(unit);
+    final i = from.indexOf(ch);
+    buffer.write(i < 0 ? ch : to[i]);
+  }
+  return buffer.toString().replaceAll(RegExp(r'\s+'), ' ');
+}
+
+/// Los textos del aviso «Ya hay un Leo en la lista» que sale al escribir, en
+/// «No está en la lista», un nombre que ya existe (QA 1.0.7, m8).
+class SameNameAsk {
+  /// Crea los textos.
+  const SameNameAsk({
+    required this.title,
+    required this.body,
+    required this.yes,
+    required this.no,
+  });
+
+  /// «Ya hay un Leo en la lista»: se pasa el nombre que ya existe.
+  final String Function(String name) title;
+
+  /// «¿Eres tú?» y lo que pasa si no.
+  final String body;
+
+  /// «Soy yo»: es la persona que ya existe.
+  final String yes;
+
+  /// «Es otra persona»: se da de alta una nueva con ese nombre.
+  final String no;
+}
 
 /// La pregunta de «de quién es este móvil» (1.0.6), la misma para
 /// «¿Para quién es el móvil nuevo?» (quien invita elige la persona del móvil
@@ -45,6 +84,7 @@ class PersonPicker extends StatefulWidget {
     this.newNotice,
     this.selectedPersonId,
     this.thisPhonePersonId,
+    this.sameNameAsk,
   });
 
   /// El título del paso.
@@ -89,23 +129,37 @@ class PersonPicker extends StatefulWidget {
   /// móvil», sin marcarla como elegida.
   final String? thisPhonePersonId;
 
+  /// Si se escribe, en «No está en la lista», el nombre de alguien que ya
+  /// está en [people] (sin mayúsculas, acentos ni espacios de más), se
+  /// pregunta antes de crear otra persona con el mismo nombre (QA 1.0.7, m8).
+  /// `null`: no se pregunta.
+  final SameNameAsk? sameNameAsk;
+
   @override
   State<PersonPicker> createState() => _PersonPickerState();
 }
 
-class _PersonPickerState extends State<PersonPicker> {
+class _PersonPickerState extends State<PersonPicker>
+    with WidgetsBindingObserver {
   final TextEditingController _name = TextEditingController();
   final FocusNode _focus = FocusNode();
   _Pick _pick = _Pick.none;
+  _Pick? _namePick;
   String? _personId;
   bool _working = false;
 
   /// El último aviso que se vio: se conserva mientras el bloque se pliega.
   String _lastNotice = '';
 
+  /// El botón «Continuar»: se mantiene a la vista cuando el teclado o el aviso
+  /// le quitan el sitio (QA 1.0.7, M1).
+  final GlobalKey _continueKey = GlobalKey();
+  double _lastInset = 0;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final selected = widget.selectedPersonId;
     if (selected != null && widget.people.any((p) => p.id == selected)) {
       _pick = _Pick.person;
@@ -114,10 +168,48 @@ class _PersonPickerState extends State<PersonPicker> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // El teclado se abre (o cambia de alto): el campo ya sube solo, pero
+    // «Continuar» queda debajo de él si lo de dentro no cabe.
+    final inset = MediaQuery.viewInsetsOf(context).bottom;
+    if (inset != _lastInset) {
+      _lastInset = inset;
+      _revealContinue();
+    }
+  }
+
+  /// El teclado sube o baja. Dentro de un `Scaffold` (la pantalla de invitar
+  /// con enlace, la de conectar la web) el cuerpo ya no ve el alto del teclado
+  /// en su `MediaQuery`, así que `didChangeDependencies` no avisa: se mira
+  /// aquí, donde llega siempre (QA iOS 1.0.7, M1).
+  @override
+  void didChangeMetrics() => _revealContinue();
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _name.dispose();
     _focus.dispose();
     super.dispose();
+  }
+
+  /// Desplaza lo que contiene la pregunta lo justo para que «Continuar» quede
+  /// a la vista (sin moverlo si ya se ve). Es un salto, no una animación: se
+  /// llama en cada fotograma mientras el aviso se despliega o el teclado sube,
+  /// y así «Continuar» sigue al contenido sin tirones.
+  void _revealContinue() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final target = _continueKey.currentContext;
+      if (!mounted || target == null || !target.mounted) return;
+      if (Scrollable.maybeOf(target) == null) return;
+      unawaited(
+        Scrollable.ensureVisible(
+          target,
+          alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+        ),
+      );
+    });
   }
 
   bool get _asksName => _pick == _Pick.notOnList || _pick == _Pick.nobody;
@@ -139,6 +231,12 @@ class _PersonPickerState extends State<PersonPicker> {
       _personId = personId;
     });
     if (pick == _Pick.notOnList || pick == _Pick.nobody) {
+      // Ambas opciones dan de alta a una persona, con distinto papel.
+      // El nombre escrito para una opción no se confirma desde la otra.
+      if (_namePick != pick) {
+        _namePick = pick;
+        _name.clear();
+      }
       // La propuesta de la bienvenida, solo si el campo está vacío.
       if (_name.text.isEmpty && widget.suggestedName.isNotEmpty) {
         _name.text = widget.suggestedName;
@@ -150,11 +248,40 @@ class _PersonPickerState extends State<PersonPicker> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _focus.requestFocus();
       });
+      _revealContinue();
     }
+  }
+
+  /// La persona que ya se llama como lo escrito, si hay que preguntarlo.
+  PairingV2Person? get _sameName {
+    if (_pick != _Pick.notOnList || widget.sameNameAsk == null) return null;
+    final key = personNameKey(_typed);
+    return widget.people.where((p) => personNameKey(p.name) == key).firstOrNull;
   }
 
   Future<void> _continue() async {
     if (!_canContinue) return;
+    final same = _sameName;
+    if (same != null) {
+      setState(() => _working = true);
+      final bool? isThem;
+      try {
+        isThem = await showRegalosDialog<bool>(
+          context,
+          builder: (_) =>
+              _SameNameDialog(ask: widget.sameNameAsk!, name: same.name),
+        );
+        // Cerrar el aviso sin elegir no hace nada.
+        if (isThem == null || !mounted) return;
+        if (isThem) {
+          await widget.onPerson(same.id);
+          return;
+        }
+      } finally {
+        if (mounted) setState(() => _working = false);
+      }
+    }
+    if (!mounted) return;
     setState(() => _working = true);
     try {
       switch (_pick) {
@@ -240,42 +367,108 @@ class _PersonPickerState extends State<PersonPicker> {
             topBorder: i > 0 && !rows[i].selected && !rows[i - 1].selected,
             onTap: rows[i].onTap,
           ),
-        UnfoldSection(
-          show: _asksName,
-          child: Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: TextField(
-              controller: _name,
-              focusNode: _focus,
-              textCapitalization: TextCapitalization.words,
-              textInputAction: TextInputAction.done,
-              onChanged: (_) => setState(() {}),
-              onSubmitted: (_) => unawaited(_continue()),
-              decoration: InputDecoration(labelText: widget.nameLabel),
-            ),
-          ),
-        ),
-        // El aviso conserva el último texto mientras se pliega.
-        UnfoldSection(
-          show: notice != null,
-          child: Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Semantics(
-              liveRegion: true,
-              child: SoftNote(
-                icon: SettingsIcons.lock,
-                text: notice ?? _lastNotice,
-              ),
+        // El campo y el aviso cambian de alto al desplegarse: cada cambio vuelve
+        // a poner «Continuar» a la vista.
+        NotificationListener<SizeChangedLayoutNotification>(
+          onNotification: (_) {
+            _revealContinue();
+            return false;
+          },
+          child: SizeChangedLayoutNotifier(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                UnfoldSection(
+                  show: _asksName,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: TextField(
+                      controller: _name,
+                      focusNode: _focus,
+                      textCapitalization: TextCapitalization.words,
+                      textInputAction: TextInputAction.done,
+                      onChanged: (_) => setState(() {}),
+                      onSubmitted: (_) => unawaited(_continue()),
+                      decoration: InputDecoration(labelText: widget.nameLabel),
+                    ),
+                  ),
+                ),
+                // El aviso conserva el último texto mientras se pliega.
+                UnfoldSection(
+                  show: notice != null,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Semantics(
+                      liveRegion: true,
+                      child: SoftNote(
+                        icon: SettingsIcons.lock,
+                        text: notice ?? _lastNotice,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
         const SizedBox(height: 16),
-        FilledButton(
-          key: const ValueKey<String>('personPickerContinue'),
-          onPressed: _canContinue ? () => unawaited(_continue()) : null,
-          child: Text(l10n.pairingV2ChooseContinue),
+        KeyedSubtree(
+          key: _continueKey,
+          child: FilledButton(
+            key: const ValueKey<String>('personPickerContinue'),
+            onPressed: _canContinue ? () => unawaited(_continue()) : null,
+            child: Text(l10n.pairingV2ChooseContinue),
+          ),
         ),
       ],
+    );
+  }
+}
+
+/// «Ya hay un Leo en la lista. ¿Eres tú?»: «Es otra persona» a la izquierda,
+/// con contorno, y «Soy yo» a la derecha, con el relleno del acento. No borra
+/// nada, así que el botón principal no es rojo.
+class _SameNameDialog extends StatelessWidget {
+  const _SameNameDialog({required this.ask, required this.name});
+
+  final SameNameAsk ask;
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RegalosTokens.of(context);
+    return RegalosDialogSurface(
+      scrollable: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Semantics(
+            header: true,
+            child: Text(ask.title(name), style: t.styles.screenTitleSmall),
+          ),
+          const SizedBox(height: 8),
+          Text(ask.body, style: t.styles.body),
+          const SizedBox(height: 20),
+          DialogButtonRow(
+            cancelLabel: ask.no,
+            confirmLabel: ask.yes,
+            cancel: OutlinedButton(
+              key: const ValueKey<String>('sameNameOther'),
+              style: regalosDialogCancelStyle(t),
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(ask.no),
+            ),
+            confirm: FilledButton(
+              key: const ValueKey<String>('sameNameYes'),
+              style: regalosDialogPrimaryStyle(t),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(ask.yes),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

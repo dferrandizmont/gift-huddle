@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:regalos/core/prefs/shared_preferences_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:regalos/features/web_device/application/web_app_provider.dart';
 import 'package:regalos/features/web_device/application/web_device_providers.dart';
 import 'package:regalos/features/web_device/application/web_secrets.dart'
@@ -25,6 +27,7 @@ WebDeviceState _state({
   int dropped = 0,
   int pending = 0,
   int held = 0,
+  int heldPlans = 0,
   List<String> heldNames = const [],
 }) => WebDeviceState(
   status: WebSyncStatus.confirmed,
@@ -36,6 +39,7 @@ WebDeviceState _state({
   pendingSecretGifts: pending,
   heldSecretChanges: held,
   heldInboxNames: heldNames,
+  heldPlanChanges: heldPlans,
 );
 
 /// Un estado que la prueba puede cambiar.
@@ -48,7 +52,12 @@ class _Holder extends Notifier<WebDeviceState> {
 
 final _holder = NotifierProvider<_Holder, WebDeviceState>(_Holder.new);
 
+/// Las preferencias del navegador de la prueba: se comparten entre sesiones
+/// (contenedores) a propósito, como el almacenamiento local de verdad.
+late SharedPreferences _prefs;
+
 List<Override> _overrides() => [
+  sharedPreferencesProvider.overrideWithValue(_prefs),
   webAppProvider.overrideWithValue(true),
   webDeviceStateProvider.overrideWith((ref) => ref.watch(_holder)),
 ];
@@ -98,6 +107,10 @@ Future<void> _settle(WidgetTester tester) async {
 
 void main() {
   setUpAll(loadInter);
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    _prefs = await SharedPreferences.getInstance();
+  });
 
   group('avisos de los regalos en secreto', () {
     testWidgets('sin nada que decir no ocupan sitio', (tester) async {
@@ -141,6 +154,60 @@ void main() {
       expect(find.byType(TextButton), findsNothing);
     });
 
+    testWidgets('el aviso de ordenador compartido, cerrado, no vuelve a salir '
+        'tras bloquear ni tras recargar, y sí tras olvidar este ordenador', (
+      tester,
+    ) async {
+      Future<ProviderContainer> session() async {
+        // Una sesión desbloqueada nueva: contenedor nuevo, mismo navegador.
+        await tester.pumpWidget(const SizedBox.shrink());
+        final c = await _pump(tester, const WebSecretsNotice());
+        _set(c, _state(secrets: WebSecretsState.open));
+        await _settle(tester);
+        return c;
+      }
+
+      var c = await session();
+      final l10n = l10nOf(tester);
+      expect(find.text(l10n.webSecretsSharedComputer), findsOneWidget);
+      await tester.tap(find.text(l10n.actionUnderstood));
+      await _settle(tester);
+      expect(find.text(l10n.webSecretsSharedComputer), findsNothing);
+      expect(_prefs.getBool(kWebSecretsSharedNoticeSeenKey), isTrue);
+
+      // Bloqueo por inactividad y nuevo desbloqueo, o recarga: no sale.
+      c = await session();
+      expect(find.text(l10n.webSecretsSharedComputer), findsNothing);
+      expect(c.read(webSecretsNoticeDismissedProvider).sharedComputer, isTrue);
+
+      // Olvidar este ordenador borra la marca (VaultService.onForgotten) y
+      // al emparejarlo de nuevo vuelve a salir.
+      await _prefs.remove(kWebSecretsSharedNoticeSeenKey);
+      await session();
+      expect(find.text(l10n.webSecretsSharedComputer), findsOneWidget);
+    });
+
+    testWidgets('con la marca puesta el aviso no sale ni en el primer '
+        'fotograma', (tester) async {
+      await _prefs.setBool(kWebSecretsSharedNoticeSeenKey, true);
+      final c = await _pump(tester, const WebSecretsNotice());
+      _set(c, _state(secrets: WebSecretsState.open));
+      await tester.pump();
+      expect(find.text(l10nOf(tester).webSecretsSharedComputer), findsNothing);
+    });
+
+    testWidgets('el aviso de cambios descartados sigue siendo por sesión', (
+      tester,
+    ) async {
+      final c = await _pump(tester, const WebSecretsNotice());
+      _set(c, _state(dropped: 2));
+      await _settle(tester);
+      await tester.tap(find.text(l10nOf(tester).actionUnderstood));
+      await _settle(tester);
+      expect(find.text(l10nOf(tester).webSecretsDropped(2)), findsNothing);
+      expect(_prefs.getKeys(), isEmpty);
+    });
+
     testWidgets('los cambios descartados se cuentan, se cierran y un descarte '
         'nuevo vuelve a avisar', (tester) async {
       final c = await _pump(tester, const WebSecretsNotice());
@@ -167,6 +234,45 @@ void main() {
       _set(c, _state());
       await _settle(tester);
       expect(find.textContaining('Se vuelve a intentar solo.'), findsNothing);
+    });
+
+    for (final locale in const ['es', 'ca', 'en']) {
+      testWidgets('los cambios de deseos cogidos que esperan a los demás '
+          'móviles se cuentan y se van solos · $locale', (tester) async {
+        final c = await _pump(
+          tester,
+          const WebSecretsNotice(),
+          locale: Locale(locale),
+        );
+        final l10n = l10nOf(tester);
+        _set(c, _state(heldPlans: 1));
+        await _settle(tester);
+        expect(find.text(l10n.webPlansHeld(1)), findsOneWidget);
+        // Sin «Entendido»: se aplican solos al actualizarse los móviles.
+        expect(find.byType(TextButton), findsNothing);
+        _set(c, _state(heldPlans: 3));
+        await _settle(tester);
+        expect(find.text(l10n.webPlansHeld(3)), findsOneWidget);
+        _set(c, _state());
+        await _settle(tester);
+        expect(find.text(l10n.webPlansHeld(3)), findsNothing);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('el texto en español dice que esperan a los demás móviles', (
+      tester,
+    ) async {
+      final c = await _pump(tester, const WebSecretsNotice());
+      _set(c, _state(heldPlans: 2));
+      await _settle(tester);
+      expect(
+        find.text(
+          '2 cambios en deseos cogidos esperan a que se actualicen los demás '
+          'móviles de la familia.',
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('fuera de la web no sale nada', (tester) async {
@@ -210,7 +316,14 @@ void main() {
                 );
                 // Estados que no se dan a la vez de verdad (el aviso de
                 // conexión y el de claves), para medir lo más alto posible.
-                _set(c, _state(secrets: WebSecretsState.open, dropped: 4));
+                _set(
+                  c,
+                  _state(
+                    secrets: WebSecretsState.open,
+                    dropped: 4,
+                    heldPlans: 2,
+                  ),
+                );
                 await _settle(tester);
                 final l10n = l10nOf(tester);
                 expect(
@@ -218,6 +331,7 @@ void main() {
                   findsOneWidget,
                 );
                 expect(find.text(l10n.webSecretsDropped(4)), findsOneWidget);
+                expect(find.text(l10n.webPlansHeld(2)), findsOneWidget);
                 expect(tester.takeException(), isNull);
                 _set(c, _state(secrets: WebSecretsState.reconnect));
                 await _settle(tester);

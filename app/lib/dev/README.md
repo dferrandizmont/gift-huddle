@@ -29,6 +29,19 @@ capturas si pasa tiempo.
 flutter build apk --debug -t lib/dev/main_store_demo.dart --dart-define=DEMO_LOCALE=es
 ```
 
-Con `--dart-define=DEMO_LOCK=true` arranca bloqueada con un PIN de muestra (2468): es la captura `03-bloqueo` de las tiendas. Las capturas
+Con `--dart-define=DEMO_LOCK=true` arranca bloqueada con un PIN de muestra (2468): es la captura `04-bloqueo` de las tiendas. Las capturas
 de tienda de Android (móvil y tablet) las hace `tool/store_capture_android.py` (cabecera con el uso); las de iOS, el Mac, con los mismos
-nombres (`01-navidad`, `02-reparto`, `03-bloqueo`, `04-personas`, `05-lista`, `06-oscuro`).
+nombres (`01-navidad`, `02-deseos`, `03-reparto`, `04-bloqueo`, `05-personas`, `06-lista`, `07-oscuro`).
+
+**iOS (simulador, un solo binario).** `flutter build ios --simulator --debug --no-codesign -t lib/dev/main_store_demo.dart` y se instala
+en el simulador (iPhone 17 Pro Max e iPad Pro 13). En iOS `Platform.environment` llega vacío, así que el idioma y el bloqueo se eligen con
+dos ficheros en la carpeta Documents de la app, que se escriben antes de lanzarla: `demo_locale` (`es`, `ca` o `en`) y `demo_lock` (`true`)
+(`xcrun simctl get_app_container <udid> es.gifthuddle.app data`). Un `--dart-define` manda sobre ellos. Barra de estado con
+`xcrun simctl status_bar <udid> override --time 9:41 ...`; el tema oscuro, con `xcrun simctl ui <udid> appearance dark`. El iPad se captura en
+horizontal (2752 × 2064). Para `02-deseos` en el iPhone, la lista de Nora se desplaza un poco para plegar la cabecera y esconder el «+».
+
+**Deseos (1.0.7).** La demo apunta seis deseos de Nora (ADR 0010) con el atajo de un solo teléfono (`setSelfRecipient('nora')` +
+`createOwnWish`) y quita su «Yo» al acabar, y sustituye `wishPlanRowsProvider` para que la lista de Nora se vea como la ve el móvil de
+otra persona: deseos libres con «Lo regalo yo» y uno cogido por Aritz (su plan es un regalo más de la lista). Un regalo de Nora lleva la
+etiqueta «Sorpresa». La captura `02-deseos` es esa lista (Personas › Nora, sin definir nada más). La sección fija «Sorpresas» solo la ve la
+propia persona en su móvil (ADR 0010, decisión 5): la demo no es el móvil de nadie, así que no sale.

@@ -41,6 +41,8 @@ import 'family_doc.dart';
 import 'hlc.dart';
 import 'hmac.dart';
 import 'model.dart' show Collections;
+import 'wish.dart' show WishOperations;
+import 'wish_boundary.dart';
 
 /// Versión del protocolo de sincronización con registro de móviles.
 const int kSyncProtocolV2 = 2;
@@ -123,9 +125,55 @@ Uint8List _bytes32(Object? value) {
 /// una versión que deja entrar sin persona.
 const String kHostPicksPersonField = 'hp';
 
+/// Campo obligatorio de la oferta y de la respuesta con el protocolo de
+/// deseos propios (1.0.7). 1.0.6 ya entiende [kHostPicksPersonField], así
+/// que solo este campo distingue a un móvil o una web 1.0.7 de uno anterior.
+const String kWishProtocolField = 'wp';
+
+/// Valor actual de [kWishProtocolField]. Ausente, cambiado o desconocido: el
+/// otro lado necesita actualizarse y no se registra ninguna credencial.
+const int kWishProtocol = 1;
+
+/// Versión (`v`) de la oferta que escribe 1.0.7. 1.0.6 solo entiende
+/// [kSyncProtocolV2] (2) y rechaza esta al leerla, antes de responder: así no
+/// gasta la única respuesta de la invitación.
+const int kPairingOfferVersion = 3;
+
+/// Campo de la oferta y de la respuesta con la firma de la capacidad y del
+/// contexto de la invitación, hecha con las claves de la ficha.
+const String kPairingSignatureField = 'ws';
+
+/// Campo de la respuesta con el verificador de la credencial de servicio
+/// que la acompaña (base64url). Va firmado junto con la invitación.
+const String kPairingVerifierField = 'sv';
+
 /// Lo que enseña el anfitrión: su ficha y el compromiso de su nonce.
 class PairingOffer {
-  PairingOffer._(this.host, this.commitment, {this.hostPicksPerson = false});
+  PairingOffer._(
+    this.host,
+    this.commitment, {
+    this.hostPicksPerson = false,
+    this.wishProtocol = kWishProtocol,
+    this.signature,
+  });
+
+  /// El valor de [kWishProtocolField] tal cual llegó (null si falta, y
+  /// siempre null en una oferta 1.0.6, de versión 2). Solo vale
+  /// [kWishProtocol].
+  final int? wishProtocol;
+
+  /// La firma de la oferta ([kPairingSignatureField]): la ficha del anfitrión
+  /// firma la lista, su ficha, el compromiso, la marca del anfitrión y la
+  /// capacidad. Null mientras no se ha firmado ([PairingHost.signOffer]).
+  final String? signature;
+
+  PairingOffer _signed(String sig) => PairingOffer._(
+    host,
+    commitment,
+    hostPicksPerson: hostPicksPerson,
+    wishProtocol: wishProtocol,
+    signature: sig,
+  );
 
   /// La ficha del anfitrión.
   final DeviceRecord host;
@@ -146,18 +194,25 @@ class PairingOffer {
 
   /// La oferta en JSON.
   Map<String, Object?> toJson() => <String, Object?>{
-    'v': kSyncProtocolV2,
+    'v': kPairingOfferVersion,
     'host': host.toJson(),
     'c': encodeBase64Url(commitment),
     if (hostPicksPerson) kHostPicksPersonField: 1,
+    kWishProtocolField: wishProtocol,
+    if (signature != null) kPairingSignatureField: signature,
   };
 
   /// Lee [toJson] y comprueba la firma de la ficha. Lanza
   /// [PairingException] si no vale.
+  ///
+  /// Acepta la versión 3 (1.0.7, firmada) y la 2 (1.0.6): de la 2 sale una
+  /// oferta con [wishProtocol] null, que quien responde rechaza.
   static Future<PairingOffer> fromJson(Object? json) async {
-    if (json is! Map || json['v'] != kSyncProtocolV2) {
+    if (json is! Map ||
+        (json['v'] != kSyncProtocolV2 && json['v'] != kPairingOfferVersion)) {
       throw const PairingException('oferta no válida');
     }
+    final signed = json['v'] == kPairingOfferVersion;
     final DeviceRecord host;
     try {
       host = DeviceRecord.fromJson(json['host']);
@@ -168,13 +223,55 @@ class PairingOffer {
     if (host.kind == DeviceKind.web || !await host.verify()) {
       throw const PairingException('la ficha del anfitrión no vale');
     }
-    return PairingOffer._(
+    if (!signed) {
+      return PairingOffer._(
+        host,
+        commitment,
+        hostPicksPerson: json[kHostPicksPersonField] == 1,
+        wishProtocol: null,
+      );
+    }
+    final sig = json[kPairingSignatureField];
+    final offer = PairingOffer._(
       host,
       commitment,
       hostPicksPerson: json[kHostPicksPersonField] == 1,
+      wishProtocol: _wishProtocolOf(json[kWishProtocolField]),
+      signature: sig is String ? sig : null,
     );
+    if (!await _verifySig(host.keys.signing, sig, offer._sigBytes())) {
+      throw const PairingException('la firma de la oferta no vale');
+    }
+    return offer;
+  }
+
+  List<int> _sigBytes() => utf8.encode(
+    '$_offerSigDomain\u0000'
+    '${canonicalJsonText({'l': listId, 'h': host.digest, 'c': encodeBase64Url(commitment), 'hp': hostPicksPerson, 'wp': wishProtocol})}',
+  );
+}
+
+const String _offerSigDomain = 'gift-huddle-pairing-offer-sig-v3';
+const String _answerSigDomain = 'gift-huddle-pairing-answer-sig-v3';
+
+Future<bool> _verifySig(
+  List<int> signingKey,
+  Object? signature,
+  List<int> message,
+) async {
+  if (signature is! String) return false;
+  try {
+    return await verifyDeviceSignature(
+      message: message,
+      signature: decodeBase64Url(signature),
+      signingPublicKey: signingKey,
+    );
+  } on FormatException {
+    return false;
   }
 }
+
+int? _wishProtocolOf(Object? value) => value is int ? value : null;
 
 /// Campo de la oferta con la prueba de la clave v1 ([v1ListProof]).
 const String kV1ProofField = 'p1';
@@ -323,8 +420,25 @@ class PairingHost {
     );
   }
 
-  /// La oferta que se enseña (QR).
-  final PairingOffer offer;
+  /// La oferta que se enseña (QR). Hay que firmarla ([signOffer]) antes de
+  /// enseñarla: sin firma, un invitado 1.0.7 la rechaza.
+  PairingOffer offer;
+
+  String? _boundInvite;
+
+  /// Liga esta sesión a la invitación que ha creado el Worker: la respuesta
+  /// firmada tiene que ser de ese id (una web ya lo fija con el QR). Sin
+  /// ligar, solo valen las respuestas que se firmaron sin invitación (las
+  /// pruebas de este núcleo).
+  void bindInvite(String inviteId) => _boundInvite = inviteId;
+
+  /// Firma [offer] con las claves de este móvil (las de su ficha).
+  Future<void> signOffer(DeviceKeys keys) async {
+    if (!constantTimeEquals(keys.publicKeys.signing, offer.host.keys.signing)) {
+      throw const PairingException('esas claves no son las del anfitrión');
+    }
+    offer = offer._signed(encodeBase64Url(await keys.sign(offer._sigBytes())));
+  }
 
   final Uint8List _nonce;
 
@@ -376,6 +490,12 @@ class PairingHost {
     final host = offer.host;
     final guest = answer.guest;
     final vouch = answer.vouchForHost;
+    // 1.0.7: sin el protocolo de deseos (o con otro valor) no se gasta la
+    // respuesta ni se aprueba nada, también para una web con la aplicación
+    // antigua en caché.
+    if (answer.wishProtocol != kWishProtocol) {
+      throw const PairingGuestOutdatedException();
+    }
     if (expectWeb) {
       if (guest.kind != DeviceKind.web ||
           guest.personId != _guestPerson ||
@@ -413,6 +533,17 @@ class PairingHost {
         guest.deviceId == host.deviceId ||
         !await guest.verify()) {
       throw const PairingException('la ficha del móvil nuevo no vale');
+    }
+    // 1.0.7: la respuesta lleva la capacidad y el contexto de esta invitación
+    // firmados con la clave de la ficha del invitado. Sin firma válida (p. ej.
+    // una capacidad añadida por el camino a la respuesta de un invitado
+    // 1.0.6) no se gasta la respuesta ni se avala nada.
+    if (!await _verifySig(
+      guest.keys.signing,
+      answer.signature,
+      answer._sigBytes(offer, _inviteId ?? _boundInvite),
+    )) {
+      throw const PairingException('la respuesta no está firmada');
     }
     if (vouch.by != guest.deviceId ||
         vouch.byRecord != guest.digest ||
@@ -462,7 +593,38 @@ class PairingAnswer {
     this.vouchForHost,
     this.guestNonce, {
     this.hostPicksPerson = true,
+    this.wishProtocol = kWishProtocol,
+    this.signature,
+    this.verifier,
   });
+
+  /// El verificador de la credencial de servicio del invitado
+  /// ([kPairingVerifierField], base64url), firmado con la respuesta.
+  final String? verifier;
+
+  /// El valor de [kWishProtocolField] tal cual llegó (null si falta). Solo
+  /// vale [kWishProtocol]; el anfitrión no gasta otra respuesta.
+  final int? wishProtocol;
+
+  /// La firma del invitado ([kPairingSignatureField]) de la lista, su ficha,
+  /// la del anfitrión y el compromiso de su oferta, su nonce, la marca del
+  /// anfitrión y la capacidad.
+  final String? signature;
+
+  PairingAnswer _signed(String sig) => PairingAnswer._(
+    guest,
+    vouchForHost,
+    guestNonce,
+    hostPicksPerson: hostPicksPerson,
+    wishProtocol: wishProtocol,
+    signature: sig,
+    verifier: verifier,
+  );
+
+  List<int> _sigBytes(PairingOffer offer, String? inviteId) => utf8.encode(
+    '$_answerSigDomain\u0000'
+    '${canonicalJsonText({'l': offer.listId, 'g': guest.digest, 'h': offer.host.digest, 'c': encodeBase64Url(offer.commitment), 'gn': encodeBase64Url(guestNonce), 'hp': hostPicksPerson, 'wp': wishProtocol, 'i': inviteId ?? '', 'sv': verifier ?? ''})}',
+  );
 
   /// Si el invitado entiende la marca [kHostPicksPersonField] (1.0.6): un
   /// invitado 1.0.5 no la manda y rechazaría la aprobación con esa marca
@@ -495,6 +657,9 @@ class PairingAnswer {
     'vouch': vouchForHost.toJson(),
     'gn': encodeBase64Url(guestNonce),
     if (hostPicksPerson) kHostPicksPersonField: 1,
+    kWishProtocolField: wishProtocol,
+    if (signature != null) kPairingSignatureField: signature,
+    if (verifier != null) kPairingVerifierField: verifier,
   };
 
   /// Lee [toJson] (se comprueba en [PairingHost.receive] y en
@@ -509,6 +674,13 @@ class PairingAnswer {
         Vouch.fromJson(json['vouch']),
         _bytes32(json['gn']),
         hostPicksPerson: json[kHostPicksPersonField] == 1,
+        wishProtocol: _wishProtocolOf(json[kWishProtocolField]),
+        signature: json[kPairingSignatureField] is String
+            ? json[kPairingSignatureField] as String
+            : null,
+        verifier: json[kPairingVerifierField] is String
+            ? json[kPairingVerifierField] as String
+            : null,
       );
     } on RegistryException {
       throw const PairingException('respuesta no válida');
@@ -595,7 +767,7 @@ String pairingTranscriptHash({
   required PairingAnswer answer,
   required List<int> hostNonce,
 }) => _domainHash(
-  'gift-huddle-pairing-transcript-v1',
+  'gift-huddle-pairing-transcript-v2',
   utf8.encode(
     canonicalJsonText({
       'i': inviteId,
@@ -605,6 +777,9 @@ String pairingTranscriptHash({
       'g': answer.guest.digest,
       'gn': encodeBase64Url(answer.guestNonce),
       'n': encodeBase64Url(hostNonce),
+      // 1.0.7: la capacidad de las dos mitades entra en el resumen firmado.
+      'wpo': offer.wishProtocol,
+      'wpa': answer.wishProtocol,
     }),
   ),
 );
@@ -640,6 +815,8 @@ Future<PairingJoin> joinPairing({
   required String? personId,
   bool withoutPerson = false,
   DeviceKind kind = DeviceKind.mobile,
+  String? inviteId,
+  List<int>? verifier,
 }) async {
   if (deviceId == offer.host.deviceId) {
     throw const PairingException('ese id ya es el del anfitrión');
@@ -661,6 +838,15 @@ Future<PairingJoin> joinPairing({
   } on RegistryException catch (e) {
     throw PairingException(e.message);
   }
+  final unsigned = PairingAnswer._(
+    mine,
+    vouch,
+    secureRandomBytes(kPairingNonceBytes),
+    verifier: verifier == null ? null : encodeBase64Url(verifier),
+  );
+  final answer = unsigned._signed(
+    encodeBase64Url(await keys.sign(unsigned._sigBytes(offer, inviteId))),
+  );
   return PairingJoin(
     registry: await DeviceRegistry.empty(offer.listId).withDeclarations(
       records: [mine, offer.host],
@@ -672,7 +858,7 @@ Future<PairingJoin> joinPairing({
             : keys.publicKeys.signing,
       ),
     ),
-    answer: PairingAnswer._(mine, vouch, secureRandomBytes(kPairingNonceBytes)),
+    answer: answer,
     offer: offer,
   );
 }
@@ -955,7 +1141,9 @@ FamilyDoc mergeLocalV1IntoV2({
   if (syncProtocolOf(localV1) != 1) {
     throw StateError('la copia local no es de v1');
   }
-  return v2Doc.merge(withoutProtocolMark(localV1));
+  return v2Doc
+      .merge(withoutProtocolMark(localV1).wishBoundary())
+      .normalizedWishes();
 }
 
 /// [doc] sin el registro de la marca del protocolo (ni su lápida). Es lo que

@@ -18,6 +18,7 @@ import '../data/sync_config.dart';
 import '../data/sync_transport_common.dart';
 import '../data/sync_transport_v2.dart';
 import 'app_sync_v2_local.dart';
+import 'family_snapshot.dart';
 import 'pairing_v2_controller.dart';
 import 'recovery_controller.dart';
 import 'recovery_engine.dart';
@@ -265,6 +266,7 @@ class RecoveryApplication extends Notifier<RecoveryStatus> {
       throw const RecoveryApplicationException('not_configured');
     }
     final code = RecoveryCode.generate();
+    await familySnapshot(ref);
     await ref.read(v2FamilyLockProvider).run(() async {
       final family = ref.read(familyStoreProvider);
       final existingIdentity = await family.readSyncV2();

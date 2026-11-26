@@ -8,6 +8,7 @@ _flutter.loader.load({
     entrypointBaseUrl: '/',
     assetBase: '/',
     canvasKitBaseUrl: '/canvaskit/',
-    fontFallbackBaseUrl: '/assets/fonts/',
+    // Flutter 3.47.7 selects these WOFF2 paths from its engine fallback table.
+    fontFallbackBaseUrl: '/fallback-fonts/',
   },
 });

@@ -1,7 +1,7 @@
 name: regalos
 description: "Regalos: quién regala qué a cada niño, sin cuentas."
 publish_to: 'none'
-version: 1.0.6+44
+version: 1.0.7+48
 
 environment:
   sdk: ^3.13.5
@@ -56,6 +56,15 @@ flutter:
     # licencia MIT (trezor/python-mnemonic).
     - assets/recovery/bip39-english.txt
     - assets/recovery/LICENSE
+    # Avisos OFL de las fuentes de sustitución de Flutter web.
+    - path: web/fallback-fonts/notocoloremoji/OFL.txt
+      platforms: [web]
+    - path: web/fallback-fonts/notosansarabic/OFL.txt
+      platforms: [web]
+    - path: web/fallback-fonts/OFL-Noto-CJK.txt
+      platforms: [web]
+    - path: web/fallback-fonts/OFL-Noto-fallback.txt
+      platforms: [web]
   fonts:
     # CanvasKit/Skwasm require a family named Roboto even when the theme uses
     # Inter. Alias our bundled regular face to avoid their implicit CDN fetch.

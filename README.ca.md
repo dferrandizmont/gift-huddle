@@ -17,23 +17,12 @@ Gift Huddle és la llibreta de regals de la família. Apunta què vol cada perso
 ## Baixades
 
 <p>
-  <a href="https://play.google.com/apps/testing/es.gifthuddle.app"><img src="https://img.shields.io/badge/Google_Play-Prova_tancada-414141?logo=googleplay&amp;style=for-the-badge" alt="Prova tancada a Google Play"></a>
+  <a href="https://play.google.com/store/apps/details?id=es.gifthuddle.android"><img src="https://img.shields.io/badge/Google_Play-Baixar-01875F?logo=googleplay&amp;style=for-the-badge" alt="Disponible a Google Play"></a>
   <a href="https://web.gifthuddle.app"><img src="https://img.shields.io/badge/Web-web.gifthuddle.app-C9245F?style=for-the-badge" alt="Versió web"></a>
-  <!--
   <a href="https://apps.apple.com/app/id6835840931"><img src="https://img.shields.io/badge/App_Store-Baixa-0D96F6?logo=appstore&amp;style=for-the-badge" alt="Disponible a l'App Store"></a>
-  -->
 </p>
 
-Android 8 o posterior és en prova tancada a Google Play. La versió per a iPhone (iOS 16 o posterior) ja és a l'App Store. Més informació a [gifthuddle.app](https://gifthuddle.app).
-
-<details>
-<summary>Uneix-te a la beta de Google Play</summary>
-
-1. Uneix-te al [grup de testers de Gift Huddle](https://groups.google.com/g/gifthuddle-tester) amb el compte de Google que fas servir al mòbil.
-2. Obre la [pàgina de la prova](https://play.google.com/apps/testing/es.gifthuddle.app) amb aquest mateix compte i prem el botó per fer-te tester (en anglès, **Become a tester**).
-3. Instal·la Gift Huddle des de Google Play i no surtis de la prova durant almenys 14 dies seguits: Google ho exigeix abans que l'app es pugui publicar per a tothom.
-
-</details>
+Android 8 o posterior és disponible a [Google Play](https://play.google.com/store/apps/details?id=es.gifthuddle.android). La versió per a iPhone (iOS 16 o posterior) ja és a l'App Store. Més informació a [gifthuddle.app](https://gifthuddle.app).
 
 ## Captures
 
@@ -83,11 +72,11 @@ No hi ha comptes ni publicitat, i el desenvolupador no fa servir analítica ni i
 
 ## Novetats
 
-La versió 1.0.6 (22 de novembre de 2026) fa que qui convida triï de qui és el mòbil nou, amaga des del primer moment els regals de cada persona al seu propi mòbil, permet que la versió web vegi i editi els regals en secret dels altres, admet fins a 200 regals en secret per persona i prova una altra ruta si l'operador bloqueja la connexió. La versió 1.0.5 (21 de novembre de 2026) revisa tots els textos en castellà, català i anglès, pregunta abans de descartar els canvis d'un regal, demana el nom del mòbil en unir-se amb un enllaç i arregla «Esborrar-ho tot» i els regals en secret. La versió 1.0.4 (20 de novembre de 2026) porta un disseny més clar amb nous tons pastel en mode fosc, pressupost per ocasió, les ocasions més properes primer, enllaços de regal que s'obren amb un toc i qualsevol persona de la família com a qui regala. La versió 1.0.3 (17 de novembre de 2026) obre un fitxer de recuperació directament des d'Arxius, també amb l'app ja oberta, i mostra «Desa en un fitxer» a la pantalla de les 24 paraules sense haver de baixar. La versió 1.0.2 (16 de novembre de 2026) permet desar el codi de recuperació en un fitxer, amb contrasenya si vols, fa que connectar la versió web torni a funcionar i vagi més de pressa, i evita que l'escàner QR es quedi en negre. La versió 1.0.0 (16 de novembre de 2026) és la primera a les botigues. Porta la llista de regals de cada persona, el repartiment en graella, les ocasions amb compte enrere, els regals secrets, compartir entre mòbils i amb la versió web, el codi de recuperació i els temes clar i fosc. Els detalls, a [CHANGELOG.md](CHANGELOG.md).
+La versió 1.0.7 (26 de novembre de 2026) porta la llista de desitjos: cada persona apunta el que li agradaria rebre i la família ho agafa amb «Ho regalo jo» sense que ella sàpiga qui; els desitjos agafats compten en el pressupost, la fila del desig és més compacta, la pàgina de cada persona plega la capçalera en baixar i l'editor desa l'opcional a «Més detalls». A Android passa a una app nova de Google Play. La versió 1.0.6 (22 de novembre de 2026) fa que qui convida triï de qui és el mòbil nou, amaga des del primer moment els regals de cada persona al seu propi mòbil, permet que la versió web vegi i editi els regals en secret dels altres, admet fins a 200 regals en secret per persona i prova una altra ruta si l'operador bloqueja la connexió. La versió 1.0.5 (21 de novembre de 2026) revisa tots els textos en castellà, català i anglès, pregunta abans de descartar els canvis d'un regal, demana el nom del mòbil en unir-se amb un enllaç i arregla «Esborrar-ho tot» i els regals en secret. La versió 1.0.4 (20 de novembre de 2026) porta un disseny més clar amb nous tons pastel en mode fosc, pressupost per ocasió, les ocasions més properes primer, enllaços de regal que s'obren amb un toc i qualsevol persona de la família com a qui regala. La versió 1.0.3 (17 de novembre de 2026) obre un fitxer de recuperació directament des d'Arxius, també amb l'app ja oberta, i mostra «Desa en un fitxer» a la pantalla de les 24 paraules sense haver de baixar. La versió 1.0.2 (16 de novembre de 2026) permet desar el codi de recuperació en un fitxer, amb contrasenya si vols, fa que connectar la versió web torni a funcionar i vagi més de pressa, i evita que l'escàner QR es quedi en negre. La versió 1.0.0 (16 de novembre de 2026) és la primera a les botigues. Porta la llista de regals de cada persona, el repartiment en graella, les ocasions amb compte enrere, els regals secrets, compartir entre mòbils i amb la versió web, el codi de recuperació i els temes clar i fosc. Els detalls, a [CHANGELOG.md](CHANGELOG.md).
 
 ## Contribuir
 
-Els avisos d'errors, les idees i les traduccions són benvinguts. Com compilar, provar i contribuir: [CONTRIBUTING.md](CONTRIBUTING.md). També pots escriure a **gifthuddle@gifthuddle.app**, i qui participi en la prova tancada pot fer servir les opinions de la fitxa de Google Play.
+Els avisos d'errors, les idees i les traduccions són benvinguts. Com compilar, provar i contribuir: [CONTRIBUTING.md](CONTRIBUTING.md). També pots escriure a **gifthuddle@gifthuddle.app**, i pots deixar la teva opinió a la fitxa de Google Play.
 
 ## Llicència
 

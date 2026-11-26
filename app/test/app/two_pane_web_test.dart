@@ -82,7 +82,8 @@ void main() {
         of: find.byType(PersonListScreen),
         matching: find.text('Aritz'),
       );
-      expect(detail, findsOneWidget);
+      // El título y, en la tira de lo comprado, su nombre.
+      expect(detail, findsNWidgets(2));
       expect(find.text('Pijama de astronautas, talla 8'), findsOneWidget);
       // Tres paneles de ventana: el del raíl y la pestaña, la lista y el
       // detalle, uno al lado del otro (80 de raíl, 408 de lista, 1 de filete).
@@ -509,7 +510,7 @@ void main() {
       // El presupuesto de la casa, abajo del todo.
       final budget = find.descendant(
         of: find.byType(SummaryColumn),
-        matching: find.text('La casa · total'),
+        matching: find.text('Gasto de casa · total'),
       );
       expect(budget, findsOneWidget);
       expect(

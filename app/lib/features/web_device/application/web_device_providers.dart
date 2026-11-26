@@ -26,7 +26,14 @@ class WebDeviceState {
     this.heldSecretChanges = 0,
     this.droppedSecretChanges = 0,
     this.heldInboxNames = const <String>[],
+    this.heldPlanChanges = 0,
+    this.rejectedSecretRecipientDeletes = 0,
+    this.rejectedDevicePersonNames = const [],
   });
+
+  /// Wish plans kept in the queue because another phone of the family does
+  /// not understand them yet («Actualiza los demás móviles», ADR 0010).
+  final int heldPlanChanges;
 
   /// What the web can do with secret gifts now (1.0.6, ADR 0009): the
   /// screens show «vuelve a conectar…», «abre la app en tu móvil…» or the
@@ -52,6 +59,8 @@ class WebDeviceState {
   final WebSyncStatus status;
   final bool hasRoots, persistenceDenied;
   final int setAsideChanges;
+  final int rejectedSecretRecipientDeletes;
+  final List<String> rejectedDevicePersonNames;
 
   /// Uploading / offline hint for the status line (read-only).
   final WebSyncActivity activity;
@@ -84,6 +93,8 @@ final webDeviceStateProvider = Provider<WebDeviceState>((ref) {
     status: engine.status,
     hasRoots: engine.hasRoots,
     setAsideChanges: engine.setAsideCount,
+    rejectedSecretRecipientDeletes: engine.rejectedSecretRecipientDeletes,
+    rejectedDevicePersonNames: engine.rejectedDevicePersonNames,
     persistenceDenied: engine.vault.persistenceGranted == false,
     activity: engine.activity,
     lastUnlockFailedAttempts: engine.vault.lastUnlockFailedAttempts,
@@ -91,6 +102,7 @@ final webDeviceStateProvider = Provider<WebDeviceState>((ref) {
     pendingSecretGifts: engine.pendingSecretGiftIds.length,
     heldSecretChanges: engine.heldSecretCount,
     droppedSecretChanges: engine.discardedSecretCount,
+    heldPlanChanges: engine.heldPlanCount,
     heldInboxNames: [
       for (final id in engine.heldInboxPeople)
         ?ref

@@ -66,8 +66,9 @@ void main() {
     phone,
   ) async {
     await _openEditor(tester, phone);
+    await openMoreDetails(tester);
     final planned = find.widgetWithText(TextField, 'Previsto');
-    final actual = find.widgetWithText(TextField, 'Real');
+    final actual = find.widgetWithText(TextField, 'Precio real');
     final before = await _record(tester, phone);
     await tester.enterText(planned, '12 € 50 €');
     await tester.enterText(actual, '12 € 50 €');
@@ -184,6 +185,7 @@ void main() {
     phone,
   ) async {
     await _openEditor(tester, phone);
+    await openMoreDetails(tester);
     await tester.enterText(find.widgetWithText(TextField, 'Tienda'), '');
     final remote = await _receive(tester, phone, {
       'store': 'Otra librería',

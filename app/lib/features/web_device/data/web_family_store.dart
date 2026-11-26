@@ -8,6 +8,7 @@ import '../../../core/sync/pairing_v2.dart';
 import '../../../core/sync/protected_doc.dart';
 import '../../family/data/family_store.dart';
 import '../../family/data/storage.dart';
+import '../application/pending_queue.dart';
 import '../application/vault_service.dart';
 import '../application/web_sync_engine.dart';
 import 'web_device_keys_store.dart';
@@ -25,6 +26,10 @@ class WebFamilyStore extends FamilyStore {
   final WebSyncEngine engine;
   final void Function()? onSaved;
   FamilyDoc? _displayed;
+
+  /// The newest **public** stamp this web has seen (ADR 0010): the saved
+  /// common and its public queue. The private scopes keep their own maxima
+  /// in the engine ([WebSyncEngine.scopeStamp]).
   Hlc? _latest;
   void _remember(Hlc? stamp) {
     if (stamp != null && (_latest == null || stamp > _latest!)) _latest = stamp;
@@ -32,9 +37,18 @@ class WebFamilyStore extends FamilyStore {
 
   @override
   Hlc? latestStoredStamp(FamilyDoc doc) {
-    _remember(doc.maxStamp);
+    _remember(engine.publicStamp);
     return _latest;
   }
+
+  /// Newest stamp of the private scope of [personId], kept apart from
+  /// [latestStoredStamp] (the public clock).
+  Hlc? latestScopeStamp(String personId) => engine.scopeStamp(personId);
+
+  /// Whether the screen shows the fixed «Sorpresas» block of this web's own
+  /// person from the start (ADR 0010, decision 5), independently of any
+  /// secret, key or content.
+  bool get showsOwnSurprisesBlock => engine.showsOwnSurprisesBlock;
 
   FamilyIdentity get identity => FamilyIdentity(
     listId: engine.listId,
@@ -47,9 +61,14 @@ class WebFamilyStore extends FamilyStore {
   Future<StoredFamily?> load() async {
     final doc = engine.candidate;
     if (doc == null) throw StateError('No coherent web snapshot');
+    // Only the public actions of the queue: a change for an inbox (gifts or
+    // plans of another person) belongs to the private scope.
     for (final entry in await engine.queue.entries()) {
-      _remember(entry.delta.maxStamp);
+      if (entry.kind == PendingKind.publicChange && entry.inboxPerson == null) {
+        _remember(entry.delta.maxStamp);
+      }
     }
+    _remember(engine.publicStamp);
     _displayed = doc;
     return StoredFamily(
       identity: identity,
@@ -93,7 +112,7 @@ class WebFamilyStore extends FamilyStore {
       undoGiftId: id,
       publishAfter: engine.now().add(window),
     );
-    _remember(after.maxStamp);
+    _remember(engine.publicStamp);
     _displayed = engine.candidate;
     onSaved?.call();
   }
@@ -127,8 +146,8 @@ class WebFamilyStore extends FamilyStore {
 
   @override
   Future<void> saveCascadeDoc(FamilyDoc before, FamilyDoc after) async {
-    await engine.save(before, after);
-    _remember(after.maxStamp);
+    await engine.saveCascade(before, after);
+    _remember(engine.publicStamp);
     _displayed = engine.candidate;
     onSaved?.call();
   }
@@ -139,7 +158,7 @@ class WebFamilyStore extends FamilyStore {
   @override
   Future<void> saveDoc(FamilyDoc doc) async {
     await engine.save(_displayed ?? engine.candidate!, doc);
-    _remember(doc.maxStamp);
+    _remember(engine.publicStamp);
     _displayed = engine.candidate;
     onSaved?.call();
   }
@@ -181,6 +200,10 @@ class WebFamilyStore extends FamilyStore {
   Future<Object?> readLegacyV1() async => null;
   @override
   Future<Object?> readPendingV2() async => null;
+  @override
+  Future<RegistryView?> readDevicePersonView(FamilyDoc doc) async =>
+      engine.view;
+
   @override
   Future<DeviceRegistry?> readRegistry({RegistryAnchor? anchor}) async =>
       DeviceRegistry.fromLocalStoreJson(

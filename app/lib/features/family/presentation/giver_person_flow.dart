@@ -7,7 +7,10 @@ import '../../../core/theme/regalos_tokens.dart';
 import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/widgets/regalos_snack_bar.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../core/sync/wish_plan.dart' show WishPlan;
 import '../application/family_controller.dart';
+import '../application/family_providers.dart';
+import '../application/wish_service.dart';
 
 // Una persona de la familia como «quién regala»: la sección «Personas» de los
 // selectores, el paso explícito de un regalo secreto y la asignación.
@@ -178,13 +181,39 @@ String giftWriteResultText(
 /// Asigna [candidate] como quién regala [gift], al momento (Reparto). En un
 /// regalo secreto pasa antes por el paso explícito. Devuelve el resultado de
 /// la escritura, o `null` si la persona canceló.
+///
+/// Un deseo que alguien ha cogido ([plan]) se ve como un regalo, pero quién
+/// regala vive en su plan (ADR 0010): se asigna con [assignGiftGiver], nunca
+/// con `assignPersonAsGiver` y el id del plan, que solo mira los regalos. Como
+/// el plan es privado, la persona necesita antes ser quién regala para toda la
+/// familia (el mismo paso explícito). Un fallo del plan se cuenta con
+/// [onPlanFailure], para decir el motivo con el texto de los deseos.
 Future<GiftWriteResult?> assignGiftToPerson(
   BuildContext context,
   WidgetRef ref, {
   required Gift gift,
   required GiverPersonCandidate candidate,
+  WishPlan? plan,
+  void Function(WishResult)? onPlanFailure,
 }) async {
   final controller = ref.read(familyControllerProvider.notifier);
+  // Solo quien cogió el plan cambia quién regala: antes de dar de alta a nadie
+  // se comprueba, para no dejar un quién regala público creado para una
+  // asignación que este móvil no puede hacer.
+  if (plan != null && ref.read(wishReaderProvider) != plan.claimantPersonId) {
+    onPlanFailure?.call(const WishResult.failed(WishProblem.notAllowed));
+    return GiftWriteResult.giftUnavailable;
+  }
+  if (plan != null) {
+    return _assignPlanToPerson(
+      context,
+      ref,
+      gift: gift,
+      candidate: candidate,
+      plan: plan,
+      onPlanFailure: onPlanFailure,
+    );
+  }
   try {
     if (candidate.needsPublicAdd) {
       return await _addThenAssign(context, ref, gift, candidate.person);
@@ -196,6 +225,54 @@ Future<GiftWriteResult?> assignGiftToPerson(
       return null;
     }
     return _addThenAssign(context, ref, gift, candidate.person);
+  } on ProtectedPersonException catch (error) {
+    return error.savedLocally
+        ? GiftWriteResult.saved
+        : GiftWriteResult.giftUnavailable;
+  }
+}
+
+Future<GiftWriteResult?> _assignPlanToPerson(
+  BuildContext context,
+  WidgetRef ref, {
+  required Gift gift,
+  required GiverPersonCandidate candidate,
+  required WishPlan plan,
+  void Function(WishResult)? onPlanFailure,
+}) async {
+  var giver = candidate.giver;
+  if (giver == null || giver.archived) {
+    if (candidate.needsPublicAdd) {
+      giver = await addPersonAsGiverExplicitly(context, ref, candidate.person);
+      if (giver == null || !context.mounted) {
+        return null;
+      }
+    } else {
+      // Como en un regalo normal sin protección: la persona pasa a ser quién
+      // regala al asignarla.
+      try {
+        giver = await ref
+            .read(familyControllerProvider.notifier)
+            .addPersonAsGiver(candidate.person.id);
+      } on Object {
+        giver = null;
+      }
+      if (giver == null) {
+        return GiftWriteResult.giverPersonUnavailable;
+      }
+    }
+  }
+  final giverId =
+      ref.read(familyFullViewProvider).resolveGiver(giver.id)?.id ?? giver.id;
+  try {
+    return await assignGiftGiver(
+      controller: ref.read(familyControllerProvider.notifier),
+      service: ref.read(wishServiceProvider),
+      giftId: gift.id,
+      giverId: giverId,
+      plan: plan,
+      onPlanFailure: onPlanFailure,
+    );
   } on ProtectedPersonException catch (error) {
     return error.savedLocally
         ? GiftWriteResult.saved

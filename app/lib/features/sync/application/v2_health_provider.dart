@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/sync/protected_doc.dart';
+import '../../../core/sync/model.dart' show Collections;
 import '../../family/data/device_keys_store.dart';
 import 'app_sync_v2_local.dart';
 import 'sync_controller.dart';
@@ -20,10 +21,14 @@ final v2HealthProvider = FutureProvider<V2Health>((ref) async {
       .read(deviceKeysStoreProvider)
       .readKeyring(view.listId);
   final slots = await local.slots();
+  final common = await local.common();
   final frozen = <String>{};
   final writers = <String>{};
   for (final person in keyring.people) {
-    if (person == view.self.personId) continue;
+    if (person == view.self.personId ||
+        common.record(Collections.recipients, person)?.isDeleted == true) {
+      continue;
+    }
     if ((observed?.revokedByOthers ?? false) || !view.selfEntitled(person)) {
       frozen.add(person);
       continue;

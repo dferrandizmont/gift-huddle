@@ -160,6 +160,31 @@ void main() {
         Recipient(id: 'p$i', name: 'Leo', colorIndex: 0, archived: false),
       );
 
+  test('creates a recovery code on cold start with a tombstone', () async {
+    final p = await phone();
+    await create(p);
+    await edit(p, 1);
+    final store = p.container.read(familyStoreProvider);
+    final saved = (await store.load())!;
+    await store.saveDoc(
+      saved.doc.delete(
+        HlcClock(node: saved.identity.node, last: saved.doc.maxStamp),
+        Collections.recipients,
+        'p1',
+      ),
+    );
+    p.restart(temp: temp);
+
+    final display = await p.container
+        .read(recoveryApplicationProvider.notifier)
+        .createCode()
+        .timeout(const Duration(seconds: 10));
+
+    expect(display.words, hasLength(24));
+    final family = await p.container.read(familyControllerProvider.future);
+    expect(family.doc.record(Collections.recipients, 'p1')!.isDeleted, isTrue);
+  });
+
   test(
     'word confirmation is durable, local and bound to the displayed code',
     () async {

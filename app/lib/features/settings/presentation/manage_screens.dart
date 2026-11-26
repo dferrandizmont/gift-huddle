@@ -12,6 +12,7 @@ import '../../../core/layout/pane_scope.dart';
 import '../../../core/motion/animated_rows.dart';
 import '../../../core/motion/haptics.dart';
 import '../../../core/sync/model.dart';
+import '../../../core/sync/wish_plan.dart' show WishPlanError;
 import '../../../core/theme/regalos_motion.dart';
 import '../../../core/theme/regalos_shape.dart';
 import '../../../core/theme/regalos_tokens.dart';
@@ -35,6 +36,8 @@ import '../../family/presentation/giver_person_flow.dart';
 import '../../family/presentation/giver_sheet.dart';
 import '../../family/presentation/occasion_sheet.dart';
 import '../../family/presentation/person_sheet.dart';
+import '../../web_device/application/web_sync_engine.dart'
+    show WebOperationException;
 import 'settings_column.dart';
 
 /// Una fila de las pantallas de gestionar: se puede tocar para editar,
@@ -490,6 +493,7 @@ ManageList managePeopleEntries(BuildContext context, WidgetRef ref) {
               refresh: () => controller.recipientDeleteImpact(p.id),
               body: (impact) => [
                 l10n.deletePersonGifts(impact.gifts),
+                if (impact.wishes > 0) l10n.deletePersonWishes(impact.wishes),
                 if (impact.hasBirthday) l10n.deleteBirthdayToo,
                 if (impact.hasRequests) l10n.deleteRequestedByToo,
                 if (impact.hasLinkedGiver) l10n.deletePersonLinkedGiver,
@@ -811,10 +815,13 @@ Future<void> _confirmImpactDelete(
         await _showDevicePersonBlocked(context, ref, error);
       }
       return;
-    } on Object {
+    } on Object catch (error) {
       deleted.clear(id);
       if (context.mounted) {
-        showRegalosSnackBar(context, SnackBar(content: Text(l10n.deleteError)));
+        showRegalosSnackBar(
+          context,
+          SnackBar(content: Text(_deleteFailureText(l10n, error))),
+        );
       }
       return;
     }
@@ -926,11 +933,25 @@ Future<void> _confirmDelete(
   final deleted = ref.read(recentlyDeletedProvider.notifier)..add(id);
   try {
     await delete();
-  } on Object {
+  } on Object catch (error) {
     // No se guardó: la fila vuelve a ser una fila normal y se avisa.
     deleted.clear(id);
     if (context.mounted) {
-      showRegalosSnackBar(context, SnackBar(content: Text(l10n.deleteError)));
+      showRegalosSnackBar(
+        context,
+        SnackBar(content: Text(_deleteFailureText(l10n, error))),
+      );
     }
   }
 }
+
+/// Por qué no se eliminó: si algún móvil de la familia aún no entiende los
+/// planes de deseos, un reintento no lo arregla y se dice; si no, el aviso
+/// genérico.
+String _deleteFailureText(AppLocalizations l10n, Object error) =>
+    switch (error) {
+      WishPlanError.devicesNeedUpdate => l10n.deleteDevicesNeedUpdate,
+      WebOperationException(operation: 'deleteProtectedReferences') =>
+        l10n.webOperationUnavailable,
+      _ => l10n.deleteError,
+    };

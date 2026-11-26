@@ -11,6 +11,7 @@ import 'package:regalos/core/sync/access_policy.dart';
 import 'package:regalos/core/sync/device_registry.dart';
 import 'package:regalos/core/sync/envelope.dart';
 import 'package:regalos/core/sync/family_doc.dart';
+import 'package:regalos/core/sync/family_envelope.dart';
 import 'package:regalos/core/sync/hlc.dart';
 import 'package:regalos/core/sync/model.dart';
 import 'package:regalos/core/sync/pairing_v2.dart';
@@ -694,6 +695,133 @@ void main() {
     expect(await empty.family.load(), isNull);
     expect(w.worker.hasList(sid), isTrue);
   });
+
+  for (final restoreStale in [false, true]) {
+    test(
+      'remote deletion retires the secret scope (restore stale: $restoreStale)',
+      () async {
+        final owner = (await family(w, solo: true)).single;
+        await protect(owner, 'nora');
+        await owner.gift('nora', 'secret', 'Patinete', secret: true);
+        await owner.sync(w);
+        final local = await owner.local();
+        final before = await local.common();
+        final slot = (await owner.family.readSlots()).slotOf(
+          'nora',
+          local.node,
+        )!;
+        expect(w.worker.slotVersions(sid), contains('nora/${local.node}'));
+        expect(await owner.family.readRecoveryScopes(), contains('nora'));
+        final code = RecoveryCode.generate();
+        if (restoreStale) {
+          await (await owner.maintenance(w)).create(code);
+          final scope = (await owner.family.readScope('nora'))!;
+          await owner.family.saveScope(
+            'nora',
+            scope.set(
+              HlcClock(node: local.node, last: scope.maxStamp),
+              ScopeCollections.wishPlans,
+              'local-plan',
+              {
+                'recipientId': 'nora',
+                'sourceWishId': 'wish',
+                'claimantPersonId': 'aritz',
+                'title': 'Patinete',
+                'status': 'idea',
+              },
+            ),
+          );
+        }
+
+        final view = await (await local.registry()).viewFor(
+          me: local.node,
+          mySigningKey: local.keys.publicKeys.signing,
+          livePeople: livePeopleOf(before),
+        );
+        final commonKeys = (await local.readCommonKeys())!;
+        final remote = before.delete(
+          HlcClock(node: local.node, last: before.maxStamp),
+          Collections.recipients,
+          'nora',
+        );
+        final auth = await owner.auth();
+        final snap = (await w.client.getList(auth) as V2GetOk).snapshot;
+        expect(
+          await w.client.putList(
+            auth,
+            version: snap.version,
+            body: V2SnapshotUpload(
+              common: await sealFamilyEnvelope(
+                doc: remote,
+                candidate: commonKeys.keyring
+                    .entry(commonKeys.lastKid!)!
+                    .candidate,
+                writer: view.self,
+                revision: commonKeys.revision + 1,
+                signer: local.keys,
+              ),
+              registry: Map<String, Object?>.from(snap.registry! as Map),
+              keyPackages: snap.keyPackages,
+              slots: [
+                V2SlotChange(
+                  personId: 'nora',
+                  deviceId: local.node,
+                  data: null,
+                ),
+              ],
+            ),
+          ),
+          isA<V2WriteOk>(),
+        );
+        expect(
+          w.worker.slotVersions(sid),
+          isNot(contains('nora/${local.node}')),
+        );
+        if (restoreStale) {
+          expect(
+            (await owner.family.readScope('nora'))!
+                .record(ScopeCollections.wishPlans, 'local-plan')?['title'],
+            'Patinete',
+          );
+          expect(
+            (await owner.restorer(w).start(code)).phase,
+            RecoveryPhase.active,
+          );
+          expect(
+            (await owner.family.load())!.doc
+                .record(Collections.recipients, 'nora')!
+                .isDeleted,
+            isTrue,
+          );
+        } else {
+          await owner.sync(w);
+        }
+
+        expect(await owner.family.readRecoveryScopes(), isEmpty);
+        expect(
+          (await owner.family.readSlots()).people,
+          isNot(contains('nora')),
+        );
+        expect(
+          w.worker.slotVersions(sid),
+          isNot(contains('nora/${local.node}')),
+        );
+        expect(
+          (await owner.family.readRecoveryRevisionFloors())
+              .slots['nora/${local.node}'],
+          slot.header.revision,
+        );
+        if (!restoreStale) {
+          final maintenance = await owner.maintenance(w);
+          await maintenance.create(code);
+          expect(
+            (await maintenance.status()).readiness,
+            RecoveryReadiness.confirmationPending,
+          );
+        }
+      },
+    );
+  }
 
   test(
     'missing packages remain incomplete, preserve existing family, no PUT',

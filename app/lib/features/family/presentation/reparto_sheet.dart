@@ -31,6 +31,8 @@ import '../../../l10n/app_localizations.dart';
 import '../../gifts/presentation/gift_editor_screen.dart';
 import '../application/family_controller.dart';
 import '../application/family_providers.dart';
+import '../application/wish_service.dart';
+import '../../gifts/presentation/wish_editor.dart' show wishProblemText;
 import 'family_texts.dart';
 import 'giver_person_flow.dart';
 import 'giver_picker.dart';
@@ -773,6 +775,7 @@ class _SheetContentState extends ConsumerState<_SheetContent> {
   }
 
   void _pick(Gift gift, String? giverId) {
+    if (!ref.read(giftGiverEditableProvider(gift.id))) return;
     final view = ref.read(familyViewProvider);
     if (giverId == view.resolveGiver(gift.giverId)?.id &&
         view.giversByOriginalId[gift.giverId]?.archived != true) {
@@ -804,11 +807,15 @@ class _SheetContentState extends ConsumerState<_SheetContent> {
   Future<void> _pickPerson(Gift gift, GiverPersonCandidate candidate) async {
     flush();
     final previous = ref.read(familyViewProvider).repartoGiverId(gift);
+    WishResult? planFailure;
+    final plan = ref.read(wishPlanOfGiftProvider(gift.id));
     final result = await assignGiftToPerson(
       context,
       ref,
       gift: gift,
       candidate: candidate,
+      plan: plan,
+      onPlanFailure: (r) => planFailure = r,
     );
     if (!mounted || result == null) {
       return;
@@ -829,11 +836,23 @@ class _SheetContentState extends ConsumerState<_SheetContent> {
         context,
         SnackBar(
           content: Text(
-            giftWriteResultText(
-              AppLocalizations.of(context),
-              result,
-              web: ref.read(webAppProvider),
-            ),
+            planFailure != null
+                ? wishProblemText(
+                    AppLocalizations.of(context),
+                    planFailure!,
+                    name:
+                        ref
+                            .read(familyFullViewProvider)
+                            .allRecipientsById[plan?.recipientId]
+                            ?.name ??
+                        '',
+                    web: ref.read(webAppProvider),
+                  )
+                : giftWriteResultText(
+                    AppLocalizations.of(context),
+                    result,
+                    web: ref.read(webAppProvider),
+                  ),
           ),
         ),
       );
@@ -865,10 +884,17 @@ class _SheetContentState extends ConsumerState<_SheetContent> {
       return;
     }
     final bumps = widget.bumps;
-    final result = await ref
-        .read(familyControllerProvider.notifier)
-        .setGiftGiver(gift.id, pending.giverId)
-        .onError<ProtectedPersonException>(
+    WishResult? planFailure;
+    final result =
+        await assignGiftGiver(
+          controller: ref.read(familyControllerProvider.notifier),
+          service: ref.read(wishServiceProvider),
+          giftId: gift.id,
+          giverId: pending.giverId,
+          // Un deseo cogido cambia quién regala en su plan (ADR 0010).
+          plan: ref.read(wishPlanOfGiftProvider(gift.id)),
+          onPlanFailure: (r) => planFailure = r,
+        ).onError<ProtectedPersonException>(
           (error, _) => error.savedLocally
               ? GiftWriteResult.saved
               : GiftWriteResult.giftUnavailable,
@@ -888,11 +914,25 @@ class _SheetContentState extends ConsumerState<_SheetContent> {
           context,
           SnackBar(
             content: Text(
-              giftWriteResultText(
-                AppLocalizations.of(context),
-                result,
-                web: ref.read(webAppProvider),
-              ),
+              planFailure != null
+                  ? wishProblemText(
+                      AppLocalizations.of(context),
+                      planFailure!,
+                      name:
+                          ref
+                              .read(familyFullViewProvider)
+                              .allRecipientsById[ref
+                                  .read(wishPlanOfGiftProvider(gift.id))
+                                  ?.recipientId]
+                              ?.name ??
+                          '',
+                      web: ref.read(webAppProvider),
+                    )
+                  : giftWriteResultText(
+                      AppLocalizations.of(context),
+                      result,
+                      web: ref.read(webAppProvider),
+                    ),
             ),
           ),
         );
@@ -1187,6 +1227,9 @@ class _GiftEntry extends ConsumerWidget {
       pickedGiverId == null ? gift.giverId : pickedGiverId!.$1,
     );
     final selectedId = giver?.id;
+    // En el plan de un deseo que cogió otra persona, quién regala se ve y no
+    // se cambia.
+    final editable = ref.watch(giftGiverEditableProvider(gift.id));
     return DecoratedBox(
       decoration: BoxDecoration(
         border: first ? null : Border(top: BorderSide(color: t.separator)),
@@ -1244,7 +1287,7 @@ class _GiftEntry extends ConsumerWidget {
                   ),
                 ),
               ),
-              chip: GiverChip(giver: giver, onTap: onToggle),
+              chip: GiverChip(giver: giver, onTap: editable ? onToggle : null),
             ),
           ),
           // La fila de chips se despliega en línea con un muelle y se pliega
@@ -1262,7 +1305,7 @@ class _GiftEntry extends ConsumerWidget {
                       : RegalosCurves.foldDuration),
             curve: open ? RegalosCurves.snap : RegalosCurves.fold,
             alignment: Alignment.topCenter,
-            child: open
+            child: open && editable
                 ? Padding(
                     padding: const EdgeInsets.only(
                       left: 34,

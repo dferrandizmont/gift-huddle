@@ -128,7 +128,10 @@ class _FabExtent extends InheritedWidget {
 /// el «+» de la cabecera, que añade personas u ocasiones.
 class AddGiftButton extends ConsumerWidget {
   /// Crea el botón.
-  const AddGiftButton({super.key});
+  const AddGiftButton({super.key, this.hidden = false});
+
+  /// Si se esconde (la búsqueda abierta); con el teclado se esconde solo.
+  final bool hidden;
 
   Future<void> _open(BuildContext context, WidgetRef ref) async {
     ref.read(hapticsProvider).light();
@@ -198,6 +201,7 @@ class AddGiftButton extends ConsumerWidget {
 
     return ContentFloatingButton(
       maxWidth: RegalosLayout.listColumn,
+      hidden: hidden,
       child: extended == null
           ? button(true)
           : ValueListenableBuilder<bool>(

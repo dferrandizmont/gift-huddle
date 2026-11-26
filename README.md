@@ -17,23 +17,12 @@ Gift Huddle is the family's gift notebook. Note what each person wants, who is g
 ## Download
 
 <p>
-  <a href="https://play.google.com/apps/testing/es.gifthuddle.app"><img src="https://img.shields.io/badge/Google_Play-Closed_test-414141?logo=googleplay&amp;style=for-the-badge" alt="Closed test on Google Play"></a>
+  <a href="https://play.google.com/store/apps/details?id=es.gifthuddle.android"><img src="https://img.shields.io/badge/Google_Play-Download-01875F?logo=googleplay&amp;style=for-the-badge" alt="Get it on Google Play"></a>
   <a href="https://web.gifthuddle.app"><img src="https://img.shields.io/badge/Web-web.gifthuddle.app-C9245F?style=for-the-badge" alt="Web version"></a>
-  <!--
   <a href="https://apps.apple.com/app/id6835840931"><img src="https://img.shields.io/badge/App_Store-Download-0D96F6?logo=appstore&amp;style=for-the-badge" alt="Available on the App Store"></a>
-  -->
 </p>
 
-Android 8 or later is in closed testing on Google Play. The iPhone version (iOS 16 or later) is available on the App Store. More about the app at [gifthuddle.app](https://gifthuddle.app).
-
-<details>
-<summary>Join the beta on Google Play</summary>
-
-1. Join the [Gift Huddle testers group](https://groups.google.com/g/gifthuddle-tester) with the Google account you use on your phone.
-2. Open the [testing page](https://play.google.com/apps/testing/es.gifthuddle.app) with that same account and tap **Become a tester**.
-3. Install Gift Huddle from Google Play and stay in the test for at least 14 days in a row: Google requires that before the app can be released to everyone.
-
-</details>
+Android 8 or later is available on [Google Play](https://play.google.com/store/apps/details?id=es.gifthuddle.android). The iPhone version (iOS 16 or later) is available on the App Store. More about the app at [gifthuddle.app](https://gifthuddle.app).
 
 ## Screenshots
 
@@ -83,11 +72,11 @@ There are no accounts or ads, and the developer uses no analytics or crash repor
 
 ## What's new
 
-Version 1.0.6 (22 November 2026) lets the person who invites choose whose phone the new one is, hides gifts for each person on their own phone from the start, lets the web version see and edit other people's secret gifts, allows up to 200 secret gifts per person, and tries another route if the provider blocks the connection. Version 1.0.5 (21 November 2026) reviews every text in Spanish, Catalan and English, asks before discarding unsaved changes in a gift, asks for the phone name when joining with a link, and fixes Delete everything and secret gifts. Version 1.0.4 (20 November 2026) brings a clearer design with new pastel colours in dark mode, a budget for each occasion, upcoming occasions listed soonest first, gift links that open with one tap, and any person in the family as the one who gives a gift. Version 1.0.3 (17 November 2026) opens a recovery file straight from the Files app, also when the app is already open, and shows "Save to a file" on the 24 words screen without scrolling. Version 1.0.2 (16 November 2026) lets you save the recovery code as a file, optionally protected with a password, makes connecting the web version work again and faster, and keeps the QR scanner from staying black. Version 1.0.0 (16 November 2026) is the first one in the stores. It brings the list of gifts for each person, the Who gives what grid, occasions with a countdown, secret gifts, sharing between phones and the web version, the recovery code, and light and dark themes. See [CHANGELOG.md](CHANGELOG.md) for the details.
+Version 1.0.7 (26 November 2026) brings wish lists: each person notes what they would like to get and the family takes it with "I'll give this" without them knowing who; taken wishes count towards the budget, the wish row is more compact, each person's page folds its header as you scroll and the gift form tucks the optional fields into "More details". On Android it moves to a new Google Play app. Version 1.0.6 (22 November 2026) lets the person who invites choose whose phone the new one is, hides gifts for each person on their own phone from the start, lets the web version see and edit other people's secret gifts, allows up to 200 secret gifts per person, and tries another route if the provider blocks the connection. Version 1.0.5 (21 November 2026) reviews every text in Spanish, Catalan and English, asks before discarding unsaved changes in a gift, asks for the phone name when joining with a link, and fixes Delete everything and secret gifts. Version 1.0.4 (20 November 2026) brings a clearer design with new pastel colours in dark mode, a budget for each occasion, upcoming occasions listed soonest first, gift links that open with one tap, and any person in the family as the one who gives a gift. Version 1.0.3 (17 November 2026) opens a recovery file straight from the Files app, also when the app is already open, and shows "Save to a file" on the 24 words screen without scrolling. Version 1.0.2 (16 November 2026) lets you save the recovery code as a file, optionally protected with a password, makes connecting the web version work again and faster, and keeps the QR scanner from staying black. Version 1.0.0 (16 November 2026) is the first one in the stores. It brings the list of gifts for each person, the Who gives what grid, occasions with a countdown, secret gifts, sharing between phones and the web version, the recovery code, and light and dark themes. See [CHANGELOG.md](CHANGELOG.md) for the details.
 
 ## Contributing
 
-Bug reports, ideas and translations are welcome. How to build, test and contribute: [CONTRIBUTING.md](CONTRIBUTING.md). You can also write to **gifthuddle@gifthuddle.app**, and testers in the closed test can use the feedback option on the Google Play page.
+Bug reports, ideas and translations are welcome. How to build, test and contribute: [CONTRIBUTING.md](CONTRIBUTING.md). You can also write to **gifthuddle@gifthuddle.app**, and you can leave feedback on the Google Play page.
 
 ## License
 

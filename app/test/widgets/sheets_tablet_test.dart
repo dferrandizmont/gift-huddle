@@ -383,6 +383,7 @@ void main() {
         await pumpRegalos(tester, phone);
         await _openNewGift(tester);
         final note = find.widgetWithText(TextField, 'Nota');
+        await openMoreDetails(tester);
         await _scrollEditorTo(tester, note);
 
         // Como en el aparato: primero se toca el campo y después sube el

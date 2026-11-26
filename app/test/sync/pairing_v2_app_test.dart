@@ -2149,7 +2149,7 @@ void main() {
     );
   });
 
-  for (final version in [3, 5]) {
+  for (final version in [3, 4, 6]) {
     test('ronda 4: aprobación v$version deja incompatibilidad propia en el '
         'estado del invitado sin instalar la familia', () async {
       final a = await familyOwner();

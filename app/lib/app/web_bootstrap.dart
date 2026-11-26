@@ -32,6 +32,8 @@ import '../features/web_device/data/web_device_keys_store.dart';
 import '../features/web_device/data/web_family_store.dart';
 import '../features/web_device/presentation/web_gate.dart';
 import '../features/web_device/presentation/web_gate_model.dart';
+import '../features/web_device/presentation/web_secrets_notice.dart'
+    show kWebSecretsSharedNoticeSeenKey;
 import '../l10n/app_localizations.dart';
 import 'app.dart';
 import 'web_location.dart';
@@ -74,6 +76,12 @@ class _WebBootstrapState extends State<WebBootstrap> {
     final store = await openVaultStore();
     final vault = VaultService(
       store: store,
+      // Forgetting this computer also forgets the dismissed notice.
+      onForgotten: () => unawaited(
+        widget.preferences
+            .remove(kWebSecretsSharedNoticeSeenKey)
+            .catchError((Object _) => false),
+      ),
       guard: GuardClient(
         base: Uri.parse(kSyncHost),
         send: (method, uri, {body, headers = const {}}) =>

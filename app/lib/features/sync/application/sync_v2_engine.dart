@@ -99,6 +99,8 @@ class V2SyncState {
     this.commonMigrationPut = false,
     this.createSent = false,
     this.webInboxFloors = const <String, SlotVersion>{},
+    this.webInboxRejected = const <String, SlotVersion>{},
+    this.webPlanInboxSeen = const <String, SlotVersion>{},
     this.webInboxDone = const <String, int>{},
     this.webTombstoneDay = 0,
     this.webTombstoneCount = 0,
@@ -130,6 +132,17 @@ class V2SyncState {
   /// Un buzón igual o más viejo no se vuelve a recoger (1.0.6, ADR 0009): el
   /// Worker no puede reponer uno viejo y nada resucita.
   final Map<String, SlotVersion> webInboxFloors;
+
+  /// De cada buzón de una web propia (`persona/web`), la última versión que
+  /// este móvil **rechazó entera** (más registros de los admitidos, de otra
+  /// persona, con marcas del futuro...). Se declara en el slot (`x`) para que
+  /// la web la dé por perdida y no por entregada. Una recogida posterior del
+  /// mismo buzón la quita.
+  final Map<String, SlotVersion> webInboxRejected;
+
+  /// Versiones de [webInboxFloors] recogidas o rechazadas con soporte para
+  /// planes. Viajan con la versión al retransmitirla entre móviles.
+  final Map<String, SlotVersion> webPlanInboxSeen;
 
   /// Buzones de webs propias ya resueltos (recogidos, rechazados o viejos),
   /// con la versión de la lista que los escribió: no se vuelven a bajar
@@ -230,6 +243,8 @@ class V2SyncState {
     bool? commonMigrationPut,
     bool? createSent,
     Map<String, SlotVersion>? webInboxFloors,
+    Map<String, SlotVersion>? webInboxRejected,
+    Map<String, SlotVersion>? webPlanInboxSeen,
     Map<String, int>? webInboxDone,
     int? webTombstoneDay,
     int? webTombstoneCount,
@@ -254,6 +269,8 @@ class V2SyncState {
     commonMigrationPut: commonMigrationPut ?? this.commonMigrationPut,
     createSent: createSent ?? this.createSent,
     webInboxFloors: webInboxFloors ?? this.webInboxFloors,
+    webInboxRejected: webInboxRejected ?? this.webInboxRejected,
+    webPlanInboxSeen: webPlanInboxSeen ?? this.webPlanInboxSeen,
     webInboxDone: webInboxDone ?? this.webInboxDone,
     webTombstoneDay: webTombstoneDay ?? this.webTombstoneDay,
     webTombstoneCount: webTombstoneCount ?? this.webTombstoneCount,
@@ -290,6 +307,15 @@ class V2SyncState {
         for (final e in webInboxFloors.entries)
           e.key: [e.value.epoch, e.value.revision],
       },
+    if (webInboxRejected.isNotEmpty)
+      'wx': {
+        for (final e in webInboxRejected.entries)
+          e.key: [e.value.epoch, e.value.revision],
+      },
+    'wpf': {
+      for (final e in webPlanInboxSeen.entries)
+        e.key: [e.value.epoch, e.value.revision],
+    },
     if (webInboxDone.isNotEmpty) 'wd': webInboxDone,
     if (webTombstoneCount > 0) 'wt': [webTombstoneDay, webTombstoneCount],
     if (webShares.isNotEmpty) 'ws': webShares,
@@ -305,24 +331,22 @@ class V2SyncState {
           if (e.key is String && e.value is int && (e.value as int) >= 0)
             e.key as String: e.value as int,
     };
+    Map<String, SlotVersion> inboxVersions(Object? raw) => {
+      if (raw is Map)
+        for (final e in raw.entries)
+          if (e.key is String)
+            if (e.value case [final int epoch, final int revision])
+              e.key as String: SlotVersion(epoch, revision),
+    };
     final v = json['v'];
     final p = json['p'];
     final wt = json['wt'];
     return V2SyncState(
-      webInboxFloors: {
-        if (json['wf'] is Map)
-          for (final e in (json['wf'] as Map).entries)
-            if (e.key is String &&
-                e.value is List &&
-                (e.value as List).length == 2 &&
-                (e.value as List)[0] is int &&
-                (e.value as List)[1] is int)
-              e.key as String: SlotVersion(
-                (e.value as List)[0] as int,
-                (e.value as List)[1] as int,
-              ),
-      },
-      webInboxDone: ints(json['wd']),
+      webInboxRejected: inboxVersions(json['wx']),
+      webInboxFloors: inboxVersions(json['wf']),
+      webPlanInboxSeen: inboxVersions(json['wpf']),
+      // A previous version may have marked an unread plan as resolved.
+      webInboxDone: json['wpf'] is Map ? ints(json['wd']) : const {},
       webShares: {
         if (json['ws'] is Map)
           for (final e in (json['ws'] as Map).entries)
@@ -1283,6 +1307,7 @@ class SyncV2Engine {
 
     // 1. Los slots de esta misma versión: solo los que han cambiado. Con
     // `412` la instantánea se ha movido y se descarta lo leído.
+    var common = await local.common();
     var localSlots = await local.slots();
     final fetched = <SealedSlot>[];
     final slotVersions = <String, int>{};
@@ -1292,6 +1317,10 @@ class SyncV2Engine {
     final webWait = <String, List<int>>{};
     final fetchMillis = clock.now().millisecondsSinceEpoch;
     for (final ref in snap.slots) {
+      if (common.record(Collections.recipients, ref.personId)?.isDeleted ==
+          true) {
+        continue;
+      }
       final was = state.ignoredSlots[ref.key];
       if (was != null && was.version == ref.version) {
         ignored[ref.key] = was;
@@ -1414,12 +1443,11 @@ class SyncV2Engine {
           throw const EnvelopeFormatException('documento de otro protocolo');
         }
         await local.mergeCommon(remoteCommon, fromNode: opened.header.fromNode);
+        common = await local.common();
       } on FormatException {
         throw const EnvelopeFormatException('documento no válido');
       }
     }
-    var common = await local.common();
-
     // 3. El registro de la instantánea, antes de abrir ningún paquete (7
     // resto): emisor y receptor leen el mismo estado.
     final DeviceRegistry remoteRegistry;
@@ -1613,6 +1641,26 @@ class SyncV2Engine {
       common = await local.common();
     }
 
+    // The common tombstone retires local scopes even when their slots are
+    // still on the server. Discard earlier downloads before storing slots.
+    final tombstoned = {
+      for (final record
+          in common.collections[Collections.recipients]?.values ??
+              const <SyncRecord>[])
+        if (record.isDeleted && kSyncIdPattern.hasMatch(record.id)) record.id,
+    };
+    if (tombstoned.isNotEmpty) {
+      for (final person in tombstoned) {
+        final own = localSlots.slotOf(person, me);
+        if (local case final RecoverySyncLocal recovery when own != null) {
+          await recovery.rememberSlotRevision(person, own.header.revision);
+        }
+        await local.deleteScope(person);
+      }
+      localSlots = localSlots.withoutPeople(tombstoned);
+      fetched.removeWhere((slot) => tombstoned.contains(slot.header.personId));
+    }
+
     // La outbox es una intención, no un permiso permanente. Los obsoletos
     // nunca salen en el PUT; se conservan como intención de regeneración
     // hasta aceptarlo, también si se cierra antes de repartir de nuevo.
@@ -1703,6 +1751,7 @@ class SyncV2Engine {
       keyring: keyring,
       view: view,
       keys: local.keys,
+      deletedPeople: tombstoned,
     );
     Future<void> enqueue(List<KeyBundle> bundles) async {
       if (bundles.isEmpty) return;
@@ -1954,13 +2003,6 @@ class SyncV2Engine {
         return da != db ? da - db : a.compareTo(b);
       });
     final deferred = <String>{};
-    // Lápidas del común: personas que ya no existen.
-    final tombstoned = {
-      for (final r
-          in common.collections[Collections.recipients]?.values ??
-              const <SyncRecord>[])
-        if (r.isDeleted) r.id,
-    };
     // Los slots propios que sobran se retiran (el Worker lo permite): los de
     // personas borradas y, con la ficha aprobada, el de la persona de este
     // móvil (ha pasado a ser la protegida). Nunca uno ajeno.
@@ -2052,6 +2094,7 @@ class SyncV2Engine {
         state: state,
         slotVersions: slotVersions,
         nowMillis: nowMillis,
+        common: common,
       );
       if (!identical(collected.scope, scope)) {
         scope = collected.scope;
@@ -2082,6 +2125,20 @@ class SyncV2Engine {
               : 0,
           extraSeen: {
             for (final e in state.webInboxFloors.entries)
+              if (e.key.startsWith('$person/') &&
+                  view.device(e.key.substring(person.length + 1))?.kind ==
+                      DeviceKind.web)
+                e.key.substring(person.length + 1): e.value,
+          },
+          extraRejected: {
+            for (final e in state.webInboxRejected.entries)
+              if (e.key.startsWith('$person/') &&
+                  view.device(e.key.substring(person.length + 1))?.kind ==
+                      DeviceKind.web)
+                e.key.substring(person.length + 1): e.value,
+          },
+          extraPlanInboxSeen: {
+            for (final e in state.webPlanInboxSeen.entries)
               if (e.key.startsWith('$person/') &&
                   view.device(e.key.substring(person.length + 1))?.kind ==
                       DeviceKind.web)
@@ -2254,6 +2311,18 @@ class SyncV2Engine {
       // registro (activa o pendiente), aunque hoy no sea propia.
       webInboxFloors: {
         for (final e in state.webInboxFloors.entries)
+          if (view.device(e.key.substring(e.key.indexOf('/') + 1))?.kind ==
+              DeviceKind.web)
+            e.key: e.value,
+      },
+      webInboxRejected: {
+        for (final e in state.webInboxRejected.entries)
+          if (view.device(e.key.substring(e.key.indexOf('/') + 1))?.kind ==
+              DeviceKind.web)
+            e.key: e.value,
+      },
+      webPlanInboxSeen: {
+        for (final e in state.webPlanInboxSeen.entries)
           if (view.device(e.key.substring(e.key.indexOf('/') + 1))?.kind ==
               DeviceKind.web)
             e.key: e.value,
@@ -2498,8 +2567,17 @@ class SyncV2Engine {
     required V2SyncState state,
     required Map<String, int> slotVersions,
     required int nowMillis,
+    FamilyDoc? common,
   }) async {
     final floors = {...state.webInboxFloors};
+    final rejectedInboxes = {...state.webInboxRejected};
+    final planInboxSeen = {...state.webPlanInboxSeen};
+    // Los planes de deseos solo entran si todos los demás móviles que leen
+    // este ámbito los anuncian (un 1.0.6 rechazaría el bloque entero).
+    final plansAllowed = wishPlansAllowed([
+      for (final device in view.entitledDevices(person))
+        if (device != view.me) opened.parts[device],
+    ]);
     // Recogida transitiva: lo que otro móvil de la misma persona ya declara
     // haber recogido (`s[web]`) ya viene en su slot.
     // También el slot propio (B1): si este móvil perdió su estado, lo que ya
@@ -2509,9 +2587,27 @@ class SyncV2Engine {
       for (final web in ownWebIds) {
         final seen = part.value.seen[web];
         final key = '$person/$web';
-        if (seen != null &&
-            (floors[key] == null || seen.compareTo(floors[key]!) > 0)) {
-          floors[key] = seen;
+        if (seen == null) continue;
+        final floor = floors[key];
+        final planAware =
+            part.value.wishPlans >= kWishPlanCapability &&
+            part.value.planInboxSeen[web] == seen;
+        if (floor != null &&
+            seen.compareTo(floor) <= 0 &&
+            !(seen == floor && planAware && planInboxSeen[key] != seen)) {
+          continue;
+        }
+        floors[key] = seen;
+        // Keep the outcome and plan support of the same declaration.
+        if (planAware) {
+          planInboxSeen[key] = seen;
+        } else {
+          planInboxSeen.remove(key);
+        }
+        if (part.value.rejectedInboxes[web] == seen) {
+          rejectedInboxes[key] = seen;
+        } else {
+          rejectedInboxes.remove(key);
         }
       }
     }
@@ -2527,7 +2623,9 @@ class SyncV2Engine {
       final floor = floors[key];
       final web = view.member(h.writer);
       if (web == null || web.kind != DeviceKind.web) continue;
-      if (floor != null && h.version.compareTo(floor) <= 0) {
+      if (floor != null &&
+          (h.version.compareTo(floor) < 0 ||
+              (h.version == floor && planInboxSeen[key] == floor))) {
         done[key] = slotVersions[key]!;
         continue;
       }
@@ -2561,28 +2659,53 @@ class SyncV2Engine {
         done[key] = slotVersions[key]!;
         continue;
       }
+      if (h.version == floor && content.planRecords == 0) {
+        done[key] = slotVersions[key]!;
+        continue;
+      }
       final result = absorbWebInbox(
         scope: next,
         inbox: content,
         nowMillis: nowMillis,
         tombstoneBudget: kMaxWebTombstonesPerDay - count,
+        webPersonId: web.personId,
+        common: common,
+        plansAllowed: plansAllowed,
       );
       if (result.waiting) {
         waiting.add(key);
         continue;
       }
       floors[key] = h.version;
+      if (content.planRecords > 0) {
+        planInboxSeen[key] = h.version;
+      } else {
+        planInboxSeen.remove(key);
+      }
       done[key] = slotVersions[key]!;
       // Rechazado o recogido: hay que declarar `s[web]` para que la web lo
       // deje de reenviar.
       collected = true;
-      if (result.rejected != null) continue;
+      if (result.rejected != null) {
+        // La web tiene que saber que no se recogió: el slot lo declara.
+        rejectedInboxes[key] = h.version;
+        continue;
+      }
+      rejectedInboxes.remove(key);
       next = result.scope;
       count += result.tombstones;
     }
     final changedFloors =
         floors.length != state.webInboxFloors.length ||
-        floors.entries.any((e) => state.webInboxFloors[e.key] != e.value);
+        floors.entries.any((e) => state.webInboxFloors[e.key] != e.value) ||
+        rejectedInboxes.length != state.webInboxRejected.length ||
+        rejectedInboxes.entries.any(
+          (e) => state.webInboxRejected[e.key] != e.value,
+        ) ||
+        planInboxSeen.length != state.webPlanInboxSeen.length ||
+        planInboxSeen.entries.any(
+          (e) => state.webPlanInboxSeen[e.key] != e.value,
+        );
     final changedCount =
         count != (state.webTombstoneDay == day ? state.webTombstoneCount : 0);
     return (
@@ -2590,6 +2713,8 @@ class SyncV2Engine {
       state: changedFloors || changedCount
           ? state.copyWith(
               webInboxFloors: floors,
+              webInboxRejected: rejectedInboxes,
+              webPlanInboxSeen: planInboxSeen,
               webTombstoneDay: day,
               webTombstoneCount: count,
             )

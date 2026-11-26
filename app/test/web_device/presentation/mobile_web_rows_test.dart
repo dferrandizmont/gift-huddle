@@ -217,17 +217,19 @@ void main() {
       await _open(tester, rows: const [_self, _webNora]);
       await _tapText(tester, 'Web de Nora');
       await _tapText(tester, 'Quitar esta web');
-      // La vista previa del motor de pruebas es asíncrona de verdad.
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 300)),
+      // La vista previa del motor de pruebas es asíncrona de verdad: se
+      // alterna tiempo real y repintado hasta que sale el aviso.
+      final notice = find.text(
+        'No se ha podido quitar la web. Inténtalo de nuevo con conexión.',
       );
+      for (var i = 0; i < 100 && notice.evaluate().isEmpty; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 30)),
+        );
+        await tester.pump(const Duration(milliseconds: 50));
+      }
       await settleMobile(tester);
-      expect(
-        find.text(
-          'No se ha podido quitar la web. Inténtalo de nuevo con conexión.',
-        ),
-        findsOneWidget,
-      );
+      expect(notice, findsOneWidget);
       expect(find.textContaining('quitar el móvil'), findsNothing);
       await tester.pumpWidget(const SizedBox());
     });

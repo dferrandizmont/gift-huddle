@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:regalos/app/router.dart';
 import 'package:regalos/core/sync/device_registry.dart';
 import 'package:regalos/core/sync/hlc.dart';
 import 'package:regalos/core/sync/model.dart';
@@ -14,6 +15,7 @@ import 'package:regalos/features/family/data/device_keys_store.dart';
 import 'package:regalos/features/family/data/family_store.dart';
 import 'package:regalos/features/family/presentation/protection_actions.dart';
 import 'package:regalos/features/family/presentation/protection_sheet.dart';
+import 'package:regalos/features/family/presentation/secret_blocks.dart';
 
 import '../helpers/memory_stores.dart' show FakePhone;
 import '../helpers/other_phone.dart';
@@ -841,6 +843,125 @@ void main() {
       size: tall,
       overrides: _overrides(locked: {'nora'}),
     );
+
+    // El bloque depende solo de la ocasión y de las personas: en el
+    // cumpleaños de otra persona no sale; en el de Nora y en las demás, sí.
+    group('según la ocasión', () {
+      final block = find.byKey(const ValueKey<String>('secret-block:nora'));
+
+      Future<void> tab(WidgetTester tester, String label) async {
+        final finder = find.text(label).first;
+        await tester.ensureVisible(finder);
+        await settle(tester);
+        await tester.tap(finder);
+        await settle(tester);
+      }
+
+      screenTest(
+        'Reparto por ocasión: ni en el cumpleaños de Aritz; sí en el de Nora, '
+        'en Navidad y en Reyes',
+        (tester, phone) async {
+          await seedSample(tester, phone);
+          await pumpRegalos(tester, phone);
+          await tester.tap(find.text('Reparto').last);
+          await settle(tester);
+          await tester.tap(find.bySemanticsLabel('Por ocasión'));
+          await settle(tester);
+          await tab(tester, 'Cumpleaños de Aritz');
+          expect(block, findsNothing);
+          expect(find.text('Regalos en secreto para Nora'), findsNothing);
+          await tab(tester, 'Cumpleaños de Nora');
+          expect(block, findsOneWidget);
+          await tab(tester, 'Navidad');
+          expect(block, findsOneWidget);
+          await tab(tester, 'Reyes');
+          expect(block, findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+        size: tall,
+        overrides: _overrides(locked: {'nora'}),
+      );
+
+      screenTest(
+        'el detalle de una ocasión: cumpleaños de otra persona sin bloque, el '
+        'suyo y Navidad con él',
+        (tester, phone) async {
+          await seedSample(tester, phone);
+          await pumpRegalos(tester, phone);
+          Future<void> open(String id) async {
+            phone.container.read(routerProvider).go('/occasions/$id');
+            await settle(tester);
+          }
+
+          await open('birthday-aritz');
+          expect(find.text('Cumpleaños de Aritz'), findsOneWidget);
+          expect(block, findsNothing);
+          await open('birthday-nora');
+          expect(find.text('Cumpleaños de Nora'), findsOneWidget);
+          expect(block, findsOneWidget);
+          await open('seed-santa');
+          expect(block, findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+        size: tall,
+        overrides: _overrides(locked: {'nora'}),
+      );
+
+      // Sin pantalla: la regla no mira si hay regalos en secreto detrás.
+      test('lockedPeopleFor solo mira la ocasión y la lista de personas', () {
+        const nora = Recipient(
+          id: 'nora',
+          name: 'Nora',
+          colorIndex: 4,
+          archived: false,
+        );
+        const aritz = Recipient(
+          id: 'aritz',
+          name: 'Aritz',
+          colorIndex: 0,
+          archived: false,
+        );
+        Occasion birthday(String id, String person) => Occasion(
+          id: id,
+          kind: OccasionKind.birthday,
+          rawKind: 'birthday',
+          name: '',
+          month: 3,
+          day: 14,
+          recurring: true,
+          recipientId: person,
+          archived: false,
+        );
+        const christmas = Occasion(
+          id: 'xmas',
+          kind: OccasionKind.santa,
+          rawKind: 'santa',
+          name: '',
+          month: 12,
+          day: 25,
+          recurring: true,
+          archived: false,
+        );
+        const people = [aritz, nora];
+        expect(
+          lockedPeopleFor(birthday('b-aritz', 'aritz'), people, {'nora'}),
+          isEmpty,
+        );
+        expect(lockedPeopleFor(birthday('b-nora', 'nora'), people, {'nora'}), [
+          nora,
+        ]);
+        expect(lockedPeopleFor(christmas, people, {'nora'}), [nora]);
+        expect(lockedPeopleFor(christmas, people, <String>{}), isEmpty);
+        // Dos protegidas: en un cumpleaños, solo la suya.
+        expect(
+          lockedPeopleFor(birthday('b-aritz', 'aritz'), people, {
+            'nora',
+            'aritz',
+          }),
+          [aritz],
+        );
+      });
+    });
 
     // Vista ancha: con dos paneles la fila lleva su franja y el detalle de
     // Nora, el bloque; en una columna ancha, lo mismo en su sitio.

@@ -622,6 +622,24 @@ abstract class AppLocalizations {
   /// **'Los cambios de este regalo todavía no se han guardado.'**
   String get giftDiscardBody;
 
+  /// Cuerpo del aviso al cerrar el editor de deseos con cambios sin guardar.
+  ///
+  /// In es, this message translates to:
+  /// **'Los cambios de este deseo todavía no se han guardado.'**
+  String get wishDiscardBody;
+
+  /// Sección plegable del editor de regalos con los campos opcionales (precio real, tienda, enlace, talla, nota).
+  ///
+  /// In es, this message translates to:
+  /// **'Más detalles'**
+  String get giftMoreDetails;
+
+  /// Campo del precio real, dentro de «Más detalles».
+  ///
+  /// In es, this message translates to:
+  /// **'Precio real'**
+  String get giftFieldActualPrice;
+
   /// Botón destructivo que descarta los cambios sin guardar.
   ///
   /// In es, this message translates to:
@@ -844,16 +862,16 @@ abstract class AppLocalizations {
   /// **'Nosotros'**
   String get giverUs;
 
-  /// Etiqueta y campo: lo que regala esta persona lo paga la casa y cuenta en el presupuesto.
+  /// Etiqueta y campo: lo que regala esta persona cuenta como gasto de casa y entra en el presupuesto.
   ///
   /// In es, this message translates to:
-  /// **'Paga la casa'**
+  /// **'Cuenta como gasto de casa'**
   String get giverHouseholdPays;
 
-  /// Explicación bajo el interruptor «Paga la casa».
+  /// Explicación bajo el interruptor «Cuenta como gasto de casa».
   ///
   /// In es, this message translates to:
-  /// **'Si lo activas, sus regalos cuentan en el presupuesto de la casa.'**
+  /// **'Sus regalos suman en el gasto de la casa.'**
   String get giverHouseholdPaysHint;
 
   /// Texto junto al número de la cuenta atrás de un cumpleaños.
@@ -949,7 +967,7 @@ abstract class AppLocalizations {
   /// Explicación del paso de quién regala.
   ///
   /// In es, this message translates to:
-  /// **'«Nosotros» ya está en la lista para los regalos que pagáis en casa. También puedes añadir a los abuelos, los tíos…'**
+  /// **'«Nosotros» ya está en la lista para los regalos que cuentan como gasto de casa. También puedes añadir a los abuelos, los tíos…'**
   String get obGiversBody;
 
   /// Título de los botones de sugerencia.
@@ -1210,17 +1228,23 @@ abstract class AppLocalizations {
   /// **'de'**
   String get budgetOf;
 
-  /// Mini presupuesto de la casa para una persona.
+  /// Mini presupuesto del gasto de casa en total.
   ///
   /// In es, this message translates to:
-  /// **'La casa · {name}'**
-  String budgetHouseFor(String name);
-
-  /// Mini presupuesto de la casa en total.
-  ///
-  /// In es, this message translates to:
-  /// **'La casa · total'**
+  /// **'Gasto de casa · total'**
   String get budgetHouseTotal;
+
+  /// Palabra delante de lo comprado en la tira de una persona o del gasto de casa: «Comprado 809 € de 879 €».
+  ///
+  /// In es, this message translates to:
+  /// **'Comprado'**
+  String get budgetBought;
+
+  /// Etiqueta accesible de la barra de lo comprado sobre el total de los regalos.
+  ///
+  /// In es, this message translates to:
+  /// **'Comprado: {bought} de {total}'**
+  String budgetBoughtBarLabel(String bought, String total);
 
   /// Etiqueta accesible de una barra de presupuesto.
   ///
@@ -1723,13 +1747,13 @@ abstract class AppLocalizations {
   /// Subtítulo del presupuesto cuando ninguna ocasión tiene presupuesto.
   ///
   /// In es, this message translates to:
-  /// **'Puedes poner un presupuesto en cada ocasión. «Gastado» suma los precios reales de los regalos que paga la casa. Si ya se ha comprado un regalo y falta el precio real, cuenta el previsto.'**
+  /// **'Puedes poner un presupuesto en cada ocasión. «Gastado» suma los precios reales de los regalos que cuentan como gasto de casa. Si ya se ha comprado un regalo y falta el precio real, cuenta el previsto.'**
   String get budgetSubtitle;
 
   /// Subtítulo del presupuesto cuando alguna ocasión tiene presupuesto: las tres cifras solo cuentan esas.
   ///
   /// In es, this message translates to:
-  /// **'Puedes poner un presupuesto en cada ocasión. Las tres cifras solo incluyen ocasiones con presupuesto. «Gastado» suma los precios reales de los regalos que paga la casa. Si ya se ha comprado un regalo y falta el precio real, cuenta el previsto.'**
+  /// **'Puedes poner un presupuesto en cada ocasión. Las tres cifras solo incluyen ocasiones con presupuesto. «Gastado» suma los precios reales de los regalos que cuentan como gasto de casa. Si ya se ha comprado un regalo y falta el precio real, cuenta el previsto.'**
   String get budgetSubtitleBudgeted;
 
   /// Número grande del presupuesto: lo previsto.
@@ -1771,13 +1795,13 @@ abstract class AppLocalizations {
   /// Nota al pie del presupuesto.
   ///
   /// In es, this message translates to:
-  /// **'Solo suma lo que paga la casa. Los regalos que pagan otras personas, como los abuelos, quedan fuera del gasto de la casa.'**
+  /// **'Solo suma los regalos que cuentan como gasto de casa. Los que pagan otras personas, como los abuelos, quedan fuera.'**
   String get budgetNote;
 
   /// Estado vacío del presupuesto.
   ///
   /// In es, this message translates to:
-  /// **'Todavía no hay regalos que pague la casa. Activa «Paga la casa» en la ficha de quien regala y añade el precio previsto al regalo.'**
+  /// **'Todavía no hay regalos que cuenten como gasto de casa. Activa «Cuenta como gasto de casa» en la ficha de quien regala y añade el precio previsto al regalo.'**
   String get budgetEmpty;
 
   /// Campo opcional del editor de ocasión.
@@ -3196,10 +3220,10 @@ abstract class AppLocalizations {
   /// **'Es la persona de este móvil.'**
   String get manageLockedThisDevice;
 
-  /// Línea bajo el nombre en Ajustes › Personas: explica por qué Archivar y Eliminar están desactivados para la persona dueña de otro móvil conectado de la familia.
+  /// Línea bajo el nombre en Ajustes › Personas: explica por qué Archivar y Eliminar están desactivados para la persona dueña de otro dispositivo conectado de la familia.
   ///
   /// In es, this message translates to:
-  /// **'Es la persona de otro móvil de la familia.'**
+  /// **'Esta persona tiene otro dispositivo conectado a la familia.'**
   String get manageLockedOtherDevice;
 
   /// Título del diálogo que pregunta antes de eliminar a una persona o a quien regala.
@@ -3219,6 +3243,12 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'{count, plural, =0{} one{También se eliminará el regalo que hay para esta persona.} other{También se eliminarán los {count} regalos que hay para esta persona.}}'**
   String deletePersonGifts(int count);
+
+  /// Número de deseos visibles que se eliminan al borrar a una persona
+  ///
+  /// In es, this message translates to:
+  /// **'{count, plural, one{También se eliminará 1 deseo de esta persona.} other{También se eliminarán {count} deseos de esta persona.}}'**
+  String deletePersonWishes(int count);
 
   /// Consecuencia de eliminar a una persona que tiene ocasión de cumpleaños.
   ///
@@ -3250,7 +3280,7 @@ abstract class AppLocalizations {
   /// **'Su nombre dejará de aparecer en los regalos que pidió para otras personas.'**
   String get deleteRequestedByToo;
 
-  /// Consecuencia de eliminar a quien regala si pagaba la casa y tenía regalos.
+  /// Consecuencia de eliminar a quien regala si contaba como gasto de casa y tenía regalos.
   ///
   /// In es, this message translates to:
   /// **'Sus importes dejan de contar en el presupuesto de la casa.'**
@@ -3261,6 +3291,12 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'No se ha podido eliminar. Inténtalo de nuevo.'**
   String get deleteError;
+
+  /// Aviso cuando eliminar una persona, quien regala o una ocasión se rechaza porque algún móvil de la familia aún no entiende los planes de deseos.
+  ///
+  /// In es, this message translates to:
+  /// **'Para eliminar esto, todos los móviles de la familia necesitan la última versión.'**
+  String get deleteDevicesNeedUpdate;
 
   /// Aviso del editor de regalos cuando el regalo o su persona se eliminaron en otro móvil.
   ///
@@ -4779,6 +4815,12 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Si queda poco espacio, el navegador podría borrar los datos que Gift Huddle guarda aquí.'**
   String get webSettingsPersistenceDenied;
+
+  /// No description provided for @webRecipientDeleteRejected.
+  ///
+  /// In es, this message translates to:
+  /// **'No se ha podido eliminar a esta persona desde la web porque afecta a los regalos en secreto de otra persona. Hazlo desde un móvil.'**
+  String get webRecipientDeleteRejected;
 
   /// Aviso dentro de la web sobre cambios apartados por ser de una persona protegida.
   ///
@@ -7456,16 +7498,16 @@ abstract class AppLocalizations {
   /// **'Para eliminar o archivar a {name}, ve a Ajustes y elige primero a otra persona en «Este móvil es de».'**
   String devicePersonBlockedThisBody(String name);
 
-  /// Título del aviso al intentar eliminar o archivar a la persona dueña de otro móvil de la familia.
+  /// Título del aviso al intentar eliminar o archivar a la persona dueña de otro dispositivo de la familia.
   ///
   /// In es, this message translates to:
-  /// **'{name} tiene su propio móvil'**
+  /// **'{name} tiene un dispositivo conectado'**
   String devicePersonBlockedOtherTitle(String name);
 
-  /// Texto del aviso al intentar eliminar o archivar a la persona dueña de otro móvil de la familia.
+  /// Texto del aviso al intentar eliminar o archivar a la persona dueña de otro dispositivo de la familia.
   ///
   /// In es, this message translates to:
-  /// **'{name} tiene su propio móvil en la familia, así que no se puede eliminar ni archivar desde aquí.'**
+  /// **'{name} tiene un dispositivo conectado a la familia, así que no se puede eliminar ni archivar desde aquí.'**
   String devicePersonBlockedOtherBody(String name);
 
   /// Línea bajo quién regala en Ajustes cuando está enlazado a una persona.
@@ -7714,6 +7756,42 @@ abstract class AppLocalizations {
   /// **'Nadie'**
   String get whoAreYouNobody;
 
+  /// Título del aviso al escribir, en «No está en la lista», el nombre de alguien que ya existe.
+  ///
+  /// In es, this message translates to:
+  /// **'Ya hay alguien llamado {name} en la lista'**
+  String personSameNameTitle(String name);
+
+  /// Botón del aviso: se da de alta otra persona con el mismo nombre.
+  ///
+  /// In es, this message translates to:
+  /// **'Es otra persona'**
+  String get personSameNameOther;
+
+  /// Cuerpo del aviso cuando quien se une escribe el nombre de alguien que ya existe.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Eres tú? Si eliges «Es otra persona», se añade otra con el mismo nombre.'**
+  String get whoAreYouSameNameBody;
+
+  /// Botón del aviso: este móvil es de la persona que ya existe.
+  ///
+  /// In es, this message translates to:
+  /// **'Soy yo'**
+  String get whoAreYouSameNameYes;
+
+  /// Cuerpo del aviso cuando quien invita escribe el nombre de alguien que ya existe.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Es esa persona? Si eliges «Es otra persona», se añade otra con el mismo nombre.'**
+  String get inviteForSameNameBody;
+
+  /// Botón del aviso: el móvil nuevo es de la persona que ya existe.
+  ///
+  /// In es, this message translates to:
+  /// **'Es esa persona'**
+  String get inviteForSameNameYes;
+
   /// Aclaración bajo «Nadie».
   ///
   /// In es, this message translates to:
@@ -7899,6 +7977,372 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Sin cuentas ni publicidad. La lista solo sale de este ordenador para sincronizarse con los móviles de tu familia, y siempre va cifrada.'**
   String get aboutPrivacyWeb;
+
+  /// Etiqueta pequeña de una fila que es un deseo.
+  ///
+  /// In es, this message translates to:
+  /// **'Deseo'**
+  String get wishTag;
+
+  /// Título del bloque fijo de la propia persona; sin cifras, fechas ni ocasión.
+  ///
+  /// In es, this message translates to:
+  /// **'Sorpresas'**
+  String get surprisesTitle;
+
+  /// Número de deseos de una persona.
+  ///
+  /// In es, this message translates to:
+  /// **'{count, plural, =0{Sin deseos} one{{count} deseo} other{{count} deseos}}'**
+  String wishCount(int count);
+
+  /// Botón para apuntar un deseo propio.
+  ///
+  /// In es, this message translates to:
+  /// **'Añadir deseo'**
+  String get wishAdd;
+
+  /// Título del editor de un deseo nuevo.
+  ///
+  /// In es, this message translates to:
+  /// **'Nuevo deseo'**
+  String get wishEditorNewTitle;
+
+  /// Título del editor de un deseo existente.
+  ///
+  /// In es, this message translates to:
+  /// **'Editar deseo'**
+  String get wishEditorEditTitle;
+
+  /// Campo de la descripción de un deseo.
+  ///
+  /// In es, this message translates to:
+  /// **'Descripción'**
+  String get wishFieldDescription;
+
+  /// Lista de deseos vacía de la propia persona.
+  ///
+  /// In es, this message translates to:
+  /// **'Aún no has apuntado ningún deseo'**
+  String get wishEmptyTitle;
+
+  /// Explica qué pasa con un deseo.
+  ///
+  /// In es, this message translates to:
+  /// **'Apunta lo que te gustaría recibir. Tu familia lo verá, pero tú no sabrás quién lo regala.'**
+  String get wishEmptyMessage;
+
+  /// Botón para quitar un deseo propio.
+  ///
+  /// In es, this message translates to:
+  /// **'Quitar de mi lista'**
+  String get wishDelete;
+
+  /// Pregunta antes de quitar un deseo.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Quitar «{name}» de tu lista?'**
+  String wishDeleteTitle(String name);
+
+  /// Consecuencia de quitar un deseo.
+  ///
+  /// In es, this message translates to:
+  /// **'Se quita de tu lista y de la que ve tu familia. No se puede deshacer.'**
+  String get wishDeleteBody;
+
+  /// Botón que confirma quitar un deseo.
+  ///
+  /// In es, this message translates to:
+  /// **'Quitar'**
+  String get wishDeleteConfirm;
+
+  /// Aviso cuando un cambio de un plan queda solo en este móvil.
+  ///
+  /// In es, this message translates to:
+  /// **'Guardado solo en este móvil. Se compartirá cuando haya sitio.'**
+  String get wishSavedPending;
+
+  /// Botón para coger un deseo de otra persona.
+  ///
+  /// In es, this message translates to:
+  /// **'Lo regalo yo'**
+  String get wishClaim;
+
+  /// Lo que lee el lector de pantalla en el botón de coger un deseo: la acción y el deseo, porque en la lista hay varios iguales.
+  ///
+  /// In es, this message translates to:
+  /// **'Lo regalo yo: {title}'**
+  String wishClaimFor(String title);
+
+  /// Aviso al tocar «Lo regalo yo» cuando este móvil aún no está conectado a la familia con la versión nueva.
+  ///
+  /// In es, this message translates to:
+  /// **'Para coger deseos, este móvil tiene que estar conectado a la familia con la versión nueva.'**
+  String get wishClaimNeedsFamily;
+
+  /// Acción del aviso anterior: lleva a Móviles de la familia, donde se conecta este móvil.
+  ///
+  /// In es, this message translates to:
+  /// **'Cómo conectarlo'**
+  String get wishClaimHowToConnect;
+
+  /// Estado de un deseo disponible.
+  ///
+  /// In es, this message translates to:
+  /// **'Nadie lo ha cogido'**
+  String get wishAvailableNote;
+
+  /// Estado de un deseo cogido.
+  ///
+  /// In es, this message translates to:
+  /// **'Lo ha cogido {name}'**
+  String wishClaimedBy(String name);
+
+  /// Estado de un deseo cogido por quien mira.
+  ///
+  /// In es, this message translates to:
+  /// **'Lo has cogido tú'**
+  String get wishClaimedByYou;
+
+  /// Aviso de dos reservas del mismo deseo.
+  ///
+  /// In es, this message translates to:
+  /// **'Dos personas lo han cogido. Que una lo suelte.'**
+  String get wishConflict;
+
+  /// Aviso cuando la persona quitó un deseo que otro había cogido.
+  ///
+  /// In es, this message translates to:
+  /// **'{name} lo quitó de su lista'**
+  String wishRemovedFromList(String name);
+
+  /// Título del editor de un deseo cogido.
+  ///
+  /// In es, this message translates to:
+  /// **'Deseo cogido'**
+  String get wishPlanTitle;
+
+  /// Explica qué se edita en un deseo cogido.
+  ///
+  /// In es, this message translates to:
+  /// **'El deseo es de {name}. Aquí solo apuntas lo tuyo.'**
+  String wishPlanNote(String name);
+
+  /// Aviso en el deseo que ha cogido otra persona: quien mira solo lo ve.
+  ///
+  /// In es, this message translates to:
+  /// **'Solo {name} puede cambiarlo o soltarlo.'**
+  String wishPlanReadOnly(String name);
+
+  /// Campo del enlace de compra de un plan.
+  ///
+  /// In es, this message translates to:
+  /// **'Enlace de compra'**
+  String get wishFieldPurchaseUrl;
+
+  /// Error del campo del enlace de compra de un plan cuando no es un enlace http o https.
+  ///
+  /// In es, this message translates to:
+  /// **'El enlace de compra no es válido.'**
+  String get wishPurchaseUrlInvalid;
+
+  /// Botón para soltar un deseo cogido.
+  ///
+  /// In es, this message translates to:
+  /// **'Soltar'**
+  String get wishPlanRelease;
+
+  /// Pregunta antes de soltar un deseo.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Soltar «{name}»?'**
+  String wishReleaseTitle(String name);
+
+  /// Consecuencia de soltar un deseo.
+  ///
+  /// In es, this message translates to:
+  /// **'Volverá a estar disponible para otra persona. Lo que apuntaste (quién regala, precios, tienda y notas) se pierde.'**
+  String get wishReleaseBody;
+
+  /// Botón para borrar el plan de un deseo que ya no está en la lista.
+  ///
+  /// In es, this message translates to:
+  /// **'Eliminar mi reserva'**
+  String get wishPlanDelete;
+
+  /// Pregunta antes de borrar un plan.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Eliminar tu reserva de «{name}»?'**
+  String wishPlanDeleteTitle(String name);
+
+  /// Consecuencia de borrar un plan.
+  ///
+  /// In es, this message translates to:
+  /// **'Se elimina lo que apuntaste. No se puede deshacer.'**
+  String get wishPlanDeleteBody;
+
+  /// Botón para pasar un plan a sorpresa independiente.
+  ///
+  /// In es, this message translates to:
+  /// **'Convertir en sorpresa'**
+  String get wishPlanConvert;
+
+  /// Pista de convertir un plan en sorpresa.
+  ///
+  /// In es, this message translates to:
+  /// **'Pasa a ser un regalo sorpresa, separado del deseo.'**
+  String get wishPlanConvertHint;
+
+  /// Pregunta antes de convertir un plan en sorpresa.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Convertir «{name}» en sorpresa?'**
+  String wishConvertTitle(String name);
+
+  /// Consecuencia de convertir un plan en sorpresa.
+  ///
+  /// In es, this message translates to:
+  /// **'El deseo de la lista vuelve a estar disponible para otras personas.'**
+  String get wishConvertBody;
+
+  /// Botón que confirma convertir un plan en sorpresa.
+  ///
+  /// In es, this message translates to:
+  /// **'Convertir'**
+  String get wishConvertConfirm;
+
+  /// Aviso tras coger un deseo.
+  ///
+  /// In es, this message translates to:
+  /// **'Has cogido «{name}»'**
+  String wishClaimedNotice(String name);
+
+  /// Aviso tras soltar un deseo.
+  ///
+  /// In es, this message translates to:
+  /// **'Lo has soltado'**
+  String get wishReleasedNotice;
+
+  /// Aviso tras convertir un plan en sorpresa.
+  ///
+  /// In es, this message translates to:
+  /// **'Ahora es una sorpresa'**
+  String get wishConvertedNotice;
+
+  /// Aviso tras borrar un plan.
+  ///
+  /// In es, this message translates to:
+  /// **'Reserva eliminada'**
+  String get wishPlanDeletedNotice;
+
+  /// Interruptor del editor: el regalo es un deseo que la persona ve.
+  ///
+  /// In es, this message translates to:
+  /// **'Visible para {name}'**
+  String giftVisibleSwitch(String name);
+
+  /// Pista del interruptor «Visible para».
+  ///
+  /// In es, this message translates to:
+  /// **'{name} lo verá como un deseo más. Solo {name} podrá cambiarlo.'**
+  String giftVisibleHint(String name);
+
+  /// Motivo bajo la opción «Es una sorpresa» apagada del editor cuando el bloque de la persona está cerrado y solo cabe un deseo visible.
+  ///
+  /// In es, this message translates to:
+  /// **'Desde este móvil no se puede guardar una sorpresa para {name}: solo un deseo visible.'**
+  String giftVisibleNoSurprise(String name);
+
+  /// Botón de la ficha de una persona cuyo bloque está cerrado: abre el formulario de un deseo visible para ella.
+  ///
+  /// In es, this message translates to:
+  /// **'Sugerir un deseo'**
+  String get wishSuggest;
+
+  /// Error: tope de deseos.
+  ///
+  /// In es, this message translates to:
+  /// **'Ya hay 200 deseos en esta lista. Quita alguno para añadir otro.'**
+  String get wishProblemCap;
+
+  /// Error: deseo demasiado grande.
+  ///
+  /// In es, this message translates to:
+  /// **'Es demasiado largo. Acorta el título o la descripción.'**
+  String get wishProblemTooLarge;
+
+  /// Error: campo no válido.
+  ///
+  /// In es, this message translates to:
+  /// **'Revisa lo escrito: falta el título o algún dato no vale.'**
+  String get wishProblemInvalid;
+
+  /// Error: no es el dueño del deseo.
+  ///
+  /// In es, this message translates to:
+  /// **'Solo la persona del deseo puede cambiarlo o quitarlo.'**
+  String get wishProblemNotOwner;
+
+  /// Error: el deseo ya no existe.
+  ///
+  /// In es, this message translates to:
+  /// **'Este deseo ya no está en la lista.'**
+  String get wishProblemGone;
+
+  /// Error: deseo ya cogido.
+  ///
+  /// In es, this message translates to:
+  /// **'Otra persona ya lo ha cogido.'**
+  String get wishProblemClaimed;
+
+  /// Error: dispositivo pendiente de aprobar.
+  ///
+  /// In es, this message translates to:
+  /// **'Este dispositivo espera la aprobación de la familia. Cuando la tenga, podrás apuntar deseos.'**
+  String get wishProblemApproval;
+
+  /// Error: dispositivo sin permiso.
+  ///
+  /// In es, this message translates to:
+  /// **'Este dispositivo no puede apuntar deseos ahora.'**
+  String get wishProblemNotAllowed;
+
+  /// Error: la persona no tiene móvil.
+  ///
+  /// In es, this message translates to:
+  /// **'{name} no tiene móvil en la familia, así que no puede ver deseos.'**
+  String wishProblemNoDevice(String name);
+
+  /// Error: bloque de sorpresas no disponible.
+  ///
+  /// In es, this message translates to:
+  /// **'Ahora no se puede abrir la lista de sorpresas de {name}. Sincroniza e inténtalo de nuevo.'**
+  String wishProblemBlock(String name);
+
+  /// Error: bloque de sorpresas lleno.
+  ///
+  /// In es, this message translates to:
+  /// **'No cabe más en las sorpresas de {name}.'**
+  String wishProblemBlockFull(String name);
+
+  /// Error genérico al guardar un deseo.
+  ///
+  /// In es, this message translates to:
+  /// **'No se ha podido guardar. Inténtalo de nuevo.'**
+  String get wishProblemFailed;
+
+  /// Error: algún móvil de la familia aún no entiende los planes de deseos.
+  ///
+  /// In es, this message translates to:
+  /// **'Para coger deseos, todos los móviles de la familia necesitan la última versión.'**
+  String get wishProblemDevicesNeedUpdate;
+
+  /// Aviso de la web: cambios de planes de deseos retenidos hasta que los demás móviles se actualicen.
+  ///
+  /// In es, this message translates to:
+  /// **'{count, plural, one{Un cambio en un deseo cogido espera a que se actualicen los demás móviles de la familia.} other{{count} cambios en deseos cogidos esperan a que se actualicen los demás móviles de la familia.}}'**
+  String webPlansHeld(int count);
 }
 
 class _AppLocalizationsDelegate

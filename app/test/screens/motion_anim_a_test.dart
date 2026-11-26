@@ -299,7 +299,8 @@ void main() {
         year: 2026,
       );
       // Gasta justo lo que quedaba: «Queda 0» y un visto que se dibuja.
-      await tester.runAsync(
+      await driveAsync(
+        tester,
         () => familyOf(phone).upsertGift(spend('met', left)),
       );
       await tester.pump();
@@ -309,7 +310,8 @@ void main() {
       await settle(tester);
 
       // Y se pasa: el visto se va, la etiqueta cambia y la cifra se tiñe.
-      await tester.runAsync(
+      await driveAsync(
+        tester,
         () => familyOf(phone).upsertGift(spend('over', 500)),
       );
       await settle(tester);

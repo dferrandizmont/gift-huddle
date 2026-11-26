@@ -245,9 +245,10 @@ class _CountdownCarouselState extends ConsumerState<CountdownCarousel> {
     final l10n = AppLocalizations.of(context);
     final full = ref.watch(familyFullViewProvider).recipientsById;
     final gifts = ref.watch(familyViewProvider).gifts;
+    final wishes = ref.watch(freeWishCountsProvider);
     // Todas las tarjetas miden lo mismo: lo de la que más ocupa.
     double heightFor(double width) =>
-        _cardsHeight(context, l10n, items, full, gifts, width);
+        _cardsHeight(context, l10n, items, full, gifts, wishes, width);
 
     if (items.length == 1) {
       return LayoutBuilder(
@@ -449,12 +450,13 @@ double _cardsHeight(
   List<NextOccasion> items,
   Map<String, Recipient> people,
   List<Gift> gifts,
+  FreeWishCounts wishes,
   double width,
 ) {
   final scale = MediaQuery.textScalerOf(context).scale(14);
   var height = 0.0;
   for (final next in items) {
-    final texts = _CardTexts(l10n, next, people, gifts);
+    final texts = _CardTexts(l10n, next, people, gifts, wishes);
     final key =
         '$width|$scale|${next.days}|${texts.title}|${texts.date}|${texts.meta}';
     var measured = _heightCache[key];
@@ -614,6 +616,7 @@ class UpcomingOccasionRow extends ConsumerWidget {
       next,
       ref.watch(familyFullViewProvider).recipientsById,
       ref.watch(familyViewProvider).gifts,
+      ref.watch(freeWishCountsProvider),
     );
     return PointerSurface(
       child: OccasionSummaryRow(
@@ -772,6 +775,7 @@ class _CardTexts {
     NextOccasion next,
     Map<String, Recipient> people,
     List<Gift> gifts,
+    FreeWishCounts wishes,
   ) : title = occasionTitle(
         l10n,
         next.occasion,
@@ -781,11 +785,15 @@ class _CardTexts {
       date = longDayMonth(next.date.month, next.date.day, l10n.localeName) {
     final mine = gifts.where((g) => g.occasionId == next.occasion.id).toList();
     final bought = mine.where((g) => !needsBuying(g)).length;
+    // Una ocasión que solo tiene deseos dice cuántos, no «Sin regalos todavía»
+    // (QA 1.0.7, m1).
+    final free = wishes.ofOccasion(next.occasion.id);
+    final none = free > 0 ? l10n.wishCount(free) : l10n.occasionNoGiftsYet;
     meta = mine.isEmpty
-        ? l10n.occasionNoGiftsYet
+        ? none
         : l10n.occasionGiftsBought(bought, mine.length);
     shortMeta = mine.isEmpty
-        ? l10n.occasionNoGiftsYet
+        ? none
         : l10n.occasionGiftsBoughtShort(bought, mine.length);
     shortDate = shortDayMonth(next.date.month, next.date.day, l10n.localeName);
   }
@@ -847,6 +855,7 @@ class _OccasionCard extends ConsumerWidget {
       next,
       ref.watch(familyFullViewProvider).recipientsById,
       view.gifts,
+      ref.watch(freeWishCountsProvider),
     );
     final theme = themed ? OccasionTheme.forOccasion(occasion) : null;
     final motif = GarlandMotif.forTheme(theme);

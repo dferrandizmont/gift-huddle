@@ -47,6 +47,9 @@ import 'hmac.dart';
 import 'key_bundle.dart';
 import 'model.dart';
 import 'protected_envelope.dart';
+import 'wish.dart';
+import 'wish_boundary.dart';
+import 'wish_plan.dart';
 
 /// Regalos públicos de una persona protegida que la reconciliación mueve
 /// en cada pasada como mucho. Es público y no depende de cuántos secretos
@@ -118,6 +121,16 @@ class SlotSet {
 
   /// Personas con algún slot.
   Set<String> get people => _slots.keys.toSet();
+
+  /// Retires every local copy of a definitively deleted person's slots.
+  SlotSet withoutPeople(Set<String> people) => people.any(_slots.containsKey)
+      ? SlotSet._(
+          Map.unmodifiable({
+            for (final entry in _slots.entries)
+              if (!people.contains(entry.key)) entry.key: entry.value,
+          }),
+        )
+      : this;
 
   /// Los slots de [personId], ordenados por escritor.
   List<SealedSlot> slotsFor(String personId) {
@@ -585,21 +598,29 @@ FamilyDoc compactScope({
     if (part == null) return doc;
     others.add(part);
   }
-  final gifts = doc.collections[Collections.gifts] ?? const {};
-  final kept = <String, SyncRecord>{};
-  for (final record in gifts.values) {
-    final known =
-        record.isDeleted &&
-        (mine.doc.record(Collections.gifts, record.id)?.isDeleted ?? false) &&
-        others.every((part) {
-          final theirs = part.doc.record(Collections.gifts, record.id);
-          if (theirs != null) return theirs.isDeleted;
-          final seen = part.seen[view.me];
-          return seen != null && seen.compareTo(mine.header.version) >= 0;
-        });
-    if (!known) kept[record.id] = record;
+  // Por colección y por id: una lápida de `gifts` nunca confirma una de
+  // `wishPlans` (ni al revés), aunque tuvieran el mismo id.
+  final out = <String, Map<String, SyncRecord>>{};
+  for (final name in kScopeCollectionNames) {
+    final kept = <String, SyncRecord>{};
+    for (final record
+        in doc.collections[name]?.values ?? const <SyncRecord>[]) {
+      final known =
+          record.isDeleted &&
+          (mine.doc.record(name, record.id)?.isDeleted ?? false) &&
+          others.every((part) {
+            final theirs = part.doc.record(name, record.id);
+            if (theirs != null) return theirs.isDeleted;
+            final seen = part.seen[view.me];
+            return seen != null && seen.compareTo(mine.header.version) >= 0;
+          });
+      if (!known) kept[record.id] = record;
+    }
+    // Los planes solo van si queda alguno: un ámbito sin planes es el de
+    // siempre, byte a byte.
+    if (name == Collections.gifts || kept.isNotEmpty) out[name] = kept;
   }
-  return FamilyDoc(listId: doc.listId, collections: {Collections.gifts: kept});
+  return FamilyDoc(listId: doc.listId, collections: out);
 }
 
 /// Publica la instantánea acumulativa de este escritor para el ámbito de
@@ -623,6 +644,8 @@ Future<PublishedSlot> publishScope({
   required int nowMillis,
   int revisionFloor = 0,
   Map<String, SlotVersion> extraSeen = const <String, SlotVersion>{},
+  Map<String, SlotVersion> extraRejected = const <String, SlotVersion>{},
+  Map<String, SlotVersion> extraPlanInboxSeen = const <String, SlotVersion>{},
 }) async {
   final personId = opened.personId;
   if (!view.selfEntitled(personId)) {
@@ -652,19 +675,39 @@ Future<PublishedSlot> publishScope({
       'la política es más vieja que la autenticada',
     );
   }
+  final previous = opened.parts[view.me];
   final seen = <String, SlotVersion>{
     // Los buzones de webs propias ya recogidos (1.0.6, ADR 0009): los demás
-    // móviles de la misma persona saben así que ya están dentro.
+    // móviles de la misma persona saben así que ya están dentro. Una edición
+    // local del ámbito conserva las declaraciones del slot anterior.
+    for (final web in view.ownWebs())
+      web.deviceId: ?previous?.seen[web.deviceId],
     for (final e in extraSeen.entries)
       if (e.key != view.me) e.key: e.value,
     for (final e in opened.parts.entries)
       if (e.key != view.me) e.key: e.value.header.version,
+  };
+  final rejected = <String, SlotVersion>{
+    for (final e in previous?.rejectedInboxes.entries ??
+        const <MapEntry<String, SlotVersion>>[])
+      if (!extraSeen.containsKey(e.key) && seen[e.key] == e.value)
+        e.key: e.value,
+    ...extraRejected,
+  };
+  final planInboxSeen = <String, SlotVersion>{
+    for (final e in previous?.planInboxSeen.entries ??
+        const <MapEntry<String, SlotVersion>>[])
+      if (!extraSeen.containsKey(e.key) && seen[e.key] == e.value)
+        e.key: e.value,
+    ...extraPlanInboxSeen,
   };
   final scope = compactScope(doc: doc, opened: opened, view: view);
   final (sealed, leftOut) = fitScopeToSlot(
     scope,
     personId,
     seen: seen,
+    rejected: rejected,
+    planInboxSeen: planInboxSeen,
     maxLive: slotGiftLimitFor([
       for (final device in view.entitledDevices(personId))
         if (device != view.me) opened.parts[device],
@@ -683,6 +726,8 @@ Future<PublishedSlot> publishScope({
       policy: policy,
       doc: sealed,
       seen: seen,
+      rejected: rejected,
+      planInboxSeen: planInboxSeen,
     ),
     sealed: sealed,
     leftOut: leftOut,
@@ -819,30 +864,32 @@ class SurpriseRotation {
 
   /// Personas a cuyas sorpresas este móvil ha perdido el derecho sin pasar
   /// a ser suyo (lo han revocado, espera aprobación tras cambiar entre dos
-  /// personas que no son esa, o su persona se ha borrado). Sus claves y su
-  /// copia se conservan, pero no se abre, no se sella ni se publica nada
-  /// hasta que vuelva a tenerlo; la interfaz debe avisar (hallazgo 2).
+  /// personas que no son esa o se ha borrado la propia persona del móvil).
+  /// Sus claves y su copia se conservan, pero no se abre, no se sella ni se
+  /// publica nada hasta que vuelva a tenerlo; la interfaz debe avisar
+  /// (hallazgo 2).
   final List<String> frozenPeople;
 }
 
 /// Pone el llavero al día con la época de [view]: de cada persona de la que
 /// este móvil tenía clave, si este móvil es ahora suyo la purga; si ha
 /// perdido el derecho por otra cosa, la congela (conserva claves y copia:
-/// un móvil robado que revoca a los demás, corregir el propio «Yo» o borrar
-/// la persona no hacen perder las sorpresas; hallazgo 2); y si le falta la
+/// un móvil robado que revoca a los demás o corregir el propio «Yo» no hacen
+/// perder las sorpresas; hallazgo 2); y si le falta la
 /// clave de la época actual crea una candidata y la reparte. Es idempotente:
 /// con la clave de la época ya en el llavero no hace nada.
 Future<SurpriseRotation> rotateSurpriseKeys({
   required SurpriseKeyring keyring,
   required RegistryView view,
   required DeviceKeys keys,
+  Set<String> deletedPeople = const {},
 }) async {
   var next = keyring;
   final bundles = <KeyBundle>[];
   final purged = <String>[];
   final frozen = <String>[];
   for (final person in keyring.people.toList()..sort()) {
-    if (view.myPerson == person) {
+    if (view.myPerson == person || deletedPeople.contains(person)) {
       next = next.without(person);
       purged.add(person);
       continue;
@@ -914,10 +961,42 @@ class AuthorizedProjection {
     this._year,
     this._includeArchived = false,
     Set<String> hiddenGiftIds = const {},
-  }) : _hiddenGiftIds = Set.unmodifiable(hiddenGiftIds);
+    this.plansByWish = const <String, List<WishPlan>>{},
+    this.scopeDocs = const <String, FamilyDoc>{},
+    Set<String> planGiftIds = const {},
+  }) : _hiddenGiftIds = Set.unmodifiable(hiddenGiftIds),
+       planGiftIds = Set.unmodifiable(planGiftIds);
 
   /// Authorized records only; also suitable as the input to readable exports.
   final FamilyDoc doc;
+
+  /// Los planes vivos de los deseos de las personas cuyo bloque este móvil
+  /// puede abrir, por id de deseo (ADR 0010). Vacío en los móviles de la
+  /// propia persona y en los que no tienen la clave: nunca hay un estado
+  /// «cogido» que enseñar a quien no puede abrir el bloque.
+  final Map<String, List<WishPlan>> plansByWish;
+
+  /// Los ids de [doc] que son un plan visto como regalo (para un lector
+  /// autorizado). También están en [secretGiftIds].
+  final Set<String> planGiftIds;
+
+  /// Lo abierto de cada ámbito autorizado (con las ediciones locales): para
+  /// derivar las filas de deseos con [wishPlanRowsFor].
+  final Map<String, FamilyDoc> scopeDocs;
+
+  /// Los deseos de [recipientId] con su estado para quien puede abrir su
+  /// bloque (`available`, `claimed`, `conflictingClaims`, `removedFromList`).
+  /// Vacío si este móvil no puede abrirlo: nunca hay filas para su propia
+  /// persona.
+  List<WishPlanRow> wishPlanRowsFor(String recipientId) {
+    final scope = scopeDocs[recipientId];
+    if (scope == null) return const <WishPlanRow>[];
+    return deriveWishPlanRows(
+      common: doc,
+      scope: scope,
+      recipientId: recipientId,
+    );
+  }
 
   /// La vista: búsqueda, presupuesto, Reparto y duplicados salen de aquí, así
   /// que solo cuentan las sorpresas que este móvil puede abrir.
@@ -929,6 +1008,8 @@ class AuthorizedProjection {
     year: _year,
     includeArchived: _includeArchived,
     hiddenGiftIds: _hiddenGiftIds,
+    plansByWish: plansByWish,
+    planGiftIds: planGiftIds,
   );
   final int? _year;
   final bool _includeArchived;
@@ -1240,6 +1321,24 @@ Set<String> peopleToAutoProtect(
       person,
 };
 
+/// Vacía los planes de un destinatario al borrar su ficha. La eliminación de
+/// un deseo suelto conserva sus planes (ADR 0010).
+FamilyDoc tombstoneRecipientWishPlans(
+  FamilyDoc scope,
+  HlcClock clock,
+  String personId,
+) {
+  var next = scope;
+  for (final record
+      in scope.collections[ScopeCollections.wishPlans]?.values ??
+          const <SyncRecord>[]) {
+    if (!record.isDeleted && record['recipientId'] == personId) {
+      next = next.delete(clock, ScopeCollections.wishPlans, record.id);
+    }
+  }
+  return next;
+}
+
 /// Construye la vista de este móvil.
 ///
 /// Los regalos de los slots que puede abrir se añaden a la vista (un
@@ -1265,11 +1364,23 @@ Future<AuthorizedProjection> projectAuthorized({
     ...keyring.people,
   }.toList()..sort();
   final gifts = <String, SyncRecord>{...?common.collections[Collections.gifts]};
+  final planGifts = <String, SyncRecord>{};
   final secretIds = <String>{};
+  final plansByWish = <String, List<WishPlan>>{};
+  final scopeDocs = <String, FamilyDoc>{};
+  final wishes = <String, Wish>{
+    for (final record
+        in common.collections[Collections.wishes]?.values ??
+            const <SyncRecord>[])
+      if (Wish.fromRecord(record) case final Wish wish) wish.id: wish,
+  };
   final locked = <SecretBlock>[];
   final opened = <String, OpenedScope>{};
   final policies = <String, PolicyState>{};
   for (final person in people) {
+    if (common.record(Collections.recipients, person)?.isDeleted == true) {
+      continue;
+    }
     final scope = await openScope(
       personId: person,
       slots: slots,
@@ -1303,6 +1414,27 @@ Future<AuthorizedProjection> projectAuthorized({
       gifts[record.id] = record;
       if (!record.isDeleted) secretIds.add(record.id);
     }
+    // Lo que se hace con los deseos de esta persona (ADR 0010): solo quien
+    // abre su bloque. Cada plan vivo es exactamente un regalo en la vista.
+    scopeDocs[person] = visibleScope;
+    for (final plan in visibleScope.readLivePlans(common: common)) {
+      if (plan.recipientId != person || ownPeople.contains(person)) continue;
+      plansByWish.putIfAbsent(plan.sourceWishId, () => []).add(plan);
+      if (planGifts.containsKey(plan.planId)) continue;
+      final wish = wishes[plan.sourceWishId];
+      final record = visibleScope.record(
+        ScopeCollections.wishPlans,
+        plan.planId,
+      )!;
+      planGifts[plan.planId] = _planGiftRecord(
+        plan,
+        record,
+        // Un plan no copia año ni ocasión: salen del deseo; si ya se quitó de
+        // la lista, del año en curso.
+        year: wish?.year ?? clock.now().year,
+        occasionId: wish?.occasionId,
+      );
+    }
   }
   // A common snapshot can still contain gifts written before activation (or
   // by an older phone). Never expose those while protection is requested.
@@ -1319,12 +1451,26 @@ Future<AuthorizedProjection> projectAuthorized({
       (id, record) => ownPeople.contains(record['recipientId']),
     );
     secretIds.removeWhere((id) => !gifts.containsKey(id));
+    // Nunca se enseña a una persona lo que otros hacen con sus deseos.
+    for (final person in ownPeople) {
+      scopeDocs.remove(person);
+    }
     for (final person in ownPeople) {
       if (!locked.contains(SecretBlock(person))) {
         locked.add(SecretBlock(person));
       }
     }
     locked.sort((a, b) => a.personId.compareTo(b.personId));
+  }
+  // Resolve collisions after all gift scopes and screen filters are applied.
+  // A tombstone or an invalid gift record cannot shadow a live plan.
+  final planIds = <String>{};
+  for (final plan in planGifts.values) {
+    final existing = gifts[plan.id];
+    if (existing != null && Gift.fromRecord(existing) != null) continue;
+    gifts[plan.id] = plan;
+    planIds.add(plan.id);
+    secretIds.add(plan.id);
   }
   final merged = FamilyDoc(
     listId: common.listId,
@@ -1339,6 +1485,38 @@ Future<AuthorizedProjection> projectAuthorized({
     lockedBlocks: List.unmodifiable(locked),
     openedScopes: Map.unmodifiable(opened),
     policies: Map.unmodifiable(policies),
+    plansByWish: {
+      for (final e in plansByWish.entries)
+        e.key: List<WishPlan>.unmodifiable(
+          [...e.value]..sort((a, b) => a.planId.compareTo(b.planId)),
+        ),
+    },
+    scopeDocs: Map.unmodifiable(scopeDocs),
+    planGiftIds: planIds,
+  );
+}
+
+/// Un plan visto como el regalo de un lector autorizado: un registro de la
+/// proyección (nunca se publica ni se guarda). Las marcas son la mayor del
+/// plan.
+SyncRecord _planGiftRecord(
+  WishPlan plan,
+  SyncRecord source, {
+  required int year,
+  String? occasionId,
+}) {
+  final stamp = source.fields.values
+      .map((f) => f.stamp)
+      .reduce((a, b) => a.compareTo(b) >= 0 ? a : b);
+  final fields = plan
+      .toGiftForAuthorizedView(year: year, occasionId: occasionId)
+      .toFields();
+  return SyncRecord(
+    id: plan.planId,
+    fields: {
+      for (final e in fields.entries)
+        e.key: FieldValue(value: e.value, stamp: stamp),
+    },
   );
 }
 
@@ -1438,6 +1616,10 @@ FamilyDoc publishableCommon({
   required RegistryView view,
   FamilyDoc? remote,
 }) {
+  // Frontera de los deseos (ADR 0010): nunca sale una colección privada
+  // reservada ni un campo de plan, y los deseos salen en su única forma, haya
+  // o no regalos.
+  common = common.wishBoundary();
   final gifts = common.collections[Collections.gifts];
   if (gifts == null || gifts.isEmpty) return common;
   final remoteGifts = remote?.collections[Collections.gifts];
@@ -1855,6 +2037,9 @@ List<SyncRecord> _publicGiftsOf(FamilyDoc common, String personId) => [
 ) {
   var nextCommon = common;
   var nextScope = scope;
+  // Solo los regalos. Los planes de deseos (`ScopeCollections.wishPlans`)
+  // nunca se hacen públicos, ni al quitar la protección ni al reconciliar:
+  // se quedan en el ámbito, cerrados, tal cual.
   final records =
       scope.collections[Collections.gifts]?.values ?? const <SyncRecord>[];
   for (final record in records.toList()) {
@@ -1960,20 +2145,45 @@ SyncRecord _withoutWebNew(SyncRecord record) =>
     : record;
 
 /// Aplica el buzón abierto [inbox] de una web sobre [scope], el ámbito ya
-/// fusionado de su persona protegida (1.0.6, ADR 0009). Función pura.
+/// fusionado de su persona protegida (1.0.6, ADR 0009; planes de deseos, ADR
+/// 0010). Función pura.
 ///
-/// Se valida entero o se rechaza entero ([WebInboxRejection]). Después,
-/// registro a registro: un alta (`webNew`) de un id que no existe entra; un
-/// registro de un id vivo se fusiona por campo; una lápida de un id vivo lo
-/// borra; todo lo demás (un id que no existe y no es alta, o que ya es una
-/// lápida) se descarta. Así no resucita un regalo cuya lápida ya se
-/// compactó, sin tocar la compactación. [tombstoneBudget] son las lápidas de
-/// webs que este móvil aún puede recoger hoy.
+/// Se valida entero o se rechaza entero ([WebInboxRejection]); los topes
+/// (40 registros, 10 lápidas, ninguna marca del futuro) cuentan regalos y
+/// planes juntos. Después, registro a registro: un alta (`webNew`) de un id
+/// que no existe entra; un registro de un id vivo se fusiona por campo; una
+/// lápida de un id vivo lo borra; todo lo demás (un id que no existe y no es
+/// alta, o que ya es una lápida) se descarta. Así no resucita un regalo ni
+/// un plan cuya lápida ya se compactó, sin tocar la compactación.
+/// [tombstoneBudget] son las lápidas de webs que este móvil aún puede
+/// recoger hoy.
+///
+/// **Planes de deseos** (`wishPlans`): hace falta [webPersonId], la persona
+/// de la ficha de la web (sin ella se descartan todos). Un plan solo entra
+/// si es de la persona del ámbito, lo coge [webPersonId] y su deseo está en
+/// [common] (si se da), vivo o ya quitado. Sobre un plan vivo, la web solo escribe los
+/// de su propia persona y nunca cambia a quién va, qué deseo es ni quién lo
+/// coge. Dos reservas hechas sin conexión para el mismo deseo conservan
+/// **dos planes vivos** (conflicto, como entre dos móviles), incluso si las
+/// hizo la misma persona.
+/// Si el deseo ya es una lápida, el plan entra igualmente (lleva copiado su
+/// título y sale como «quitado de la lista»); si el deseo aún no está en
+/// [common] (el móvil no ha recibido el común de la web), el buzón **espera**
+/// en lugar de descartar el plan (revisión de seguridad, M2).
+///
+/// [plansAllowed] dice si todos los que leen este ámbito anuncian los planes
+/// de deseos ([wishPlansAllowed]): si no, un buzón con planes espera entero,
+/// para que no entren en un ámbito que un 1.0.6 rechazaría. La web escribe
+/// los planes en un buzón aparte de los regalos, así que lo que espera son
+/// solo planes.
 WebInboxAbsorption absorbWebInbox({
   required FamilyDoc scope,
   required OpenedSlot inbox,
   required int nowMillis,
   int tombstoneBudget = kMaxWebTombstonesPerDay,
+  String? webPersonId,
+  FamilyDoc? common,
+  bool plansAllowed = true,
 }) {
   if (inbox.foreignRecords > 0) {
     return WebInboxAbsorption(
@@ -1981,29 +2191,38 @@ WebInboxAbsorption absorbWebInbox({
       rejected: WebInboxRejection.foreignRecords,
     );
   }
-  final records = [
-    ...?inbox.doc.collections[Collections.gifts]?.values,
-  ]..sort((a, b) => a.id.compareTo(b.id));
-  if (records.length > kMaxWebInboxRecords) {
+  final records = [...?inbox.doc.collections[Collections.gifts]?.values]
+    ..sort((a, b) => a.id.compareTo(b.id));
+  final plans = [...?inbox.doc.collections[ScopeCollections.wishPlans]?.values]
+    ..sort((a, b) {
+      // Soltar y volver a coger puede llegar en el mismo buzón.
+      if (a.isDeleted != b.isDeleted) return a.isDeleted ? -1 : 1;
+      return a.id.compareTo(b.id);
+    });
+  if (records.length + plans.length > kMaxWebInboxRecords) {
     return WebInboxAbsorption(
       scope: scope,
       rejected: WebInboxRejection.tooManyRecords,
     );
   }
-  if (records.where((r) => r.isDeleted).length > kMaxWebInboxTombstones) {
+  if ([...records, ...plans].where((r) => r.isDeleted).length >
+      kMaxWebInboxTombstones) {
     return WebInboxAbsorption(
       scope: scope,
       rejected: WebInboxRejection.tooManyTombstones,
     );
   }
   final limit = nowMillis + kMaxHlcDrift.inMilliseconds;
-  for (final record in records) {
+  for (final record in [...records, ...plans]) {
     if (record.fields.values.any((f) => f.stamp.millis > limit)) {
       return WebInboxAbsorption(
         scope: scope,
         rejected: WebInboxRejection.futureStamp,
       );
     }
+  }
+  if (plans.isNotEmpty && !plansAllowed) {
+    return WebInboxAbsorption(scope: scope, waiting: true);
   }
   var next = scope;
   var applied = 0;
@@ -2040,6 +2259,29 @@ WebInboxAbsorption absorbWebInbox({
     next = merged;
     applied++;
   }
+  for (final record in plans) {
+    final clean = _withoutWebNew(record);
+    final absorbed = _absorbPlan(
+      scope: scope,
+      next: next,
+      record: record,
+      clean: clean,
+      personId: inbox.header.personId,
+      webPersonId: webPersonId,
+      common: common,
+    );
+    if (absorbed.wait) {
+      return WebInboxAbsorption(scope: scope, waiting: true);
+    }
+    final merged = absorbed.doc;
+    if (merged == null) {
+      discarded++;
+      continue;
+    }
+    if (record.isDeleted) tombstones++;
+    next = merged;
+    applied++;
+  }
   if (tombstones > tombstoneBudget ||
       (liveOwnSurpriseGifts(next) > kMaxSurpriseGifts &&
           liveOwnSurpriseGifts(next) > liveOwnSurpriseGifts(scope))) {
@@ -2053,6 +2295,81 @@ WebInboxAbsorption absorbWebInbox({
   );
 }
 
+final Set<String> _planFieldNames = {
+  ...WishPlan.fieldNames,
+  kDeletedField,
+};
+
+/// Los campos de un plan que una web nunca cambia una vez creado.
+const List<String> _planImmutable = [
+  'recipientId',
+  'sourceWishId',
+  'claimantPersonId',
+];
+
+/// [next] con el registro de plan [record] aplicado, o null si se descarta; o
+/// `wait` si todavía no se puede decidir (su deseo aún no está en el común de
+/// este móvil).
+({FamilyDoc? doc, bool wait}) _absorbPlan({
+  required FamilyDoc scope,
+  required FamilyDoc next,
+  required SyncRecord record,
+  required SyncRecord clean,
+  required String personId,
+  required String? webPersonId,
+  required FamilyDoc? common,
+}) {
+  const name = ScopeCollections.wishPlans;
+  const discard = (doc: null, wait: false);
+  if (webPersonId == null ||
+      !kSyncIdPattern.hasMatch(record.id) ||
+      clean.fields.keys.any((f) => !_planFieldNames.contains(f))) {
+    return discard;
+  }
+  final existing = scope.record(name, record.id);
+  if (existing == null) {
+    if (record.isDeleted || record[kWebNewField] != true) return discard;
+    final plan = WishPlan.fromRecord(clean);
+    if (plan == null ||
+        plan.recipientId != personId ||
+        plan.claimantPersonId != webPersonId ||
+        !kSyncIdPattern.hasMatch(plan.sourceWishId)) {
+      return discard;
+    }
+    if (common != null) {
+      final wish = common.record(Collections.wishes, plan.sourceWishId);
+      // El deseo aún no ha llegado a este móvil: el plan espera, no se pierde.
+      if (wish == null) return (doc: null, wait: true);
+      // Una lápida vale: el plan lleva copiado el título y sale como «quitado
+      // de la lista». Un deseo vivo tiene que ser de esta persona.
+      if (!wish.isDeleted && wish['recipientId'] != personId) return discard;
+    }
+  } else {
+    if (existing.isDeleted ||
+        existing['recipientId'] != personId ||
+        existing['claimantPersonId'] != webPersonId) {
+      return discard;
+    }
+    for (final field in _planImmutable) {
+      if (clean.fields.containsKey(field) &&
+          !record.isDeleted &&
+          clean[field] != existing[field]) {
+        return discard;
+      }
+    }
+  }
+  final merged = next.merge(
+    FamilyDoc(listId: scope.listId, collections: {name: {clean.id: clean}}),
+  );
+  final result = merged.record(name, record.id)!;
+  if (!result.isDeleted &&
+      (WishPlan.fromRecord(result) == null ||
+          surpriseRecordBytes(result) > kMaxSurpriseGiftBytes)) {
+    return discard;
+  }
+  return (doc: merged, wait: false);
+}
+
 /// Una acción de la web pendiente para el buzón de una persona.
 class WebInboxEntry {
   /// Crea la entrada.
@@ -2060,16 +2377,24 @@ class WebInboxEntry {
     required this.id,
     required this.delta,
     this.newGifts = const <String>{},
+    this.newPlans = const <String>{},
   });
 
   /// Id de la entrada en la cola de la web.
   final String id;
 
-  /// Lo que escribió la acción (solo regalos de una persona).
+  /// Lo que escribió la acción (regalos y planes de una persona).
   final FamilyDoc delta;
 
   /// Regalos que la acción creó (no existían antes en la web).
   final Set<String> newGifts;
+
+  /// Planes de deseos que la acción creó (un deseo cogido).
+  final Set<String> newPlans;
+
+  bool _isNew(String collection, String id) => collection == Collections.gifts
+      ? newGifts.contains(id)
+      : newPlans.contains(id);
 }
 
 /// El contenido del buzón de una web para una persona y qué entradas van
@@ -2082,21 +2407,26 @@ class WebInboxBuild {
     required this.moot,
     required this.discarded,
     required this.deferred,
+    this.held = const <String>[],
   });
 
-  /// Los registros del buzón: los regalos tocados, completos como los ve la
-  /// web, con `webNew` en las altas.
+  /// Entradas con planes de deseos que no se escriben ahora porque algún
+  /// móvil que lee el ámbito aún no entiende los planes (`plansAllowed`
+  /// falso): se quedan en la cola, no se descartan, y se avisa.
+  final List<String> held;
+
+  /// Los registros del buzón: los regalos y planes tocados, completos como
+  /// los ve la web, con `webNew` en las altas.
   final FamilyDoc doc;
 
   /// Entradas que van en el buzón.
   final List<String> included;
 
-  /// Entradas que ya no hacen nada: solo tocan regalos que ya son lápidas.
+  /// Entradas que ya no hacen nada: solo tocan registros que ya son lápidas.
   final List<String> moot;
 
-  /// Entradas que no se pueden aplicar (editan un regalo que ya no existe,
-  /// lo pasan a otra persona o no cabe en un regalo): se descartan con
-  /// aviso.
+  /// Entradas que no se pueden aplicar (editan un registro que ya no existe,
+  /// lo pasan a otra persona o no cabe): se descartan con aviso.
   final List<String> discarded;
 
   /// Entradas que esperan al siguiente buzón (topes de registros y
@@ -2109,40 +2439,60 @@ class WebInboxBuild {
 
 /// Construye el buzón de [personId] desde [scope] (el ámbito fusionado de
 /// los slots de los móviles, tal como lo abre la web) y las [entries]
-/// pendientes, en orden. Función pura: no cifra nada.
+/// pendientes, en orden. Función pura: no cifra nada. Para los planes de
+/// deseos hace falta [webPersonId] (la persona de la web): sin él se
+/// descartan. El alta que la web ya aceptó se envía aunque haya llegado una
+/// reserva concurrente. La comprobación de una reserva ordinaria se hace al
+/// coger el deseo.
+///
+/// Con [plansAllowed] falso (algún móvil que lee el ámbito no anuncia los
+/// planes: [wishPlansAllowed]) las entradas con planes no entran: van a
+/// [WebInboxBuild.held] y los regalos de las demás sí.
 WebInboxBuild buildWebInbox({
   required String personId,
   required FamilyDoc scope,
   required List<WebInboxEntry> entries,
+  String? webPersonId,
+  bool plansAllowed = true,
 }) {
   var work = scope;
-  final touched = <String>{};
-  final created = <String>{};
+  final touched = {for (final c in kScopeCollectionNames) c: <String>{}};
+  final created = {for (final c in kScopeCollectionNames) c: <String>{}};
   final included = <String>[];
   final moot = <String>[];
   final discarded = <String>[];
   final deferred = <String>[];
+  final held = <String>[];
   var full = false;
   for (final entry in entries) {
     if (full) {
       deferred.add(entry.id);
       continue;
     }
-    final gifts =
-        entry.delta.collections[Collections.gifts] ??
-        const <String, SyncRecord>{};
+    final parts = {
+      for (final c in kScopeCollectionNames)
+        c: entry.delta.collections[c] ?? const <String, SyncRecord>{},
+    };
+    var total = 0;
     var dead = 0;
     var unknown = false;
-    for (final record in gifts.values) {
-      final existing = work.record(Collections.gifts, record.id);
-      if (existing?.isDeleted ?? false) {
-        dead++;
-      } else if (existing == null && !entry.newGifts.contains(record.id)) {
-        unknown = true;
+    for (final c in kScopeCollectionNames) {
+      for (final record in parts[c]!.values) {
+        total++;
+        final existing = work.record(c, record.id);
+        if (existing?.isDeleted ?? false) {
+          dead++;
+        } else if (existing == null && !entry._isNew(c, record.id)) {
+          unknown = true;
+        }
       }
     }
-    if (gifts.isEmpty || dead == gifts.length) {
+    if (total == 0 || dead == total) {
       moot.add(entry.id);
+      continue;
+    }
+    if (!plansAllowed && parts[ScopeCollections.wishPlans]!.isNotEmpty) {
+      held.add(entry.id);
       continue;
     }
     if (unknown) {
@@ -2150,63 +2500,98 @@ WebInboxBuild buildWebInbox({
       continue;
     }
     final next = work.merge(
-      FamilyDoc(listId: work.listId, collections: {Collections.gifts: gifts}),
+      FamilyDoc(
+        listId: work.listId,
+        collections: {
+          for (final c in kScopeCollectionNames)
+            if (parts[c]!.isNotEmpty) c: parts[c]!,
+        },
+      ),
     );
-    final ids = {...touched, ...gifts.keys};
     var tombstones = 0;
+    var count = 0;
     var bad = false;
-    for (final id in ids) {
-      final record = next.record(Collections.gifts, id)!;
-      // Un alta lleva además `webNew` (B7): se mide con él.
-      final creates =
-          (created.contains(id) || entry.newGifts.contains(id)) &&
-          scope.record(Collections.gifts, id) == null;
-      if (record.isDeleted) {
-        tombstones++;
-      } else if (record['recipientId'] != personId ||
-          surpriseRecordBytes(creates ? _withWebNew(record) : record) >
-              kMaxSurpriseGiftBytes) {
-        bad = true;
+    for (final c in kScopeCollectionNames) {
+      final ids = {...touched[c]!, ...parts[c]!.keys};
+      for (final id in ids) {
+        count++;
+        final record = next.record(c, id)!;
+        // Un alta lleva además `webNew` (B7): se mide con él.
+        final creates =
+            (created[c]!.contains(id) || entry._isNew(c, id)) &&
+            scope.record(c, id) == null;
+        if (record.isDeleted) {
+          tombstones++;
+          final previous = work.record(c, id);
+          if (c == ScopeCollections.wishPlans &&
+              previous != null &&
+              !previous.isDeleted &&
+              (webPersonId == null ||
+                  previous['claimantPersonId'] != webPersonId)) {
+            bad = true;
+          }
+        } else if (record['recipientId'] != personId ||
+            surpriseRecordBytes(creates ? _withWebNew(record) : record) >
+                kMaxSurpriseGiftBytes) {
+          bad = true;
+        } else if (c == ScopeCollections.wishPlans &&
+            !_planBuildable(work.record(c, id), record, webPersonId)) {
+          bad = true;
+        }
       }
     }
     if (bad) {
       discarded.add(entry.id);
       continue;
     }
-    if (ids.length > kMaxWebInboxRecords ||
-        tombstones > kMaxWebInboxTombstones) {
+    if (count > kMaxWebInboxRecords || tombstones > kMaxWebInboxTombstones) {
       full = true;
       deferred.add(entry.id);
       continue;
     }
     work = next;
-    touched.addAll(gifts.keys);
-    for (final id in gifts.keys) {
-      if (entry.newGifts.contains(id) &&
-          scope.record(Collections.gifts, id) == null) {
-        created.add(id);
+    for (final c in kScopeCollectionNames) {
+      touched[c]!.addAll(parts[c]!.keys);
+      for (final id in parts[c]!.keys) {
+        if (entry._isNew(c, id) && scope.record(c, id) == null) {
+          created[c]!.add(id);
+        }
       }
     }
     included.add(entry.id);
   }
-  final out = <String, SyncRecord>{};
-  for (final id in touched) {
-    final record = work.record(Collections.gifts, id)!;
-    out[id] = created.contains(id) && !record.isDeleted
-        ? _withWebNew(record)
-        : record;
+  final out = <String, Map<String, SyncRecord>>{};
+  for (final c in kScopeCollectionNames) {
+    final records = <String, SyncRecord>{};
+    for (final id in touched[c]!) {
+      final record = work.record(c, id)!;
+      records[id] = created[c]!.contains(id) && !record.isDeleted
+          ? _withWebNew(record)
+          : record;
+    }
+    // Los planes solo van si hay alguno: un buzón sin planes es el de
+    // siempre, byte a byte.
+    if (c == Collections.gifts || records.isNotEmpty) out[c] = records;
   }
   return WebInboxBuild(
-    doc: FamilyDoc(
-      listId: scope.listId,
-      collections: {Collections.gifts: out},
-    ),
+    doc: FamilyDoc(listId: scope.listId, collections: out),
     included: included,
     moot: moot,
     discarded: discarded,
     deferred: deferred,
+    held: held,
   );
 }
+
+bool _planBuildable(
+  SyncRecord? previous,
+  SyncRecord record,
+  String? webPersonId,
+) =>
+    webPersonId != null &&
+    record['claimantPersonId'] == webPersonId &&
+    WishPlan.fromRecord(record) != null &&
+    (previous == null || _planImmutable.every((f) => previous[f] == record[f]));
 
 SyncRecord _withWebNew(SyncRecord record) {
   Hlc? newest;

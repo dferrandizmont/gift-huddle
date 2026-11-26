@@ -10,6 +10,7 @@ import '../../../core/platform/document_exchange.dart';
 import '../../../core/sync/envelope.dart';
 import '../../../core/sync/exchange_file.dart';
 import '../../../core/sync/family_doc.dart';
+import '../../../core/sync/wish_boundary.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../family/application/family_controller.dart';
 import '../../family/data/family_store.dart';
@@ -78,7 +79,8 @@ class ShareService {
           'la familia v2 aún no está lista para exportar',
         );
       }
-      return state.doc;
+      // Sin identidad v2 tampoco sale nada privado de los deseos.
+      return state.doc.wishBoundary();
     });
     return seal(
       doc: doc.toJson(),
@@ -86,6 +88,8 @@ class ShareService {
       fromNode: identity.node,
       at: doc.maxStamp?.pack() ?? '',
       key: key,
+      // 1.0.7: versión exterior que 1.0.6 rechaza antes de fusionar.
+      version: kFileEnvelopeVersion,
     );
   }
 
@@ -127,7 +131,15 @@ class ShareService {
   Future<ImportSummary> importEnvelopeBytes(Uint8List bytes) async {
     // Rechazar basura antes de esperar al almacenamiento o comprobar si
     // hay familia: también un móvil vacío debe decir que no es un envío.
-    if (!isExchangeFile(bytes)) peekHeader(bytes);
+    // La versión exterior (y que case con la cabecera) se valida antes de
+    // cargar nada: cargar la familia puede terminar una operación de
+    // protección interrumpida o revocar a un invitado pendiente, y un fichero
+    // rechazado no puede tocar lo local.
+    if (isExchangeFile(bytes)) {
+      ExchangeFile.parse(bytes);
+    } else {
+      peekHeader(bytes, acceptFileVersion: true);
+    }
     final state = await _ref.read(familyControllerProvider.future);
     final identity = state.identity;
     final key = _controller.familyKey;
@@ -144,7 +156,10 @@ class ShareService {
       return _v2((local) async {
         final opened = await ExchangeV2(local)
             .receive(bytes, nowMillis: clock.now().millisecondsSinceEpoch);
-        return _controller.mergeRemote(opened.doc, fromNode: opened.fromNode);
+        return _controller.mergeRemoteWithinLock(
+          opened.doc,
+          fromNode: opened.fromNode,
+        );
       });
     }
     if (isExchangeFile(bytes)) {
@@ -152,7 +167,7 @@ class ShareService {
         'este móvil aún no ha pasado al formato nuevo: hay que sincronizar',
       );
     }
-    final header = peekHeader(bytes);
+    final header = peekHeader(bytes, acceptFileVersion: true);
     if (header.listId != identity.listId) {
       throw const EnvelopeWrongListException('el sobre es de otra lista');
     }
@@ -188,6 +203,7 @@ Future<_Opened> _openOffThread(
     bytes,
     key: FamilyKey(keyBytes),
     expectedListId: listId,
+    acceptFileVersion: true,
   );
   return _Opened(opened.header.fromNode, opened.doc);
 });

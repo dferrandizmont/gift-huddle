@@ -19,7 +19,6 @@ import '../../../core/motion/delivered_sweep.dart';
 import '../../../core/motion/haptics.dart';
 import '../../../core/motion/rect_flight.dart';
 import '../../../core/motion/highlight_flash.dart';
-import '../../../core/motion/rolling_number.dart';
 import '../../../core/motion/sheen.dart';
 import '../../../core/motion/sheet_motion.dart';
 import '../../../core/motion/stagger.dart';
@@ -27,17 +26,23 @@ import '../../../core/motion/state_switcher.dart';
 import '../../../core/motion/value_switcher.dart';
 import '../../../core/platform/user_link.dart';
 import '../../../core/sync/model.dart';
+import '../../../core/sync/wish.dart';
+import '../../../core/sync/wish_plan.dart';
+import '../../../core/theme/regalos_motion.dart';
 import '../../../core/theme/regalos_shape.dart';
 import '../../../core/theme/regalos_tokens.dart';
 import '../../../core/widgets/budget_meter.dart';
 import '../../../core/widgets/choice_grid.dart';
 import '../../../core/widgets/desktop_add_gift_button.dart';
+import '../../../core/widgets/dot_line.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/filter_pill.dart';
+import '../../../core/widgets/fold_box.dart';
 import '../../../core/widgets/gift_row.dart';
 import '../../../core/widgets/gift_status_map.dart';
 import '../../../core/widgets/giver_dot.dart';
 import '../../../core/widgets/occasion_icons.dart';
+import '../../../core/theme/accent_palette.dart' show AccentPalette;
 import '../../../core/widgets/person_avatar.dart'
     show PersonAvatar, personPalette;
 import '../../../core/widgets/pointer_surface.dart';
@@ -45,6 +50,8 @@ import '../../../core/widgets/screen_header.dart';
 import '../../../core/widgets/secret_block.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/status_chip.dart';
+import '../../../core/widgets/tabler_icons.dart';
+import '../../../core/widgets/wish_row.dart';
 import '../../../core/widgets/stroke_icon.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../family/application/family_actions.dart';
@@ -61,8 +68,11 @@ import '../application/person_completion.dart';
 import '../../web_board/application/board_metrics.dart';
 import '../../web_board/presentation/board_gift_table.dart';
 import 'gift_actions.dart';
+import 'wish_plan_note.dart';
 import 'gift_editor_screen.dart';
 import 'gift_link_actions.dart';
+import 'wish_claim_problem.dart' show wishNoticeInsetProvider;
+import 'wish_editor.dart';
 
 /// La lista de regalos de una persona: secciones por ocasión, filtros, mini
 /// presupuesto de la casa y botón para añadir.
@@ -95,8 +105,38 @@ class PersonListScreen extends ConsumerStatefulWidget {
   ConsumerState<PersonListScreen> createState() => _PersonListScreenState();
 }
 
-class _PersonListScreenState extends ConsumerState<PersonListScreen> {
+class _PersonListScreenState extends ConsumerState<PersonListScreen>
+    with SingleTickerProviderStateMixin {
   late GiftFilter _filter = widget.initialFilter;
+
+  // La cabecera que se pliega al bajar por la lista (0 entera, 1 plegada):
+  // la tarjeta de presupuesto, los filtros y el resumen de debajo del nombre
+  // se van y quedan el avatar y el nombre; vuelven al subir.
+  late final AnimationController _fold = AnimationController(vsync: this);
+  final ScrollController _scroll = ScrollController();
+  final GlobalKey _foldKey = GlobalKey();
+
+  // Si el «+» flotante se esconde: al bajar por la lista se va y al subir
+  // vuelve (lógica aparte de la cabecera plegable: vale también con la lista
+  // sin cabecera que plegar).
+  final ValueNotifier<bool> _fabHidden = ValueNotifier<bool>(false);
+  double _lastPixels = 0;
+  double _run = 0;
+  bool _foldEnabled = true;
+
+  /// Lo que hay que bajar en un sentido para plegar o desplegar la cabecera;
+  /// así vale también el desplazamiento lento o el de la rueda del ratón.
+  static const double _foldRun = 24;
+  static const double _unfoldRun = 16;
+
+  /// Lo que hay que bajar para esconder el «+» y lo que hay que subir para
+  /// que vuelva.
+  static const double _fabHideRun = 24;
+  static const double _fabShowRun = 12;
+
+  /// Cuánto margen de lista debe quedar al plegar: si no, al plegarse la lista
+  /// dejaría de desplazarse y no se podría volver a desplegar.
+  static const double _foldRoom = 96;
 
   // Avisos a las filas: cuál iluminar al guardar y por cuáles pasa la ola de
   // luz al completar a la persona.
@@ -113,7 +153,95 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
   int _seenRemote = 0;
 
   @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_onScrollTick);
+  }
+
+  /// Pliega (`true`) o despliega la cabecera con un movimiento suave: al
+  /// plegarse, sin rebote; al volver, con `snap`. Con «Reducir movimiento»,
+  /// 150 ms de fundido.
+  void _setFolded(bool folded) {
+    if (!mounted || (_fold.value == (folded ? 1 : 0) && !_fold.isAnimating)) {
+      return;
+    }
+    final reduce = RegalosMotion.of(context).reduce;
+    if (folded) {
+      _fold.animateTo(
+        1,
+        duration: reduce
+            ? RegalosMotion.fade
+            : const Duration(milliseconds: 240),
+        curve: reduce ? Curves.linear : RegalosCurves.fold,
+      );
+    } else {
+      _fold.animateTo(
+        0,
+        duration: reduce ? RegalosMotion.fade : RegalosSprings.snapDuration,
+        curve: reduce ? Curves.linear : RegalosCurves.snap,
+      );
+    }
+  }
+
+  /// Lo que se pliega al bajar: la tarjeta de presupuesto y los filtros, más
+  /// el resumen de debajo del nombre.
+  double _foldedExtent() {
+    final box = _foldKey.currentContext?.findRenderObject();
+    final own = box is RenderBox && box.hasSize ? box.size.height : 240;
+    return own + 48;
+  }
+
+  void _onScrollTick() {
+    if (!_scroll.hasClients) {
+      return;
+    }
+    final pos = _scroll.position;
+    final delta = pos.pixels - _lastPixels;
+    _lastPixels = pos.pixels;
+    if (pos.pixels <= 0) {
+      _run = 0;
+      _fabHidden.value = false;
+      if (_foldEnabled) {
+        _setFolded(false);
+      }
+      return;
+    }
+    // Fuera de rango (el rebote de iOS al llegar al final) no cuenta: al
+    // volver no despliega la cabecera ni devuelve el «+». Lo que la lista se
+    // corrige sola al cambiar de alto no avisa, así que tampoco los mueve.
+    if (delta == 0 || pos.outOfRange) {
+      return;
+    }
+    if (delta.sign != _run.sign) {
+      _run = 0;
+    }
+    _run += delta;
+    // El «+»: se va al bajar (solo si la lista se desplaza), vuelve al subir
+    // y al llegar al final, para poder pulsarlo.
+    if (pos.maxScrollExtent <= 0 || pos.pixels >= pos.maxScrollExtent) {
+      _fabHidden.value = false;
+    } else if (_run > _fabHideRun) {
+      _fabHidden.value = true;
+    } else if (_run < -_fabShowRun) {
+      _fabHidden.value = false;
+    }
+    if (!_foldEnabled) {
+      return;
+    }
+    if (_run > _foldRun) {
+      if (pos.maxScrollExtent >= _foldedExtent() + _foldRoom) {
+        _setFolded(true);
+      }
+    } else if (_run < -_unfoldRun) {
+      _setFolded(false);
+    }
+  }
+
+  @override
   void dispose() {
+    _scroll.dispose();
+    _fold.dispose();
+    _fabHidden.dispose();
     _highlight.dispose();
     _wave.dispose();
     super.dispose();
@@ -138,9 +266,48 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
     }
   }
 
+  /// Abre el editor de un deseo nuevo de [personId] (la persona de este
+  /// dispositivo) y, al volver, ilumina la fila guardada.
+  Future<void> _addWish(String personId) async {
+    final saved = await openWishEditor(context, recipientId: personId);
+    if (saved != null && mounted) {
+      _highlight.highlight(saved);
+    }
+  }
+
+  /// Abre el formulario de un deseo visible para [personId], cuyo bloque está
+  /// cerrado en este móvil: «Visible para» fijo y la sorpresa apagada.
+  Future<void> _suggestWish(String personId) async {
+    final saved = await openGiftEditor(
+      context,
+      recipientId: personId,
+      suggestVisible: true,
+    );
+    if (saved != null && mounted) {
+      _highlight.highlight(saved);
+    }
+  }
+
+  /// Abre el deseo propio [wish] para cambiarlo.
+  Future<void> _editWish(Wish wish) async {
+    final saved = await openWishEditor(
+      context,
+      wish: wish,
+      recipientId: wish.recipientId,
+    );
+    if (saved != null && mounted) {
+      _highlight.highlight(saved);
+    }
+  }
+
   /// Abre el editor para añadir un regalo a [personId], con la ocasión y quien
   /// regala de los filtros puestos (o con [occasionId], si se pide una).
   Future<void> _addGift(String personId, {String? occasionId}) async {
+    // En el móvil de la propia persona no se apuntan regalos para ella, solo
+    // deseos.
+    if (ref.read(wishReaderProvider) == personId) {
+      return _addWish(personId);
+    }
     // Quien solo regala (1.0.6) no recibe regalos.
     if (ref.read(familyFullViewProvider).recipientsById[personId]?.noGifts ==
         true) {
@@ -240,10 +407,15 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
     final ownHidden = ref
         .watch(ownHiddenPeopleProvider)
         .contains(widget.recipientId);
+    // La persona de este dispositivo apunta deseos, no regalos para sí: lo
+    // decide quién mira, no si sus regalos están ocultos (un móvil sin
+    // emparejar aún no oculta nada y ya es el de su persona).
+    final ownPerson = ref.watch(wishReaderProvider) == widget.recipientId;
     // Se repinta al recoger o cambiar los pendientes de la web.
     ref.watch(webPendingSecretGiftIdsProvider);
     // Quien solo regala (1.0.6) no recibe regalos: aquí no se añade ninguno.
     final canAdd = person?.noGifts != true;
+    final canSuggest = ref.watch(canSuggestWishProvider(widget.recipientId));
     ref.listen<PersonCompletion>(
       personCompletionProvider(widget.recipientId),
       _onCompletion,
@@ -262,6 +434,12 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
     // Con dos paneles (escritorio): el botón de añadir va en la cabecera, las
     // filas en columnas si caben y la persona sin regalos lleva su bloque.
     final desktop = isDetail;
+    // La cabecera solo se pliega en una sola columna (móvil y tablet
+    // vertical) y con una lista que se desplace.
+    _foldEnabled = !desktop && !locked;
+    if (!_foldEnabled && _fold.value != 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _setFolded(false));
+    }
     final table = widget.boardTable && desktop;
     final columnWidth = table ? double.infinity : detailColumnWidth(context);
     // En la tabla del tablero, la tarjeta ocupa el ancho de la tabla (sus
@@ -301,11 +479,45 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
       );
     }
     final now = clock.now();
-    final gifts = view.giftsFor(person.id);
+    // Los deseos (ADR 0010): la persona los ve sin estado; quien abre su
+    // bloque, con lo que han hecho los demás. Un deseo cogido se ve una vez,
+    // como su plan (un regalo); la web no proyecta los planes como regalos y
+    // se pintan desde las filas del motor.
+    final planRows = ref.watch(wishPlanStateRowsProvider(person.id));
+    final planRowOf = <String, WishPlanRow>{
+      for (final row in planRows)
+        for (final plan in row.plans) plan.planId: row,
+    };
+    final wishEntries = ref.watch(wishEntriesProvider(person.id));
+    final freeWishes = ref.watch(freeWishCountsProvider).ofPerson(person.id);
+    // Una persona cuyos regalos este móvil no enseña (solo su bloque) no
+    // enseña ninguno: queda su lista de deseos.
+    final gifts = locked
+        ? const <Gift>[]
+        : [
+            ...view.giftsFor(person.id),
+            if (web)
+              for (final row in planRows)
+                for (final plan in row.plans)
+                  wishPlanAsGift(plan, wish: row.wish, year: now.year),
+          ];
     final shown = [
       for (final g in gifts)
         if (_filter.matches(g, view: view)) g,
     ];
+    final shownWishes = [
+      for (final e in wishEntries)
+        if ((e.actions.isOwner || e.actions.plans.isEmpty) &&
+            _filter.matches(_wishAsGift(e.wish), view: view))
+          e,
+    ];
+    // Hay algo que enseñar (aunque un filtro lo esconda).
+    final hasAny = gifts.isNotEmpty || wishEntries.isNotEmpty;
+    final entries = <_ListEntry>[
+      for (final g in shown) _ListEntry.gift(g),
+      for (final e in shownWishes) _ListEntry.wish(e),
+    ]..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+    final reader = ref.watch(wishReaderProvider);
     final occasions = ref.watch(occasionsProvider);
     final occasionsById = {for (final o in occasions) o.id: o};
     final givers = view.giversById;
@@ -316,19 +528,19 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
     final pastel = palette.surfaceOf(t.isDark);
 
     // Secciones: una por ocasión, por orden de fecha, y al final «sin ocasión».
-    final byOccasion = <String, List<Gift>>{};
-    for (final g in shown) {
-      final key = occasionsById.containsKey(g.occasionId)
-          ? g.occasionId!
+    final byOccasion = <String, List<_ListEntry>>{};
+    for (final e in entries) {
+      final key = occasionsById.containsKey(e.occasionId)
+          ? e.occasionId!
           : GiftFilter.kNoOccasion;
-      byOccasion.putIfAbsent(key, () => <Gift>[]).add(g);
+      byOccasion.putIfAbsent(key, () => <_ListEntry>[]).add(e);
     }
     // Entran de arriba abajo (§1.6): la tarjeta de presupuesto es el 0, los
     // filtros el 1 y luego cada cabecera de sección y cada fila. Las filas
     // llevan clave estable (el id del regalo) para que el estado de su casilla
     // no salte de una a otra al filtrar.
     var order = 2;
-    AnimatedRowItem row(Gift g) => AnimatedRowItem(
+    AnimatedRowItem giftRow(Gift g) => AnimatedRowItem(
       id: g.id,
       child: StaggerItem(
         index: order++,
@@ -354,12 +566,40 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
                 l10n,
                 desktop,
                 table: table,
+                planRow: planRowOf[g.id],
+                reader: reader,
               ),
             ),
           ),
         ),
       ),
     );
+    AnimatedRowItem row(_ListEntry entry) {
+      final wishEntry = entry.wish;
+      if (wishEntry != null) {
+        return AnimatedRowItem(
+          id: wishEntry.wish.id,
+          child: StaggerItem(
+            index: order++,
+            child: HighlightFlash(
+              id: wishEntry.wish.id,
+              signal: _highlight,
+              color: pastel,
+              child: _wishRow(
+                context,
+                wishEntry,
+                l10n,
+                table: table,
+                palette: palette,
+                columns: desktop && !table,
+              ),
+            ),
+          ),
+        );
+      }
+      return giftRow(entry.gift!);
+    }
+
     final sections = <AnimatedRowItem>[];
     final ordered = occasionsByNextDate([
       for (final o in occasions)
@@ -414,13 +654,19 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
       // El orden de las flechas del teclado: el de la tabla.
       ref.read(boardGiftCursorProvider).register([
         for (final s in sections)
-          if (!s.id.startsWith('section-')) s.id,
+          if (!s.id.startsWith('section-') && shown.any((g) => g.id == s.id))
+            s.id,
       ]);
     }
-    final personTotals = budget.ofRecipient(person.id);
+    // Las dos tiras cuentan lo comprado sobre el total de los regalos (precio
+    // real o, si falta, el previsto): la de la persona, de todos sus regalos
+    // pague quien pague; la de la casa, de lo que cuenta como gasto de casa.
+    // Sin presupuesto por persona, la barra nunca pasa a rojo.
+    final personTotals = budget.ofRecipientAllGivers(person.id);
     final houseTotals = budget.total;
-    double fraction(BudgetTotals totals) =>
-        totals.plannedCents > 0 ? totals.spentCents / totals.plannedCents : 0;
+    double fraction(BudgetTotals totals) => totals.expectedCents > 0
+        ? (totals.boughtCents / totals.expectedCents).clamp(0.0, 1.0)
+        : 0;
     String money(int cents) => formatCents(cents, l10n.localeName);
 
     final editButton = Semantics(
@@ -453,6 +699,55 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
       ),
     );
 
+    // El bloque fijo de una persona cuyos regalos este móvil no enseña.
+    final lockedBlock = StaggerItem(
+      index: 0,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        child: SecretBlockCard(
+          key: ValueKey<String>('secret-block:${person.id}'),
+          name: person.name,
+          colorIndex: person.colorIndex,
+          web: web,
+          // El bloque fijo de la propia persona (ADR 0010):
+          // se llama «Sorpresas» y no dice nada de lo que
+          // hay detrás.
+          title: ownHidden ? l10n.surprisesTitle : null,
+          // La persona de este móvil (1.0.6): en él no se
+          // ven sus regalos y solo otra persona puede
+          // cambiarlo. En la web, «este ordenador».
+          note: ownHidden
+              ? (web
+                    ? l10n.ownGiftsHiddenBodyWeb(person.name)
+                    : l10n.ownGiftsHiddenBody(person.name))
+              : null,
+        ),
+      ),
+    );
+
+    // Con el bloque de la persona cerrado en este móvil (sin su clave) no se
+    // le puede guardar una sorpresa, pero sí sugerirle un deseo visible: el
+    // botón abre el formulario con «Visible para» fijo.
+    final suggestOnly = locked && !ownPerson && canAdd && canSuggest;
+    final suggestButton = Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: DesktopAddGiftButton(
+        key: const ValueKey<String>('suggest-wish-header'),
+        label: l10n.wishSuggest,
+        onPressed: () => _suggestWish(person.id),
+      ),
+    );
+
+    // La persona de este dispositivo apunta sus deseos con el mismo botón.
+    final wishButton = Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: DesktopAddGiftButton(
+        key: const ValueKey<String>('add-wish-header'),
+        label: l10n.wishAdd,
+        onPressed: () => _addWish(person.id),
+      ),
+    );
+
     String? occasionName(String? id) => id == null
         ? null
         : (id == GiftFilter.kNoOccasion
@@ -464,18 +759,47 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
     return Scaffold(
       // El «+» se queda a 16 del borde derecho de la columna, no del panel.
       // Con dos paneles no hay «+»: «Añadir regalo» va en la cabecera.
-      floatingActionButton: desktop || locked || !canAdd
+      floatingActionButton:
+          desktop || (locked && !ownPerson && !suggestOnly) || !canAdd
           ? null
-          : ContentFloatingButton(
-              maxWidth: columnWidth,
-              child: FloatingActionButton(
-                tooltip: l10n.giftAdd,
-                onPressed: () => _addGift(person.id),
-                child: StrokeIcon(
-                  AppIcons.plus,
-                  size: 26,
-                  color: t.onFill,
-                  strokeWidth: 2.4,
+          : ValueListenableBuilder<bool>(
+              valueListenable: _fabHidden,
+              builder: (context, hiddenByScroll, child) =>
+                  ContentFloatingButton(
+                    maxWidth: columnWidth,
+                    // Con navegación accesible (lector de pantalla, teclado)
+                    // el «+» no se esconde: tendría que aparecer para llegar
+                    // a él.
+                    hidden:
+                        hiddenByScroll &&
+                        !MediaQuery.accessibleNavigationOf(context),
+                    child: child!,
+                  ),
+              // El nombre lo lleva el propio nodo del botón, no solo la ayuda
+              // flotante: el lector de pantalla no debe oír «Botón» a secas
+              // (QA 1.0.7, m4).
+              child: Semantics(
+                button: true,
+                label: suggestOnly
+                    ? l10n.wishSuggest
+                    : (ownPerson ? l10n.wishAdd : l10n.giftAdd),
+                excludeSemantics: true,
+                onTap: () => suggestOnly
+                    ? _suggestWish(person.id)
+                    : (ownPerson ? _addWish(person.id) : _addGift(person.id)),
+                child: FloatingActionButton(
+                  tooltip: suggestOnly
+                      ? l10n.wishSuggest
+                      : (ownPerson ? l10n.wishAdd : l10n.giftAdd),
+                  onPressed: () => suggestOnly
+                      ? _suggestWish(person.id)
+                      : (ownPerson ? _addWish(person.id) : _addGift(person.id)),
+                  child: StrokeIcon(
+                    AppIcons.plus,
+                    size: 26,
+                    color: t.onFill,
+                    strokeWidth: 2.4,
+                  ),
                 ),
               ),
             ),
@@ -491,18 +815,35 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
                 ScreenHeader(
                   eyebrow: onBack == null ? null : l10n.navPeople,
                   title: person.name,
+                  folded: _fold,
                   subtitleWidget: locked
-                      ? (age == null ? null : Text(age, style: t.styles.meta))
+                      ? (age == null && wishEntries.isEmpty
+                            ? null
+                            : DotLine(
+                                style: t.styles.meta,
+                                parts: [
+                                  if (age != null) DotPart(age),
+                                  if (wishEntries.isNotEmpty)
+                                    DotPart(l10n.wishCount(wishEntries.length)),
+                                ],
+                              ))
                       : !canAdd
                       // Quien solo regala (1.0.6): sin cuenta de regalos.
-                      ? Text(
-                          [?age, l10n.personNoGiftsLabel].join(' · '),
+                      ? DotLine(
                           style: t.styles.meta,
+                          parts: [
+                            if (age != null) DotPart(age),
+                            DotPart(l10n.personNoGiftsLabel),
+                          ],
                         )
                       : _Subtitle(
                           age: age,
                           count: gifts.length,
                           text: l10n.giftCount(gifts.length),
+                          // Los deseos sin coger, aparte de los regalos.
+                          wishText: freeWishes == 0
+                              ? null
+                              : l10n.wishCount(freeWishes),
                         ),
                   footer: completion.total > 0 && completion.occasion != null
                       ? _CompletionLine(
@@ -545,32 +886,57 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
                     ),
                   ),
                   actions: [
-                    if (desktop && !locked && canAdd) addButton,
+                    if (desktop && !locked && !ownPerson && canAdd) addButton,
+                    if (desktop && suggestOnly) suggestButton,
+                    if (desktop && ownPerson && canAdd) wishButton,
                     editButton,
                   ],
                 ),
               ),
-              if (locked)
-                column(
-                  StaggerItem(
-                    index: 0,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                      child: SecretBlockCard(
-                        key: ValueKey<String>('secret-block:${person.id}'),
-                        name: person.name,
-                        colorIndex: person.colorIndex,
-                        web: web,
-                        // La persona de este móvil (1.0.6): en él no se ven
-                        // sus regalos y solo otra persona puede cambiarlo. En
-                        // la web, «este ordenador».
-                        note: ownHidden
-                            ? (web
-                                  ? l10n.ownGiftsHiddenBodyWeb(person.name)
-                                  : l10n.ownGiftsHiddenBody(person.name))
-                            : null,
+              if (locked && entries.isEmpty && ownHidden)
+                // La lista de deseos vacía de la propia persona: el bloque fijo
+                // arriba y, debajo, el vacío de siempre con su acción. Todo en
+                // una lista: con letra grande o en horizontal se desplaza.
+                Expanded(
+                  child: ContentListView(
+                    maxWidth: columnWidth,
+                    padding: const EdgeInsets.only(bottom: 88),
+                    children: [
+                      lockedBlock,
+                      const SizedBox(height: 16),
+                      StaggerItem(
+                        index: 1,
+                        child: EmptyState(
+                          icon: tablerStar,
+                          title: l10n.wishEmptyTitle,
+                          message: l10n.wishEmptyMessage,
+                          action: DesktopAddGiftButton(
+                            key: const ValueKey<String>('empty-wish-add'),
+                            label: l10n.wishAdd,
+                            onPressed: () => _addWish(person.id),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
+                  ),
+                )
+              else if (locked)
+                Expanded(
+                  child: ContentListView(
+                    maxWidth: columnWidth,
+                    padding: const EdgeInsets.only(bottom: 88),
+                    children: [
+                      lockedBlock,
+                      if (entries.isNotEmpty)
+                        AnimatedRows(
+                          rows: sections,
+                          deleted: ref.watch(recentlyDeletedProvider),
+                          quiet: fromRemote,
+                          onDeletedGone: (id) => ref
+                              .read(recentlyDeletedProvider.notifier)
+                              .clear(id),
+                        ),
+                    ],
                   ),
                 )
               else ...[
@@ -584,170 +950,207 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
                   ),
                 ),
                 column(PendingGiftsNotice(personId: person.id)),
-                if (!(desktop && gifts.isEmpty))
-                  narrowColumn(
-                    StaggerItem(
-                      index: 0,
-                      child: Container(
-                        margin: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-                        decoration: BoxDecoration(
-                          color: t.surface,
-                          borderRadius: RegalosShape.card,
-                        ),
-                        child: Sheen(
-                          key: _budgetSheen,
-                          borderRadius: RegalosShape.card,
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(14, 11, 14, 13),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: BudgetMeter(
-                                    label: l10n.budgetHouseFor(person.name),
-                                    valueText: (
-                                      spent: money(personTotals.spentCents),
-                                      planned: money(personTotals.plannedCents),
-                                      ofWord: l10n.budgetOf,
-                                    ),
-                                    spentOnlyLabel:
-                                        personTotals.plannedCents > 0
-                                        ? null
-                                        : l10n.budgetSpent,
-                                    fraction: fraction(personTotals),
-                                    semanticLabel: l10n.budgetBarLabel(
-                                      money(personTotals.spentCents),
-                                      money(personTotals.plannedCents),
-                                    ),
-                                    barHeight: table ? 10 : 4,
-                                    barRadius: table ? 4 : null,
-                                    entrance: table,
+                FoldBox(
+                  key: _foldKey,
+                  folded: _fold,
+                  child: Column(
+                    children: [
+                      if (!(desktop && !hasAny))
+                        narrowColumn(
+                          StaggerItem(
+                            index: 0,
+                            child: Container(
+                              margin: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                              decoration: BoxDecoration(
+                                color: t.surface,
+                                borderRadius: RegalosShape.card,
+                              ),
+                              child: Sheen(
+                                key: _budgetSheen,
+                                borderRadius: RegalosShape.card,
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    14,
+                                    11,
+                                    14,
+                                    13,
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: BudgetMeter(
+                                          label: person.name,
+                                          leadLabel: l10n.budgetBought,
+                                          valueText: (
+                                            spent: money(
+                                              personTotals.boughtCents,
+                                            ),
+                                            planned: money(
+                                              personTotals.expectedCents,
+                                            ),
+                                            ofWord: l10n.budgetOf,
+                                          ),
+                                          spentOnlyLabel:
+                                              personTotals.expectedCents > 0
+                                              ? null
+                                              : l10n.budgetBought,
+                                          fraction: fraction(personTotals),
+                                          semanticLabel: l10n
+                                              .budgetBoughtBarLabel(
+                                                money(personTotals.boughtCents),
+                                                money(
+                                                  personTotals.expectedCents,
+                                                ),
+                                              ),
+                                          barHeight: table ? 10 : 4,
+                                          barRadius: table ? 4 : null,
+                                          entrance: table,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 20),
+                                      Expanded(
+                                        child: BudgetMeter(
+                                          label: l10n.budgetHouseTotal,
+                                          leadLabel: l10n.budgetBought,
+                                          valueText: (
+                                            spent: money(
+                                              houseTotals.boughtCents,
+                                            ),
+                                            planned: money(
+                                              houseTotals.expectedCents,
+                                            ),
+                                            ofWord: l10n.budgetOf,
+                                          ),
+                                          spentOnlyLabel:
+                                              houseTotals.expectedCents > 0
+                                              ? null
+                                              : l10n.budgetBought,
+                                          fraction: fraction(houseTotals),
+                                          semanticLabel: l10n
+                                              .budgetBoughtBarLabel(
+                                                money(houseTotals.boughtCents),
+                                                money(
+                                                  houseTotals.expectedCents,
+                                                ),
+                                              ),
+                                          barHeight: table ? 10 : 4,
+                                          barRadius: table ? 4 : null,
+                                          entrance: table,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                const SizedBox(width: 20),
-                                Expanded(
-                                  child: BudgetMeter(
-                                    label: l10n.budgetHouseTotal,
-                                    valueText: (
-                                      spent: money(houseTotals.spentCents),
-                                      planned: money(houseTotals.plannedCents),
-                                      ofWord: l10n.budgetOf,
-                                    ),
-                                    spentOnlyLabel: houseTotals.plannedCents > 0
-                                        ? null
-                                        : l10n.budgetSpent,
-                                    fraction: fraction(houseTotals),
-                                    semanticLabel: l10n.budgetBarLabel(
-                                      money(houseTotals.spentCents),
-                                      money(houseTotals.plannedCents),
-                                    ),
-                                    barHeight: table ? 10 : 4,
-                                    barRadius: table ? 4 : null,
-                                    entrance: table,
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                  ),
-                if (!(desktop && gifts.isEmpty))
-                  column(
-                    StaggerItem(
-                      index: 1,
-                      child: Padding(
-                        // En la tabla del tablero, a 16 como el avatar, la
-                        // tarjeta y la tabla.
-                        padding: EdgeInsets.symmetric(
-                          horizontal: table ? 16 : 12,
-                        ),
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: Wrap(
-                            spacing: 8,
-                            children: [
-                              FilterPill(
-                                label: l10n.filtersButton,
-                                icon: AppIcons.filter,
-                                haptic: false,
-                                onTap: _openFilters,
+                      if (!(desktop && !hasAny))
+                        column(
+                          StaggerItem(
+                            index: 1,
+                            child: Padding(
+                              // En la tabla del tablero, a 16 como el avatar, la
+                              // tarjeta y la tabla.
+                              padding: EdgeInsets.symmetric(
+                                horizontal: table ? 16 : 12,
                               ),
-                              if (_filter.occasionId != null) ...[
-                                FilterPill(
-                                  label: occasionName(_filter.occasionId) ?? '',
-                                  selected: true,
-                                  trailingIcon: AppIcons.close,
-                                  semanticLabel: l10n.filterRemove(
-                                    occasionName(_filter.occasionId) ?? '',
-                                  ),
-                                  onTap: () => setState(
-                                    () => _filter = _filter.copyWith(
-                                      clearOccasion: true,
+                              child: SizedBox(
+                                width: double.infinity,
+                                child: Wrap(
+                                  spacing: 8,
+                                  children: [
+                                    FilterPill(
+                                      label: l10n.filtersButton,
+                                      icon: AppIcons.filter,
+                                      haptic: false,
+                                      onTap: _openFilters,
                                     ),
-                                  ),
-                                ),
-                              ],
-                              if (_filter.giverId != null) ...[
-                                FilterPill(
-                                  label: giverNameFor(
-                                    l10n,
-                                    givers[_filter.giverId],
-                                  ),
-                                  selected: true,
-                                  trailingIcon: AppIcons.close,
-                                  semanticLabel: l10n.filterRemove(
-                                    giverNameFor(l10n, givers[_filter.giverId]),
-                                  ),
-                                  onTap: () => setState(
-                                    () => _filter = _filter.copyWith(
-                                      clearGiver: true,
+                                    if (_filter.occasionId != null) ...[
+                                      FilterPill(
+                                        label:
+                                            occasionName(_filter.occasionId) ??
+                                            '',
+                                        selected: true,
+                                        trailingIcon: AppIcons.close,
+                                        semanticLabel: l10n.filterRemove(
+                                          occasionName(_filter.occasionId) ??
+                                              '',
+                                        ),
+                                        onTap: () => setState(
+                                          () => _filter = _filter.copyWith(
+                                            clearOccasion: true,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                    if (_filter.giverId != null) ...[
+                                      FilterPill(
+                                        label: giverNameFor(
+                                          l10n,
+                                          givers[_filter.giverId],
+                                        ),
+                                        selected: true,
+                                        trailingIcon: AppIcons.close,
+                                        semanticLabel: l10n.filterRemove(
+                                          giverNameFor(
+                                            l10n,
+                                            givers[_filter.giverId],
+                                          ),
+                                        ),
+                                        onTap: () => setState(
+                                          () => _filter = _filter.copyWith(
+                                            clearGiver: true,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                    if (_filter.status != null) ...[
+                                      StatusChip(
+                                        status: _filter.status!.visualStatus,
+                                        selected: true,
+                                        onTap: () => setState(
+                                          () => _filter = _filter.copyWith(
+                                            clearStatus: true,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                    FilterPill(
+                                      label: l10n.filterNeedsBuy,
+                                      selected: _filter.needsBuy,
+                                      onTap: () => setState(
+                                        () => _filter = _filter.copyWith(
+                                          needsBuy: !_filter.needsBuy,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ),
-                              ],
-                              if (_filter.status != null) ...[
-                                StatusChip(
-                                  status: _filter.status!.visualStatus,
-                                  selected: true,
-                                  onTap: () => setState(
-                                    () => _filter = _filter.copyWith(
-                                      clearStatus: true,
+                                    FilterPill(
+                                      label: l10n.filterNeedsWrap,
+                                      selected: _filter.needsWrap,
+                                      onTap: () => setState(
+                                        () => _filter = _filter.copyWith(
+                                          needsWrap: !_filter.needsWrap,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ),
-                              ],
-                              FilterPill(
-                                label: l10n.filterNeedsBuy,
-                                selected: _filter.needsBuy,
-                                onTap: () => setState(
-                                  () => _filter = _filter.copyWith(
-                                    needsBuy: !_filter.needsBuy,
-                                  ),
+                                  ],
                                 ),
                               ),
-                              FilterPill(
-                                label: l10n.filterNeedsWrap,
-                                selected: _filter.needsWrap,
-                                onTap: () => setState(
-                                  () => _filter = _filter.copyWith(
-                                    needsWrap: !_filter.needsWrap,
-                                  ),
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
-                      ),
-                    ),
+                    ],
                   ),
+                ),
                 Expanded(
                   child: StateSwitcher(
-                    stateKey: gifts.isEmpty
+                    stateKey: !hasAny
                         ? 'empty'
-                        : (shown.isEmpty ? 'no-results' : 'list'),
-                    child: gifts.isEmpty
+                        : (entries.isEmpty ? 'no-results' : 'list'),
+                    child: !hasAny
                         ? (desktop
                               ? column(
                                   _EmptyPerson(
@@ -783,7 +1186,7 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
                                   title: l10n.giftsEmptyTitle(person.name),
                                   message: l10n.giftsEmptyMessage,
                                 ))
-                        : shown.isEmpty
+                        : entries.isEmpty
                         ? Center(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
@@ -819,8 +1222,11 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
                                 BoardColumn.link,
                             },
                             child: ContentListView(
+                              controller: _scroll,
                               maxWidth: columnWidth,
-                              padding: const EdgeInsets.only(bottom: 88),
+                              padding: EdgeInsets.only(
+                                bottom: 88 + ref.watch(wishNoticeInsetProvider),
+                              ),
                               children: [
                                 AnimatedRows(
                                   rows: sections,
@@ -830,7 +1236,7 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
                                       .read(recentlyDeletedProvider.notifier)
                                       .clear(id),
                                 ),
-                                if (desktop && canAdd)
+                                if (desktop && canAdd && !ownPerson)
                                   _AddGiftInline(
                                     onTap: () => _addGift(person.id),
                                   ),
@@ -847,6 +1253,49 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
     );
   }
 
+  /// La fila de un deseo que nadie ha cogido (o de uno propio).
+  Widget _wishRow(
+    BuildContext context,
+    WishEntry entry,
+    AppLocalizations l10n, {
+    required bool table,
+    required AccentPalette palette,
+    required bool columns,
+  }) {
+    final wish = entry.wish;
+    final actions = entry.actions;
+    final detail = [
+      if (wish.size != null) l10n.giftSizeLine(wish.size!),
+      ?wish.description,
+    ].join(' · ');
+    return Builder(
+      builder: (rowContext) => WishRow(
+        accent: palette,
+        columnsFrom: columns ? kGiftColumnsFrom : null,
+        title: wish.title,
+        detail: detail.isEmpty ? null : detail,
+        // La persona nunca ve estado; quien abre el bloque, que está libre.
+        stateText: actions.isOwner || actions.state == null
+            ? null
+            : l10n.wishAvailableNote,
+        actionLabel: actions.canClaim ? l10n.wishClaim : null,
+        // El contexto de la fila: si el aviso de un fallo la taparía, la lista
+        // sube hasta dejarla a la vista.
+        onAction: actions.canClaim
+            ? () => claimWishFlow(context, ref, wish, rowContext: rowContext)
+            : null,
+        onTap: actions.canEdit
+            ? () => _editWish(wish)
+            : () => openWishDetail(
+                context,
+                person: wish.recipientId,
+                wishId: wish.id,
+              ),
+        table: table,
+      ),
+    );
+  }
+
   Widget _row(
     BuildContext context,
     Gift gift,
@@ -855,8 +1304,14 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
     AppLocalizations l10n,
     bool desktop, {
     bool table = false,
+    WishPlanRow? planRow,
+    String? reader,
   }) {
     final giver = gift.giverId == null ? null : givers[gift.giverId];
+    // Un deseo que alguien ha cogido: se marca como deseo y dice en qué
+    // punto está (cogido, dos reservas o quitado de la lista).
+    final planNote = wishPlanNoteText(l10n, planRow, gift.id, people, reader);
+    final planWarning = planRow?.state == WishPlanState.conflictingClaims;
     final by = gift.requestedBy;
     // La web (1.0.6): cambios en un regalo en secreto que el móvil de su
     // persona aún no ha recogido. En el móvil, siempre vacío.
@@ -867,12 +1322,14 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
       null => null,
     };
     final noteParts = <String>[
+      ?planNote,
       if (requester != null) l10n.giftRequestedBy(requester),
       ?gift.requestNote,
       if (gift.size != null) l10n.giftSizeLine(gift.size!),
     ];
     if (table) {
       final noteTable = <String>[
+        ?planNote,
         if (requester != null) l10n.giftRequestedBy(requester),
         ?gift.requestNote,
         ?gift.note,
@@ -889,8 +1346,10 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
         note: noteTable.isEmpty ? null : noteTable.join(' · '),
         url: gift.url,
         tags: [
+          if (planRow != null) l10n.wishTag,
           if (pending) l10n.webSecretsPending,
-          if (gift.surprise) l10n.giftTagSurprise,
+          // Un deseo cogido lleva solo «Deseo» (QA 1.0.7, m2).
+          if (gift.surprise && planRow == null) l10n.giftTagSurprise,
           if (by != null) l10n.giftTagRequest,
         ],
         tagHints: {
@@ -913,9 +1372,11 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
       status: gift.status.visualStatus,
       price: giftPriceText(l10n, gift),
       note: noteParts.isEmpty ? null : noteParts.join(' · '),
+      noteWarning: planWarning,
       tags: [
+        if (planRow != null) l10n.wishTag,
         if (pending) l10n.webSecretsPending,
-        if (gift.surprise) l10n.giftTagSurprise,
+        if (gift.surprise && planRow == null) l10n.giftTagSurprise,
         if (by != null) l10n.giftTagRequest,
       ],
       tagHints: {
@@ -934,6 +1395,33 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
 }
 
 bool _filled(String? text) => text != null && text.trim().isNotEmpty;
+
+/// Una fila de la lista de la persona: un regalo o un deseo.
+class _ListEntry {
+  const _ListEntry.gift(Gift this.gift) : wish = null;
+  const _ListEntry.wish(WishEntry this.wish) : gift = null;
+
+  final Gift? gift;
+  final WishEntry? wish;
+
+  String get title => gift?.title ?? wish!.wish.title;
+
+  String? get occasionId => gift?.occasionId ?? wish?.wish.occasionId;
+}
+
+/// Un deseo con la forma de un regalo sin estado propio, solo para pasar los
+/// filtros de la lista (ocasión, y los demás como una idea sin asignar).
+Gift _wishAsGift(Wish wish) => Gift(
+  id: wish.id,
+  recipientId: wish.recipientId,
+  title: wish.title,
+  occasionId: wish.occasionId,
+  status: GiftStatus.idea,
+  rawStatus: GiftStatus.idea.name,
+  size: wish.size,
+  surprise: false,
+  year: wish.year,
+);
 
 /// En la tabla del tablero, las cabeceras de sección van inset 16 por cada
 /// lado: su filete y su texto quedan a la altura de los de las filas y del
@@ -1079,20 +1567,37 @@ class _EmptyPerson extends StatelessWidget {
 /// El subtítulo de la cabecera («7 años · 4 regalos»), con la cifra de
 /// regalos rodando cuando cambia.
 class _Subtitle extends StatelessWidget {
-  const _Subtitle({required this.age, required this.count, required this.text});
+  const _Subtitle({
+    required this.age,
+    required this.count,
+    required this.text,
+    this.wishText,
+  });
 
   final String? age;
   final int count;
   final String text;
 
+  /// «4 deseos», tras los regalos, o `null` si no hay ninguno sin coger.
+  final String? wishText;
+
   @override
   Widget build(BuildContext context) {
     final t = RegalosTokens.of(context);
-    return Wrap(
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        if (age != null) Text('$age · ', style: t.styles.meta),
-        RollingCount(text: text, value: count, style: t.styles.meta),
+    // La primera línea del resumen: «3 años · 10 regalos · 5 deseos», con el
+    // separador siempre al final de un trozo y nunca al principio de línea.
+    return DotLine(
+      style: t.styles.meta,
+      parts: [
+        if (age != null) DotPart(age!),
+        // Sin regalos pero con deseos: solo «4 deseos», sin «Sin regalos ·»
+        // (decisión de Daniel, 26-11, QA 1.0.7 m11).
+        if (count == 0 && wishText != null)
+          DotPart(wishText!)
+        else ...[
+          DotPart(text, rollValue: count),
+          if (wishText != null) DotPart(wishText!),
+        ],
       ],
     );
   }
@@ -1105,6 +1610,38 @@ class _CompletionLine extends StatelessWidget {
 
   final PersonCompletion completion;
   final String occasionName;
+
+  /// «Reyes · 2 de 3 comprados» en dos trozos (la ocasión y la cuenta), para
+  /// que, si no cabe, corte entre ellos con el «·» al final del primero.
+  Widget _progress(AppLocalizations l10n, RegalosTokens t) {
+    final full = l10n.personCompletionProgress(
+      occasionName,
+      completion.bought,
+      completion.total,
+    );
+    const separator = ' · ';
+    final split =
+        full.startsWith(occasionName) &&
+        full.startsWith(separator, occasionName.length);
+    return DotLine(
+      style: t.styles.meta,
+      parts: split
+          ? [
+              DotPart(occasionName),
+              DotPart(
+                full.substring(occasionName.length + separator.length),
+                rollValue: completion.bought,
+              ),
+            ]
+          : [
+              DotPart(
+                full,
+                rollValue: completion.bought,
+                rollSearchFrom: occasionName.length,
+              ),
+            ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1124,16 +1661,7 @@ class _CompletionLine extends StatelessWidget {
             )
           : KeyedSubtree(
               key: const ValueKey('completion-progress'),
-              child: RollingCount(
-                text: l10n.personCompletionProgress(
-                  occasionName,
-                  completion.bought,
-                  completion.total,
-                ),
-                value: completion.bought,
-                searchFrom: occasionName.length,
-                style: t.styles.meta,
-              ),
+              child: _progress(l10n, t),
             ),
     );
   }

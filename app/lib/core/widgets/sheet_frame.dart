@@ -92,13 +92,15 @@ class SwitchRow extends StatelessWidget {
   final String title;
   final String? hint;
   final bool value;
-  final ValueChanged<bool> onChanged;
+
+  /// `null` deja el interruptor fijo: sin toque y atenuado.
+  final ValueChanged<bool>? onChanged;
 
   @override
   Widget build(BuildContext context) {
     final t = RegalosTokens.of(context);
     return InkWell(
-      onTap: () => onChanged(!value),
+      onTap: onChanged == null ? null : () => onChanged!(!value),
       borderRadius: BorderRadius.circular(8),
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 44),

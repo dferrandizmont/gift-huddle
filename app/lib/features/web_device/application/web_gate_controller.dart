@@ -6,7 +6,8 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/sync/pairing_v2.dart';
 import '../../sync/application/invite_poll_pacer.dart';
-import '../../sync/application/pairing_v2_flow.dart' show kWebPairingOrigin;
+import '../../sync/application/pairing_v2_flow.dart'
+    show PairingV2VersionMismatchException, kWebPairingOrigin;
 import '../../sync/data/sync_transport.dart';
 import '../../sync/data/sync_transport_v2.dart';
 import '../data/guard_client.dart';
@@ -420,6 +421,10 @@ class WebGateController extends ChangeNotifier implements WebGateActions {
       _pairingFailed(run, WebConnectFailure.network);
     } on InviteGoneException {
       _gone(run, next);
+    } on PairingV2VersionMismatchException {
+      // 1.0.7: el móvil tiene una versión anterior de la aplicación (su oferta
+      // no lleva el protocolo de deseos) o al revés: no es un código distinto.
+      _pairingFailed(run, WebConnectFailure.outdated);
     } on PairingException {
       _pairingFailed(run, WebConnectFailure.codeMismatch);
     } on SyncTransportException catch (e) {

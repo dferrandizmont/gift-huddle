@@ -24,13 +24,27 @@
 //   se rellena y al final se cifra:
 //     uint32 BE = longitud L | deflate en bruto (L bytes) | ceros
 //   y lo comprimido es el JSON canónico de
-//     {"cap": 2, "d": FamilyDoc del ámbito,
-//      "s": {escritor: [época, revisión]}, "v": 2}
+//     {"cap": 2, "d": FamilyDoc del ámbito, "s": {escritor: [época,
+//      revisión]}, "v": 2, "wp": 1, "x": {web: [época, revisión]}}
 //   «s» dice qué slot de cada otro escritor estaba ya fusionado en esta
 //   instantánea: con eso se sabe cuándo todos conocen una lápida y se puede
 //   compactar sin que nada resucite. «cap» (desde la 1.0.6) anuncia que el
 //   escritor sabe abrir slots de kMaxSlotGifts regalos; sin él (1.0.5 y
 //   antes) solo abre hasta kLegacySlotGifts. Un 1.0.5 no mira esa clave.
+//   «wp» (desde la 1.0.7, ADR 0010) anuncia que el escritor entiende los
+//   planes de deseos (`wishPlans`): un 1.0.6 abre los slots de móvil con
+//   planes pero descarta los planes (`scopeDocOnly`), y rechaza entero el
+//   buzón de una web que los lleva (cuenta cualquier colección que no sea
+//   `gifts` como ajena), así que los planes solo se escriben cuando todos los
+//   que pueden leer o recoger
+//   ese ámbito anuncian «wp» (`wishPlansAllowed`). Va en el cuerpo y no en la
+//   cabecera porque un 1.0.6 rechaza cualquier cabecera que no sea la suya
+//   (`flags > 1`, tamaño exacto) y no mira claves desconocidas del cuerpo;
+//   queda autenticada por el GCM y la firma, y la leen todos los que tienen
+//   la clave. Un escritor sin «wp» (1.0.6, o que aún no ha publicado) cuenta
+//   como que no lo entiende. «x» (desde la 1.0.7) declara qué buzones de una
+//   web propia rechazó este móvil entero: la web los da por perdidos, no por
+//   entregados. Un 1.0.6 tampoco mira esa clave.
 // - Capacidad: kMaxSurpriseGifts regalos vivos por persona añadidos desde la
 //   interfaz o al activar, más kMaxReconcileGifts de cupo propio para los
 //   que mueve la reconciliación (N2); en total kMaxSlotGifts, mientras lo
@@ -55,7 +69,7 @@ import 'envelope.dart'
     show EnvelopeException, EnvelopeTooLargeException, inflateWithLimit;
 import 'family_doc.dart';
 import 'hlc.dart';
-import 'model.dart' show Collections;
+import 'model.dart' show Collections, ScopeCollections;
 
 /// Regalos sorpresa vivos que caben por persona (decisión de producto): los
 /// que se añaden desde la interfaz y los que se mueven al activar. Hasta la
@@ -75,10 +89,23 @@ const int kLegacySlotGifts = 64;
 /// Capacidad que anuncian los slots que sella esta versión («cap»).
 const int kSlotCapacity = 2;
 
+/// Valor de «wp» que anuncian los slots de esta versión: entiende los planes
+/// de deseos (ADR 0010, 1.0.7). Sin «wp» (1.0.6 y antes) vale 0.
+const int kWishPlanCapability = 1;
+
 /// Cupo propio de los regalos que mueve la reconciliación (los que alguien
 /// escribió en público para la persona protegida): no gastan el de la
 /// interfaz, así que la persona protegida no puede llenarlo (N2).
 const int kMaxReconcileGifts = kMaxSlotGifts - kMaxSurpriseGifts;
+
+/// Las colecciones que guarda un slot, por orden: los regalos sorpresa y los
+/// planes de deseos (ADR 0010). Comparten capacidad ([kMaxSurpriseGifts],
+/// [kMaxSlotGifts]) y los límites por registro, pero cada una conserva y
+/// compacta sus lápidas por separado.
+const List<String> kScopeCollectionNames = [
+  Collections.gifts,
+  ScopeCollections.wishPlans,
+];
 
 /// Campo que marca, dentro del bloque secreto, un regalo que movió la
 /// reconciliación (cuenta para [kMaxReconcileGifts]). No sale al publicar.
@@ -308,7 +335,30 @@ class OpenedSlot {
     required this.seen,
     this.cap = 1,
     this.foreignRecords = 0,
+    this.planRecords = 0,
+    this.wishPlans = 0,
+    this.rejectedInboxes = const <String, SlotVersion>{},
+    this.planInboxSeen = const <String, SlotVersion>{},
   });
+
+  /// «wp» que anuncia el escritor: 0 sin él (1.0.6 y antes),
+  /// [kWishPlanCapability] desde la 1.0.7. Dice si entiende los planes de
+  /// deseos ([wishPlansAllowed]).
+  final int wishPlans;
+
+  /// Buzones de webs propias que este móvil rechazó enteros («x»): la web que
+  /// los escribió los da por perdidos, no por entregados.
+  final Map<String, SlotVersion> rejectedInboxes;
+
+  /// Versiones de `seen` declaradas por un lector que abrió el buzón con
+  /// soporte para planes. El «wp» del escritor actual no acredita un `seen`
+  /// heredado de la 1.0.6.
+  final Map<String, SlotVersion> planInboxSeen;
+
+  /// Registros (vivos y lápidas) de `wishPlans` del slot. El buzón de una web
+  /// de la 1.0.6 no los lleva; el de la 1.0.7 sí (`absorbWebInbox` los valida
+  /// y los aplica); en un slot de móvil son lo normal.
+  final int planRecords;
 
   /// Registros que el escritor metió y que no son del ámbito (de otra
   /// persona u otra colección): al abrir se descartan. Un móvil no los
@@ -442,6 +492,8 @@ class SealedSlot {
     required PolicyState policy,
     required FamilyDoc doc,
     Map<String, SlotVersion> seen = const <String, SlotVersion>{},
+    Map<String, SlotVersion> rejected = const <String, SlotVersion>{},
+    Map<String, SlotVersion> planInboxSeen = const <String, SlotVersion>{},
   }) => _seal(
     writerKeys: writerKeys,
     writer: writer,
@@ -450,6 +502,8 @@ class SealedSlot {
     policy: policy,
     doc: doc,
     seen: seen,
+    rejected: rejected,
+    planInboxSeen: planInboxSeen,
   );
 
   /// Igual que [seal] con el nonce dado: SOLO para pruebas y vectores fijos.
@@ -463,6 +517,7 @@ class SealedSlot {
     required FamilyDoc doc,
     required List<int> nonce,
     Map<String, SlotVersion> seen = const <String, SlotVersion>{},
+    Map<String, SlotVersion> rejected = const <String, SlotVersion>{},
   }) => _seal(
     writerKeys: writerKeys,
     writer: writer,
@@ -471,6 +526,8 @@ class SealedSlot {
     policy: policy,
     doc: doc,
     seen: seen,
+    rejected: rejected,
+    planInboxSeen: const {},
     nonce: nonce,
   );
 
@@ -482,6 +539,8 @@ class SealedSlot {
     required PolicyState policy,
     required FamilyDoc doc,
     required Map<String, SlotVersion> seen,
+    required Map<String, SlotVersion> rejected,
+    required Map<String, SlotVersion> planInboxSeen,
     List<int>? nonce,
   }) async {
     final header = SlotHeader(
@@ -499,7 +558,7 @@ class SealedSlot {
     if (n.length != _nonceLength) {
       throw ArgumentError.value(n.length, 'nonce', 'debe tener 12 bytes');
     }
-    final compressed = _compressedBody(doc, seen);
+    final compressed = _compressedBody(doc, seen, rejected, planInboxSeen);
     if (compressed == null) {
       throw const SurpriseSlotFullException();
     }
@@ -537,9 +596,11 @@ class SealedSlot {
   /// Lo comprimido del cuerpo, o null si no cabe.
   static List<int>? _compressedBody(
     FamilyDoc doc,
-    Map<String, SlotVersion> seen,
-  ) {
-    final json = _bodyJson(doc, seen);
+    Map<String, SlotVersion> seen, [
+    Map<String, SlotVersion> rejected = const <String, SlotVersion>{},
+    Map<String, SlotVersion> planInboxSeen = const <String, SlotVersion>{},
+  ]) {
+    final json = _bodyJson(doc, seen, rejected, planInboxSeen);
     if (json.length > kMaxSlotJsonBytes) return null;
     final compressed = Deflate(json).getBytes();
     if (compressed.length > kSlotPlainBytes - _lengthPrefix) return null;
@@ -554,18 +615,33 @@ class SealedSlot {
     return Deflate(json).getBytes().length.toDouble();
   }
 
-  static List<int> _bodyJson(FamilyDoc doc, Map<String, SlotVersion> seen) =>
-      utf8.encode(
-        canonicalJsonOf(<String, Object?>{
-          'cap': kSlotCapacity,
-          'd': doc.toJson(),
-          's': <String, Object?>{
-            for (final e in seen.entries)
-              e.key: <int>[e.value.epoch, e.value.revision],
-          },
-          'v': _version,
-        }),
-      );
+  static List<int> _bodyJson(
+    FamilyDoc doc,
+    Map<String, SlotVersion> seen, [
+    Map<String, SlotVersion> rejected = const <String, SlotVersion>{},
+    Map<String, SlotVersion> planInboxSeen = const <String, SlotVersion>{},
+  ]) => utf8.encode(
+    canonicalJsonOf(<String, Object?>{
+      'cap': kSlotCapacity,
+      'd': doc.toJson(),
+      's': <String, Object?>{
+        for (final e in seen.entries)
+          e.key: <int>[e.value.epoch, e.value.revision],
+      },
+      'v': _version,
+      'wp': kWishPlanCapability,
+      if (rejected.isNotEmpty)
+        'x': <String, Object?>{
+          for (final e in rejected.entries)
+            e.key: <int>[e.value.epoch, e.value.revision],
+        },
+      if (planInboxSeen.isNotEmpty)
+        'ps': <String, Object?>{
+          for (final e in planInboxSeen.entries)
+            e.key: <int>[e.value.epoch, e.value.revision],
+        },
+    }),
+  );
 
   /// Si la firma es del escritor, con su clave pública [signingKey]. No
   /// necesita la clave de sorpresas.
@@ -650,12 +726,22 @@ class SealedSlot {
         throw const SlotWrongScopeException('documento de otra lista');
       }
       final cap = _capOf(raw['cap']);
+      final wishPlans = _wpOf(raw['wp']);
+      final rejectedInboxes = raw['x'] == null
+          ? const <String, SlotVersion>{}
+          : raw['x'] is Map
+          ? _seenOf(raw['x'] as Map)
+          : throw const SlotFormatException('contenido no válido');
+      final planInboxSeen = raw['ps'] == null
+          ? const <String, SlotVersion>{}
+          : raw['ps'] is Map
+          ? _seenOf(raw['ps'] as Map)
+          : throw const SlotFormatException('contenido no válido');
       final scope = scopeDocOnly(doc, header.personId);
       var foreign = 0;
       for (final entry in doc.collections.entries) {
-        foreign += entry.key == Collections.gifts
-            ? entry.value.length -
-                  (scope.collections[Collections.gifts]?.length ?? 0)
+        foreign += kScopeCollectionNames.contains(entry.key)
+            ? entry.value.length - (scope.collections[entry.key]?.length ?? 0)
             : entry.value.length;
       }
       try {
@@ -674,6 +760,10 @@ class SealedSlot {
         seen: _seenOf(raw['s'] as Map),
         cap: cap,
         foreignRecords: foreign,
+        planRecords: scope.collections[ScopeCollections.wishPlans]?.length ?? 0,
+        wishPlans: wishPlans,
+        rejectedInboxes: rejectedInboxes,
+        planInboxSeen: planInboxSeen,
       );
     } on ProtectedEnvelopeException {
       rethrow;
@@ -686,6 +776,16 @@ class SealedSlot {
   static int _capOf(Object? raw) {
     if (raw == null) return 1;
     if (raw is! int || raw < 1) {
+      throw const SlotFormatException('contenido no válido');
+    }
+    return raw;
+  }
+
+  /// «wp» del JSON: 0 si no está (1.0.6 y antes), un entero no negativo si
+  /// está.
+  static int _wpOf(Object? raw) {
+    if (raw == null) return 0;
+    if (raw is! int || raw < 0) {
       throw const SlotFormatException('contenido no válido');
     }
     return raw;
@@ -721,29 +821,33 @@ class SealedSlot {
     int maxLive = kMaxSlotGifts,
   }) {
     for (final name in doc.collections.keys) {
-      if (name != Collections.gifts) {
+      if (!kScopeCollectionNames.contains(name)) {
         throw ArgumentError.value(
           name,
           'doc',
-          'un slot solo guarda regalos de la persona protegida',
+          'un slot solo guarda regalos y planes de la persona protegida',
         );
       }
     }
-    final gifts = doc.collections[Collections.gifts] ?? const {};
+    // Capacidad compartida: los regalos y los planes de deseos gastan los
+    // mismos topes (200 de la interfaz, 232 por slot).
     var live = 0;
-    for (final record in gifts.values) {
-      if (record.isDeleted) continue;
-      if (record['recipientId'] != personId) {
-        throw ArgumentError.value(
-          record.id,
-          'doc',
-          'un regalo del slot es de otra persona',
-        );
+    for (final name in kScopeCollectionNames) {
+      for (final record
+          in doc.collections[name]?.values ?? const <SyncRecord>[]) {
+        if (record.isDeleted) continue;
+        if (record['recipientId'] != personId) {
+          throw ArgumentError.value(
+            record.id,
+            'doc',
+            'un registro del slot es de otra persona',
+          );
+        }
+        if (surpriseRecordBytes(record) > kMaxSurpriseGiftBytes) {
+          throw SurpriseGiftTooLargeException(record.id);
+        }
+        live++;
       }
-      if (surpriseRecordBytes(record) > kMaxSurpriseGiftBytes) {
-        throw SurpriseGiftTooLargeException(record.id);
-      }
-      live++;
     }
     if (live > maxLive) {
       throw SurpriseCapacityException(live);
@@ -761,6 +865,16 @@ int slotGiftLimitFor(Iterable<OpenedSlot?> peers) =>
     ? kMaxSlotGifts
     : kLegacySlotGifts;
 
+/// Si se pueden escribir planes de deseos (`wishPlans`) en un ámbito: solo si
+/// todos los que lo pueden leer o recoger ([peers]: los slots abiertos de los
+/// demás móviles con derecho, null si de alguno no hay slot abierto)
+/// anuncian [kWishPlanCapability]. Un 1.0.6 descarta los planes al abrir un
+/// slot de móvil y rechaza entero el buzón de una web que los lleva, y con él
+/// los regalos de dentro; uno que aún no ha publicado podría ser un 1.0.6, así que no cuenta (como
+/// [slotGiftLimitFor]).
+bool wishPlansAllowed(Iterable<OpenedSlot?> peers) =>
+    peers.every((p) => p != null && p.wishPlans >= kWishPlanCapability);
+
 /// Qué parte del relleno de un slot ocupa [doc] comprimido (0 vacío, 1
 /// lleno; más de 1 si no cabe). Para el medidor «casi lleno» de la interfaz.
 double slotUsage(
@@ -776,6 +890,8 @@ bool scopeFitsInSlot(
   FamilyDoc doc,
   String personId, {
   Map<String, SlotVersion> seen = const <String, SlotVersion>{},
+  Map<String, SlotVersion> rejected = const <String, SlotVersion>{},
+  Map<String, SlotVersion> planInboxSeen = const <String, SlotVersion>{},
   int maxLive = kMaxSlotGifts,
 }) {
   try {
@@ -785,7 +901,7 @@ bool scopeFitsInSlot(
   } on ArgumentError {
     return false;
   }
-  return SealedSlot._compressedBody(doc, seen) != null;
+  return SealedSlot._compressedBody(doc, seen, rejected, planInboxSeen) != null;
 }
 
 /// La parte de [doc] que cabe en un slot y los regalos vivos que se quedan
@@ -803,36 +919,64 @@ bool scopeFitsInSlot(
   FamilyDoc doc,
   String personId, {
   Map<String, SlotVersion> seen = const <String, SlotVersion>{},
+  Map<String, SlotVersion> rejected = const <String, SlotVersion>{},
+  Map<String, SlotVersion> planInboxSeen = const <String, SlotVersion>{},
   int maxLive = kMaxSlotGifts,
 }) {
-  if (scopeFitsInSlot(doc, personId, seen: seen, maxLive: maxLive)) {
+  bool fitsInSlot(FamilyDoc candidate) => scopeFitsInSlot(
+    candidate,
+    personId,
+    seen: seen,
+    rejected: rejected,
+    planInboxSeen: planInboxSeen,
+    maxLive: maxLive,
+  );
+  if (fitsInSlot(doc)) {
     return (doc, const []);
   }
-  final gifts = doc.collections[Collections.gifts] ?? const {};
-  final dead = <String, SyncRecord>{
-    for (final r in gifts.values)
-      if (r.isDeleted) r.id: r,
+  final dead = <String, Map<String, SyncRecord>>{
+    for (final name in kScopeCollectionNames)
+      name: {
+        for (final r in doc.collections[name]?.values ?? const <SyncRecord>[])
+          if (r.isDeleted) r.id: r,
+      },
   };
-  final live =
-      [
-        for (final r in gifts.values)
-          if (!r.isDeleted &&
-              r['recipientId'] == personId &&
-              surpriseRecordBytes(r) <= kMaxSurpriseGiftBytes)
-            r,
-      ]..sort((a, b) {
-        final am = a[kMovedInField] == true ? 1 : 0;
-        final bm = b[kMovedInField] == true ? 1 : 0;
-        return am != bm ? am.compareTo(bm) : a.id.compareTo(b.id);
-      });
-  FamilyDoc withFirst(int n) => FamilyDoc(
-    listId: doc.listId,
-    collections: {
-      Collections.gifts: {...dead, for (final r in live.take(n)) r.id: r},
-    },
-  );
-  bool fits(int n) =>
-      scopeFitsInSlot(withFirst(n), personId, seen: seen, maxLive: maxLive);
+  final live = <(String, SyncRecord)>[
+    for (final name in kScopeCollectionNames)
+      for (final r in doc.collections[name]?.values ?? const <SyncRecord>[])
+        if (!r.isDeleted &&
+            r['recipientId'] == personId &&
+            surpriseRecordBytes(r) <= kMaxSurpriseGiftBytes)
+          (name, r),
+  ];
+  // Primero lo de la interfaz (regalos y planes) por id, después lo que
+  // movió la reconciliación.
+  live.sort((a, b) {
+    final am = a.$2[kMovedInField] == true ? 1 : 0;
+    final bm = b.$2[kMovedInField] == true ? 1 : 0;
+    if (am != bm) return am.compareTo(bm);
+    final byId = a.$2.id.compareTo(b.$2.id);
+    return byId != 0 ? byId : a.$1.compareTo(b.$1);
+  });
+  FamilyDoc withFirst(int n) {
+    final out = <String, Map<String, SyncRecord>>{
+      for (final name in kScopeCollectionNames) name: {...dead[name]!},
+    };
+    for (final (name, r) in live.take(n)) {
+      out[name]![r.id] = r;
+    }
+    return FamilyDoc(
+      listId: doc.listId,
+      collections: {
+        for (final e in out.entries)
+          // Los regalos van siempre; los planes solo si hay alguno, para que
+          // un ámbito sin planes sea byte a byte el de la 1.0.6.
+          if (e.key == Collections.gifts || e.value.isNotEmpty) e.key: e.value,
+      },
+    );
+  }
+
+  bool fits(int n) => fitsInSlot(withFirst(n));
   if (!fits(0)) throw const SurpriseSlotFullException();
   // Búsqueda binaria de un n que cabe: con hasta kMaxSlotGifts, ir de uno en
   // uno comprimiría el bloque entero cientos de veces. DEFLATE no garantiza
@@ -849,12 +993,13 @@ bool scopeFitsInSlot(
       high = mid - 1;
     }
   }
-  final kept = {for (final r in live.take(low)) r.id};
+  final kept = {for (final (name, r) in live.take(low)) '$name\u0000${r.id}'};
   return (
     withFirst(low),
     [
-      for (final r in gifts.values)
-        if (!r.isDeleted && !kept.contains(r.id)) r.id,
+      for (final name in kScopeCollectionNames)
+        for (final r in doc.collections[name]?.values ?? const <SyncRecord>[])
+          if (!r.isDeleted && !kept.contains('$name\u0000${r.id}')) r.id,
     ]..sort(),
   );
 }
@@ -900,18 +1045,21 @@ FamilyDoc addSurpriseGift(
   return next;
 }
 
-/// [doc] con solo los regalos de [personId] y las lápidas. Se usa al abrir
-/// un slot: un escritor no puede colar nada más en el ámbito.
+/// [doc] con solo los regalos y los planes de [personId] y las lápidas. Se
+/// usa al abrir un slot: un escritor no puede colar nada más en el ámbito.
+/// Los planes solo aparecen si el slot los lleva.
 FamilyDoc scopeDocOnly(FamilyDoc doc, String personId) {
-  final gifts = doc.collections[Collections.gifts] ?? const {};
   return FamilyDoc(
     listId: doc.listId,
     collections: {
-      Collections.gifts: {
-        for (final record in gifts.values)
-          if (record.isDeleted || record['recipientId'] == personId)
-            record.id: record,
-      },
+      for (final name in kScopeCollectionNames)
+        if (name == Collections.gifts || doc.collections.containsKey(name))
+          name: {
+            for (final record
+                in doc.collections[name]?.values ?? const <SyncRecord>[])
+              if (record.isDeleted || record['recipientId'] == personId)
+                record.id: record,
+          },
     },
   );
 }
@@ -920,13 +1068,25 @@ Iterable<SyncRecord> _liveGifts(FamilyDoc scopeDoc) =>
     (scopeDoc.collections[Collections.gifts]?.values ?? const <SyncRecord>[])
         .where((r) => !r.isDeleted);
 
-/// Regalos vivos de un documento de ámbito.
-int liveSurpriseGifts(FamilyDoc scopeDoc) => _liveGifts(scopeDoc).length;
+Iterable<SyncRecord> _livePlans(FamilyDoc scopeDoc) =>
+    (scopeDoc.collections[ScopeCollections.wishPlans]?.values ??
+            const <SyncRecord>[])
+        .where((r) => !r.isDeleted);
 
-/// Regalos vivos que cuentan para el cupo de la interfaz
-/// ([kMaxSurpriseGifts]): todos menos los que movió la reconciliación.
+/// Registros vivos de un documento de ámbito: regalos y planes de deseos, que
+/// comparten capacidad.
+int liveSurpriseGifts(FamilyDoc scopeDoc) =>
+    _liveGifts(scopeDoc).length + _livePlans(scopeDoc).length;
+
+/// Planes de deseos vivos de un documento de ámbito.
+int liveWishPlans(FamilyDoc scopeDoc) => _livePlans(scopeDoc).length;
+
+/// Registros vivos que cuentan para el cupo de la interfaz
+/// ([kMaxSurpriseGifts]): todos los regalos menos los que movió la
+/// reconciliación, más los planes de deseos.
 int liveOwnSurpriseGifts(FamilyDoc scopeDoc) =>
-    _liveGifts(scopeDoc).where((r) => r[kMovedInField] != true).length;
+    _liveGifts(scopeDoc).where((r) => r[kMovedInField] != true).length +
+    _livePlans(scopeDoc).length;
 
 /// Regalos vivos que movió la reconciliación ([kMaxReconcileGifts]).
 int liveMovedInGifts(FamilyDoc scopeDoc) =>

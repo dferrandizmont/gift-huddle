@@ -501,6 +501,7 @@ class _FailedPane extends StatelessWidget {
             WebConnectFailure.rejected => l10n.webGateFailedRejected,
             WebConnectFailure.network => l10n.webGateFailedNetwork,
             WebConnectFailure.cancelled => l10n.webGateFailedCancelled,
+            WebConnectFailure.outdated => l10n.pairingV2GuestOutdated,
           },
         ),
         const SizedBox(height: 24),

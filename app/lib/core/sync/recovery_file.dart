@@ -47,8 +47,12 @@ const int kRecoveryFileMaxBytes = 512;
 /// Lo más que puede medir su cabecera JSON.
 const int kRecoveryFileMaxHeaderBytes = 256;
 
-/// Versión del contenedor que escribe y lee esta app.
-const int kRecoveryFileVersion = 1;
+/// Versión del contenedor que escribe esta app (1.0.7). 1.0.6 solo lee la 1
+/// y da `newerVersion` ante esta, antes de leer nada más.
+const int kRecoveryFileVersion = 2;
+
+/// Versión que escribía 1.0.6. 1.0.7 todavía la lee.
+const int kRecoveryFileVersionLegacy = 1;
 
 /// Perfil de Argon2id de la variante protegida. Es **exacto**: el lector
 /// rechaza cualquier otro. Si la medición del ADR 0008 lo pide, se cambia a
@@ -152,7 +156,9 @@ RecoveryFile parseRecoveryFile(List<int> bytes) {
   }
   final copy = Uint8List.fromList(bytes);
   if (copy.length < 4) _invalid();
-  if (copy[3] != kRecoveryFileVersion) {
+  final fileVersion = copy[3];
+  if (fileVersion != kRecoveryFileVersion &&
+      fileVersion != kRecoveryFileVersionLegacy) {
     throw const RecoveryFileException(RecoveryFileFailure.newerVersion);
   }
   if (copy.length < _prefixLength) _invalid();
@@ -178,7 +184,7 @@ RecoveryFile parseRecoveryFile(List<int> bytes) {
     _invalid();
   }
   final v = header['v'];
-  if (v is! int || v != kRecoveryFileVersion) _invalid();
+  if (v is! int || v != fileVersion) _invalid();
   switch (header['k']) {
     case _kindOpen:
       _fields(header, const {'k', 'v'});

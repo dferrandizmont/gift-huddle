@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/prefs/shared_preferences_provider.dart';
 import '../../../core/theme/regalos_motion.dart';
 import '../../../core/widgets/settings_icons.dart';
 import '../../../core/widgets/soft_note.dart';
@@ -9,12 +10,19 @@ import '../application/web_app_provider.dart';
 import '../application/web_device_providers.dart';
 import '../application/web_secrets.dart' show WebSecretsState;
 
-/// Lo que se ha cerrado ya en esta sesión desbloqueada.
+/// Preferencia local del navegador (un booleano, sin nada sensible): el aviso
+/// del ordenador compartido ya se cerró con «Entendido». Se borra al olvidar
+/// este ordenador (`VaultService.onForgotten`), así que vuelve a salir tras
+/// emparejarlo de nuevo.
+const String kWebSecretsSharedNoticeSeenKey = 'webSecretsSharedNoticeSeen';
+
+/// Lo que se ha cerrado ya: el aviso del ordenador compartido, en este
+/// navegador; el de cambios descartados, en esta sesión desbloqueada.
 class WebSecretsDismissals {
   /// Crea el estado.
   const WebSecretsDismissals({this.sharedComputer = false, this.dropped = 0});
 
-  /// Se cerró el aviso del ordenador compartido.
+  /// Se cerró el aviso del ordenador compartido (una vez por navegador).
   final bool sharedComputer;
 
   /// Cuántos cambios descartados se habían contado al cerrar el aviso: otro
@@ -22,17 +30,29 @@ class WebSecretsDismissals {
   final int dropped;
 }
 
-/// Qué avisos de los regalos en secreto se han cerrado. Vive en el contenedor
-/// de la sesión desbloqueada: un desbloqueo nuevo parte de cero.
+/// Qué avisos de los regalos en secreto se han cerrado. El del ordenador
+/// compartido se recuerda por navegador en [kWebSecretsSharedNoticeSeenKey]
+/// (se lee al crearse, sin parpadeo; sobrevive a bloqueos y recargas, y se
+/// borra al olvidar este ordenador). El de cambios descartados vive en el
+/// contenedor de la sesión desbloqueada: un desbloqueo nuevo parte de cero.
 class WebSecretsNoticeDismissed extends Notifier<WebSecretsDismissals> {
   @override
-  WebSecretsDismissals build() => const WebSecretsDismissals();
-
-  /// Cierra el aviso del ordenador compartido.
-  void dismissSharedComputer() => state = WebSecretsDismissals(
-    sharedComputer: true,
-    dropped: state.dropped,
+  WebSecretsDismissals build() => WebSecretsDismissals(
+    sharedComputer:
+        ref
+            .watch(sharedPreferencesProvider)
+            .getBool(kWebSecretsSharedNoticeSeenKey) ??
+        false,
   );
+
+  /// Cierra el aviso del ordenador compartido y lo recuerda en este navegador.
+  void dismissSharedComputer() {
+    state = WebSecretsDismissals(sharedComputer: true, dropped: state.dropped);
+    ref
+        .read(sharedPreferencesProvider)
+        .setBool(kWebSecretsSharedNoticeSeenKey, true)
+        .catchError((Object _) => false);
+  }
 
   /// Cierra el aviso de cambios descartados hasta [count].
   void dismissDropped(int count) => state = WebSecretsDismissals(
@@ -54,10 +74,13 @@ final webSecretsNoticeDismissedProvider =
 ///   móvil»;
 /// - a la espera de las claves de su móvil: «abre la app en tu móvil…»;
 /// - con los regalos en secreto a la vista: el bloqueo a los 5 minutos y que no
-///   se deje abierta en un ordenador compartido (se puede cerrar);
+///   se deje abierta en un ordenador compartido (se puede cerrar y no vuelve a
+///   salir en este navegador, ni tras bloquear ni tras recargar, hasta que se
+///   olvide este ordenador);
 /// - con el buzón de cambios retenido por el servidor: para quién, y que se
 ///   reintenta solo;
-/// - con cambios descartados: cuántos y por qué (se puede cerrar).
+/// - con cambios descartados: cuántos y por qué (se puede cerrar; en la sesión
+///   siguiente parte de cero).
 ///
 /// Fuera de la web no ocupa nada. Cada aviso se funde y estira el hueco con
 /// `fold`; con «Reducir movimiento», solo se funde.
@@ -99,6 +122,13 @@ class WebSecretsNotice extends ConsumerWidget {
           show: state.heldInboxNames.isNotEmpty,
           icon: SettingsIcons.phone,
           text: l10n.webSecretsHeld(state.heldInboxNames.join(', ')),
+        ),
+        // Los cambios de deseos cogidos esperan a que los demás móviles
+        // estén en la 1.0.7 (ADR 0010); se aplican solos.
+        _FoldingCard(
+          show: state.heldPlanChanges > 0,
+          icon: SettingsIcons.phone,
+          text: l10n.webPlansHeld(state.heldPlanChanges),
         ),
         _FoldingCard(
           show: dropped > dismissed.dropped,

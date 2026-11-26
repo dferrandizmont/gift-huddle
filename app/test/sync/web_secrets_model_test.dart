@@ -11,6 +11,7 @@ import 'package:regalos/core/sync/key_bundle.dart';
 import 'package:regalos/core/sync/model.dart';
 import 'package:regalos/core/sync/protected_doc.dart';
 import 'package:regalos/core/sync/protected_envelope.dart';
+import 'package:regalos/core/sync/wish_plan.dart';
 
 import 'fixtures/protected_envelope_v105.dart' as v105;
 import 'protected_harness.dart';
@@ -499,6 +500,487 @@ void main() {
     });
   });
 
+  group('buzón con planes de deseos (ADR 0010, W5)', () {
+    final pclock = clockOf('aritz-web', 1000);
+    SyncRecord plan(
+      String id,
+      String wish, {
+      String claimant = 'aritz',
+      Map<String, Object?> extra = const {},
+      String recipient = 'nora',
+    }) => FamilyDoc.empty(kListId)
+        .set(pclock, ScopeCollections.wishPlans, id, {
+          'recipientId': recipient,
+          'sourceWishId': wish,
+          'claimantPersonId': claimant,
+          'title': 'Bici',
+          'status': 'decided',
+          ...extra,
+        })
+        .record(ScopeCollections.wishPlans, id)!;
+    SyncRecord gift(String id) => FamilyDoc.empty(kListId)
+        .set(pclock, Collections.gifts, id, {
+          'recipientId': 'nora',
+          'title': 'Regalo $id',
+        })
+        .record(Collections.gifts, id)!;
+    FamilyDoc plansDoc(
+      Map<String, SyncRecord> plans, {
+      Map<String, SyncRecord> gifts = const {},
+    }) => FamilyDoc(
+      listId: kListId,
+      collections: {
+        if (gifts.isNotEmpty) Collections.gifts: gifts,
+        ScopeCollections.wishPlans: plans,
+      },
+    );
+    FamilyDoc commonWith(List<String> wishes) => FamilyDoc(
+      listId: kListId,
+      collections: {
+        Collections.wishes: {
+          for (final w in wishes)
+            w: FamilyDoc.empty(kListId)
+                .set(clockOf('nora-phone', 1), Collections.wishes, w, {
+                  'recipientId': 'nora',
+                  'authorPersonId': 'nora',
+                  'suggested': false,
+                  'title': 'Deseo $w',
+                  'year': 2026,
+                })
+                .record(Collections.wishes, w)!,
+        },
+      },
+    );
+    Future<OpenedSlot> open(FamilyDoc doc) async {
+      final slot = await SealedSlot.seal(
+        writerKeys: aritzWeb.keys,
+        writer: 'aritz-web',
+        revision: 10,
+        key: noraKey(),
+        policy: const PolicyState(hideOwnGifts: true, rev: 1),
+        doc: doc,
+      );
+      return slot.open(
+        expectedListId: kListId,
+        key: noraKey(),
+        signingKey: aritzWeb.keys.publicKeys.signing,
+      );
+    }
+
+    /// El buzón tal cual lo abriría el móvil, pero con [doc] aunque el slot
+    /// no lo pudiera sellar (una web modificada).
+    Future<OpenedSlot> forged(FamilyDoc doc) async {
+      final real = await open(plansDoc({}));
+      return OpenedSlot(
+        header: real.header,
+        doc: doc,
+        seen: real.seen,
+        cap: real.cap,
+        planRecords: doc.collections[ScopeCollections.wishPlans]?.length ?? 0,
+      );
+    }
+
+    FamilyDoc emptyScope() => FamilyDoc.empty(kListId);
+    WebInboxAbsorption absorb(
+      FamilyDoc scope,
+      OpenedSlot inbox, {
+      String? person = 'aritz',
+      FamilyDoc? common,
+      int budget = kMaxWebTombstonesPerDay,
+    }) => absorbWebInbox(
+      scope: scope,
+      inbox: inbox,
+      nowMillis: kFuture + 10000,
+      tombstoneBudget: budget,
+      webPersonId: person,
+      common: common,
+    );
+
+    test('construir: conserva un alta aceptada antes de recibir otro plan', () {
+      final leoPlan = plan('pl', 'w1', claimant: 'leo');
+      final scope = plansDoc({'pl': leoPlan});
+      final delta = plansDoc({'pa': plan('pa', 'w1')});
+      final other = plansDoc({'pb': plan('pb', 'w2')});
+      final build = buildWebInbox(
+        personId: 'nora',
+        scope: scope,
+        webPersonId: 'aritz',
+        entries: [
+          WebInboxEntry(id: 'e1', delta: delta, newPlans: const {'pa'}),
+          WebInboxEntry(id: 'e2', delta: other, newPlans: const {'pb'}),
+        ],
+      );
+      expect(build.discarded, isEmpty);
+      expect(build.included, ['e1', 'e2']);
+      final pb = build.doc.record(ScopeCollections.wishPlans, 'pb')!;
+      expect(pb[kWebNewField], isTrue);
+      expect(pb['claimantPersonId'], 'aritz');
+      expect(
+        build.doc.record(ScopeCollections.wishPlans, 'pa')![kWebNewField],
+        isTrue,
+      );
+    });
+
+    test('construir: sin la persona de la web, de otra persona o sobre el '
+        'plan de otra persona, se descarta', () {
+      final scope = plansDoc({'pl': plan('pl', 'w1', claimant: 'leo')});
+      FamilyDoc edit() => scope.set(
+        pclock,
+        ScopeCollections.wishPlans,
+        'pl',
+        {'giverNote': 'mío'},
+      );
+      List<String> discarded(String? person, WebInboxEntry e) =>
+          buildWebInbox(
+            personId: 'nora',
+            scope: scope,
+            webPersonId: person,
+            entries: [e],
+          ).discarded;
+      final claim = WebInboxEntry(
+        id: 'a',
+        delta: plansDoc({'pa': plan('pa', 'w2')}),
+        newPlans: const {'pa'},
+      );
+      expect(discarded(null, claim), ['a']);
+      expect(discarded('leo', claim), ['a']);
+      final editOther = WebInboxEntry(
+        id: 'b',
+        delta: webDeltaOfPlans(scope, edit()),
+      );
+      expect(discarded('aritz', editOther), ['b']);
+    });
+
+    test('construir: 41 deseos cogidos, 40 por buzón y el resto espera', () {
+      final entries = [
+        for (var i = 0; i < 41; i++)
+          WebInboxEntry(
+            id: 'e$i',
+            delta: plansDoc({'p$i': plan('p$i', 'w$i')}),
+            newPlans: {'p$i'},
+          ),
+      ];
+      final build = buildWebInbox(
+        personId: 'nora',
+        scope: emptyScope(),
+        webPersonId: 'aritz',
+        entries: entries,
+      );
+      expect(build.included, hasLength(40));
+      expect(build.deferred, ['e40']);
+      expect(
+        build.doc.collections[ScopeCollections.wishPlans]!.length,
+        40,
+      );
+    });
+
+    test('un buzón sin planes sigue sin la colección (byte a byte como '
+        'antes)', () {
+      final build = buildWebInbox(
+        personId: 'nora',
+        scope: FamilyDoc(
+          listId: kListId,
+          collections: {
+            Collections.gifts: {'g1': gift('g1')},
+          },
+        ),
+        entries: [
+          WebInboxEntry(
+            id: 'e',
+            delta: FamilyDoc(
+              listId: kListId,
+              collections: {
+                Collections.gifts: {'g1': gift('g1')},
+              },
+            ),
+          ),
+        ],
+      );
+      expect(build.doc.collections.keys, [Collections.gifts]);
+    });
+
+    test('recoger: alta, edición, lápida y todo lo demás se descarta',
+        () async {
+      final scope = plansDoc({
+        'pe': plan('pe', 'w2'),
+        'pd': plan('pd', 'w3'),
+        'dead': FamilyDoc.empty(kListId)
+            .delete(pclock, ScopeCollections.wishPlans, 'dead')
+            .record(ScopeCollections.wishPlans, 'dead')!,
+      });
+      final later = clockOf('aritz-web', 9000);
+      var web = scope;
+      web = web.set(later, ScopeCollections.wishPlans, 'pe', {
+        'giverNote': 'Para el cumple',
+        'status': 'bought',
+      });
+      web = web.delete(later, ScopeCollections.wishPlans, 'pd');
+      final fresh = _withNew(plan('pn', 'w1'));
+      final inboxDoc = FamilyDoc(
+        listId: kListId,
+        collections: {
+          ScopeCollections.wishPlans: {
+            'pn': fresh,
+            'pe': web.record(ScopeCollections.wishPlans, 'pe')!,
+            'pd': web.record(ScopeCollections.wishPlans, 'pd')!,
+            // Edición de un plan que no existe y alta sobre una lápida.
+            'ghost': plan('ghost', 'w9'),
+            'dead': _withNew(plan('dead', 'w8')),
+          },
+        },
+      );
+      final result = absorb(
+        scope,
+        await open(inboxDoc),
+        common: commonWith(['w1', 'w2', 'w3', 'w8', 'w9']),
+      );
+      expect(result.absorbed, isTrue);
+      expect(result.applied, 3);
+      expect(result.discarded, 2);
+      expect(result.tombstones, 1);
+      final after = result.scope;
+      expect(after.record(ScopeCollections.wishPlans, 'pn')!['title'], 'Bici');
+      expect(after.record(ScopeCollections.wishPlans, 'pn')![kWebNewField], isNull);
+      expect(
+        after.record(ScopeCollections.wishPlans, 'pe')!['giverNote'],
+        'Para el cumple',
+      );
+      expect(after.record(ScopeCollections.wishPlans, 'pd')!.isDeleted, isTrue);
+      expect(after.record(ScopeCollections.wishPlans, 'ghost'), isNull);
+      expect(after.record(ScopeCollections.wishPlans, 'dead')!.isDeleted, isTrue);
+      // Recoger dos veces da lo mismo.
+      final twice = absorb(
+        after,
+        await open(inboxDoc),
+        common: commonWith(['w1', 'w2', 'w3', 'w8', 'w9']),
+      );
+      expect(twice.scope.canonicalJson(), after.canonicalJson());
+    });
+
+    test('recoger: campos reservados fuera y un plan que no es de esta web '
+        'o no es válido se descarta', () async {
+      final scope = plansDoc({'pl': plan('pl', 'w1', claimant: 'leo')});
+      final dirty = FamilyDoc.empty(kListId)
+          .set(pclock, ScopeCollections.wishPlans, 'ok', {
+            'recipientId': 'nora',
+            'sourceWishId': 'w2',
+            'claimantPersonId': 'aritz',
+            'title': 'Bici',
+            'status': 'decided',
+            kWebNewField: true,
+            kMovedInField: true,
+            kPublishSaltField: 'sal',
+          })
+          .record(ScopeCollections.wishPlans, 'ok')!;
+      final inboxDoc = FamilyDoc(
+        listId: kListId,
+        collections: {
+          ScopeCollections.wishPlans: {
+            'ok': dirty,
+            // Otra persona la coge.
+            'liar': _withNew(plan('liar', 'w3', claimant: 'leo')),
+            // Campo desconocido.
+            'extra': _withNew(plan('extra', 'w4', extra: {'secret': 'x'})),
+            // Id no válido.
+            'bad id': _withNew(plan('bad id', 'w5')),
+            // Edita el plan de Leo.
+            'pl': scope
+                .set(pclock, ScopeCollections.wishPlans, 'pl', {'giverNote': 'x'})
+                .record(ScopeCollections.wishPlans, 'pl')!,
+          },
+        },
+      );
+      final result = absorb(
+        scope,
+        await forged(inboxDoc),
+        common: commonWith(['w1', 'w2', 'w3', 'w4', 'w5']),
+      );
+      expect(result.applied, 1);
+      expect(result.discarded, 4);
+      final ok = result.scope.record(ScopeCollections.wishPlans, 'ok')!;
+      expect(ok[kWebNewField], isNull);
+      expect(ok[kMovedInField], isNull);
+      expect(ok[kPublishSaltField], isNull);
+      expect(result.scope.record(ScopeCollections.wishPlans, 'pl')!['giverNote'], isNull);
+    });
+
+    test('la web no envía ni recoge la lápida del plan de otra persona', () async {
+      final scope = plansDoc({'pl': plan('pl', 'w1', claimant: 'leo')});
+      final after = scope.delete(pclock, ScopeCollections.wishPlans, 'pl');
+      final build = buildWebInbox(
+        personId: 'nora',
+        scope: scope,
+        webPersonId: 'aritz',
+        entries: [WebInboxEntry(id: 'delete', delta: webDeltaOfPlans(scope, after))],
+      );
+      expect(build.discarded, ['delete']);
+      final result = absorb(scope, await open(after));
+      expect(result.discarded, 1);
+      expect(result.scope.canonicalJson(), scope.canonicalJson());
+    });
+
+    test('recoger: sin persona de la web, de otro destinatario o que cambia '
+        'lo inmutable se descarta; de un deseo que aún no existe el buzón '
+        'espera; de un deseo ya quitado entra',
+        () async {
+      final scope = plansDoc({'pe': plan('pe', 'w2')});
+      final moved = scope
+          .set(clockOf('aritz-web', 9000), ScopeCollections.wishPlans, 'pe', {
+            'sourceWishId': 'w3',
+          })
+          .record(ScopeCollections.wishPlans, 'pe')!;
+      final removedWish = commonWith(['w1']).set(
+        pclock,
+        Collections.wishes,
+        'w1',
+        {'deleted': true},
+      );
+      final doc = plansDoc({
+        'a': _withNew(plan('a', 'w1')),
+        'pe': moved,
+      });
+      final noPerson = absorb(scope, await open(doc), person: null);
+      expect(noPerson.applied, 0);
+      expect(noPerson.discarded, 2);
+      final withCommon = absorb(
+        scope,
+        await open(doc),
+        common: commonWith(['w1', 'w3']),
+      );
+      // `pe` (cambia de deseo) se descarta.
+      expect(withCommon.applied, 1);
+      expect(withCommon.scope.record(ScopeCollections.wishPlans, 'a'), isNotNull);
+      expect(withCommon.scope.record(ScopeCollections.wishPlans, 'b'), isNull);
+      // Un plan de un deseo que el móvil aún no tiene (`b`, w7): el buzón
+      // espera entero, no se descarta ni se da por recogido (M2).
+      final unknown = absorb(
+        scope,
+        await open(plansDoc({'b': _withNew(plan('b', 'w7'))})),
+        common: commonWith(['w1', 'w3']),
+      );
+      expect(unknown.waiting, isTrue);
+      expect(unknown.applied, 0);
+      expect(unknown.discarded, 0);
+      expect(
+        withCommon.scope.record(ScopeCollections.wishPlans, 'pe')!['sourceWishId'],
+        'w2',
+      );
+      final gone = absorb(
+        scope,
+        await open(plansDoc({'a': _withNew(plan('a', 'w1'))})),
+        common: removedWish,
+      );
+      // Quitado (lápida): el plan entra con su título copiado (M2).
+      expect(gone.applied, 1);
+      expect(gone.scope.record(ScopeCollections.wishPlans, 'a'), isNotNull);
+      // Otro destinatario: ni el slot lo sella ni, si lo cuelan, entra.
+      final foreign = await forged(
+        plansDoc({'x': _withNew(plan('x', 'w1', recipient: 'leo'))}),
+      );
+      expect(absorb(scope, foreign).applied, 0);
+    });
+
+    test('recoger conserva todos los planes de un deseo, también los de la '
+        'misma persona', () async {
+      final scope = plansDoc({'pl': plan('pl', 'w1', claimant: 'leo')});
+      final result = absorb(
+        scope,
+        await open(
+          plansDoc({
+            'pa': _withNew(plan('pa', 'w1')),
+            'pb': _withNew(plan('pb', 'w1')),
+          }),
+        ),
+        common: commonWith(['w1']),
+      );
+      expect(result.applied, 2);
+      expect(result.discarded, 0);
+      final rows = deriveWishPlanRows(
+        common: commonWith(['w1']),
+        scope: result.scope,
+        recipientId: 'nora',
+      );
+      expect(rows.single.state, WishPlanState.conflictingClaims);
+      expect(rows.single.plans.map((p) => (p.planId, p.claimantPersonId)), [
+        ('pa', 'aritz'),
+        ('pb', 'aritz'),
+        ('pl', 'leo'),
+      ]);
+    });
+
+    test('topes: 40 registros entre regalos y planes, 10 lápidas, marca del '
+        'futuro y otros registros', () async {
+      final many = FamilyDoc(
+        listId: kListId,
+        collections: {
+          Collections.gifts: {
+            for (var i = 0; i < 20; i++) 'g$i': gift('g$i'),
+          },
+          ScopeCollections.wishPlans: {
+            for (var i = 0; i < 21; i++) 'p$i': _withNew(plan('p$i', 'w$i')),
+          },
+        },
+      );
+      expect(
+        absorb(emptyScope(), await open(many)).rejected,
+        WebInboxRejection.tooManyRecords,
+      );
+      var dead = FamilyDoc.empty(kListId);
+      for (var i = 0; i < 5; i++) {
+        dead = dead.delete(pclock, Collections.gifts, 'g$i');
+      }
+      for (var i = 0; i < 6; i++) {
+        dead = dead.delete(pclock, ScopeCollections.wishPlans, 'p$i');
+      }
+      expect(
+        absorb(emptyScope(), await open(dead)).rejected,
+        WebInboxRejection.tooManyTombstones,
+      );
+      final future = plansDoc({
+        'p1': _stampedAt(
+          _withNew(plan('p1', 'w1')),
+          kFuture + 3 * Duration.millisecondsPerDay,
+        ),
+      });
+      expect(
+        absorb(emptyScope(), await open(future)).rejected,
+        WebInboxRejection.futureStamp,
+      );
+      final foreign = await open(plansDoc({'p1': _withNew(plan('p1', 'w1'))}));
+      expect(
+        absorb(
+          emptyScope(),
+          OpenedSlot(
+            header: foreign.header,
+            doc: foreign.doc,
+            seen: foreign.seen,
+            cap: foreign.cap,
+            foreignRecords: 1,
+            planRecords: 1,
+          ),
+        ).rejected,
+        WebInboxRejection.foreignRecords,
+      );
+    });
+
+    test('freno diario: las lápidas de planes cuentan y esperan', () async {
+      final scope = plansDoc({
+        for (var i = 0; i < 5; i++) 'p$i': plan('p$i', 'w$i'),
+      });
+      var dead = FamilyDoc.empty(kListId);
+      for (var i = 0; i < 5; i++) {
+        dead = dead.delete(
+          clockOf('aritz-web', 5000),
+          ScopeCollections.wishPlans,
+          'p$i',
+        );
+      }
+      final result = absorb(scope, await open(dead), budget: 4);
+      expect(result.waiting, isTrue);
+      expect(result.scope, same(scope));
+    });
+  });
+
   group('1.0.5', () {
     test('un 1.0.5 lee el buzón como un slot y abre el slot con s[web]', () async {
       final doc = giftsDoc({
@@ -556,6 +1038,56 @@ FamilyDoc webDeltaOf(FamilyDoc before, FamilyDoc after) => FamilyDoc(
             fields: {
               for (final f in r.fields.entries)
                 if (before.record(Collections.gifts, r.id)?.field(f.key)?.stamp !=
+                    f.value.stamp)
+                  f.key: f.value,
+            },
+          ),
+    },
+  },
+);
+
+/// [record] con la marca de alta de una web (`webNew`).
+SyncRecord _withNew(SyncRecord record) => SyncRecord(
+  id: record.id,
+  fields: {
+    ...record.fields,
+    kWebNewField: FieldValue(
+      value: true,
+      stamp: record.fields.values.map((f) => f.stamp).reduce(
+        (a, b) => a > b ? a : b,
+      ),
+    ),
+  },
+);
+
+/// [record] con todas sus marcas en [millis].
+SyncRecord _stampedAt(SyncRecord record, int millis) => SyncRecord(
+  id: record.id,
+  fields: {
+    for (final e in record.fields.entries)
+      e.key: FieldValue(
+        value: e.value.value,
+        stamp: Hlc(millis: millis, counter: 0, node: e.value.stamp.node),
+      ),
+  },
+);
+
+/// Lo que cambió en los planes entre [before] y [after].
+FamilyDoc webDeltaOfPlans(FamilyDoc before, FamilyDoc after) => FamilyDoc(
+  listId: before.listId,
+  collections: {
+    ScopeCollections.wishPlans: {
+      for (final r in after.collections[ScopeCollections.wishPlans]!.values)
+        if (r.fields.entries.any(
+          (f) =>
+              before.record(ScopeCollections.wishPlans, r.id)?.field(f.key)?.stamp !=
+              f.value.stamp,
+        ))
+          r.id: SyncRecord(
+            id: r.id,
+            fields: {
+              for (final f in r.fields.entries)
+                if (before.record(ScopeCollections.wishPlans, r.id)?.field(f.key)?.stamp !=
                     f.value.stamp)
                   f.key: f.value,
             },
