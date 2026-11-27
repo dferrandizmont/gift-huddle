@@ -1,12 +1,18 @@
-import Flutter
-import UIKit
+import Foundation
 import XCTest
+@testable import Runner
 
 class RunnerTests: XCTestCase {
 
-  func testExample() {
-    // If you add code to the Runner application, consider adding tests here.
-    // See https://developer.apple.com/documentation/xctest for more information about using XCTest.
+  func testMatchesTheStoredPinVector() {
+    let salt = Data([0xff, 0x00, 0x80, 0x01, 0x7f, 0x00, 0xff, 0xee])
+    let expected = Data([
+      0xfe, 0x0f, 0x38, 0x87, 0xa1, 0x97, 0xfb, 0x04,
+      0x50, 0x99, 0x0c, 0xc6, 0xc1, 0x81, 0x8d, 0x1a,
+      0x87, 0x58, 0xb5, 0xc8, 0xec, 0x4f, 0x84, 0xf5,
+      0x19, 0xfc, 0xea, 0x03, 0x5b, 0x54, 0x1b, 0x28,
+    ])
+    XCTAssertEqual(AppDelegate.derivePin("000042", salt: salt, rounds: 200_000), expected)
   }
 
 }

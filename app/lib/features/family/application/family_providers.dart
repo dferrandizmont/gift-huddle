@@ -116,7 +116,10 @@ final occasionsProvider = Provider<List<Occasion>>(
 );
 
 /// Los regalos de una persona, por título, con los planes visibles en la web.
-final giftsForProvider = Provider.family<List<Gift>, String>((ref, recipientId) {
+final giftsForProvider = Provider.family<List<Gift>, String>((
+  ref,
+  recipientId,
+) {
   final gifts = ref.watch(familyViewProvider).giftsFor(recipientId);
   final plans = ref.watch(webPlanGiftsProvider(recipientId));
   if (plans.isEmpty) return gifts;
@@ -207,10 +210,62 @@ final budgetProvider = Provider<Budget>((ref) {
   );
 });
 
-/// Pares de regalos casi iguales para la misma persona (personas activas).
-final duplicatesProvider = Provider<List<DuplicatePair>>(
-  (ref) => ref.watch(familyViewProvider).possibleDuplicates(),
+// The ordered inputs include visible recipients: archiving, sorting people,
+// filtering years and hiding gifts can all change the result.
+class _DuplicateInputs {
+  _DuplicateInputs(this.view)
+    : recipients = [for (final person in view.recipients) person.id],
+      gifts = [
+        for (final gift in view.gifts) (gift.id, gift.recipientId, gift.title),
+      ];
+
+  final FamilyView view;
+  final List<String> recipients;
+  final List<(String, String, String)> gifts;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _DuplicateInputs &&
+      _sameItems(recipients, other.recipients) &&
+      _sameItems(gifts, other.gifts);
+
+  @override
+  int get hashCode =>
+      Object.hash(Object.hashAll(recipients), Object.hashAll(gifts));
+}
+
+bool _sameItems<T>(List<T> a, List<T> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
+final _duplicateIdsProvider = Provider<List<(String, String, String)>>(
+  (ref) {
+    final inputs = ref.watch(familyViewProvider.select(_DuplicateInputs.new));
+    return [
+      for (final pair in inputs.view.possibleDuplicates())
+        (pair.recipientId, pair.first.id, pair.second.id),
+    ];
+  },
+  name: '_duplicateIdsProvider',
 );
+
+/// Pares de regalos casi iguales para la misma persona (personas activas).
+final duplicatesProvider = Provider<List<DuplicatePair>>((ref) {
+  final ids = ref.watch(_duplicateIdsProvider);
+  if (ids.isEmpty) return const [];
+  final view = ref.watch(familyViewProvider);
+  final gifts = {for (final gift in view.gifts) gift.id: gift};
+  return [
+    for (final (recipient, first, second) in ids)
+      if (gifts[first] case final Gift a)
+        if (gifts[second] case final Gift b)
+          DuplicatePair(recipientId: recipient, first: a, second: b),
+  ];
+});
 
 /// La próxima ocasión y los días que faltan. Usa `clock.now()` al calcular;
 /// se recalcula cuando cambia la familia, no al pasar la medianoche.

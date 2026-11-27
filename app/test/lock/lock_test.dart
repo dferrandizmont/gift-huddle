@@ -7,6 +7,7 @@ import 'package:regalos/features/lock/data/pin_vault.dart';
 import '../helpers/memory_stores.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   late FakePhone phone;
   setUp(() => phone = FakePhone());
   tearDown(() => phone.dispose());

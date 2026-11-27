@@ -26,6 +26,7 @@ import 'package:regalos/features/sync/application/pairing_v2_controller.dart';
 import 'package:regalos/features/sync/application/replace_join_hold.dart';
 import 'package:regalos/features/sync/application/sync_controller.dart';
 import 'package:regalos/features/sync/data/sync_config.dart';
+import 'package:regalos/features/sync/domain/sync_status.dart' show SyncPhase;
 import 'package:regalos/features/sync/invites/incoming_invite.dart';
 import 'package:regalos/features/sync/presentation/join_invite_screen.dart';
 import 'package:regalos/l10n/app_localizations.dart';
@@ -491,6 +492,11 @@ void main() {
         expect(find.text('Móviles conectados'), findsNothing);
         expect(find.text('Leo'), findsWidgets);
         expect(tester.takeException(), isNull);
+        await until(
+          () =>
+              phone.container.read(syncControllerProvider).phase == SyncPhase.synced,
+          'la sincronización posterior al emparejamiento',
+        );
       },
       size: size,
       // Como en el móvil, guardar tarda: entre borrar la lista de este móvil

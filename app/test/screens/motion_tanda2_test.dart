@@ -62,7 +62,7 @@ void main() {
     expect(_ripple, findsNothing);
     expect(_seal, findsOneWidget);
     expect(find.textContaining('Todo comprado para'), findsOneWidget);
-  }, overrides: [fake.provide]);
+  }, inlineDocumentTasks: true, overrides: [fake.provide]);
 
   screenTest('si la completa un cambio que llega de fuera, no se celebra', (
     tester,
@@ -109,7 +109,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     expect(_ripple, findsNothing);
     expect(_seal, findsOneWidget);
-  }, overrides: [fake.provide]);
+  }, inlineDocumentTasks: true, overrides: [fake.provide]);
 
   screenTest('deshacer lo comprado quita el sello', (tester, phone) async {
     await seedSample(tester, phone);
@@ -128,7 +128,7 @@ void main() {
     expect(find.bySemanticsLabel(RegExp('1 de 2 comprados')), findsOneWidget);
     // El sello se va con su fundido y deja de pintarse.
     expect(_seal, findsNothing);
-  });
+  }, inlineDocumentTasks: true);
 
   screenTest('Personas enseña el sello en la fila de quien está completo', (
     tester,

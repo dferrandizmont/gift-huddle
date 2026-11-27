@@ -1,14 +1,39 @@
+import 'dart:typed_data';
+
 import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:regalos/core/sync/hlc.dart';
 import 'package:regalos/core/sync/model.dart';
+import 'package:regalos/core/sync/pairing_v2.dart';
 import 'package:regalos/features/family/application/family_controller.dart';
 import 'package:regalos/features/family/application/family_providers.dart';
+import 'package:regalos/features/family/data/device_keys_store.dart';
 import 'package:regalos/features/family/data/family_store.dart';
 import 'package:regalos/features/family/data/generation_storage.dart';
+import 'package:regalos/features/family/data/generation_store.dart';
+import 'package:regalos/features/sync/application/app_sync_v2_local.dart';
 
 import '../helpers/memory_stores.dart';
+
+class _FailGenerationReload extends MemoryFileStore {
+  _FailGenerationReload(this.secrets);
+
+  final MemorySecretStore secrets;
+  bool armed = false;
+
+  @override
+  Future<Uint8List?> read(String name) async {
+    if (armed && name.endsWith('.family.doc')) {
+      final directory = await GenerationDirectory.read(secrets);
+      if (name == 'generation.${directory?.active}.family.doc') {
+        armed = false;
+        throw const FamilyStoreException('generation reload interrupted');
+      }
+    }
+    return super.read(name);
+  }
+}
 
 Gift gift(String id, {String title = 'Bloques', String? note}) => Gift(
   id: id,
@@ -71,13 +96,8 @@ void main() {
     });
     expect(await phone.secrets.read(generationDirectoryKey), isNull);
 
-    // As with a screen tap: the edit starts on the widget clock, while
-    // encryption/storage finish on the real event loop.
-    final saved = c.setGiftStatus('g1', GiftStatus.bought);
-    await tester.pump();
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 50)),
-    );
+    // Let the document isolate finish on the real event loop.
+    await tester.runAsync(() => c.setGiftStatus('g1', GiftStatus.bought));
     await tester.pump();
     expect(
       phone.container
@@ -89,7 +109,6 @@ void main() {
           .status,
       GiftStatus.bought,
     );
-    await saved;
     final stored = await tester.runAsync(
       () => phone.container.read(familyStoreProvider).load(),
     );
@@ -105,6 +124,73 @@ void main() {
     expect(state.paired, isFalse);
     expect(state.view.gifts, isEmpty);
   });
+
+  test(
+    'the next queued edit reloads the active generation after a read failure',
+    () async {
+      final secrets = MemorySecretStore();
+      final files = _FailGenerationReload(secrets);
+      final local = FakePhone(secrets: secrets, files: files);
+      addTearDown(local.dispose);
+      final c = ctl(local.container);
+      await c.createFamily(deviceName: 'Aritz');
+      await c.upsertRecipient(aritz);
+      await c.setSelfRecipient(aritz.id);
+      await c.upsertGift(gift('own-gift'));
+      await c.markPaired();
+      final source = local.container
+          .read(familyControllerProvider)
+          .requireValue;
+      final identity = source.identity!;
+      final store = local.container.read(familyStoreProvider);
+      await local.container.read(deviceKeysStoreProvider).create();
+      final sourceId = SyncIdentityV2.newSyncId();
+      await store.saveSyncV2(
+        SyncIdentityV2(
+          listId: identity.listId,
+          deviceId: identity.node,
+          syncId: sourceId,
+        ),
+      );
+      final generations = local.container.read(generationStoreProvider);
+      await generations.adoptCurrent();
+
+      files.armed = true;
+      await expectLater(
+        local.container
+            .read(v2FamilyLockProvider)
+            .run(
+              () => c.switchStoredGenerationWithinLock(
+                generations.startLocalGeneration,
+              ),
+            ),
+        throwsA(isA<FamilyStoreException>()),
+      );
+      final activeId = (await generations.activeSyncId())!;
+      expect(activeId, isNot(sourceId));
+      final target = await generations.open(activeId);
+      expect(
+        (await target.family.load())!.doc
+            .record(Collections.gifts, 'own-gift')
+            ?.isDeleted,
+        isTrue,
+      );
+
+      await c.upsertGiver(us);
+
+      final saved = (await target.family.load())!;
+      expect(
+        saved.doc.record(Collections.gifts, 'own-gift')?.isDeleted,
+        isTrue,
+      );
+      expect(saved.doc.record(Collections.givers, us.id)?['name'], us.name);
+      final current = local.container
+          .read(familyControllerProvider)
+          .requireValue;
+      expect(current.identity!.node, saved.identity.node);
+      expect(current.doc.canonicalJson(), saved.doc.canonicalJson());
+    },
+  );
 
   test('crear la familia genera lista, clave y nodo, y se guarda', () async {
     await ctl(phone.container).createFamily(deviceName: 'Móvil de Sol');

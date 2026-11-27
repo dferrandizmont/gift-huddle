@@ -459,6 +459,7 @@ void main() {
         expect(tester.takeException(), isNull);
       },
       size: const Size(1280, 720),
+      inlineDocumentTasks: true,
       overrides: _web(),
     );
 

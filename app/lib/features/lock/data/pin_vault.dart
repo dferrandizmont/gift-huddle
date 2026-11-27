@@ -4,6 +4,9 @@ import 'dart:math';
 import 'package:clock/clock.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:cryptography/dart.dart' show DartHmac, DartPbkdf2, DartSha256;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/platform/monotonic.dart';
@@ -26,6 +29,8 @@ const Duration kPinMaxWait = Duration(hours: 1);
 
 const _pinKey = 'lock.pin';
 const _throttleKey = 'lock.throttle';
+const _pinKdfChannel = MethodChannel('com.dferrandizmont.regalos/pin_kdf');
+const _pinHashBytes = 32;
 
 /// Dígitos mínimos y máximos de un PIN.
 const int kPinMinDigits = 4;
@@ -260,15 +265,29 @@ class PinVault {
       _deriveHash(pin, salt, rounds, useIsolate: useIsolate);
 }
 
-/// Hashea fuera del hilo de la interfaz (los 200.000 giros tardan).
 Future<List<int>> _deriveHash(
   String pin,
   List<int> salt,
   int rounds, {
   required bool useIsolate,
-}) => useIsolate
-    ? runTask(() => _pbkdf2(pin, salt, rounds))
-    : _pbkdf2(pin, salt, rounds);
+}) async {
+  if (!useIsolate) return _pbkdf2(pin, salt, rounds);
+  if (!kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS)) {
+    try {
+      final hash = await _pinKdfChannel.invokeMethod<Object?>('derive', {
+        'pin': pin,
+        'salt': Uint8List.fromList(salt),
+        'rounds': rounds,
+      });
+      if (hash is Uint8List && hash.length == _pinHashBytes) return hash;
+    } on Object {
+      // El canal puede fallar al invocar el método o al decodificar la respuesta.
+    }
+  }
+  return runTask(() => _pbkdf2(pin, salt, rounds));
+}
 
 Future<List<int>> _pbkdf2(String pin, List<int> salt, int rounds) async {
   // La clase concreta, sin el `Pbkdf2` abstracto: en wasm, dart2wasm deja
@@ -276,7 +295,7 @@ Future<List<int>> _pbkdf2(String pin, List<int> salt, int rounds) async {
   final key = await DartPbkdf2(
     macAlgorithm: const DartHmac(DartSha256()),
     iterations: rounds,
-    bits: 256,
+    bits: _pinHashBytes * 8,
   ).deriveKey(secretKey: SecretKey(utf8.encode(pin)), nonce: salt);
   return key.extractBytes();
 }

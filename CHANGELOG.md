@@ -4,6 +4,13 @@ All notable changes to Gift Huddle are listed here. Store versions may skip numb
 
 ## Unreleased
 
+## 1.0.8 · 2026-11-27
+
+- The "Who gives" tab opens faster with long lists.
+- Saving and opening large lists is smoother, and unlocking with the PIN is faster.
+- Changes you make on this phone are kept when you stop syncing or when an invitation that did not work is cleared.
+- Starting a new list on this phone keeps the latest phone name, and never brings back gifts that were hidden from you to keep a surprise.
+
 ## 1.0.7 · 2026-11-26
 
 - On mobile and web, Budget uses the actual price when a gift has no planned price. It includes visible, priced plans for claimed wishes when their giver is unassigned or counts as household spending. Wish plans for people whose gifts are hidden on the device stay out of the budget figures.

@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/platform/task_runner.dart';
 import '../../../core/sync/device_keys.dart' show DeviceKeys, kSyncIdPattern;
 import '../../../core/sync/device_registry.dart';
 import '../../../core/sync/access_policy.dart';
@@ -219,17 +220,20 @@ class FamilyStore {
   /// el mismo guardado de claves que usa el resto de la app: sus escrituras
   /// van en una sola cola, y con dos instancias purgar el llavero podría
   /// pisarse con guardarlo (revisión de seguridad, N5).
+  /// [runDocumentTask] se puede sustituir en pruebas con reloj simulado.
   FamilyStore({
     required SecretStore secrets,
     required FileStore files,
     required this._deviceKeys,
+    this._runDocumentTask = runTask,
   }) : _secrets = GenerationSecretStore.active(secrets),
        _files = GenerationFileStore.active(files, secrets);
 
   final SecretStore _secrets;
   final FileStore _files;
   final DeviceKeysStore _deviceKeys;
-  final AesGcm _aes = AesGcm.with256bits();
+  final Future<T> Function<T>(Future<T> Function()) _runDocumentTask;
+  static final _aes = AesGcm.with256bits();
   int? _loadedActivation;
   Hlc? _recoveryHlc;
 
@@ -278,16 +282,7 @@ class FamilyStore {
       if (localKey == null) {
         throw const FamilyStoreException('falta la clave local');
       }
-      final FamilyDoc read;
-      try {
-        read = FamilyDoc.fromJson(
-          Map<String, Object?>.from(
-            await _decrypt(bytes, localKey, _aad) as Map,
-          ),
-        );
-      } on FormatException catch (e) {
-        throw FamilyStoreException('documento dañado: ${e.message}');
-      }
+      final read = await _runDocumentTask(_readDocTask(bytes, localKey));
       // Un cambio de familia interrumpido puede dejar un documento de otra
       // lista: manda la identidad.
       if (read.listId == identity.listId) {
@@ -299,8 +294,14 @@ class FamilyStore {
     return StoredFamily(identity: identity, key: key, doc: doc);
   });
 
-  /// Guarda el documento (cifrado y atómico).
-  Future<void> saveDoc(FamilyDoc doc) => _inGeneration(() async {
+  /// Guarda el documento (cifrado y atómico) por orden de llamada.
+  Future<void> saveDoc(FamilyDoc doc) =>
+      GenerationStorageQueue.on(_secrets, _docFile).run(
+        // Take the turn before resolving the prefix, in the caller's zone.
+        () => _inGeneration(() => _saveDoc(doc)),
+      );
+
+  Future<void> _saveDoc(FamilyDoc doc) async {
     await assertWritable();
     final selector = _secrets as GenerationSecretStore;
     if (selector.syncId == null && !selector.fixedNamespace) {
@@ -316,8 +317,11 @@ class FamilyStore {
         (jsonDecode(rawIdentity) as Map)['listId'] != doc.listId) {
       throw const FamilyStoreException('documento de otra generación');
     }
-    await _writeEncrypted(_docFile, _aad, utf8.encode(doc.canonicalJson()));
-  });
+    await assertWritable();
+    final keyBytes = decodeBase64Url(await _localKey());
+    final bytes = await _runDocumentTask(_encodeDocTask(doc, keyBytes));
+    await _files.writeAtomic(_docFile, bytes);
+  }
 
   /// Web persists undo intents before acknowledging the action. Native keeps
   /// its existing in-memory undo lifecycle.
@@ -376,17 +380,10 @@ class FamilyStore {
       }
     }
     final localKey = await _localKey();
-    final box = await _aes.encrypt(
-      plain,
-      secretKey: SecretKey(decodeBase64Url(localKey)),
-      aad: aad,
+    await _files.writeAtomic(
+      file,
+      await _encrypt(plain, decodeBase64Url(localKey), aad),
     );
-    final out = BytesBuilder(copy: false)
-      ..add(_magic)
-      ..add(box.nonce)
-      ..add(box.cipherText)
-      ..add(box.mac.bytes);
-    await _files.writeAtomic(file, out.toBytes());
   }
 
   /// Lo guardado en [file] ya descifrado (JSON), o null si no existe.
@@ -1820,7 +1817,45 @@ class FamilyStore {
     });
   }
 
-  Future<Object?> _decrypt(
+  // Estas funciones solo capturan datos copiables, sin los almacenes ni la zona
+  // que fija la generación. El documento contiene campos JSON y relojes lógicos.
+  static Future<Uint8List> Function() _encodeDocTask(
+    FamilyDoc doc,
+    Uint8List keyBytes,
+  ) =>
+      () => _encrypt(utf8.encode(doc.canonicalJson()), keyBytes, _aad);
+
+  static Future<FamilyDoc> Function() _readDocTask(
+    Uint8List bytes,
+    String localKey,
+  ) => () async {
+    try {
+      final json = await _decrypt(bytes, localKey, _aad);
+      return FamilyDoc.fromJson(Map<String, Object?>.from(json as Map));
+    } on FormatException catch (e) {
+      throw FamilyStoreException('documento dañado: ${e.message}');
+    }
+  };
+
+  static Future<Uint8List> _encrypt(
+    List<int> plain,
+    Uint8List keyBytes,
+    List<int> aad,
+  ) async {
+    final box = await _aes.encrypt(
+      plain,
+      secretKey: SecretKey(keyBytes),
+      aad: aad,
+    );
+    final out = BytesBuilder(copy: false)
+      ..add(_magic)
+      ..add(box.nonce)
+      ..add(box.cipherText)
+      ..add(box.mac.bytes);
+    return out.toBytes();
+  }
+
+  static Future<Object?> _decrypt(
     Uint8List bytes,
     String localKey,
     List<int> aad,

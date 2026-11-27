@@ -52,6 +52,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 class MainActivity : FlutterFragmentActivity() {
     private var channel: MethodChannel? = null
+    private var pinKdfChannel: MethodChannel? = null
 
     /** Versión de tienda (`STORE_BUILD`): FLAG_SECURE siempre puesto. */
     private var secureAlways = false
@@ -312,6 +313,7 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        pinKdfChannel = PinKdf.register(flutterEngine.dartExecutor.binaryMessenger)
         val ch = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
         ch.setMethodCallHandler { call, result ->
             when (call.method) {
@@ -366,6 +368,12 @@ class MainActivity : FlutterFragmentActivity() {
             }
         }
         channel = ch
+    }
+
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        pinKdfChannel?.setMethodCallHandler(null)
+        pinKdfChannel = null
+        super.cleanUpFlutterEngine(flutterEngine)
     }
 
     /**

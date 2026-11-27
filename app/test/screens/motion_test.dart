@@ -64,7 +64,7 @@ void main() {
     expect(mid, inExclusiveRange(0.26, 0.5));
     await settle(tester);
     expect(glyphOf(tester, title).sweep, closeTo(0.5, 0.001));
-  }, overrides: [fake.provide]);
+  }, inlineDocumentTasks: true, overrides: [fake.provide]);
 
   screenTest('entregar un regalo: háptica media y el visto se dibuja', (
     tester,

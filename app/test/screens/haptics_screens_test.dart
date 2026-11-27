@@ -289,6 +289,7 @@ void main() {
         expect(last.supersede, isTrue);
         await settle(tester);
       },
+      inlineDocumentTasks: true,
       overrides: [hapticsProvider.overrideWithValue(_shared)],
     );
 

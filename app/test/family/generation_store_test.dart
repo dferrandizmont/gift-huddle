@@ -53,6 +53,7 @@ class _Secrets extends MemorySecretStore {
   _Secrets(this.faults);
   final _Faults faults;
   _ReadBarrier? barrier;
+  bool failActivation = false;
   @override
   Future<String?> read(String key) async {
     final value = await super.read(key);
@@ -66,8 +67,16 @@ class _Secrets extends MemorySecretStore {
   }
 
   @override
-  Future<void> write(String key, String value) =>
-      faults.mutate(() => super.write(key, value));
+  Future<void> write(String key, String value) async {
+    if (failActivation &&
+        key == generationDirectoryKey &&
+        jsonDecode(value)['active'] != _sourceId) {
+      failActivation = false;
+      throw _Interrupted();
+    }
+    await faults.mutate(() => super.write(key, value));
+  }
+
   @override
   Future<void> delete(String key) => faults.mutate(() => super.delete(key));
   @override
@@ -307,6 +316,93 @@ void main() {
     source = _Phone();
     await source.seed();
   });
+
+  for (final startup in [false, true]) {
+    test(
+      'local reset preserves edits before ${startup ? 'startup recovery' : 'retry'}',
+      () async {
+        final phone = source.copy();
+        final stored = (await phone.family.load())!;
+        await phone.family.saveIdentity(stored.identity.copyWith(paired: true));
+        phone.secrets.failActivation = true;
+        await expectLater(
+          phone.generations.startLocalGeneration(),
+          throwsA(isA<_Interrupted>()),
+        );
+        expect(await phone.generations.activeSyncId(), _sourceId);
+        final pending = (await phone.generations.journal.read())!;
+
+        final clock = HlcClock(
+          node: stored.identity.node,
+          last: stored.doc.maxStamp,
+        );
+        final edited = stored.doc
+            .set(clock, Collections.givers, 'giver-leo', {'name': 'Leo'})
+            .set(clock, Collections.gifts, 'own-gift', {
+              'recipientId': 'aritz',
+            });
+        await phone.family.saveDoc(edited);
+
+        if (startup) {
+          phone.restart();
+          await phone.generations.recover();
+        } else {
+          await phone.generations.startLocalGeneration();
+        }
+        expect(
+          await phone.generations.activeSyncId(),
+          pending.destinationSyncId,
+        );
+        final active = (await phone.family.load())!.doc;
+        expect(active.record(Collections.givers, 'giver-leo')?['name'], 'Leo');
+        expect(active.record(Collections.gifts, 'own-gift')?.isDeleted, isTrue);
+      },
+    );
+  }
+
+  test(
+    'local reset retry refreshes the phone identity and removes stale scopes',
+    () async {
+      final phone = source.copy();
+      phone.secrets.failActivation = true;
+      await expectLater(
+        phone.generations.startLocalGeneration(),
+        throwsA(isA<_Interrupted>()),
+      );
+      expect(await phone.generations.activeSyncId(), _sourceId);
+      final pending = (await phone.generations.journal.read())!;
+      final target = await phone.generations.open(pending.destinationSyncId);
+      final prepared = (await target.family.load())!;
+      expect(prepared.identity.deviceName, 'Pixel');
+      expect(
+        (await target.family.readRegistry())!.records.single.personId,
+        'aritz',
+      );
+      expect(await target.family.readScope('nora'), isNotNull);
+
+      final installed = (await phone.family.load())!;
+      await phone.family.saveIdentity(
+        installed.identity.copyWith(deviceName: 'Móvil de Leo'),
+      );
+      await phone.family.saveSelfRecipient('leo');
+      await phone.family.deleteScope('nora');
+      expect(await phone.family.readRecoveryScopes(), isEmpty);
+
+      await phone.generations.startLocalGeneration();
+
+      expect(await phone.generations.activeSyncId(), pending.destinationSyncId);
+      final active = (await phone.family.load())!;
+      expect(active.identity.deviceName, 'Móvil de Leo');
+      expect(active.identity.selfRecipientId, 'leo');
+      expect(active.identity.node, prepared.identity.node);
+      expect(active.key.toBase64Url(), prepared.key.toBase64Url());
+      final own = (await phone.family.readRegistry())!.records.single;
+      expect(own.deviceId, active.identity.node);
+      expect(own.personId, 'leo');
+      expect(await own.verify(), isTrue);
+      expect(await phone.family.readRecoveryScopes(), isEmpty);
+    },
+  );
 
   for (final access in ['family.identity', 'family.doc', 'family.registry']) {
     test('activation between $access and later reads stays coherent', () async {

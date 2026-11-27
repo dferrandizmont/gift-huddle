@@ -2,6 +2,7 @@ import Flutter
 import UIKit
 import UniformTypeIdentifiers
 import AVFoundation
+import CommonCrypto
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate,
@@ -12,6 +13,8 @@ import AVFoundation
   private static let maxIncomingBytes = 2 * 1024 * 1024 + 1024
   /// Tope de un fichero de recuperación (ADR 0008).
   private static let maxRecoveryBytes = 512
+  private static let pinKdfQueue = DispatchQueue(
+    label: "com.dferrandizmont.regalos.pin_kdf", qos: .userInitiated)
 
   private var incomingChannel: FlutterMethodChannel?
   private var pendingFile: Data?
@@ -37,9 +40,11 @@ import AVFoundation
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    let messenger = engineBridge.applicationRegistrar.messenger()
+    AppDelegate.registerPinKdf(messenger)
     let channel = FlutterMethodChannel(
       name: "com.dferrandizmont.regalos/incoming",
-      binaryMessenger: engineBridge.applicationRegistrar.messenger()
+      binaryMessenger: messenger
     )
     channel.setMethodCallHandler { [weak self] call, result in
       guard let self = self else { return result(nil) }
@@ -142,6 +147,46 @@ import AVFoundation
       }
     }
     incomingChannel = channel
+  }
+
+  private static func registerPinKdf(_ messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(
+      name: "com.dferrandizmont.regalos/pin_kdf", binaryMessenger: messenger)
+    channel.setMethodCallHandler { call, result in
+      guard call.method == "derive" else { return result(FlutterMethodNotImplemented) }
+      guard let args = call.arguments as? [String: Any],
+        let pin = args["pin"] as? String, (4...6).contains(pin.utf8.count),
+        pin.utf8.allSatisfy({ (48...57).contains($0) }),
+        let salt = args["salt"] as? FlutterStandardTypedData,
+        let count = args["rounds"] as? Int, let rounds = UInt32(exactly: count), rounds > 0
+      else { return result(FlutterError(code: "bad_args", message: nil, details: nil)) }
+      let saltData = salt.data
+      pinKdfQueue.async {
+        guard let hash = AppDelegate.derivePin(pin, salt: saltData, rounds: rounds) else {
+          return result(FlutterError(code: "pbkdf2_failed", message: nil, details: nil))
+        }
+        result(FlutterStandardTypedData(bytes: hash))
+      }
+    }
+  }
+
+  static func derivePin(_ pin: String, salt: Data, rounds: UInt32) -> Data? {
+    let hashBytes = 32
+    var hash = Data(count: hashBytes)
+    let status = pin.withCString { password in
+      salt.withUnsafeBytes { (saltBytes: UnsafeRawBufferPointer) in
+        hash.withUnsafeMutableBytes { (output: UnsafeMutableRawBufferPointer) in
+          guard let saltAddress = saltBytes.bindMemory(to: UInt8.self).baseAddress,
+            let outputAddress = output.bindMemory(to: UInt8.self).baseAddress
+          else { return Int32(kCCParamError) }
+          return CCKeyDerivationPBKDF(
+            CCPBKDFAlgorithm(kCCPBKDF2), password, pin.utf8.count, saltAddress, saltBytes.count,
+            CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256), rounds,
+            outputAddress, hashBytes)
+        }
+      }
+    }
+    return status == Int32(kCCSuccess) ? hash : nil
   }
 
   /// Resolve permission before creating the QR view. iOS never prompts again

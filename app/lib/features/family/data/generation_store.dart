@@ -340,6 +340,7 @@ class GenerationStore {
 
   /// Local reset after confirmed server retirement. Uses the same durable
   /// preparation as renewal, but never publishes or attests a remote transfer.
+  /// The caller holds the controller write queue through activation and reload.
   Future<void> startLocalGeneration() => _queue.run(() async {
     var existing = await journal.read();
     if (existing != null && existing.data['localReset'] != true) {
@@ -351,19 +352,97 @@ class GenerationStore {
     }
     final sourceId = existing?.sourceSyncId ?? await _adoptCurrent();
     await _prepare(operationId: sourceId, localOnly: true);
-    await _finishLocalGeneration((await journal.read())!);
+    await _finishLocalGeneration(
+      (await journal.read())!,
+      refreshPreparation: existing != null,
+    );
   });
 
-  Future<void> _finishLocalGeneration(RenewalJournal pending) async {
-    final source = await open(pending.sourceSyncId);
-    final target = await open(pending.destinationSyncId);
-    for (final entry in (await source.family.readRecoveryScopes()).entries) {
-      await target.family.saveScope(entry.key, entry.value);
+  Future<void> _finishLocalGeneration(
+    RenewalJournal pending, {
+    required bool refreshPreparation,
+  }) async {
+    if (await activeSyncId() != pending.destinationSyncId) {
+      final source = await open(pending.sourceSyncId);
+      final target = await open(pending.destinationSyncId);
+      // After an interrupted preparation, edits may have resumed on the
+      // source. Keep the prepared credentials and refresh the editable data.
+      final family = refreshPreparation ? (await source.family.load())! : null;
+      final scopes = await source.family.readRecoveryScopes();
+      if (family != null) {
+        final targetId = (await target.family.readSyncV2())!.deviceId;
+        final identity = FamilyIdentity(
+          listId: family.identity.listId,
+          node: targetId,
+          deviceName: family.identity.deviceName,
+          selfRecipientId: family.identity.selfRecipientId,
+        );
+        final doc = await _localGenerationDoc(
+          source,
+          family,
+          sourceDeviceId: family.identity.node,
+          destinationDeviceId: targetId,
+        );
+        await target.family.saveDoc(doc);
+        await target.family.saveIdentity(identity);
+        await target.deviceKeys.purgePerson(identity.selfRecipientId);
+        await _saveOwnRegistry(
+          target,
+          identity,
+          (await target.deviceKeys.read())!,
+        );
+        for (final person in (await target.family.readRecoveryScopes()).keys) {
+          if (!scopes.containsKey(person)) {
+            await target.family.deleteScope(person);
+          }
+        }
+      }
+      for (final entry in scopes.entries) {
+        await target.family.saveScope(entry.key, entry.value);
+      }
+      await target.family.disableRemoteSync();
+      await target.family.setRecoveryRemovalPending(false);
+      await _switch(pending);
     }
-    await target.family.disableRemoteSync();
-    await target.family.setRecoveryRemovalPending(false);
-    await _switch(pending);
     await journal.archive(pending.operationId);
+  }
+
+  Future<FamilyDoc> _localGenerationDoc(
+    GenerationContext source,
+    StoredFamily family, {
+    required String sourceDeviceId,
+    required String destinationDeviceId,
+  }) async {
+    // 1.0.6: antes de levantar la protección cuando el móvil queda solo, se
+    // quitan los regalos para sus personas que aún estaban en el común.
+    DeviceRegistry? registry;
+    var unreadable = false;
+    try {
+      registry = await source.family.readRegistry();
+    } on FamilyStoreException {
+      // Sin poder leerlo, se supone que hubo compañía.
+      unreadable = true;
+    }
+    final people = [
+      family.identity.selfRecipientId,
+      ...family.identity.formerSelf,
+      // Con un cambio pendiente, la capa también oculta las personas de
+      // todas las fichas de este móvil (revisión de seguridad, B4).
+      for (final r in registry?.records ?? const <DeviceRecord>[])
+        if (r.deviceId == sourceDeviceId) r.personId,
+    ];
+    return purgeOwnGiftsOnLeaving(
+      family.doc,
+      node: destinationDeviceId,
+      people: people,
+      hadCompany: ownGiftsWereHidden(
+        registry: registry,
+        me: sourceDeviceId,
+        people: people,
+        paired: family.identity.paired,
+        unreadable: unreadable,
+      ),
+    );
   }
 
   /// Prepare once before reserving remotely. Supplying destinationSyncId is
@@ -431,50 +510,14 @@ class GenerationStore {
       throw StateError('destination already exists');
     }
     final deviceId = encodeBase64Url(secureRandomBytes(16));
-    var doc = family.doc;
-    if (localOnly) {
-      // 1.0.6: la generación local sin nadie vuelve a enseñar lo de la
-      // persona de este móvil; antes se quitan los regalos para ella que la
-      // protección aún no había pasado al bloque secreto. Solo en la local:
-      // una renovación con los demás conserva el común tal cual.
-      DeviceRegistry? registry;
-      var unreadable = false;
-      try {
-        registry = await source.family.readRegistry();
-      } on FamilyStoreException {
-        // Sin poder leerlo, se supone que hubo compañía.
-        unreadable = true;
-      }
-      DeviceRecord? self;
-      for (final r in registry?.records ?? const <DeviceRecord>[]) {
-        if (r.deviceId == sourceIdentity.deviceId &&
-            (self == null || r.seq > self.seq)) {
-          self = r;
-        }
-      }
-      final people = [
-        family.identity.selfRecipientId,
-        self?.personId,
-        ...family.identity.formerSelf,
-        // Las de todas las fichas de este móvil (revisión de seguridad,
-        // B4): con un cambio pendiente la capa también las oculta.
-        for (final r in registry?.records ?? const <DeviceRecord>[])
-          if (r.deviceId == sourceIdentity.deviceId) r.personId,
-      ];
-      doc = purgeOwnGiftsOnLeaving(
-        doc,
-        node: deviceId,
-        people: people,
-        // La misma regla que la capa de pantalla (ownHiddenPeople).
-        hadCompany: ownGiftsWereHidden(
-          registry: registry,
-          me: sourceIdentity.deviceId,
-          people: people,
-          paired: family.identity.paired,
-          unreadable: unreadable,
-        ),
-      );
-    }
+    final doc = localOnly
+        ? await _localGenerationDoc(
+            source,
+            family,
+            sourceDeviceId: sourceIdentity.deviceId,
+            destinationDeviceId: deviceId,
+          )
+        : family.doc;
     final identity = SyncIdentityV2(
       listId: sourceIdentity.listId,
       deviceId: deviceId,
@@ -493,9 +536,7 @@ class GenerationStore {
           // común sin purgar hasta que entrara el primero (revisión final de
           // la revisión, B3). La local sin nadie sí empieza de cero.
           paired: !localOnly && family.identity.paired,
-          formerSelf: localOnly
-              ? const <String>{}
-              : family.identity.formerSelf,
+          formerSelf: localOnly ? const <String>{} : family.identity.formerSelf,
         ),
         key: await FamilyKey.generate(),
         doc: doc,
@@ -607,14 +648,10 @@ class GenerationStore {
     await target.deviceKeys.purgePerson(
       prepared.family.identity.selfRecipientId,
     );
-    final own = await DeviceRecord.create(
-      keys: prepared.deviceKeys,
-      listId: prepared.identity.listId,
-      deviceId: prepared.identity.deviceId,
-      personId: prepared.family.identity.selfRecipientId,
-    );
-    await target.family.saveRegistry(
-      await DeviceRegistry.empty(own.listId).withRecord(own),
+    await _saveOwnRegistry(
+      target,
+      prepared.family.identity,
+      prepared.deviceKeys,
     );
     await target.family.saveFamily(prepared.family);
     await target.family.raiseCommonFormatFloor(prepared.commonFormatFloor);
@@ -624,6 +661,22 @@ class GenerationStore {
         phase: 'prepared',
         data: {...pending.data, 'preparationInstalled': true},
       ),
+    );
+  }
+
+  Future<void> _saveOwnRegistry(
+    GenerationContext target,
+    FamilyIdentity identity,
+    DeviceKeys keys,
+  ) async {
+    final own = await DeviceRecord.create(
+      keys: keys,
+      listId: identity.listId,
+      deviceId: identity.node,
+      personId: identity.selfRecipientId,
+    );
+    await target.family.saveRegistry(
+      await DeviceRegistry.empty(own.listId).withRecord(own),
     );
   }
 
@@ -882,7 +935,10 @@ class GenerationStore {
       await _installPreparation(pending);
     }
     if (pending.data['localReset'] == true) {
-      await _finishLocalGeneration((await journal.read())!);
+      await _finishLocalGeneration(
+        (await journal.read())!,
+        refreshPreparation: true,
+      );
       return null;
     }
     if (pending.data['activationPrepared'] == true) {

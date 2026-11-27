@@ -3,8 +3,12 @@ import 'dart:math';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:regalos/core/platform/task_runner_inline.dart' as inline;
 import 'package:regalos/core/sync/model.dart';
 import 'package:regalos/features/family/application/family_controller.dart';
+import 'package:regalos/features/family/data/device_keys_store.dart';
+import 'package:regalos/features/family/data/family_store.dart';
+import 'package:regalos/features/family/data/storage_providers.dart';
 import 'package:regalos/features/sync/application/app_sync_v2_local.dart';
 import 'package:regalos/features/sync/application/pairing_v2_controller.dart';
 import 'package:regalos/features/sync/data/sync_config.dart';
@@ -104,6 +108,14 @@ void main() {
           prefs: prefs,
           syncHost: null,
           extraOverrides: [
+            familyStoreProvider.overrideWith(
+              (ref) => FamilyStore(
+                secrets: ref.watch(secretStoreProvider),
+                files: ref.watch(fileStoreProvider),
+                deviceKeys: ref.watch(deviceKeysStoreProvider),
+                runDocumentTask: inline.runTask,
+              ),
+            ),
             syncHostProvider.overrideWithValue('sync.test'),
             invitationOriginProvider.overrideWithValue(''),
             syncTransportProvider.overrideWithValue(FakeSyncServer().connect()),

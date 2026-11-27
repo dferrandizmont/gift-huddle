@@ -7,7 +7,7 @@
 // tema sigue al del sistema (`adb shell cmd uimode night yes|no`).
 import 'dart:io' show File;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -483,6 +483,47 @@ Future<void> _seed(ProviderContainer container) async {
   for (final g in gifts) {
     await c.upsertGift(g);
   }
+  // Perfilado (27-11): `--dart-define=DEMO_SCALE=N` añade N regalos de relleno
+  // por persona, con tienda, enlace y nota larga, y mide cuánto tarda cada
+  // guardado.
+  const scale = int.fromEnvironment('DEMO_SCALE');
+  if (scale > 0) {
+    const occasions = ['seed-tio', 'seed-kings', 'seed-santa'];
+    const statuses = GiftStatus.values;
+    final sw = Stopwatch()..start();
+    var last = 0;
+    var n = 0;
+    for (final who in const ['aritz', 'nora', 'leo']) {
+      for (var i = 0; i < scale; i++) {
+        n++;
+        final t0 = sw.elapsedMicroseconds;
+        final status = statuses[i % statuses.length];
+        await c.upsertGift(
+          Gift(
+            id: 'perf-$who-$i',
+            recipientId: who,
+            title: '${_perfNouns[i % _perfNouns.length]} ${_perfAdj[(i ~/ _perfNouns.length) % _perfAdj.length]} $i',
+            giverId: i.isEven ? 'us' : 'grand',
+            occasionId: occasions[i % occasions.length],
+            status: status,
+            rawStatus: status.name,
+            plannedCents: 1000 + i * 37,
+            actualCents: i.isOdd ? 900 + i * 31 : null,
+            store: 'Tienda $i',
+            url: 'https://example.com/producto/$who/$i',
+            note: List.filled(6, 'Nota con talla, color y dónde. ').join(),
+            surprise: false,
+            year: 2026,
+          ),
+        );
+        last = sw.elapsedMicroseconds - t0;
+      }
+    }
+    debugPrint(
+      'PERF seed: $n regalos en ${sw.elapsedMilliseconds} ms; '
+      'último guardado ${(last / 1000).toStringAsFixed(1)} ms',
+    );
+  }
   await _seedWishes(c);
   final lock = container.read(lockControllerProvider.notifier);
   if (_lock) {
@@ -492,6 +533,15 @@ Future<void> _seed(ProviderContainer container) async {
     await lock.skipSetup();
   }
 }
+
+const _perfNouns = [
+  'Puzle', 'Bicicleta', 'Cuento', 'Mochila', 'Zapatillas', 'Robot', 'Lego',
+  'Pijama', 'Peluche', 'Tablero', 'Juego de mesa', 'Gorro', 'Abrigo',
+  'Linterna', 'Xilófono', 'Muñeca', 'Coche teledirigido', 'Acuarelas',
+  'Enciclopedia', 'Patinete', 'Casco', 'Reloj', 'Auriculares', 'Tienda de campaña',
+  'Kit de ciencia', 'Disfraz', 'Balón', 'Raqueta', 'Cometa', 'Telescopio',
+];
+const _perfAdj = ['azul', 'de madera', 'grande', 'de viaje', 'con luces'];
 
 /// Deseos de Nora (ADR 0010, 1.0.7), en [es, ca, en].
 const _kiteTitle = ['Cometa de colores', 'Estel de colors', 'Colourful kite'];

@@ -10,6 +10,9 @@ import 'package:regalos/core/widgets/more_details.dart';
 import 'package:regalos/features/gifts/presentation/gift_editor_screen.dart'
     show GiftEditorScreen;
 import 'package:regalos/features/family/application/family_controller.dart';
+import 'package:regalos/features/family/data/device_keys_store.dart';
+import 'package:regalos/features/family/data/family_store.dart';
+import 'package:regalos/features/family/data/storage_providers.dart';
 import 'package:regalos/features/lock/application/lock_controller.dart';
 import 'package:regalos/features/sharing/presentation/join_qr_screen.dart';
 import 'package:regalos/features/tour/application/tour_state.dart';
@@ -30,6 +33,7 @@ void screenTest(
   Brightness brightness = Brightness.light,
   ScannerBuilder? scanner,
   Duration writeDelay = Duration.zero,
+  bool inlineDocumentTasks = false,
   List<Override> overrides = const <Override>[],
   String? syncHost = '',
   Map<String, Object> prefs = const <String, Object>{},
@@ -65,6 +69,15 @@ void screenTest(
       writeDelay: writeDelay,
       syncHost: syncHost,
       extraOverrides: [
+        if (inlineDocumentTasks)
+          familyStoreProvider.overrideWith(
+            (ref) => FamilyStore(
+              secrets: ref.watch(secretStoreProvider),
+              files: ref.watch(fileStoreProvider),
+              deviceKeys: ref.watch(deviceKeysStoreProvider),
+              runDocumentTask: _runInline,
+            ),
+          ),
         if (scanner != null) scannerBuilderProvider.overrideWithValue(scanner),
         ...overrides,
       ],
@@ -84,6 +97,8 @@ void screenTest(
     }
   });
 }
+
+Future<T> _runInline<T>(Future<T> Function() task) => task();
 
 /// Ejecuta [action] (una escritura del controlador, por ejemplo) desde la zona
 /// de la prueba y la espera repintando. Úsalo en vez de `runAsync` cuando la

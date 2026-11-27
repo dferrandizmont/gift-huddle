@@ -749,6 +749,8 @@ void main() {
       final keyB = b.container
           .read(familyControllerProvider.notifier)
           .familyKey;
+      // A conserva su copia hasta que también decida dejar de sincronizar.
+      await storeA.enableRemoteSync();
       await b.container.read(syncControllerProvider.notifier).stopSyncing();
       expect(worker.hasList(v2Sync), isTrue);
       expect(worker.devicesOf(v2Sync)[idB.node], isTrue);
@@ -767,7 +769,6 @@ void main() {
         b.container.read(familyControllerProvider).value!.identity!.paired,
         isFalse,
       );
-      await storeA.enableRemoteSync();
       // A ya es el último con acceso: ahora sí se borra la lista entera.
       await a.container.read(syncControllerProvider.notifier).stopSyncing();
       expect(worker.hasList(v2Sync), isFalse);
@@ -3164,11 +3165,25 @@ void main() {
     final hostId =
         (await a.container.read(familyStoreProvider).readSyncV2())!.deviceId;
     final c = await familyOwner();
-    await replaceInto(c, b);
-    expect(worker.hasList(old.syncId), isTrue);
-    final devices = worker.devicesOf(old.syncId);
-    expect(devices[old.deviceId], isTrue, reason: 'B sale');
-    expect(devices[hostId], isFalse, reason: 'A sigue dentro');
+    // La sincronización de A puede retirar su copia cuando se queda solo.
+    // Espera a comprobar primero qué operaciones hizo B al salir.
+    final entered = Completer<void>();
+    final release = Completer<void>();
+    final held = a.container.read(v2FamilyLockProvider).run(() {
+      entered.complete();
+      return release.future;
+    });
+    await entered.future;
+    try {
+      await replaceInto(c, b);
+      expect(worker.hasList(old.syncId), isTrue);
+      final devices = worker.devicesOf(old.syncId);
+      expect(devices[old.deviceId], isTrue, reason: 'B sale');
+      expect(devices[hostId], isFalse, reason: 'A sigue dentro');
+    } finally {
+      release.complete();
+      await held;
+    }
   });
 }
 

@@ -1806,27 +1806,66 @@ class FamilyView {
   /// Pairs of gifts of the same recipient with almost the same name.
   List<DuplicatePair> possibleDuplicates() {
     final pairs = <DuplicatePair>[];
+    final byPerson = <String, List<_DuplicateTitle>>{};
+    for (final gift in gifts) {
+      final title = _normalizeTitle(gift.title);
+      if (title.isNotEmpty) {
+        final list = byPerson.putIfAbsent(gift.recipientId, () => []);
+        list.add(_DuplicateTitle(gift, title, list.length));
+      }
+    }
     for (final recipient in recipients) {
-      final giftsOfRecipient = giftsFor(recipient.id);
-      // Every title is normalized once, not once per pair.
-      final titles = <String, String>{
-        for (final gift in giftsOfRecipient)
-          gift.id: _normalizeTitle(gift.title),
-      };
-      for (var i = 0; i < giftsOfRecipient.length; i++) {
-        for (var j = i + 1; j < giftsOfRecipient.length; j++) {
-          final first = giftsOfRecipient[i];
-          final second = giftsOfRecipient[j];
-          if (_areSimilarTitles(titles[first.id]!, titles[second.id]!)) {
-            pairs.add(
-              DuplicatePair(
-                recipientId: recipient.id,
-                first: first,
-                second: second,
-              ),
-            );
+      final titles = byPerson[recipient.id] ?? const <_DuplicateTitle>[];
+      final matches = <int>{};
+      final count = titles.length;
+      void addMatch(_DuplicateTitle a, _DuplicateTitle b) {
+        final i = a.index < b.index ? a.index : b.index;
+        final j = a.index < b.index ? b.index : a.index;
+        matches.add(i * count + j);
+      }
+
+      // Containment has no initial-letter or length-difference restriction.
+      for (var i = 0; i < count; i++) {
+        for (var j = i + 1; j < count; j++) {
+          final a = titles[i];
+          final b = titles[j];
+          final shorter = a.length <= b.length ? a : b;
+          final longer = identical(shorter, a) ? b : a;
+          if (shorter.length >= 5 && longer.title.contains(shorter.title)) {
+            addMatch(a, b);
           }
         }
+      }
+      final byInitial = <int, List<_DuplicateTitle>>{};
+      for (final title in titles) {
+        (byInitial[title.initial] ??= []).add(title);
+      }
+      for (final group in byInitial.values) {
+        group.sort((a, b) => a.length.compareTo(b.length));
+        for (var i = 0; i < group.length; i++) {
+          final a = group[i];
+          final threshold = _duplicateThreshold(a.length);
+          for (var j = i + 1; j < group.length; j++) {
+            final b = group[j];
+            if (b.length - a.length > threshold) break;
+            final first = a.index < b.index ? a.index : b.index;
+            final second = a.index < b.index ? b.index : a.index;
+            if (!matches.contains(first * count + second) &&
+                _withinLevenshtein(a.title, b.title, threshold)) {
+              addMatch(a, b);
+            }
+          }
+        }
+      }
+      final ordered = matches.toList()..sort();
+      for (final match in ordered) {
+        pairs.add(
+          DuplicatePair(
+            recipientId: recipient.id,
+            first: titles[match ~/ count].gift,
+            second: titles[match % count].gift,
+          ),
+        );
       }
     }
     return pairs;
@@ -1894,30 +1933,16 @@ String _sortKey(Object item) {
   return '';
 }
 
-/// Whether two titles are almost the same.
-///
-/// The titles come already normalized: no case, no accents and no spaces.
-bool _areSimilarTitles(String a, String b) {
-  if (a.isEmpty || b.isEmpty) {
-    return false;
-  }
-  if (a == b) {
-    return true;
-  }
-  final shorter = a.length <= b.length ? a : b;
-  final longer = a.length <= b.length ? b : a;
-  if (shorter.length >= 5 && longer.contains(shorter)) {
-    return true;
-  }
-  final threshold = _duplicateThreshold(shorter.length);
-  if (longer.length - shorter.length > threshold) {
-    return false;
-  }
-  if (a.codeUnitAt(0) != b.codeUnitAt(0)) {
-    // Two titles that do not even start the same are not the same gift.
-    return false;
-  }
-  return _levenshtein(a, b) <= threshold;
+class _DuplicateTitle {
+  _DuplicateTitle(this.gift, this.title, this.index)
+    : length = title.length,
+      initial = title.codeUnitAt(0);
+
+  final Gift gift;
+  final String title;
+  final int index;
+  final int length;
+  final int initial;
 }
 
 /// How different two titles can be and still be the same gift.
@@ -2031,40 +2056,35 @@ const Map<String, String> _accents = <String, String>{
   'µ': 'u',
 };
 
-/// The number of letters to change to turn [a] into [b].
-int _levenshtein(String a, String b) {
-  if (a == b) {
-    return 0;
+/// Tests edit distance inside the only band that can reach [threshold].
+bool _withinLevenshtein(String a, String b, int threshold) {
+  final limit = threshold + 1;
+  var previous = List<int>.filled(b.length + 1, limit);
+  var current = List<int>.filled(b.length + 1, limit);
+  for (var j = 0; j <= b.length && j <= threshold; j++) {
+    previous[j] = j;
   }
-  if (a.isEmpty) {
-    return b.length;
-  }
-  if (b.isEmpty) {
-    return a.length;
-  }
-  var previous = List<int>.generate(b.length + 1, (index) => index);
-  var current = List<int>.filled(b.length + 1, 0);
   for (var i = 1; i <= a.length; i++) {
-    current[0] = i;
-    for (var j = 1; j <= b.length; j++) {
+    current[0] = i <= threshold ? i : limit;
+    final start = i - threshold > 1 ? i - threshold : 1;
+    final end = i + threshold < b.length ? i + threshold : b.length;
+    if (start > 1) current[start - 1] = limit;
+    if (end < b.length) current[end + 1] = limit;
+    var rowMin = current[0];
+    for (var j = start; j <= end; j++) {
       final cost = a.codeUnitAt(i - 1) == b.codeUnitAt(j - 1) ? 0 : 1;
-      final deletion = current[j - 1] + 1;
-      final insertion = previous[j] + 1;
-      final substitution = previous[j - 1] + cost;
-      var best = deletion;
-      if (insertion < best) {
-        best = insertion;
-      }
-      if (substitution < best) {
-        best = substitution;
-      }
+      var best = current[j - 1] + 1;
+      if (previous[j] + 1 < best) best = previous[j] + 1;
+      if (previous[j - 1] + cost < best) best = previous[j - 1] + cost;
       current[j] = best;
+      if (best < rowMin) rowMin = best;
     }
+    if (rowMin > threshold) return false;
     final swap = previous;
     previous = current;
     current = swap;
   }
-  return previous[b.length];
+  return previous[b.length] <= threshold;
 }
 
 /// Reads a string field.

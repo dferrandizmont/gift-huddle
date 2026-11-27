@@ -22,7 +22,7 @@ import '../../../core/sync/wish_author.dart';
 import '../../../core/sync/wish_boundary.dart';
 import '../../../core/sync/wish_plan.dart';
 import '../../../core/sync/pairing_v2.dart'
-    show keepProtocolV2, kSyncProtocolV2, syncProtocolOf;
+    show SyncIdentityV2, keepProtocolV2, kSyncProtocolV2, syncProtocolOf;
 import '../../review/application/review_providers.dart';
 import '../../review/domain/review_ports.dart';
 import '../data/family_store.dart';
@@ -31,6 +31,7 @@ import '../data/recovery_store.dart';
 import '../../sync/application/app_sync_v2_local.dart'
     show v2FamilyLockProvider;
 import '../../sync/application/family_device_review.dart';
+import '../../sync/application/migration_v2.dart' show PendingV2;
 import '../../sync/application/recovery_providers.dart'
     show
         recoverySupportedProvider,
@@ -232,6 +233,7 @@ class FamilyController extends AsyncNotifier<FamilyState> {
   HlcClock? _clock;
   FamilyKey? _key;
   Future<void> _tail = Future<void>.value();
+  bool _generationReloadPending = false;
   bool _recipientPurgePending = false;
 
   FamilyStore get _store => ref.read(familyStoreProvider);
@@ -348,8 +350,16 @@ class FamilyController extends AsyncNotifier<FamilyState> {
   }
 
   /// Ejecuta [action] cuando acaben las escrituras anteriores.
-  Future<T> _serial<T>(Future<T> Function() action) {
-    final result = _tail.then((_) => action());
+  Future<T> _serial<T>(
+    Future<T> Function() action, {
+    bool recoverGeneration = true,
+  }) {
+    final result = _tail.then((_) async {
+      if (recoverGeneration && _generationReloadPending) {
+        await _reloadStoredCandidate();
+      }
+      return action();
+    });
     _tail = result.then<void>((_) {}, onError: (Object _) {});
     return result;
   }
@@ -381,12 +391,37 @@ class FamilyController extends AsyncNotifier<FamilyState> {
       );
 
   /// Adopts the stored candidate and its latest logical clock in edit order.
-  Future<void> reloadStoredCandidate() => _serial(() async {
+  Future<void> reloadStoredCandidate() =>
+      _serial(_reloadStoredCandidate, recoverGeneration: false);
+
+  /// Sync already holds the v2 lock. Keep edits queued from the source
+  /// snapshot through activation and reload, including a partially failed
+  /// activation that has already switched the active pointer.
+  Future<void> switchStoredGenerationWithinLock(
+    Future<void> Function() activate,
+  ) => _serial(() async {
+    try {
+      await activate();
+    } finally {
+      // load() may have accepted the new activation before reading its doc.
+      // Keep the queue from writing until the active candidate is in memory.
+      _generationReloadPending = true;
+      await _reloadStoredCandidate();
+    }
+  });
+
+  Future<void> _reloadStoredCandidate() async {
     if (!ref.mounted) return;
     final current = await _current();
     if (!ref.mounted) return;
     final stored = await _store.load();
-    if (stored == null || !ref.mounted) return;
+    if (!ref.mounted) return;
+    if (stored == null) {
+      if (_generationReloadPending) {
+        throw const FamilyStoreException('falta la familia de la generación');
+      }
+      return;
+    }
     _key = stored.key;
     final max = _store.latestStoredStamp(stored.doc);
     if (_clock == null || current.identity?.node != stored.identity.node) {
@@ -402,7 +437,8 @@ class FamilyController extends AsyncNotifier<FamilyState> {
         otherDevicePeople: otherPeople,
       ),
     );
-  });
+    _generationReloadPending = false;
+  }
 
   // ------------------------------------------------------------- familia
 
@@ -545,6 +581,117 @@ class FamilyController extends AsyncNotifier<FamilyState> {
     return JoinResult(peerName: payload.deviceName, replacedFamily: replaces);
   });
 
+  /// Completa la instalación pendiente en un solo turno, desde la captura
+  /// del documento hasta el guardado de la identidad v2.
+  Future<bool> finishPendingV2({
+    required Future<void> Function() rotatePairingCredential,
+  }) => _serial(() async {
+    final store = _store;
+    final raw = await store.readPendingV2();
+    if (raw == null) return false;
+    final pending = PendingV2.fromJson(raw);
+    final fam = await _current();
+    final identity = fam.identity;
+    if (pending == null ||
+        identity == null ||
+        (!pending.reset && syncProtocolOf(fam.doc) != kSyncProtocolV2)) {
+      if (pending != null && pending.pairing) {
+        // Un invitado que se cortó antes del documento (B7): se deshace lo que
+        // escribió y se abandona la credencial, que el anfitrión ya registró
+        // (si no, volver a emparejar daría `credential_exists`). Queda un
+        // dispositivo fantasma que el anfitrión tiene que quitar.
+        await store.discardPairingInstall();
+        await rotatePairingCredential();
+      }
+      await store.savePendingV2(null);
+      return true;
+    }
+    final keysStore = ref.read(deviceKeysStoreProvider);
+    final keys = await keysStore.read() ?? await keysStore.create();
+    Future<DeviceRegistry> own() async =>
+        DeviceRegistry.empty(identity.listId).withRecord(
+          await DeviceRecord.create(
+            keys: keys,
+            listId: identity.listId,
+            deviceId: identity.node,
+            personId: identity.selfRecipientId,
+          ),
+        );
+    var doc = fam.doc;
+    if (pending.reset) {
+      // 1.0.6: sin nadie más, este móvil vuelve a ver lo suyo. Antes se quitan
+      // del común de la generación nueva los regalos para su persona que la
+      // protección aún no había pasado al bloque secreto (nunca se pintaron
+      // aquí). Este común no sube a la lista de la familia: es otra generación.
+      final previous = await store.readRegistry();
+      // La ficha más reciente de este móvil (un cambio de persona pendiente).
+      DeviceRecord? previousSelf;
+      for (final r in previous?.records ?? const <DeviceRecord>[]) {
+        if (r.deviceId == identity.node &&
+            (previousSelf == null || r.seq > previousSelf.seq)) {
+          previousSelf = r;
+        }
+      }
+      final people = [
+        identity.selfRecipientId,
+        previousSelf?.personId,
+        ...identity.formerSelf,
+        // Las de todas las fichas de este móvil, como la capa de pantalla con
+        // un cambio pendiente (revisión de seguridad, B4).
+        for (final r in previous?.records ?? const <DeviceRecord>[])
+          if (r.deviceId == identity.node) r.personId,
+      ];
+      doc = purgeOwnGiftsOnLeaving(
+        doc,
+        node: identity.node,
+        people: people,
+        // La misma regla que la capa de pantalla: dos dispositivos de la misma
+        // persona, sin nadie más, no se ocultaban nada y no se purga.
+        hadCompany: ownGiftsWereHidden(
+          registry: previous,
+          me: identity.node,
+          people: people,
+          paired: identity.paired,
+        ),
+      );
+      await store.disableRemoteSync();
+      await store.savePendingInviteAcknowledgement(null);
+      await store.setRecoveryRemovalPending(false);
+      // Nada de la generación anterior: ni sus fichas, ni sus slots, ni sus
+      // claves de sorpresa, ni lo que recordaba del servidor. Los ámbitos
+      // locales se quedan y se vuelven a sellar con las claves nuevas.
+      await store.saveRegistry(await own());
+      await store.saveSyncV2State(const V2SyncState().toJson());
+      await store.saveSlots(SlotSet.empty);
+      await keysStore.saveKeyring(identity.listId, SurpriseKeyring.empty);
+    } else if (await store.readRegistry() == null) {
+      await store.saveRegistry(await own());
+    }
+    await _installV2(
+      fam,
+      listId: identity.listId,
+      node: identity.node,
+      key: pending.key,
+      doc: doc,
+    );
+    if (pending.reset) await _markUnpaired();
+    // Un invitado que entró tras el corte (B7) nace con la marca: antes de la
+    // identidad, para que ninguna vuelta abra nunca un formato 1.
+    if (pending.commonFormat > 1) {
+      await store.raiseCommonFormatFloor(pending.commonFormat);
+    }
+    await store.saveSyncV2(
+      SyncIdentityV2(
+        listId: identity.listId,
+        deviceId: identity.node,
+        syncId: pending.syncId,
+        migratedFromV1: pending.fromV1,
+      ),
+    );
+    await store.savePendingV2(null);
+    return true;
+  });
+
   /// Pasa esta familia a v2 (ADR 0004) o la instala desde un emparejamiento
   /// v2: guarda [doc] y la clave de la familia [key] con la identidad de
   /// lista [listId] y nodo [node]. Si ya había una familia de la misma lista
@@ -561,7 +708,32 @@ class FamilyController extends AsyncNotifier<FamilyState> {
     bool setSelfRecipient = false,
     String? selfRecipientId,
   }) => _serial(() async {
-    final current = await _current();
+    await _installV2(
+      await _current(),
+      listId: listId,
+      node: node,
+      key: key,
+      doc: doc,
+      deviceName: deviceName,
+      peerName: peerName,
+      paired: paired,
+      setSelfRecipient: setSelfRecipient,
+      selfRecipientId: selfRecipientId,
+    );
+  });
+
+  Future<void> _installV2(
+    FamilyState current, {
+    required String listId,
+    required String node,
+    required FamilyKey key,
+    required FamilyDoc doc,
+    String deviceName = '',
+    String? peerName,
+    bool paired = false,
+    bool setSelfRecipient = false,
+    String? selfRecipientId,
+  }) async {
     await requireNoPendingRestore(ref);
     final existing = current.identity;
     final same =
@@ -597,7 +769,7 @@ class FamilyController extends AsyncNotifier<FamilyState> {
     if (setSelfRecipient) await _store.saveSelfRecipient(selfRecipientId);
     _adopt(identity, key, reconciled);
     state = AsyncData(FamilyState(doc: reconciled, identity: identity));
-  });
+  }
 
   /// Marca esta familia como emparejada con otro móvil y guarda cómo se llama.
   ///
@@ -625,7 +797,9 @@ class FamilyController extends AsyncNotifier<FamilyState> {
   /// Marca esta familia como sin otros móviles: tras salir de ella o al
   /// estrenar una generación v2 (un `syncId` nuevo), hasta volver a
   /// conectar otro móvil.
-  Future<void> markUnpaired() => _serial(() async {
+  Future<void> markUnpaired() => _serial(_markUnpaired);
+
+  Future<void> _markUnpaired() async {
     final current = await _current();
     final identity = current.identity;
     if (identity == null || (!identity.paired && identity.formerSelf.isEmpty)) {
@@ -636,7 +810,7 @@ class FamilyController extends AsyncNotifier<FamilyState> {
     final next = identity.copyWith(paired: false).withFormerSelf(const {});
     await _store.saveIdentity(next);
     state = AsyncData(current.copyWith(identity: next));
-  });
+  }
 
   /// Cambia el nombre con que este móvil se presenta a los demás. Vacío no
   /// hace nada.
@@ -937,9 +1111,10 @@ class FamilyController extends AsyncNotifier<FamilyState> {
     await _store.clear();
     _clock = null;
     _key = null;
+    _generationReloadPending = false;
     _recipientPurgePending = false;
     state = AsyncData(FamilyState.noFamily());
-  });
+  }, recoverGeneration: false);
 
   /// Mezcla un documento recibido de otro móvil y guarda el resultado.
   ///

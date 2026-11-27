@@ -5,6 +5,7 @@
 @Timeout(Duration(minutes: 2))
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -31,7 +32,10 @@ import 'package:regalos/features/family/application/family_providers.dart';
 import 'package:regalos/features/family/application/self_person_gate.dart';
 import 'package:regalos/features/family/data/device_keys_store.dart';
 import 'package:regalos/features/family/data/family_store.dart';
+import 'package:regalos/features/family/data/generation_store.dart';
+import 'package:regalos/features/family/data/renewal_journal_store.dart';
 import 'package:regalos/features/sync/application/app_sync_v2_local.dart';
+import 'package:regalos/features/sync/application/generation_v2.dart';
 import 'package:regalos/features/sync/application/pairing_v2_controller.dart';
 import 'package:regalos/features/sync/application/pairing_v2_flow.dart';
 import 'package:regalos/features/sync/application/sync_v2_engine.dart';
@@ -40,6 +44,7 @@ import 'package:regalos/features/sync/data/sync_config.dart';
 import 'package:regalos/features/sync/data/sync_transport.dart'
     show SyncFailure, SyncTransportException;
 import 'package:regalos/features/sync/data/sync_transport_common.dart';
+import 'package:regalos/features/sync/data/sync_transport_v2.dart';
 
 import '../helpers/fake_sync_server.dart';
 import '../helpers/fake_worker_v2.dart';
@@ -48,6 +53,36 @@ import '../helpers/pump_app.dart';
 import 'sync_harness.dart';
 
 final _localProvider = FutureProvider((ref) => AppSyncV2Local.load(ref));
+final _ensureV2Provider = FutureProvider(ensureV2Family);
+final _resetV2Provider = FutureProvider(
+  (ref) => ref.read(v2FamilyLockProvider).run(() => startNewGenerationV2(ref)),
+);
+
+const _giver = Giver(
+  id: 'giver-leo',
+  name: 'Leo',
+  colorIndex: 0,
+  householdPays: false,
+  archived: false,
+);
+
+class _PauseLocalPreparation extends MemoryFileStore {
+  _PauseLocalPreparation({this.file = renewalJournalFile});
+
+  final String file;
+  bool armed = false;
+  final captured = Completer<void>();
+  final release = Completer<void>();
+
+  @override
+  Future<void> writeAtomic(String name, Uint8List bytes) async {
+    if (armed && name == file && !captured.isCompleted) {
+      captured.complete();
+      await release.future;
+    }
+    await super.writeAtomic(name, bytes);
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -56,15 +91,19 @@ void main() {
 
   setUp(() => worker = FakeWorkerV2());
 
-  Future<FakePhone> phone() async {
+  Future<FakePhone> phone({
+    MemoryFileStore? files,
+    SyncV2Transport? transport,
+  }) async {
     final p = FakePhone(
+      files: files,
       prefs: await mockPrefs(),
       syncHost: null,
       extraOverrides: [
         syncHostProvider.overrideWithValue(kTestHost),
         invitationOriginProvider.overrideWithValue(''),
         syncTransportProvider.overrideWithValue(FakeSyncServer().connect()),
-        syncV2TransportProvider.overrideWithValue(worker.client()),
+        syncV2TransportProvider.overrideWithValue(transport ?? worker.client()),
         syncTimingProvider.overrideWithValue(kFastTiming),
       ],
     );
@@ -98,8 +137,11 @@ void main() {
   }
 
   /// A: familia con Aritz (su móvil), Nora y Leo, y un regalo para cada uno.
-  Future<FakePhone> owner() async {
-    final a = await phone();
+  Future<FakePhone> owner({
+    MemoryFileStore? files,
+    SyncV2Transport? transport,
+  }) async {
+    final a = await phone(files: files, transport: transport);
     final fam = family(a);
     await fam.createFamily(deviceName: 'Aritz');
     for (final (id, name) in [
@@ -478,6 +520,10 @@ void main() {
       reason: 'el anfitrión no la acepta',
     );
     expect(a.container.read(pairingV2HostProvider).guestOutdated, isTrue);
+    // La limpieza de la invitación puede cambiar la generación del registro.
+    await a.container
+        .read(syncControllerProvider.notifier)
+        .dropV2InviteCopy(onlyMarked: true);
     final view = await viewOf(a);
     expect(view.members, [view.me]);
   });
@@ -812,13 +858,29 @@ void main() {
   test('m1: un invitado 1.0.5 recién instalado responde sin persona: el '
       'anfitrión pide actualizar y cancela la invitación', () async {
     // El Worker deja pasar la respuesta sin persona hasta el anfitrión.
-    final a = await owner();
+    final cleanupStarted = Completer<void>();
+    final releaseCleanup = Completer<void>();
+    final client = worker.client();
+    final a = await owner(
+      transport: SyncV2Client(
+        base: client.base,
+        openSocket: client.openSocket,
+        sendRequest: (method, uri, {body, headers = const {}}) async {
+          if (method == 'DELETE' && uri.pathSegments.length == 3) {
+            cleanupStarted.complete();
+            await releaseCleanup.future;
+          }
+          return client.sendRequest(method, uri, body: body, headers: headers);
+        },
+      ),
+    );
     final host = a.container.read(pairingV2HostProvider.notifier);
     await host.start(guestPerson: 'nora');
     final link = a.container.read(pairingV2HostProvider).link!;
     final inviteId = link.substring(link.indexOf('#') + 1);
+    final store = a.container.read(familyStoreProvider);
+    final old = (await store.readSyncV2())!;
     // Lo que manda un 1.0.5 sin familia: «Elegir después», sin la marca.
-    final client = worker.client();
     final offer = await PairingOffer.fromJson(
       (await client.getOffer(inviteId)).offer,
     );
@@ -838,17 +900,120 @@ void main() {
       answer: answer,
       verifier: await keys.serviceCredentialVerifier(),
     );
-    await eventually(
-      () =>
-          a.container.read(pairingV2HostProvider).phase ==
-          PairingV2HostPhase.failed,
-      reason: 'el anfitrión deja de esperar',
+    final sync = a.container.read(syncControllerProvider.notifier);
+    try {
+      await cleanupStarted.future.timeout(const Duration(seconds: 8));
+      final rejected = a.container.read(pairingV2HostProvider);
+      expect(rejected.phase, PairingV2HostPhase.failed);
+      expect(rejected.guestOutdated, isTrue);
+      expect(worker.calls['DELETE invite'] ?? 0, greaterThan(0));
+      expect(worker.hasList(old.syncId), isTrue);
+      expect((await store.readSyncV2())!.syncId, old.syncId);
+      final before = await viewOf(a);
+      expect(before.members, [before.me]);
+      expect(worker.devicesOf(old.syncId), {before.me: false});
+      await family(a).upsertGiver(_giver);
+    } finally {
+      releaseCleanup.complete();
+      await sync.dropV2InviteCopy(onlyMarked: true);
+    }
+    final view = await viewOf(a);
+    expect(view.members, [view.me]);
+    expect(worker.hasList(old.syncId), isFalse);
+    expect((await store.readSyncV2())!.syncId, isNot(old.syncId));
+    expect(
+      (await store.load())!.doc.record(Collections.givers, _giver.id)?['name'],
+      _giver.name,
     );
-    expect(a.container.read(pairingV2HostProvider).guestOutdated, isTrue);
-    expect(worker.calls['DELETE invite'] ?? 0, greaterThan(0));
-    // Nadie ha entrado.
-    expect((await viewOf(a)).members, [(await viewOf(a)).me]);
   });
+
+  test(
+    'a public edit during local generation preparation survives activation',
+    () async {
+      final files = _PauseLocalPreparation();
+      final a = await owner(files: files);
+      final host = a.container.read(pairingV2HostProvider.notifier);
+      await host.start(guestPerson: 'nora');
+      final generations = a.container.read(generationStoreProvider);
+      final sourceId = await generations.adoptCurrent();
+      files.armed = true;
+      final cleanup = host.cancel();
+      Future<void>? edit;
+      try {
+        // The journal write comes after preparation captured the source doc.
+        await files.captured.future.timeout(const Duration(seconds: 8));
+        edit = family(a).upsertGiver(_giver);
+        final finished = await Future.any([
+          edit.then((_) => true),
+          Future<bool>.delayed(const Duration(milliseconds: 150), () => false),
+        ]);
+        expect(finished, isFalse);
+      } finally {
+        files.release.complete();
+        await cleanup;
+        await edit;
+      }
+      expect(await generations.activeSyncId(), isNot(sourceId));
+      final store = a.container.read(familyStoreProvider);
+      expect(
+        (await store.load())!.doc.record(
+          Collections.givers,
+          _giver.id,
+        )?['name'],
+        _giver.name,
+      );
+      final current = a.container.read(familyControllerProvider).value!.doc;
+      expect(
+        current.record(Collections.givers, _giver.id)?['name'],
+        _giver.name,
+      );
+    },
+  );
+
+  test(
+    'a public edit survives a reset without a generation directory',
+    () async {
+      final files = _PauseLocalPreparation(file: 'family.registry');
+      final a = await owner(files: files);
+      await a.container.read(_ensureV2Provider.future);
+      final generations = a.container.read(generationStoreProvider);
+      final store = a.container.read(familyStoreProvider);
+      final source = (await store.readSyncV2())!;
+      expect(await generations.activeSyncId(), isNull);
+
+      files.armed = true;
+      final reset = a.container.read(_resetV2Provider.future);
+      Future<void>? edit;
+      try {
+        // The replacement registry is written after finishPendingV2 reads
+        // the source document, but before the new family is saved.
+        await files.captured.future.timeout(const Duration(seconds: 8));
+        expect(await store.readPendingV2(), containsPair('reset', true));
+        edit = family(a).upsertGiver(_giver);
+        await Future.any([
+          edit,
+          Future<void>.delayed(const Duration(seconds: 2)),
+        ]);
+      } finally {
+        files.release.complete();
+        await reset;
+        await edit;
+      }
+
+      expect(await generations.activeSyncId(), isNull);
+      expect((await store.readSyncV2())!.syncId, isNot(source.syncId));
+      final saved = (await store.load())!.doc;
+      final current = a.container
+          .read(familyControllerProvider)
+          .requireValue
+          .doc;
+      expect(saved.record(Collections.givers, _giver.id)?['name'], _giver.name);
+      expect(
+        current.record(Collections.givers, _giver.id)?['name'],
+        _giver.name,
+      );
+    },
+  );
 
   // ------------------------------------ QA 1.0.6, M1: el anfitrión solo
 

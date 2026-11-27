@@ -77,6 +77,7 @@ void main() {
       await settle(tester);
       expect(find.text(title), findsNWidgets(2));
     },
+    inlineDocumentTasks: true,
     size: tall,
   );
 
